@@ -1,0 +1,61 @@
+### Cardano Template and Ecosystem Monitoring
+
+The goal of this repository is to implement the 21 most common blockchain use cases for Cardano using as many on-chain and off-chain frameworks and languages as possible. This will allow developers to use these implementations as templates for their own projects while also enabling us to monitor the Cardano ecosystem and its development. Essentially, this project aims to create a map and ecosystem monitoring tool for combinations of on-chain and off-chain technologies, as well as an ecosystem readiness check for upcoming Cardano hard forks.
+
+## 🎡 Overview
+
+This repository is divided into directories based on use cases and the technologies used for their implementation. The structure is as follows:
+
+- `/use-case/onchain/<technology>/`: Contains the on-chain implementation of a specific use case using a particular technology (e.g. aiken, scalus, plu-ts, etc.).
+- `/use-case/offchain/<framework>/`: Contains the off-chain implementation of the same use case using a specific framework (e.g. meshjs, evolutionsdk, cardano-client-lib, etc.).
+
+For example:
+- `/payment-splitter/onchain/aiken/`
+- `/payment-splitter/offchain/meshjs/`
+
+The use cases implemented in this repository are based on the research paper [Smart Contract Languages: A Comparative Analysis](https://arxiv.org/abs/2404.04129) by Massimo Bartoletti et al. (2024). An on-chain implementation for Cardano in `aiken` and in other languages for other blockchain ecosystems are already available in the [rosetta-smart-contracts repository](https://github.com/blockchain-unica/rosetta-smart-contracts).
+
+### Use Cases
+
+The 21 use cases identified in the research paper are as follows:
+
+1. [Bet](bet/README.md)  
+2. [Simple transfer](simple-transfer/README.md)  
+3. [Token transfer](token-transfer/README.md)
+4. [HTLC](htlc/README.md)  
+5. [Escrow](escrow/README.md)  
+6. [Auction](auction/README.md)  
+7. [Crowdfund](crowdfund/README.md)  
+8. [Vault](vault/README.md)
+9. [Vesting](vesting/README.md)  
+10. [Storage](storage/README.md)  
+11. [Simple wallet](simple-wallet/README.md)  
+12. [Price Bet](pricebet/README.md)  
+13. [Payment splitter](payment-splitter/README.md)
+14. [Lottery](lottery/README.md)  
+15. [Constant-product AMM](constant-product-amm/README.md)  
+16. [Upgradeable Proxy](upgradable-proxy/README.md)  
+17. Factory 
+18. [Decentralized identity](decentralized-identity/README.md)  
+19. [Editable NFT](editable-nft/README.md)  
+20. [Anonymous Data](anonymous-data/README.md)  
+21. [Atomic Transactions](atomic-transaction/README.md)
+
+### 🛠 Running a Use Case
+
+Each use case is implemented in its own directory. To run a specific use case, navigate to its directory and follow the instructions provided in its README file. (E.g. [here](payment-splitter/README.md))
+
+## 💙 Contributing
+
+We welcome contributions from the community! If you would like to contribute, please follow these steps:
+
+1. Open an issue to discuss your proposed changes or additions.
+2. Fork the repository and create a new branch for your changes.
+3. Submit a pull request with a detailed description of your changes.
+
+Please read the [Contributing Guidelines](CONTRIBUTING.md) before submitting your pull request. Thank you for contributing!
+
+## 📚 Additional Documents
+
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security](SECURITY.md)

@@ -295,6 +295,22 @@
     - "docs/**/*.md"
   description: Scala 3 on-chain and off-chain platform
 
+- name: Cardano Use Case Templates
+  repo: https://github.com/cardano-foundation/cardano-template-and-ecosystem-monitoring.git
+  docs_path: "."
+  format: markdown
+  format_overrides:
+    "**/*.ak": aiken
+  category: smart-contracts
+  priority: high
+  glob_patterns:
+    - README.md
+    - "**/README.md"
+    - "**/*.ak"
+    - "**/*.ts"
+    - "**/*.java"
+  description: 19 generic blockchain use-case templates implemented across Aiken (on-chain) and Mesh/Evolution/cardano-client-lib (off-chain). Foundation reference set.
+
 - name: CIP-113 Programmable Tokens
   repo: https://github.com/cardano-foundation/cip113-programmable-tokens.git
   docs_path: "."

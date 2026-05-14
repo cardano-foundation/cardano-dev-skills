@@ -291,7 +291,7 @@ CIP-30 uses CBOR hex encoding for most data types:
 | Transaction | CBOR hex | SDK or serialization library |
 | Witness set | CBOR hex | SDK or serialization library |
 
-Using an SDK (Mesh, Lucid Evolution) avoids manual CBOR decoding.
+Using an SDK (Mesh, Evolution SDK) avoids manual CBOR decoding.
 
 ## Error Handling
 

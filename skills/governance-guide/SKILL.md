@@ -103,7 +103,7 @@ Cardano governance has three pillars:
 
 4. **SDK support**:
    - **Mesh SDK**: Governance transaction builders available
-   - **Lucid Evolution**: Conway-era governance support
+   - **Evolution SDK**: Conway-era governance support
    - **cardano-cli**: Full governance command set (`cardano-cli conway governance ...`)
 
 #### For DReps

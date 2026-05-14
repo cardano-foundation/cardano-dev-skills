@@ -43,7 +43,7 @@ Help the developer integrate a Cardano browser wallet into their web application
 Ask the developer (if not already clear):
 
 - **What framework are you using?** (react | nextjs | svelte | vue | vanilla-js)
-- **Which SDK do you prefer?** (mesh | lucid-evolution | none/raw CIP-30)
+- **Which SDK do you prefer?** (mesh | evolution-sdk | none/raw CIP-30)
 - **What do you need to do?** (connect only | read state | sign transactions | governance)
 - **Which network?** (mainnet | preprod | preview | local devnet)
 
@@ -299,10 +299,10 @@ const signedTx = await wallet.signTx(tx);
 const txHash = await wallet.submitTx(signedTx);
 ```
 
-#### With Lucid Evolution
+#### With Evolution SDK
 
 ```typescript
-import { Lucid, Blockfrost } from "@lucid-evolution/lucid";
+import { Lucid, Blockfrost } from "@evolution-sdk/lucid";
 
 const lucid = await Lucid(
   new Blockfrost("https://cardano-preprod.blockfrost.io/api", projectId),
@@ -374,4 +374,4 @@ Not all wallets support CIP-95 yet. Check wallet compatibility before relying on
 - CIP-30 specification: https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030
 - CIP-95 specification: https://github.com/cardano-foundation/CIPs/tree/master/CIP-0095
 - Mesh SDK docs: https://meshjs.dev
-- Lucid Evolution: https://github.com/Anastasia-Labs/lucid-evolution
+- Evolution SDK: https://evolution-sdk.dev (live fork of the now-dead Lucid Evolution)

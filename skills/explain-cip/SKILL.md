@@ -169,7 +169,7 @@ standard for dApp-wallet interaction in browsers.
 **Common pitfalls:**
 - Always check `window.cardano` exists before accessing wallet properties
 - Handle the case where the user rejects the `enable()` prompt
-- CBOR encoding/decoding — use an SDK (Mesh, Lucid) rather than raw CIP-30
+- CBOR encoding/decoding — use an SDK (Mesh, Evolution SDK) rather than raw CIP-30
 
 ### CIP-57: Plutus Contract Blueprint (CIP-0057)
 
@@ -181,7 +181,7 @@ SDKs use blueprints to create type-safe interfaces for validator interaction.
 
 **Developer impact:**
 - Aiken produces `plutus.json` after compilation — this is the CIP-57 blueprint
-- SDKs (Mesh, Lucid/Translucent) can read the blueprint to generate typed transaction
+- SDKs (Mesh, Evolution SDK) can read the blueprint to generate typed transaction
   builders
 - Blueprints enable code generation and type safety across the on-chain/off-chain boundary
 - Includes validator hashes, parameter schemas, and datum/redeemer definitions

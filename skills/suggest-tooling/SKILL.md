@@ -1,7 +1,7 @@
 ---
 name: suggest-tooling
 description: >-
-  Recommends Cardano developer tools and SDKs for a specific project. Triggers: "which SDK", "recommend tools", "best library for", "Cardano SDK", "Mesh vs Lucid", "Aiken vs Plutus", "what tools should I use", "Cardano ecosystem".
+  Recommends Cardano developer tools and SDKs for a specific project. Triggers: "which SDK", "recommend tools", "best library for", "Cardano SDK", "Mesh vs Evolution SDK", "Aiken vs Plutus", "what tools should I use", "Cardano ecosystem".
 allowed-tools: Read Grep Glob
 ---
 
@@ -14,7 +14,7 @@ Help the developer choose the right tools, SDKs, and libraries for their Cardano
 ## When to use
 
 - Developer is starting a new Cardano project and needs tool recommendations
-- Comparing SDKs (Mesh vs Lucid Evolution vs PyCardano vs others)
+- Comparing SDKs (Mesh vs Evolution SDK vs PyCardano vs others)
 - Choosing a smart contract language (Aiken vs Plutus vs others)
 - Selecting infrastructure components (indexers, APIs, testing tools)
 - Evaluating wallet integration options
@@ -30,7 +30,7 @@ Help the developer choose the right tools, SDKs, and libraries for their Cardano
 ## Key principles
 
 1. **Start from the project requirements, not the tools.** Understand what they are building before recommending.
-2. **Language preference matters.** A Python developer should know about PyCardano; a TypeScript developer about Mesh and Lucid Evolution.
+2. **Language preference matters.** A Python developer should know about PyCardano; a TypeScript developer about Mesh and Evolution SDK.
 3. **Recommend production-ready tools first.** Flag experimental tools clearly.
 4. **Fewer tools is better.** Do not recommend 10 options when 2 will do.
 5. **Consider the full stack.** Smart contracts, off-chain code, infrastructure, testing, and deployment are all part of the picture.
@@ -85,17 +85,16 @@ File: skills/integration/suggest-tooling/references/ecosystem-map.md
 | SDK | Language | Best for | Status |
 |---|---|---|---|
 | **Mesh SDK** | TypeScript/JS | Full-stack dApp development, beginners | Production |
-| **Lucid Evolution** | TypeScript/JS | Lightweight tx building, advanced users | Production |
+| **Evolution SDK** | TypeScript/JS | Type-safe, Effect-based composable tx building; lightweight alternative to Mesh (live fork of the now-dead Lucid Evolution) | Production |
 | **PyCardano** | Python | Python backends, scripting, data science | Production |
 | **Cardano CLI** | Shell | DevOps, scripting, node operators | Production |
 | **cardano-js-sdk** | TypeScript | Lace wallet ecosystem, full node interaction | Production |
-| **Evolution SDK** | TypeScript | Type-safe, Effect-based composable tx building | Production |
 | **Blaze** | TypeScript | Lightweight, modular tx building | Production |
 | **Cardano Java Client Lib** | Java/Kotlin | JVM backends, Android | Production |
 | **Pallas** | Rust | High-performance, custom node interaction | Production |
 
 **Default recommendation by language**:
-- TypeScript/JavaScript: **Mesh SDK** (comprehensive, well-documented, great for beginners) or **Lucid Evolution** (lighter, more control)
+- TypeScript/JavaScript: **Mesh SDK** (comprehensive, well-documented, great for beginners) or **Evolution SDK** (lighter, more control)
 - Python: **PyCardano**
 - Rust: **Pallas**
 - Java/Kotlin: **Cardano Java Client Lib**
@@ -146,7 +145,7 @@ Based on the project requirements, recommend a concrete stack. Example stacks:
 
 #### DeFi Protocol (TypeScript, advanced)
 - Smart contracts: **Aiken**
-- Off-chain: **Lucid Evolution** or **Blaze**
+- Off-chain: **Evolution SDK** or **Blaze**
 - Infrastructure: **Ogmios + Kupo** (self-hosted)
 - Testing: Aiken property tests + Preview testnet
 - Wallet: CIP-30 direct integration
@@ -197,7 +196,6 @@ For each recommendation, briefly note:
 - Cardano developer portal: https://developers.cardano.org
 - Aiken: https://aiken-lang.org
 - Mesh SDK: https://meshjs.dev
-- Lucid Evolution: https://github.com/Anastasia-Labs/lucid-evolution
-- Evolution SDK: https://evolution-sdk.dev
+- Evolution SDK: https://evolution-sdk.dev (live fork of the now-dead Lucid Evolution)
 - PyCardano: https://pycardano.readthedocs.io
 - Blockfrost: https://blockfrost.io

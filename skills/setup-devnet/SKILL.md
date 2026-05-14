@@ -124,7 +124,7 @@ docker run --rm \
 
 1. **Build**: `aiken build` compiles validators to UPLC
 2. **Generate blueprint**: Produces `plutus.json` with compiled scripts and parameter schemas
-3. **Deploy**: Use an off-chain SDK (Mesh, Lucid Evolution, PyCardano) to create a transaction referencing the script
+3. **Deploy**: Use an off-chain SDK (Mesh, Evolution SDK, PyCardano) to create a transaction referencing the script
 4. **Test on-chain**: Submit to local devnet, query results, iterate
 
 ```bash

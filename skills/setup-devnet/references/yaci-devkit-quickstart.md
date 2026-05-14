@@ -124,10 +124,10 @@ import { YaciProvider } from "@meshsdk/core";
 const provider = new YaciProvider("http://localhost:10000/api/v1");
 ```
 
-### Lucid Evolution (TypeScript)
+### Evolution SDK (TypeScript)
 
 ```typescript
-import { Lucid, Kupmios } from "@lucid-evolution/lucid";
+import { Lucid, Kupmios } from "@evolution-sdk/lucid";
 
 // If running Ogmios + Kupo alongside DevKit
 const lucid = await Lucid(

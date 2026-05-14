@@ -82,3 +82,17 @@
   outline: 2px solid var(--sl-color-accent);
   outline-offset: 2px;
 }
+
+/* Auto-catalog tables: keep identifiers in the first column on one line so
+ * the table doesn't squash skill/source names to a single character per row
+ * when descriptions are long. */
+.sl-markdown-content table td code,
+.sl-markdown-content table th code {
+  white-space: nowrap;
+}
+
+/* Give the first column some breathing room in the dense catalogs */
+.sl-markdown-content table th:first-child,
+.sl-markdown-content table td:first-child {
+  min-width: 14ch;
+}

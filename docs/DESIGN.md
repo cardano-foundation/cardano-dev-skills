@@ -109,13 +109,34 @@ These additions follow the principle: ship small, observe, iterate.
 
 ## Decision 11: Hook strategy
 
-**Decision:** Use Claude Code's hook surface to make the plugin behave well by default, without requiring users to explicitly invoke skills.
+**Decision:** Use Claude Code's hook surface for *unconditional, low-information signals* — doc-freshness checks, project-context detection, install-topology-aware refresh hints. Reserve behavioral directives (telling Claude how to consult the skill set on every prompt) for `CLAUDE.md` content installed by the `cardano-context` meta-skill (see Decision 12).
 
 **Shipped:**
-- `SessionStart` (`hooks/check-docs.sh`) — reports doc freshness on every session start in any directory.
+- `SessionStart` (`hooks/check-docs.sh`):
+  - Reports doc-corpus freshness on every session start.
+  - Detects the `cardano-dev-skills` directive block in cwd `CLAUDE.md` and prints either a confirmation or a `/cardano-context` nudge.
+  - Differentiates refresh hints by install topology (local clone vs marketplace cache).
+  - Opportunistic behind-upstream check via `FETCH_HEAD` (no network on session start).
 
-**In active development (separate session):**
-- `UserPromptSubmit` (`hooks/cardano-router.sh`) — keyword-matches the user's prompt against a Cardano-specific term list and injects an `additionalContext` reminder to consult skills/docs first.
-- `PostToolUse` (`hooks/log-tool.sh`) — logs which bundled docs/skills get consulted per session, to a local `~/.cardano-dev-skills/usage.log`. Backs `scripts/usage-report.sh`.
+**Considered and rejected:** A `UserPromptSubmit` hook that keyword-matches Cardano terms and injects an `additionalContext` reminder. Description in Decision 12 of why a meta-skill writing to `CLAUDE.md` is structurally better than a per-prompt regex.
 
-**Why hooks (not just skills):** Skill matching depends on description-based heuristics — vague prompts often miss. Hooks fire unconditionally on every prompt and provide a reliable nudge. Skills remain the right surface for *how* to do something; hooks ensure they get consulted in the first place.
+**Deferred:** Local usage observability (`PostToolUse` logging of which bundled docs/skills get consulted per session, backed by `scripts/usage-report.sh`). Useful for tuning skill descriptions and surfacing unmatched prompts; orthogonal to the consultation-directive problem solved by `cardano-context`.
+
+**Why hooks for the shipped piece:** The freshness check produces *information*, not behavior — `SessionStart` is the right surface (no user invocation, plain-text output about plugin state). Hooks should not mutate prompts or inject behavioral directives — that role belongs to `CLAUDE.md` content, durably installed per-project by `cardano-context`.
+
+## Decision 12: Meta-skills as an exception to workflow taxonomy
+
+**Decision:** Most skills encode a developer *workflow* (write a validator, build a transaction, debug a failing tx). One skill — `cardano-context` — is a **meta-skill**: its only job is to configure Claude's behavior in the user's project by writing a delimited, versioned directive block to `CLAUDE.md`. It produces no Cardano output and teaches no Cardano concept; it exists purely to ensure the workflow skills and bundled corpus get consulted.
+
+**Why a meta-skill is needed at all:** Description-based skill auto-matching is unreliable. Even with the plugin installed globally, Claude often answers Cardano questions from training data because (a) skill descriptions don't fire on every relevant phrasing, and (b) Claude's confidence can override the soft "check if a skill matches" prompt — particularly for prompts where it *feels* sure (and silently uses a deprecated SDK name or pre-Conway governance model). A durable per-project directive in `CLAUDE.md` hardens the prior: re-injected every conversation turn, survives compaction, distributes to teammates via git.
+
+**Why this is an exception to Decision 2:** Decision 2 categorizes skills by developer workflow. `cardano-context` doesn't fit — its "workflow" is one-time project setup, not Cardano development. Treating it as just another workflow skill obscures its purpose and its different invocation pattern (run explicitly once per project; not auto-matched on related developer prompts).
+
+**How to recognize a meta-skill:** It modifies the user's *environment* (`CLAUDE.md`, settings, project files) rather than producing Cardano code, advice, or analysis. Meta-skills:
+- Are run explicitly by the user, typically once per project.
+- Are idempotent on re-run; updates are versioned and atomic.
+- Distribute their effect via git (committed file) rather than per-session state.
+
+**Alternative considered:** A `UserPromptSubmit` hook that keyword-matches Cardano terms and injects a consultation reminder. Rejected because (a) regex on user prompts has no context — false positives ("compare Hydra vs Lightning") and false negatives (paraphrased Cardano questions) are both common, (b) injected `additionalContext` reminders get dropped by compaction; `CLAUDE.md` content is re-injected every turn, (c) hidden hook behavior is hard to debug or override per-project; `CLAUDE.md` is inspectable and editable, (d) the skill approach distributes via git, so teammates inherit the directive on clone without configuring their plugin install.
+
+**Future meta-skills:** Likely candidates if the pattern stays useful — a deprecation/anti-pattern cheatsheet, project-level Cardano coding conventions. All would follow the same shape: produce a delimited versioned block, write to a project file, idempotent on re-run.

@@ -1,40 +1,26 @@
 ---
 title: Certificate.ts
-nav_order: 36
+nav_order: 35
 parent: Modules
 ---
 
 ## Certificate overview
 
+Certificate types and schemas for Cardano Conway-era transactions.
+
+Added in v2.0.0
+
 ---
 
 <h2 class="text-delta">Table of contents</h2>
 
-- [encoding](#encoding)
-  - [toCBORBytes](#tocborbytes)
-  - [toCBORHex](#tocborhex)
-- [model](#model)
-  - [Certificate (type alias)](#certificate-type-alias)
-- [parsing](#parsing)
-  - [fromCBORBytes](#fromcborbytes)
-  - [fromCBORHex](#fromcborhex)
-- [predicates](#predicates)
-  - [is](#is)
-- [schemas](#schemas)
-  - [Certificate](#certificate)
-  - [FromCBORBytes](#fromcborbytes-1)
-  - [FromCBORHex](#fromcborhex-1)
-  - [FromCDDL](#fromcddl)
-- [testing](#testing)
-  - [arbitrary](#arbitrary)
-- [utils](#utils)
+- [certificate](#certificate)
   - [AuthCommitteeHotCert (class)](#authcommitteehotcert-class)
     - [toJSON (method)](#tojson-method)
     - [toString (method)](#tostring-method)
     - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method)
     - [[Equal.symbol] (method)](#equalsymbol-method)
     - [[Hash.symbol] (method)](#hashsymbol-method)
-  - [CDDLSchema](#cddlschema)
   - [PoolRegistration (class)](#poolregistration-class)
     - [toJSON (method)](#tojson-method-1)
     - [toString (method)](#tostring-method-1)
@@ -131,8 +117,913 @@ parent: Modules
     - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method-16)
     - [[Equal.symbol] (method)](#equalsymbol-method-16)
     - [[Hash.symbol] (method)](#hashsymbol-method-16)
+- [encoding](#encoding)
+  - [toCBORBytes](#tocborbytes)
+  - [toCBORHex](#tocborhex)
+- [model](#model)
+  - [Certificate (type alias)](#certificate-type-alias)
+- [parsing](#parsing)
+  - [fromCBORBytes](#fromcborbytes)
+  - [fromCBORHex](#fromcborhex)
+- [predicates](#predicates)
+  - [is](#is)
+- [schemas](#schemas)
+  - [Certificate](#certificate-1)
+  - [FromCBORBytes](#fromcborbytes-1)
+  - [FromCBORHex](#fromcborhex-1)
+  - [FromCDDL](#fromcddl)
+- [testing](#testing)
+  - [arbitrary](#arbitrary)
+- [utils](#utils)
+  - [CDDLSchema](#cddlschema)
 
 ---
+
+# certificate
+
+## AuthCommitteeHotCert (class)
+
+Authorize a committee hot credential (CDDL: auth_committee_hot_cert = 14).
+
+**Signature**
+
+```ts
+export declare class AuthCommitteeHotCert
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## PoolRegistration (class)
+
+Register a stake pool (CDDL: pool_registration = 3).
+
+**Signature**
+
+```ts
+export declare class PoolRegistration
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## PoolRetirement (class)
+
+Retire a stake pool at a given epoch (CDDL: pool_retirement = 4).
+
+**Signature**
+
+```ts
+export declare class PoolRetirement
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## RegCert (class)
+
+Conway-era stake registration with deposit (CDDL: reg_cert = 7).
+
+**Signature**
+
+```ts
+export declare class RegCert
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## RegDrepCert (class)
+
+Register as a DRep (CDDL: reg_drep_cert = 16).
+
+**Signature**
+
+```ts
+export declare class RegDrepCert
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## ResignCommitteeColdCert (class)
+
+Resign a committee cold credential (CDDL: resign_committee_cold_cert = 15).
+
+**Signature**
+
+```ts
+export declare class ResignCommitteeColdCert
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## StakeDelegation (class)
+
+Delegate stake to a pool (CDDL: stake_delegation = 2).
+
+**Signature**
+
+```ts
+export declare class StakeDelegation
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## StakeDeregistration (class)
+
+Deregister a stake credential (CDDL: stake_deregistration = 1).
+
+**Signature**
+
+```ts
+export declare class StakeDeregistration
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## StakeRegDelegCert (class)
+
+Register stake and delegate to a pool in one certificate (CDDL: stake_reg_deleg_cert = 11).
+
+**Signature**
+
+```ts
+export declare class StakeRegDelegCert
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## StakeRegistration (class)
+
+Register a stake credential (CDDL: stake_registration = 0).
+
+**Signature**
+
+```ts
+export declare class StakeRegistration
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## StakeVoteDelegCert (class)
+
+Delegate stake to a pool and voting rights to a DRep (CDDL: stake_vote_deleg_cert = 10).
+
+**Signature**
+
+```ts
+export declare class StakeVoteDelegCert
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## StakeVoteRegDelegCert (class)
+
+Register stake, delegate to a pool, and delegate voting rights to a DRep (CDDL: stake_vote_reg_deleg_cert = 13).
+
+**Signature**
+
+```ts
+export declare class StakeVoteRegDelegCert
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## UnregCert (class)
+
+Conway-era stake deregistration with deposit refund (CDDL: unreg_cert = 8).
+
+**Signature**
+
+```ts
+export declare class UnregCert
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## UnregDrepCert (class)
+
+Unregister as a DRep (CDDL: unreg_drep_cert = 17).
+
+**Signature**
+
+```ts
+export declare class UnregDrepCert
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## UpdateDrepCert (class)
+
+Update DRep metadata anchor (CDDL: update_drep_cert = 18).
+
+**Signature**
+
+```ts
+export declare class UpdateDrepCert
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## VoteDelegCert (class)
+
+Delegate voting rights to a DRep (CDDL: vote_deleg_cert = 9).
+
+**Signature**
+
+```ts
+export declare class VoteDelegCert
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## VoteRegDelegCert (class)
+
+Register stake and delegate voting rights to a DRep (CDDL: vote_reg_deleg_cert = 12).
+
+**Signature**
+
+```ts
+export declare class VoteRegDelegCert
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
 
 # encoding
 
@@ -998,54 +1889,6 @@ Added in v2.0.0
 
 # utils
 
-## AuthCommitteeHotCert (class)
-
-**Signature**
-
-```ts
-export declare class AuthCommitteeHotCert
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
 ## CDDLSchema
 
 **Signature**
@@ -1209,772 +2052,4 @@ export declare const CDDLSchema: Schema.Union<
     >
   ]
 >
-```
-
-## PoolRegistration (class)
-
-**Signature**
-
-```ts
-export declare class PoolRegistration
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
-## PoolRetirement (class)
-
-**Signature**
-
-```ts
-export declare class PoolRetirement
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
-## RegCert (class)
-
-**Signature**
-
-```ts
-export declare class RegCert
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
-## RegDrepCert (class)
-
-**Signature**
-
-```ts
-export declare class RegDrepCert
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
-## ResignCommitteeColdCert (class)
-
-**Signature**
-
-```ts
-export declare class ResignCommitteeColdCert
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
-## StakeDelegation (class)
-
-**Signature**
-
-```ts
-export declare class StakeDelegation
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
-## StakeDeregistration (class)
-
-**Signature**
-
-```ts
-export declare class StakeDeregistration
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
-## StakeRegDelegCert (class)
-
-**Signature**
-
-```ts
-export declare class StakeRegDelegCert
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
-## StakeRegistration (class)
-
-**Signature**
-
-```ts
-export declare class StakeRegistration
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
-## StakeVoteDelegCert (class)
-
-**Signature**
-
-```ts
-export declare class StakeVoteDelegCert
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
-## StakeVoteRegDelegCert (class)
-
-**Signature**
-
-```ts
-export declare class StakeVoteRegDelegCert
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
-## UnregCert (class)
-
-**Signature**
-
-```ts
-export declare class UnregCert
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
-## UnregDrepCert (class)
-
-**Signature**
-
-```ts
-export declare class UnregDrepCert
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
-## UpdateDrepCert (class)
-
-**Signature**
-
-```ts
-export declare class UpdateDrepCert
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
-## VoteDelegCert (class)
-
-**Signature**
-
-```ts
-export declare class VoteDelegCert
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
-```
-
-## VoteRegDelegCert (class)
-
-**Signature**
-
-```ts
-export declare class VoteRegDelegCert
-```
-
-### toJSON (method)
-
-**Signature**
-
-```ts
-toJSON()
-```
-
-### toString (method)
-
-**Signature**
-
-```ts
-toString(): string
-```
-
-### [Inspectable.NodeInspectSymbol] (method)
-
-**Signature**
-
-```ts
-[Inspectable.NodeInspectSymbol](): unknown
-```
-
-### [Equal.symbol] (method)
-
-**Signature**
-
-```ts
-[Equal.symbol](that: unknown): boolean
-```
-
-### [Hash.symbol] (method)
-
-**Signature**
-
-```ts
-[Hash.symbol](): number
 ```

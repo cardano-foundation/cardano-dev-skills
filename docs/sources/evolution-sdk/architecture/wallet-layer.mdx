@@ -21,8 +21,6 @@ The architecture encodes capability in types. A `ReadOnlyWallet` produces a `Rea
 
 This separation provides security by design: applications needing only monitoring cannot accidentally expose signing capability. The type system makes "read-only" genuinely read-only at the language level, not through defensive programming.
 
-This separation provides security by design: applications needing only monitoring cannot accidentally expose signing capability. The type system makes "read-only" genuinely read-only at the language level, not through defensive programming.
-
 ## Wallet Capability Hierarchy
 
 Wallets separate into two capability levels, with signing wallets further divided by key management approach:
@@ -53,10 +51,10 @@ graph TD
     style Api fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
 `} />
 
-**[1] Wallet Base**: Common operations all wallets support:
+**[1] Wallet Base**: Common operation all wallets support:
 - `address()` - Get wallet address
-- `getUtxos()` - Query UTxOs at wallet address  
-- `getBalance()` - Query total balance
+
+UTxO queries (`getWalletUtxos()`) require a provider and are available on the client, not the wallet itself.
 
 **[2] ReadOnlyWallet**: Base operations only. No signing methods exist. Produced from address or credential without keys.
 
@@ -67,8 +65,6 @@ graph TD
 Three signing implementations:
 - **SeedWallet**: HD wallet from mnemonic (12/15/24 words)
 - **PrivateKeyWallet**: Extended private key (xprv)
-- **ApiWallet**: CIP-30 browser wallet API (Nami, Eternl, Flint, hardware wallets)
-
 - **ApiWallet**: CIP-30 browser wallet API (Nami, Eternl, Flint, hardware wallets)
 
 ## Client Type Determination

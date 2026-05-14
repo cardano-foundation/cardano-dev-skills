@@ -14,6 +14,7 @@
 
 use aiken/builtin
 use aiken/collection/dict/strategy.{InsertStrategy, UnionStrategy}
+use aiken/collection/pairs
 
 /// An opaque `Dict`. The type is opaque because the module maintains some
 /// invariant, namely: there's only one occurrence of a given key in the dictionary.
@@ -34,22 +35,11 @@ pub opaque type Dict<key, value> {
 
 // ## Constructing
 
-/// An empty dictionnary.
+/// An empty dictionary.
 /// ```aiken
 /// dict.to_pairs(dict.empty) == []
 /// ```
 pub const empty: Dict<key, value> = Dict { inner: [] }
-
-const foo = #"666f6f"
-
-const bar = #"626172"
-
-const baz = #"62617a"
-
-const fixture_1 =
-  empty
-    |> insert(foo, 42)
-    |> insert(bar, 14)
 
 /// Like ['from_pairs'](#from_pairs), but from an already sorted list by ascending
 /// keys. This function fails (i.e. halts the program execution) if the list isn't
@@ -128,20 +118,6 @@ fn check_ascending_pairs_with(
   }
 }
 
-test bench_from_ascending_pairs() {
-  let dict =
-    from_ascending_pairs(
-      [
-        Pair("aaaa", 1), Pair("aaab", 9), Pair("aaba", 5), Pair("aabb", 13),
-        Pair("abaa", 2), Pair("abab", 10), Pair("abba", 6), Pair("abbb", 14),
-        Pair("baaa", 3), Pair("baab", 11), Pair("baba", 7), Pair("babb", 15),
-        Pair("bbaa", 4), Pair("bbab", 12), Pair("bbba", 8), Pair("bbbb", 16),
-      ],
-    )
-
-  size(dict) == 16
-}
-
 /// Construct a dictionary from a list of key-value pairs. Note that when a key is present
 /// multiple times, the first occurrence prevails.
 ///
@@ -162,43 +138,132 @@ fn do_from_pairs(xs: Pairs<ByteArray, value>) -> Pairs<ByteArray, value> {
   when xs is {
     [] -> []
     [Pair(k, v), ..rest] ->
-      do_insert_with(do_from_pairs(rest), k, v, strategy.keep_left())
+      do_insert_with(do_from_pairs(rest), k, v, strategy.keep_right())
   }
 }
 
-test from_list_1() {
-  from_pairs([]) == empty
+/// Construct a dictionary from a single key/value pair
+pub fn singleton(key k: ByteArray, value v: value) -> Dict<key, value> {
+  Dict([Pair(k, v)])
 }
 
-test from_list_2() {
-  from_pairs([Pair(foo, 42), Pair(bar, 14)]) == from_pairs(
-    [Pair(bar, 14), Pair(foo, 42)],
+// ## Inspecting Forcibly
+
+/// More efficient version of [`contains`](#contains), which fails if the given dict isn't fully contained in the source one.
+pub fn expect_contains(
+  self: Dict<key, value>,
+  subset: Dict<key, value>,
+  compare: fn(value, value) -> Ordering,
+) -> Void {
+  do_expect_contains(self.inner, subset.inner, compare)
+}
+
+fn do_expect_contains(
+  self: Pairs<ByteArray, value>,
+  subset: Pairs<ByteArray, value>,
+  compare: fn(value, value) -> Ordering,
+) -> Void {
+  when subset is {
+    [] -> Void
+    [head_subset, ..tail_subset] -> {
+      let head_superset, tail_superset <- pairs.expect_pop_until_key_and_then(
+        self,
+        head_subset.1st,
+      )
+      expect Less != compare(head_superset, head_subset.2nd)
+      do_expect_contains(tail_superset, tail_subset, compare)
+    }
+  }
+}
+
+/// More efficient version of [`find`](#find), which fails if the value isn't found in the dict.
+pub fn expect_find(self: Dict<key, value>, value v: value) -> ByteArray {
+  do_expect_find(self.inner, v)
+}
+
+fn do_expect_find(self: Pairs<ByteArray, value>, value v: value) -> ByteArray {
+  let head = builtin.head_list(self)
+  if v == head.2nd {
+    head.1st
+  } else {
+    do_expect_find(builtin.tail_list(self), v)
+  }
+}
+
+/// More efficient version of [`get`](#get), which fails if the key isn't found in the dict.
+pub fn expect_get(self: Dict<key, value>, key k: ByteArray) -> value {
+  do_expect_get(self.inner, k)
+}
+
+fn do_expect_get(self: Pairs<ByteArray, value>, key k: ByteArray) -> value {
+  let Pair(k2, _) as head = builtin.head_list(self)
+  if k == k2 {
+    head.2nd
+  } else {
+    do_expect_get(builtin.tail_list(self), k)
+  }
+}
+
+/// More efficient version of [`has_key`](#has_key), which fails if the key isn't present in the dict
+pub fn expect_has_key(self: Dict<key, value>, key k: ByteArray) -> Void {
+  expect do_expect_has_key(self.inner, k)
+}
+
+fn do_expect_has_key(self: Pairs<ByteArray, value>, key k: ByteArray) -> Bool {
+  builtin.head_list(self).1st == k || do_expect_has_key(
+    builtin.tail_list(self),
+    k,
   )
 }
 
-test from_list_3() {
-  from_pairs([Pair(foo, 42), Pair(bar, 14)]) == fixture_1
-}
-
-test from_list_4() {
-  from_pairs([Pair(foo, 42), Pair(bar, 14), Pair(foo, 1337)]) == fixture_1
-}
-
-test bench_from_pairs() {
-  let dict =
-    from_pairs(
-      [
-        Pair("bbba", 8), Pair("bbab", 12), Pair("aabb", 13), Pair("aaab", 9),
-        Pair("bbbb", 16), Pair("aaaa", 1), Pair("aaba", 5), Pair("abab", 10),
-        Pair("baba", 7), Pair("baab", 11), Pair("abaa", 2), Pair("baaa", 3),
-        Pair("bbaa", 4), Pair("babb", 15), Pair("abbb", 14), Pair("abba", 6),
-      ],
-    )
-
-  size(dict) == 16
-}
-
 // ## Inspecting
+
+/// Check whether a dictionary is fully _"contained"_ within another using the comparison function. A dict is _contained_ in another if:
+///
+/// 1. All its keys also exist in the first dict
+/// 2. Each value is at least as large according to the comparison function
+///
+/// ```aiken
+/// let superset = dict.empty
+///   |> dict.insert("a", 10)
+///   |> dict.insert("b", 42)
+///
+/// dict.contains(superset, dict.empty, int.compare)
+/// dict.contains(superset, dict.from_pairs([Pair("a", 1)]), int.compare)
+/// dict.contains(superset, dict.from_pairs([Pair("a", 1), Pair("b", 42)]), int.compare)
+/// !dict.contains(superset, dict.from_pairs([Pair("a", 14)]), int.compare)
+/// !dict.contains(superset, dict.from_pairs([Pair("a", 1), Pair("c", 1)]), int.compare)
+/// ```
+pub fn contains(
+  self: Dict<key, value>,
+  subset: Dict<key, value>,
+  compare: fn(value, value) -> Ordering,
+) -> Bool {
+  do_contains(self.inner, subset.inner, compare)
+}
+
+fn do_contains(
+  self: Pairs<ByteArray, value>,
+  subset: Pairs<ByteArray, value>,
+  compare: fn(value, value) -> Ordering,
+) -> Bool {
+  when subset is {
+    [] -> True
+    [head_subset, ..tail_subset] -> {
+      let head_superset, tail_superset <- pairs.pop_until_key_and_then(
+        self,
+        head_subset.1st,
+      )
+      and {
+        when head_superset is {
+          None -> False
+          Some(head_superset) -> Less != compare(head_superset, head_subset.2nd)
+        },
+        do_contains(tail_superset, tail_subset, compare),
+      }
+    }
+  }
+}
 
 /// Finds a value in the dictionary, and returns the first key found to have that value.
 ///
@@ -219,43 +284,13 @@ pub fn find(self: Dict<key, value>, value v: value) -> Option<ByteArray> {
 fn do_find(self: Pairs<ByteArray, value>, value v: value) -> Option<ByteArray> {
   when self is {
     [] -> None
-    [Pair(k2, v2), ..rest] ->
-      if v == v2 {
-        Some(k2)
+    [head, ..rest] ->
+      if v == head.2nd {
+        Some(head.1st)
       } else {
         do_find(rest, v)
       }
   }
-}
-
-test find_1() {
-  find(empty, foo) == None
-}
-
-test find_2() {
-  find(
-    empty
-      |> insert(foo, 14),
-    14,
-  ) == Some(foo)
-}
-
-test find_3() {
-  find(
-    empty
-      |> insert(foo, 14),
-    42,
-  ) == None
-}
-
-test find_4() {
-  find(
-    empty
-      |> insert(foo, 14)
-      |> insert(bar, 42)
-      |> insert(baz, 14),
-    14,
-  ) == Some(baz)
 }
 
 /// Get a value in the dict by its key.
@@ -300,10 +335,10 @@ fn do_get(
 ) -> result {
   when self is {
     [] -> or_else()
-    [Pair(k2, v), ..rest] ->
+    [Pair(k2, _) as head, ..rest] ->
       if builtin.less_than_equals_bytearray(k, k2) {
         if k == k2 {
-          return(v)
+          return(head.2nd)
         } else {
           or_else()
         }
@@ -311,114 +346,6 @@ fn do_get(
         do_get(rest, k, return, or_else)
       }
   }
-}
-
-test get_1() {
-  get(empty, foo) == None
-}
-
-test get_or_else_1() {
-  get_or_else(empty, foo, fn() { 0 }) == 0
-}
-
-test get_2() {
-  let m =
-    empty
-      |> insert(foo, "Aiken")
-      |> insert(bar, "awesome")
-  get(m, key: foo) == Some("Aiken")
-}
-
-test get_or_else_2() {
-  let m =
-    empty
-      |> insert(foo, "Aiken")
-      |> insert(bar, "awesome")
-  get_or_else(m, key: foo, or_else: fn() { "" }) == "Aiken"
-}
-
-test get_3() {
-  let m =
-    empty
-      |> insert(foo, "Aiken")
-      |> insert(bar, "awesome")
-  get(m, key: baz) == None
-}
-
-test get_or_else_3() {
-  let m =
-    empty
-      |> insert(foo, "Aiken")
-      |> insert(bar, "awesome")
-  get_or_else(m, key: baz, or_else: fn() { "missing?" }) == "missing?"
-}
-
-test get_4() {
-  let m =
-    empty
-      |> insert("aaa", "1")
-      |> insert("bbb", "2")
-      |> insert("ccc", "3")
-      |> insert("ddd", "4")
-      |> insert("eee", "5")
-      |> insert("fff", "6")
-      |> insert("ggg", "7")
-      |> insert("hhh", "8")
-      |> insert("iii", "9")
-      |> insert("jjj", "10")
-
-  get(m, "bcd") == None
-}
-
-test get_or_else_4() {
-  let m =
-    empty
-      |> insert("aaa", "1")
-      |> insert("bbb", "2")
-      |> insert("ccc", "3")
-      |> insert("ddd", "4")
-      |> insert("eee", "5")
-      |> insert("fff", "6")
-      |> insert("ggg", "7")
-      |> insert("hhh", "8")
-      |> insert("iii", "9")
-      |> insert("jjj", "10")
-
-  get_or_else(m, "bcd", fn() { "0" }) == "0"
-}
-
-test get_5() {
-  let m =
-    empty
-      |> insert("aaa", "1")
-      |> insert("bbb", "2")
-      |> insert("ccc", "3")
-      |> insert("ddd", "4")
-      |> insert("eee", "5")
-      |> insert("fff", "6")
-      |> insert("ggg", "7")
-      |> insert("hhh", "8")
-      |> insert("iii", "9")
-      |> insert("jjj", "10")
-
-  get(m, "kkk") == None
-}
-
-test get_or_else_5() {
-  let m =
-    empty
-      |> insert("aaa", "1")
-      |> insert("bbb", "2")
-      |> insert("ccc", "3")
-      |> insert("ddd", "4")
-      |> insert("eee", "5")
-      |> insert("fff", "6")
-      |> insert("ggg", "7")
-      |> insert("hhh", "8")
-      |> insert("iii", "9")
-      |> insert("jjj", "10")
-
-  get_or_else(m, "kkk", fn() { "" }) == ""
 }
 
 /// Check if a key exists in the dictionary.
@@ -439,41 +366,12 @@ fn do_has_key(self: Pairs<ByteArray, value>, key k: ByteArray) -> Bool {
   when self is {
     [] -> False
     [Pair(k2, _), ..rest] ->
-      if builtin.less_than_equals_bytearray(k, k2) {
-        k == k2
-      } else {
+      if builtin.less_than_bytearray(k2, k) {
         do_has_key(rest, k)
+      } else {
+        k == k2
       }
   }
-}
-
-test has_key_1() {
-  !has_key(empty, foo)
-}
-
-test has_key_2() {
-  has_key(
-    empty
-      |> insert(foo, 14),
-    foo,
-  )
-}
-
-test has_key_3() {
-  !has_key(
-    empty
-      |> insert(foo, 14),
-    bar,
-  )
-}
-
-test has_key_4() {
-  has_key(
-    empty
-      |> insert(foo, 14)
-      |> insert(bar, 42),
-    bar,
-  )
 }
 
 /// Efficiently checks whether a dictionary is empty.
@@ -485,10 +383,6 @@ pub fn is_empty(self: Dict<key, value>) -> Bool {
     [] -> True
     _ -> False
   }
-}
-
-test is_empty_1() {
-  is_empty(empty)
 }
 
 /// Extract all the keys present in a given `Dict`.
@@ -514,18 +408,6 @@ fn do_keys(self: Pairs<ByteArray, value>) -> List<ByteArray> {
   }
 }
 
-test keys_1() {
-  keys(empty) == []
-}
-
-test keys_2() {
-  keys(
-    empty
-      |> insert(foo, 0)
-      |> insert(bar, 0),
-  ) == [bar, foo]
-}
-
 /// Return the number of key-value pairs in the dictionary.
 ///
 /// ```aiken
@@ -549,25 +431,6 @@ fn do_size(self: Pairs<key, value>) -> Int {
   }
 }
 
-test size_1() {
-  size(empty) == 0
-}
-
-test size_2() {
-  size(
-    empty
-      |> insert(foo, 14),
-  ) == 1
-}
-
-test size_3() {
-  size(
-    empty
-      |> insert(foo, 14)
-      |> insert(bar, 42),
-  ) == 2
-}
-
 /// Extract all the values present in a given `Dict`.
 ///
 /// ```aiken
@@ -589,18 +452,6 @@ fn do_values(self: Pairs<key, value>) -> List<value> {
     [] -> []
     [Pair(_, v), ..rest] -> [v, ..do_values(rest)]
   }
-}
-
-test values_1() {
-  values(empty) == []
-}
-
-test values_2() {
-  values(
-    empty
-      |> insert(foo, 3)
-      |> insert(bar, 4),
-  ) == [4, 3]
 }
 
 // ## Modifying
@@ -627,7 +478,7 @@ fn do_delete(
 ) -> Pairs<ByteArray, value> {
   when self is {
     [] -> []
-    [Pair(k2, v2), ..rest] ->
+    [Pair(k2, _) as head, ..rest] ->
       if builtin.less_than_equals_bytearray(k, k2) {
         if k == k2 {
           rest
@@ -635,65 +486,14 @@ fn do_delete(
           self
         }
       } else {
-        [Pair(k2, v2), ..do_delete(rest, k)]
+        [head, ..do_delete(rest, k)]
       }
   }
 }
 
-test delete_1() {
-  delete(empty, foo) == empty
-}
-
-test delete_2() {
-  let m =
-    empty
-      |> insert(foo, 14)
-  delete(m, foo) == empty
-}
-
-test delete_3() {
-  let m =
-    empty
-      |> insert(foo, 14)
-  delete(m, bar) == m
-}
-
-test delete_4() {
-  let m =
-    empty
-      |> insert(foo, 14)
-      |> insert(bar, 14)
-  !has_key(delete(m, foo), foo)
-}
-
-test delete_5() {
-  let m =
-    empty
-      |> insert(foo, 14)
-      |> insert(bar, 14)
-  has_key(delete(m, bar), foo)
-}
-
-test delete_6() {
-  let m =
-    empty
-      |> insert("aaa", 1)
-      |> insert("bbb", 2)
-      |> insert("ccc", 3)
-      |> insert("ddd", 4)
-      |> insert("eee", 5)
-      |> insert("fff", 6)
-      |> insert("ggg", 7)
-      |> insert("hhh", 8)
-      |> insert("iii", 9)
-      |> insert("jjj", 10)
-
-  delete(m, "bcd") == m
-}
-
 /// Like [`union_with`](#union_with) but allows specifying the behavior to adopt when a key is present
-/// only in the right dictionary. The first value received correspond to the value in the right
-/// dictionnary. When passing `None`, the value is removed and not present in the union.
+/// only in the right dictionary. The first value received corresponds to the value in the right
+/// dictionary. When passing `None`, the value is removed and not present in the union.
 ///
 /// ```aiken
 /// let left_dict = dict.from_pairs([Pair("a", 100), Pair("b", 200)])
@@ -733,31 +533,38 @@ fn do_difference_with(
       when right is {
         [] -> left
         [Pair(k2, v2), ..rest_right] ->
-          if builtin.less_than_bytearray(k, k2) {
-            [
-              Pair(k, v),
-              ..do_difference_with(rest_left, right, with_both, with_right)
-            ]
-          } else if k == k2 {
-            with_both(
-              k,
-              v,
-              v2,
-              fn(combined) {
-                [
-                  Pair(k, combined),
-                  ..do_difference_with(
+          if builtin.less_than_equals_bytearray(k, k2) {
+            if k == k2 {
+              with_both(
+                k,
+                v,
+                v2,
+                fn(combined) {
+                  [
+                    Pair(k, combined),
+                    ..do_difference_with(
+                      rest_left,
+                      rest_right,
+                      with_both,
+                      with_right,
+                    )
+                  ]
+                },
+                fn() {
+                  do_difference_with(
                     rest_left,
                     rest_right,
                     with_both,
                     with_right,
                   )
-                ]
-              },
-              fn() {
-                do_difference_with(rest_left, rest_right, with_both, with_right)
-              },
-            )
+                },
+              )
+            } else {
+              [
+                Pair(k, v),
+                ..do_difference_with(rest_left, right, with_both, with_right)
+              ]
+            }
           } else {
             with_right(
               k2,
@@ -795,84 +602,6 @@ fn do_difference_only_right(
   }
 }
 
-test difference_with_1() {
-  difference_with(empty, empty, strategy.sum(), strategy.keep()) == empty
-}
-
-test difference_with_2() {
-  let left =
-    empty
-      |> insert(foo, 14)
-      |> insert(bar, 42)
-
-  difference_with(left, empty, strategy.sum(), strategy.keep()) == left
-}
-
-test difference_with_3() {
-  let right =
-    empty
-      |> insert(foo, 14)
-      |> insert(bar, 42)
-
-  difference_with(empty, right, strategy.sum(), strategy.keep()) == right
-}
-
-test difference_with_4() {
-  let left =
-    empty
-      |> insert("a", 100)
-      |> insert("b", 200)
-
-  let right =
-    empty
-      |> insert("a", 150)
-      |> insert("c", 300)
-
-  let result = difference_with(left, right, strategy.sum(), strategy.keep())
-
-  result == from_pairs([Pair("a", 250), Pair("b", 200), Pair("c", 300)])
-}
-
-test difference_with_5() {
-  let left =
-    empty
-      |> insert("a", 100)
-      |> insert("b", 200)
-      |> insert("c", 300)
-
-  let right =
-    empty
-      |> insert("a", 100)
-      |> insert("c", 300)
-
-  let result =
-    difference_with(
-      left,
-      right,
-      strategy.difference_if_non_zero(),
-      strategy.discard(),
-    )
-
-  result == from_pairs([Pair("b", 200)])
-}
-
-test difference_with_6() {
-  let left =
-    empty
-      |> insert("a", 100)
-      |> insert("b", 200)
-
-  let right =
-    empty
-      |> insert("a", 150)
-      |> insert("c", 300)
-
-  let result =
-    difference_with(left, right, strategy.difference(), strategy.negate())
-
-  result == from_pairs([Pair("a", -50), Pair("b", 200), Pair("c", -300)])
-}
-
 /// Keep only the key-value pairs that pass the given predicate.
 ///
 /// ```aiken
@@ -899,34 +628,18 @@ fn do_filter(
 ) -> Pairs<ByteArray, value> {
   when self is {
     [] -> []
-    [Pair(k, v), ..rest] ->
+    [Pair(k, v) as head, ..rest] ->
       if with(k, v) {
-        [Pair(k, v), ..do_filter(rest, with)]
+        [head, ..do_filter(rest, with)]
       } else {
         do_filter(rest, with)
       }
   }
 }
 
-test filter_1() {
-  filter(empty, fn(_, _) { True }) == empty
-}
-
-test filter_2() {
-  let expected =
-    empty
-      |> insert(foo, 42)
-  filter(fixture_1, fn(_, v) { v > 14 }) == expected
-}
-
-test filter_3() {
-  let expected =
-    empty
-      |> insert(bar, 14)
-  filter(fixture_1, fn(k, _) { k == bar }) == expected
-}
-
-/// Insert a value in the dictionary at a given key. If the key already exists, its value is **overridden**. If you need ways to combine keys together, use (`insert_with`)[#insert_with].
+/// Insert a value in the dictionary at a given key. If the key already exists,
+/// its value is **overridden**. If you need ways to combine keys together, use
+/// [`insert_with`](#insert_with).
 ///
 /// ```aiken
 /// let result =
@@ -953,45 +666,25 @@ fn do_insert(
 ) -> Pairs<ByteArray, value> {
   when self is {
     [] -> [Pair(k, v)]
-    [Pair(k2, v2), ..rest] ->
-      if builtin.less_than_bytearray(k, k2) {
-        [Pair(k, v), ..self]
-      } else {
+    [Pair(k2, _) as head, ..rest] ->
+      if builtin.less_than_equals_bytearray(k, k2) {
         if k == k2 {
           [Pair(k, v), ..rest]
         } else {
-          [Pair(k2, v2), ..do_insert(rest, k, v)]
+          [Pair(k, v), ..self]
         }
+      } else {
+        [head, ..do_insert(rest, k, v)]
       }
   }
 }
 
-test insert_1() {
-  let m1 =
-    empty
-      |> insert(foo, 42)
-  let m2 =
-    empty
-      |> insert(foo, 14)
-  insert(m1, foo, 14) == m2
-}
-
-test insert_2() {
-  let m1 =
-    empty
-      |> insert(foo, 42)
-  let m2 =
-    empty
-      |> insert(bar, 14)
-  insert(m1, bar, 14) == insert(m2, foo, 42)
-}
-
-/// Insert a value in the dictionary at a given key. When the key already exist, the provided
+/// Insert a value in the dictionary at a given key. When the key already exists, the provided
 /// merge function is called. The value existing in the dictionary is passed as the second argument
 /// to the merge function, and the new value is passed as the third argument.
 ///
 /// ```aiken
-/// use aiken/collection/dict/union
+/// use aiken/collection/dict/strategy
 ///
 /// let result =
 ///   dict.empty
@@ -1008,56 +701,7 @@ pub fn insert_with(
   value v: value,
   with: UnionStrategy<ByteArray, value>,
 ) -> Dict<key, value> {
-  Dict {
-    inner: do_insert_with(
-      self.inner,
-      k,
-      v,
-      fn(k, v1, v2, some, none) { with(k, v2, v1, some, none) },
-    ),
-  }
-}
-
-test insert_with_1() {
-  let result =
-    empty
-      |> insert_with(key: "foo", value: 1, with: strategy.sum())
-      |> insert_with(key: "bar", value: 2, with: strategy.sum())
-      |> to_pairs()
-
-  result == [Pair("bar", 2), Pair("foo", 1)]
-}
-
-test insert_with_2() {
-  let result =
-    empty
-      |> insert_with(key: "foo", value: 1, with: strategy.sum())
-      |> insert_with(key: "bar", value: 2, with: strategy.sum())
-      |> insert_with(key: "foo", value: 3, with: strategy.sum())
-      |> to_pairs()
-
-  result == [Pair("bar", 2), Pair("foo", 4)]
-}
-
-test insert_with_3() {
-  let with =
-    fn(k, a, _b, keep, discard) {
-      if k == "foo" {
-        keep(a)
-      } else {
-        discard()
-      }
-    }
-
-  let result =
-    empty
-      |> insert_with(key: "foo", value: 1, with: with)
-      |> insert_with(key: "bar", value: 2, with: with)
-      |> insert_with(key: "foo", value: 3, with: with)
-      |> insert_with(key: "bar", value: 4, with: with)
-      |> to_pairs()
-
-  result == [Pair("foo", 1)]
+  Dict { inner: do_insert_with(self.inner, k, v, with) }
 }
 
 /// Apply a function to all key-value pairs in a Dict.
@@ -1087,20 +731,6 @@ fn do_map(
   }
 }
 
-test map_1() {
-  let result =
-    fixture_1
-      |> map(with: fn(k, _) { k })
-  get(result, foo) == Some(foo)
-}
-
-test map_2() {
-  let result =
-    fixture_1
-      |> map(with: fn(_, v) { v + 1 })
-  get(result, foo) == Some(43) && size(result) == size(fixture_1)
-}
-
 /// Remove a key-value pair from the dictionary and return its value. If the key is not found, no changes are made.
 ///
 /// ```aiken
@@ -1110,7 +740,7 @@ test map_2() {
 ///     |> dict.insert(key: "b", value: 200)
 ///     |> dict.pop(key: "a")
 ///
-/// result == 100
+/// value == 100
 /// ```
 pub fn pop(
   self: Dict<key, value>,
@@ -1126,64 +756,71 @@ fn do_pop(
 ) -> result {
   when self is {
     [] -> return(None, [])
-    [Pair(k2, v2), ..rest] ->
+    [Pair(k2, _) as head, ..rest] ->
       if builtin.less_than_equals_bytearray(k, k2) {
         if k == k2 {
-          return(Some(v2), rest)
+          return(Some(head.2nd), rest)
         } else {
           return(None, self)
         }
       } else {
-        do_pop(
-          rest,
-          k,
-          fn(value, inner) { return(value, [Pair(k2, v2), ..inner]) },
-        )
+        do_pop(rest, k, fn(value, inner) { return(value, [head, ..inner]) })
       }
   }
 }
 
-test pop_1() {
-  pop(empty, foo) == (None, empty)
+// ## Modifying Forcibly
+
+/// More efficient version of [`delete`](#delete), which fails if the key isn't present in the dict.
+pub fn expect_delete(self: Dict<key, value>, key: ByteArray) -> Dict<key, value> {
+  Dict { inner: do_expect_delete(self.inner, key) }
 }
 
-test pop_2() {
-  let m =
-    empty
-      |> insert(foo, 14)
-  pop(m, foo) == (Some(14), empty)
+fn do_expect_delete(
+  self: Pairs<ByteArray, value>,
+  key k: ByteArray,
+) -> Pairs<ByteArray, value> {
+  let Pair(k2, _) as head = builtin.head_list(self)
+  if k == k2 {
+    builtin.tail_list(self)
+  } else {
+    [head, ..do_expect_delete(builtin.tail_list(self), k)]
+  }
 }
 
-test pop_3() {
-  let m =
-    empty
-      |> insert(foo, 14)
-  pop(m, bar) == (None, m)
+/// More efficient version of [`pop`](#pop), which fails if the key isn't present in the dict.
+pub fn expect_pop(
+  self: Dict<key, value>,
+  key k: ByteArray,
+) -> (value, Dict<key, value>) {
+  let value, inner <- do_expect_pop(self.inner, k)
+  (value, Dict { inner })
 }
 
-test pop_4() {
-  let m =
-    empty
-      |> insert(foo, 14)
-      |> insert(bar, 14)
-  pop(m, foo) == (Some(14), empty |> insert(bar, 14))
+fn do_expect_pop(
+  self: Pairs<ByteArray, value>,
+  key k: ByteArray,
+  return: fn(value, Pairs<ByteArray, value>) -> result,
+) -> result {
+  let Pair(k2, _) as head = builtin.head_list(self)
+  if k == k2 {
+    return(head.2nd, builtin.tail_list(self))
+  } else {
+    let value, tail <- do_expect_pop(builtin.tail_list(self), k)
+    return(value, [head, ..tail])
+  }
 }
 
-test pop_6() {
-  let m =
-    empty
-      |> insert("aaa", 1)
-      |> insert("bbb", 2)
-      |> insert("ccc", 3)
-      |> insert("ddd", 4)
-      |> insert("eee", 5)
-      |> insert("fff", 6)
-      |> insert("ggg", 7)
-      |> insert("hhh", 8)
-      |> insert("iii", 9)
-      |> insert("jjj", 10)
-
-  pop(m, "bcd") == (None, m)
+/// Drop the first key/value out of a dictionnary, and fails if the dictionnary
+/// is empty.
+///
+/// ```aiken
+/// dict.expect_tail(dict.empty) → 💥
+/// dict.expect_tail(dict.singleton("a", 1)) == dict.empty
+/// dict.expect_tail(dict.from_pairs([Pair("a", 1), Pair("b", 2)])) == dict.singleton("b", 2)
+/// ```
+pub fn expect_tail(self: Dict<key, value>) -> Dict<key, value> {
+  self.inner |> builtin.tail_list |> Dict
 }
 
 // ## Combining
@@ -1217,41 +854,9 @@ fn do_union(
   }
 }
 
-test union_1() {
-  union(fixture_1, empty) == fixture_1
-}
-
-test union_2() {
-  union(empty, fixture_1) == fixture_1
-}
-
-test union_3() {
-  let left =
-    empty
-      |> insert(foo, 14)
-  let right =
-    empty
-      |> insert(bar, 42)
-      |> insert(baz, 1337)
-  union(left, right) == from_pairs(
-    [Pair(foo, 14), Pair(baz, 1337), Pair(bar, 42)],
-  )
-}
-
-test union_4() {
-  let left =
-    empty
-      |> insert(foo, 14)
-  let right =
-    empty
-      |> insert(bar, 42)
-      |> insert(foo, 1337)
-  union(left, right) == from_pairs([Pair(foo, 14), Pair(bar, 42)])
-}
-
 /// Like [`union`](#union) but allows specifying the behavior to adopt when a key is present
-/// in both dictionaries. The first value received correspond to the value in the left
-/// dictionnary, whereas the second argument corresponds to the value in the right dictionnary.
+/// in both dictionaries. The first value received corresponds to the value in the left
+/// dictionary, whereas the second argument corresponds to the value in the right dictionary.
 ///
 /// When passing `None`, the value is removed and not present in the union.
 ///
@@ -1297,38 +902,23 @@ fn do_insert_with(
 ) -> Pairs<ByteArray, value> {
   when self is {
     [] -> [Pair(k, v)]
-    [Pair(k2, v2), ..rest] ->
-      if builtin.less_than_bytearray(k, k2) {
-        [Pair(k, v), ..self]
-      } else {
+    [Pair(k2, _) as head, ..rest] ->
+      if builtin.less_than_equals_bytearray(k, k2) {
         if k == k2 {
           with(
             k,
+            head.2nd,
             v,
-            v2,
             fn(combined) { [Pair(k, combined), ..rest] },
             fn() { rest },
           )
         } else {
-          [Pair(k2, v2), ..do_insert_with(rest, k, v, with)]
+          [Pair(k, v), ..self]
         }
+      } else {
+        [head, ..do_insert_with(rest, k, v, with)]
       }
   }
-}
-
-test union_with_1() {
-  let left =
-    empty
-      |> insert(foo, 14)
-
-  let right =
-    empty
-      |> insert(bar, 42)
-      |> insert(foo, 1337)
-
-  let result = union_with(left, right, with: strategy.sum())
-
-  result == from_pairs([Pair(foo, 1351), Pair(bar, 42)])
 }
 
 // ## Transforming
@@ -1365,12 +955,34 @@ fn do_foldl(
   }
 }
 
-test fold_1() {
-  foldl(empty, 14, fn(_, _, _) { 42 }) == 14
+/// A function callback to accumulate two returned values at once. See also [`foldl2`](#foldl2) and [`foldr2`](#foldr2) about usage.
+pub type Fold2<a, b, result> =
+  fn(a, b) -> result
+
+pub fn foldl2(
+  self: Dict<key, value>,
+  zero_a: a,
+  zero_b: b,
+  with: fn(ByteArray, value, a, b, Fold2<a, b, result>) -> result,
+  return: Fold2<a, b, result>,
+) -> result {
+  do_foldl2(self.inner, zero_a, zero_b, with, return)
 }
 
-test fold_2() {
-  foldl(fixture_1, zero: 0, with: fn(_, v, total) { v + total }) == 56
+fn do_foldl2(
+  self: Pairs<ByteArray, value>,
+  zero_a: a,
+  zero_b: b,
+  with: fn(ByteArray, value, a, b, Fold2<a, b, result>) -> result,
+  return: Fold2<a, b, result>,
+) -> result {
+  when self is {
+    [] -> return(zero_a, zero_b)
+    [Pair(k, v), ..tail] -> {
+      let a, b <- with(k, v, zero_a, zero_b)
+      do_foldl2(tail, a, b, with, return)
+    }
+  }
 }
 
 /// Fold over the key-value pairs in a dictionary. The fold direction follows keys
@@ -1405,12 +1017,26 @@ fn do_foldr(
   }
 }
 
-test foldr_1() {
-  foldr(empty, 14, fn(_, _, _) { 42 }) == 14
+pub fn foldr2(
+  self: Dict<key, value>,
+  zero_a: a,
+  zero_b: b,
+  with: fn(ByteArray, value, a, b, Fold2<a, b, result>) -> result,
+  return: Fold2<a, b, result>,
+) -> result {
+  do_foldr2(self.inner, with, return)(zero_a, zero_b)
 }
 
-test foldr_2() {
-  foldr(fixture_1, zero: 0, with: fn(_, v, total) { v + total }) == 56
+fn do_foldr2(
+  self: Pairs<key, value>,
+  with: fn(key, value, a, b, Fold2<a, b, result>) -> result,
+  return: Fold2<a, b, result>,
+) -> Fold2<a, b, result> {
+  when self is {
+    [] -> return
+    [Pair(k, v), ..tail] ->
+      do_foldr2(tail, with, fn(a, b) { with(k, v, a, b, return) })
+  }
 }
 
 /// Get the inner list holding the dictionary data.
@@ -1427,12 +1053,4 @@ test foldr_2() {
 /// ```
 pub fn to_pairs(self: Dict<key, value>) -> Pairs<ByteArray, value> {
   self.inner
-}
-
-test to_list_1() {
-  to_pairs(empty) == []
-}
-
-test to_list_2() {
-  to_pairs(fixture_1) == [Pair(bar, 14), Pair(foo, 42)]
 }

@@ -34,7 +34,7 @@ Frontend applications use API wallet clients (CIP-30) for signing only. They hav
 **Cannot Do**: Build transactions, query blockchain, fee calculation, provider-backed submission
 
 ```typescript twoslash
-import { Address, Transaction, TransactionWitnessSet, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Transaction, TransactionWitnessSet, mainnet, Client } from "@evolution-sdk/evolution"
 
 declare const cardano: any
 
@@ -42,7 +42,7 @@ declare const cardano: any
 const walletApi = await cardano.eternl.enable()
 
 // 2. Create API wallet client (no provider)
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withCip30(walletApi)
 
 // 3. Get user address to send to backend
@@ -95,11 +95,11 @@ Backend services use read-only clients configured with user addresses to build u
 **Cannot Do**: Sign transactions, access private keys
 
 ```typescript twoslash
-import { Address, Assets, Transaction, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, Transaction, mainnet, Client } from "@evolution-sdk/evolution"
 
 export async function buildTransaction(userAddressBech32: string) {
   // Create read-only client with user's address (bech32 string)
-  const client = makeClient(mainnet)
+  const client = Client.make(mainnet)
   .withBlockfrost({
       baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
       projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -159,7 +159,7 @@ export type SubmitTxResponse = {
 
 // @filename: frontend.ts
 // ===== Frontend (Browser) =====
-import { Address, Transaction, TransactionWitnessSet, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Transaction, TransactionWitnessSet, mainnet, Client } from "@evolution-sdk/evolution"
 import type { BuildPaymentRequest, BuildPaymentResponse, SubmitTxResponse } from "./shared"
 
 declare const cardano: any
@@ -169,7 +169,7 @@ async function sendPayment(recipientAddress: string, lovelace: bigint) {
   const walletApi = await cardano.eternl.enable()
 
   // 2. Create API wallet client (signing only)
-  const walletClient = makeClient(mainnet)
+  const walletClient = Client.make(mainnet)
   .withCip30(walletApi)
 
   // 3. Get user address (returns Core Address, convert to bech32 for backend)
@@ -213,10 +213,10 @@ async function sendPayment(recipientAddress: string, lovelace: bigint) {
 
 // @filename: backend.ts
 // ===== Backend (Server) =====
-import { Address, Assets, Transaction, TransactionHash, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, Transaction, TransactionHash, mainnet, Client } from "@evolution-sdk/evolution"
 import type { BuildPaymentResponse, SubmitTxResponse } from "./shared"
 
-const providerClient = makeClient(mainnet)
+const providerClient = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -304,7 +304,7 @@ This architecture provides complete security through proper separation:
 
 ```typescript
 // WRONG - API wallet client has no provider
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withCip30(walletApi)
 
 const builder = client.newTx() // Error: Cannot build without provider
@@ -316,7 +316,7 @@ const builder = client.newTx() // Error: Cannot build without provider
 
 ```typescript
 // CORRECT - API wallet client signs only
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withCip30(walletApi)
 
 // Get transaction from backend
@@ -332,10 +332,11 @@ const witnessSet = await client.signTx(txCbor)
 
 ```typescript
 // WRONG - Read-only client has no private keys
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
+  .withBlockfrost({ ...providerConfig })
   .withAddress(userAddress)
 
-await client.sign(data) // Error: Cannot sign with read-only wallet
+await client.signTx(txCbor) // Error: Cannot sign with read-only wallet
 ```
 
 **Fix**: Return unsigned transaction to frontend for signing.
@@ -343,8 +344,9 @@ await client.sign(data) // Error: Cannot sign with read-only wallet
 ### ✅ Correct Backend Pattern
 
 ```typescript
-// CORRECT - Read-only client builds only
-const client = makeClient(mainnet)
+// CORRECT - Read-only client builds only (needs provider + address)
+const client = Client.make(mainnet)
+  .withBlockfrost({ ...providerConfig })
   .withAddress(userAddress)
 
 // Build unsigned transaction
@@ -379,11 +381,11 @@ Understanding what each client type can do:
 ## Next Steps
 
 <Cards>
-  <Card title="API Wallet Client" href="/docs/clients/api-wallet-client">
-    Learn about API wallet clients for frontend signing
+  <Card title="API Wallets" href="/docs/wallets/api-wallet">
+    CIP-30 browser wallet integration for frontend signing
   </Card>
-  <Card title="Read-Only Client" href="/docs/clients/read-only-client">
-    Learn about read-only clients for backend building
+  <Card title="Client Architecture" href="/docs/clients/architecture">
+    Read-only wallets and backend transaction building
   </Card>
   <Card title="Wallet Types" href="/docs/wallets">
     Understand different wallet types used in clients

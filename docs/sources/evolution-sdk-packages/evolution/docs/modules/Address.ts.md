@@ -16,6 +16,7 @@ Added in v2.0.0
   - [arbitrary](#arbitrary-1)
 - [Functions](#functions)
   - [fromBech32](#frombech32)
+  - [fromSeed](#fromseed)
 - [Model](#model)
   - [AddressDetails (interface)](#addressdetails-interface)
 - [Schema](#schema)
@@ -36,6 +37,8 @@ Added in v2.0.0
   - [getStakingCredential](#getstakingcredential)
   - [hasStakingCredential](#hasstakingcredential)
   - [isEnterprise](#isenterprise)
+- [predicates](#predicates)
+  - [isScript](#isscript)
 - [utils](#utils-1)
   - [fromBytes](#frombytes-1)
   - [fromHex](#fromhex-1)
@@ -72,6 +75,39 @@ export declare const fromBech32: (i: string, overrideOptions?: ParseOptions) => 
 ```
 
 Added in v2.0.0
+
+## fromSeed
+
+Derive an address from a BIP-39 seed phrase.
+
+Pure, synchronous key derivation — no network access or running cluster required.
+Useful for generating addresses before a devnet cluster starts (e.g. for genesis funding).
+
+**Signature**
+
+```ts
+export declare const fromSeed: (
+  seed: string,
+  options?: { password?: string; addressType?: "Base" | "Enterprise"; accountIndex?: number; networkId?: number }
+) => Address
+```
+
+**Example**
+
+```typescript
+import * as Address from "@evolution-sdk/evolution/Address"
+
+const address = Address.fromSeed(
+  "test test test test test test test test test test test test test test test test test test test test test test test sauce",
+  {
+    accountIndex: 0,
+    networkId: 0 // 0 = testnet, 1 = mainnet
+  }
+)
+const hex = Address.toHex(address)
+```
+
+Added in v2.1.0
 
 # Model
 
@@ -296,6 +332,20 @@ Check if AddressStructure is enterprise-like (no staking credential)
 
 ```ts
 export declare const isEnterprise: (address: Address) => boolean
+```
+
+Added in v2.0.0
+
+# predicates
+
+## isScript
+
+Check if address has a script payment credential.
+
+**Signature**
+
+```ts
+export declare const isScript: (address: Address) => boolean
 ```
 
 Added in v2.0.0

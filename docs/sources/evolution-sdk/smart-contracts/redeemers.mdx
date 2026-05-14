@@ -22,10 +22,10 @@ import {
   Data,
   preprod,
   type UTxO,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -33,7 +33,7 @@ const client = makeClient(preprod)
   .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
 declare const scriptUtxos: UTxO.UTxO[]
-declare const validatorScript: any
+declare const validatorScript: any // compiled Plutus script (from Aiken build or Blueprint codegen)
 
 // Static redeemer — the value is fixed
 const tx = await client
@@ -57,10 +57,10 @@ import {
   Data,
   preprod,
   type UTxO,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -68,7 +68,7 @@ const client = makeClient(preprod)
   .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
 declare const scriptUtxos: UTxO.UTxO[]
-declare const validatorScript: any
+declare const validatorScript: any // compiled Plutus script (from Aiken build or Blueprint codegen)
 
 // Self redeemer — callback receives { index, utxo }
 const tx = await client
@@ -101,10 +101,10 @@ import {
   Data,
   preprod,
   type UTxO,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -112,7 +112,7 @@ const client = makeClient(preprod)
   .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
 declare const orderUtxos: UTxO.UTxO[]
-declare const validatorScript: any
+declare const validatorScript: any // compiled Plutus script (from Aiken build or Blueprint codegen)
 
 // Batch redeemer — callback sees all specified inputs
 const tx = await client
@@ -135,9 +135,9 @@ const tx = await client
 Redeemers also apply to minting policies. The same three modes work:
 
 ```typescript twoslash
-import { Assets, Data, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Assets, Data, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!

@@ -30,7 +30,7 @@ Binary format (Uint8Array), used internally and for serialization.
 ### Bech32 ↔ Address
 
 ```typescript twoslash
-import { Address, KeyHash } from "@evolution-sdk/evolution";
+import { Address } from "@evolution-sdk/evolution";
 
 const bech32 = "addr1qx2kd28nq8ac5prwg32hhvudlwggpgfp8utlyqxu6wqgz62f79qsdmm5dsknt9ecr5w468r9ey0fxwkdrwh08ly3tu9sy0f4qd";
 
@@ -50,7 +50,7 @@ console.log("Bech32:", encoded);
 ### Hex ↔ Address
 
 ```typescript twoslash
-import { Address, KeyHash } from "@evolution-sdk/evolution";
+import { Address } from "@evolution-sdk/evolution";
 
 const hexAddress = "019493315cd92eb5d8c4304e67b7e16ae36d61d34502694657811a2c8e32c728d3861e164cab28cb8f006448139c8f1740ffb8e7aa9e5232dc";
 
@@ -94,7 +94,7 @@ console.log("Decoded:", decoded);
 Conversions can fail with invalid input:
 
 ```typescript twoslash
-import { Address, KeyHash } from "@evolution-sdk/evolution";
+import { Address } from "@evolution-sdk/evolution";
 
 const invalidBech32 = "invalid_address";
 

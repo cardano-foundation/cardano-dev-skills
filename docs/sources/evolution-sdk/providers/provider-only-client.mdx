@@ -41,10 +41,10 @@ import {
   TransactionHash,
   TransactionInput,
   mainnet,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -78,10 +78,10 @@ import {
   TransactionHash,
   TransactionInput,
   mainnet,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -135,10 +135,10 @@ import {
   TransactionHash,
   TransactionInput,
   mainnet,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -178,10 +178,10 @@ import {
   TransactionHash,
   TransactionInput,
   mainnet,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -225,10 +225,10 @@ import {
   TransactionHash,
   TransactionInput,
   mainnet,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -271,10 +271,10 @@ import {
   TransactionHash,
   TransactionInput,
   mainnet,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -322,11 +322,11 @@ import {
   TransactionHash,
   TransactionInput,
   mainnet,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
 // Start with provider only
-const providerClient = makeClient(mainnet)
+const providerClient = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -364,18 +364,18 @@ import {
   TransactionInput,
   mainnet,
   preprod,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
 const env = (process.env.NODE_ENV || "development") as "development" | "production"
 
 const client =
   env === "production"
-    ? makeClient(mainnet).withKupmios({
+    ? Client.make(mainnet).withKupmios({
         ogmiosUrl: process.env.OGMIOS_URL!,
         kupoUrl: process.env.KUPO_URL!
       })
-    : makeClient(preprod).withBlockfrost({
+    : Client.make(preprod).withBlockfrost({
         baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
         projectId: process.env.BLOCKFROST_PREPROD_PROJECT_ID!
       })
@@ -386,7 +386,7 @@ const client =
 | Feature                 | Provider-Only Client           | Read-Only Client                                                     |
 | ----------------------- | ------------------------------ | -------------------------------------------------------------------- |
 | **Configuration**       | Provider only                  | Provider + address                                                   |
-| **Creation**            | `client(chain).withBlockfrost(...)` | `client(chain).withBlockfrost(...).withAddress(address)` |
+| **Creation**            | `Client.make(chain).withBlockfrost(...)` | `Client.make(chain).withBlockfrost(...).withAddress(address)` |
 | **Query any address**   | `getUtxos(anyAddress)`         | `getUtxos(anyAddress)`                                               |
 | **Query own address**   | Not available                  | `getWalletUtxos()`                                                   |
 | **Build transactions**  | `newTx()` with manual context  | `newTx()` returns unsigned tx                                        |

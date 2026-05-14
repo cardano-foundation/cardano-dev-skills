@@ -1,6 +1,6 @@
 ---
 title: AuxiliaryData.ts
-nav_order: 8
+nav_order: 7
 parent: Modules
 ---
 
@@ -21,6 +21,8 @@ parent: Modules
 - [encoding](#encoding)
   - [toCBORBytes](#tocborbytes)
   - [toCBORHex](#tocborhex)
+- [hashing](#hashing)
+  - [toHash](#tohash)
 - [model](#model)
   - [AuxiliaryData](#auxiliarydata)
   - [AuxiliaryData (type alias)](#auxiliarydata-type-alias)
@@ -166,6 +168,20 @@ Encode AuxiliaryData to CBOR hex string.
 
 ```ts
 export declare const toCBORHex: (data: AuxiliaryData, options?: CBOR.CodecOptions) => string
+```
+
+Added in v2.0.0
+
+# hashing
+
+## toHash
+
+Compute hash of auxiliary data (tag 259) per ledger rules.
+
+**Signature**
+
+```ts
+export declare const toHash: (aux: AuxiliaryData) => AuxiliaryDataHash.AuxiliaryDataHash
 ```
 
 Added in v2.0.0

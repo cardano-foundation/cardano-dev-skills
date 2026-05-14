@@ -23,7 +23,7 @@ Most application code should use the module-specific APIs (`Transaction.fromCBOR
 ## Quick Start
 
 ```typescript twoslash
-import * as CBOR from "@evolution-sdk/evolution/CBOR"
+import { CBOR } from "@evolution-sdk/evolution"
 
 // Decode hex to a typed CBOR value
 const value = CBOR.fromCBORHex("83010203")
@@ -48,7 +48,7 @@ const bytes = CBOR.toCBORBytes(value)
 `CBOR.fromCBORHex` returns a `CBOR` value — a discriminated union over every CBOR major type:
 
 ```typescript twoslash
-import * as CBOR from "@evolution-sdk/evolution/CBOR"
+import { CBOR } from "@evolution-sdk/evolution"
 
 // bigint      ← CBOR major 0 (uint) and major 1 (nint)
 const uint: CBOR.CBOR = 42n
@@ -69,7 +69,7 @@ const text: CBOR.CBOR = "hello"
 Use the type guards to narrow before accessing:
 
 ```typescript twoslash
-import * as CBOR from "@evolution-sdk/evolution/CBOR"
+import { CBOR } from "@evolution-sdk/evolution"
 
 const raw = CBOR.fromCBORHex("a2016161026162") // { 1 → "a", 2 → "b" }
 
@@ -88,7 +88,7 @@ Standard CBOR decode throws away encoding choices: whether an integer used 1 or 
 `CBORFormat` is a discriminated union (8 variants) that captures the complete encoding tree for every CBOR node. `fromCBORHexWithFormat` / `fromCBORBytesWithFormat` decode and capture it simultaneously. `toCBORHexWithFormat` / `toCBORBytesWithFormat` replay the captured tree exactly.
 
 ```typescript twoslash
-import * as CBOR from "@evolution-sdk/evolution/CBOR"
+import { CBOR } from "@evolution-sdk/evolution"
 
 // "1800" = integer 0 encoded as a 1-byte uint (non-canonical; minimal is "00")
 const hex = "1800"
@@ -128,7 +128,7 @@ The plain `toCBORHex`/`toCBORBytes` APIs accept a `CodecOptions` argument that c
 | `CARDANO_NODE_DATA_OPTIONS` | Definite Plutus data (tooling compatibility) |
 
 ```typescript twoslash
-import * as CBOR from "@evolution-sdk/evolution/CBOR"
+import { CBOR } from "@evolution-sdk/evolution"
 
 const value = CBOR.fromCBORHex("a2026161016162") // map with non-sorted keys
 
@@ -162,7 +162,7 @@ const canonicalHex = CBOR.toCBORHex(value, CBOR.CANONICAL_OPTIONS)
 ### Type Guards
 
 ```typescript twoslash
-import * as CBOR from "@evolution-sdk/evolution/CBOR"
+import { CBOR } from "@evolution-sdk/evolution"
 
 const v: CBOR.CBOR = CBOR.fromCBORHex("01")
 
@@ -179,7 +179,7 @@ CBOR.isTag(v)       // v is { _tag: "Tag"; tag: number; value: CBOR.CBOR }
 `match` provides exhaustive pattern matching over a `CBOR` value, analogous to a switch on the full union:
 
 ```typescript twoslash
-import * as CBOR from "@evolution-sdk/evolution/CBOR"
+import { CBOR } from "@evolution-sdk/evolution"
 
 const value = CBOR.fromCBORHex("43010203") // bytes [01, 02, 03]
 
@@ -207,7 +207,7 @@ const result = CBOR.match(value, {
 If your code receives a `Transaction` CBOR hex from a client, adds witnesses, and returns the result, use `WithFormat` at the transaction level to guarantee the body bytes — and thus the `txId` — are never altered:
 
 ```typescript twoslash
-import * as Transaction from "@evolution-sdk/evolution/Transaction"
+import { Transaction } from "@evolution-sdk/evolution"
 
 function addWalletWitnesses(txHex: string, walletWitnessHex: string): string {
   // Byte-level splice: body bytes untouched, txId stable
@@ -218,7 +218,7 @@ function addWalletWitnesses(txHex: string, walletWitnessHex: string): string {
 For cases where you need to inspect the transaction before re-encoding, use the WithFormat round-trip:
 
 ```typescript twoslash
-import * as Transaction from "@evolution-sdk/evolution/Transaction"
+import { Transaction } from "@evolution-sdk/evolution"
 
 function inspectAndReserialize(txHex: string): string {
   const { format, value: tx } = Transaction.fromCBORHexWithFormat(txHex)
@@ -236,7 +236,7 @@ function inspectAndReserialize(txHex: string): string {
 When you need a specific encoding shape that differs from the defaults — e.g. forcing an indefinite-length array — build the `CBORFormat` explicitly:
 
 ```typescript twoslash
-import * as CBOR from "@evolution-sdk/evolution/CBOR"
+import { CBOR } from "@evolution-sdk/evolution"
 
 const fmt: CBOR.CBORFormat = {
   _tag: "array",
@@ -253,7 +253,7 @@ const hex = CBOR.toCBORHexWithFormat([1n, 2n], fmt)
 `fromCBORHex` returns `CBOR`, not a narrowed type. Always check before indexing:
 
 ```typescript twoslash
-import * as CBOR from "@evolution-sdk/evolution/CBOR"
+import { CBOR } from "@evolution-sdk/evolution"
 
 function getMapEntry(hex: string, key: bigint): CBOR.CBOR | undefined {
   const v = CBOR.fromCBORHex(hex)

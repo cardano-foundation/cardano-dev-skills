@@ -1,6 +1,6 @@
 ---
 title: UTxO.ts
-nav_order: 191
+nav_order: 185
 parent: Modules
 ---
 
@@ -22,9 +22,11 @@ parent: Modules
   - [fromIterable](#fromiterable)
 - [conversions](#conversions)
   - [toArray](#toarray)
+  - [toInputs](#toinputs)
 - [getters](#getters)
   - [size](#size)
   - [toOutRefString](#tooutrefstring)
+  - [totalAssets](#totalassets)
 - [model](#model)
   - [UTxO (class)](#utxo-class)
     - [toJSON (method)](#tojson-method)
@@ -154,6 +156,19 @@ export declare const toArray: (set: UTxOSet) => Array<UTxO>
 
 Added in v2.0.0
 
+## toInputs
+
+Convert UTxOs to sorted TransactionInputs.
+Inputs are sorted by transaction hash then output index for deterministic ordering.
+
+**Signature**
+
+```ts
+export declare const toInputs: (utxos: ReadonlyArray<UTxO>) => ReadonlyArray<TransactionInput.TransactionInput>
+```
+
+Added in v2.0.0
+
 # getters
 
 ## size
@@ -176,6 +191,18 @@ Get the output reference string for a UTxO (txHash#index format).
 
 ```ts
 export declare const toOutRefString: (utxo: UTxO) => string
+```
+
+Added in v2.0.0
+
+## totalAssets
+
+Calculate total assets from a collection of UTxOs.
+
+**Signature**
+
+```ts
+export declare const totalAssets: (utxos: ReadonlyArray<UTxO> | Set<UTxO>) => Assets.Assets
 ```
 
 Added in v2.0.0

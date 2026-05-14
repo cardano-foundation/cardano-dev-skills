@@ -12,6 +12,7 @@
 
 use aiken/builtin
 use aiken/crypto/bitwise.{State}
+use aiken/crypto/bls12_381.{DomainSeparationTag}
 use aiken/crypto/bls12_381/scalar.{Scalar}
 
 /// The compressed generator of the G1 group of the BLS12-381 curve.
@@ -21,29 +22,11 @@ use aiken/crypto/bls12_381/scalar.{Scalar}
 pub const generator: G1Element =
   #<Bls12_381, G1>"97f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb"
 
-test generator_1() {
-  builtin.bls12_381_g1_scalar_mul(scalar.field_prime, generator) == #<Bls12_381, G1>"c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-}
-
 /// Represents the additive identity (zero) in the G1 group.
 /// Note that flat encoded plutus does not allow for the direct usage of BLS12-381 points.
 /// More explicit, any points in plutus data or scripts must be decompressed before usage onchain.
 pub const zero: G1Element =
   #<Bls12_381, G1>"c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-
-test zero_1() {
-  and {
-    zero == builtin.bls12_381_g1_scalar_mul(scalar.field_prime, generator),
-    zero == builtin.bls12_381_g1_scalar_mul(
-      scalar.field_prime,
-      #<Bls12_381, G1>"88c7e388ee58f1db9a24d7098b01d13634298bebf2d159254975bd450cb0d287fcc622eb71edde8b469a8513551baf1f",
-    ),
-    zero == builtin.bls12_381_g1_scalar_mul(
-      scalar.field_prime,
-      #<Bls12_381, G1>"a6ac32e625dc30b8d31bacf5f4c89c27b0388b15f57ae10de8d5cec02dd1f113c9a31077be05ab587ca57a88d34deb75",
-    ),
-  }
-}
 
 /// Compresses a point in the G1 group into a more compact representation.
 /// The compressed representation is a 48-byte string, corresponding to a modified `x` coordinate.
@@ -61,12 +44,6 @@ pub fn compress(point) {
   builtin.bls12_381_g1_compress(point)
 }
 
-test compress_1() {
-  compress(
-    #<Bls12_381, G1>"97f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb",
-  ) == #"97f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb"
-}
-
 /// Decompresses a point in the G1 group from its compressed form.
 pub fn decompress(bytes) {
   builtin.bls12_381_g1_uncompress(bytes)
@@ -74,10 +51,6 @@ pub fn decompress(bytes) {
 
 pub fn equal(left, right) {
   builtin.bls12_381_g1_equal(left, right)
-}
-
-test equal_1() {
-  equal(generator, generator)
 }
 
 /// Adds two points in the G1 group.
@@ -90,27 +63,23 @@ pub fn sub(left, right) {
   builtin.bls12_381_g1_add(left, builtin.bls12_381_g1_neg(right))
 }
 
-test sub_1() {
-  generator == sub(add(generator, generator), generator)
-}
-
 /// Exponentiates a point in the G1 group with a `scalar`.
 /// This operation is equivalent to the repeated addition of the point with itself `e` times.
 pub fn scale(point, e: State<Scalar>) {
   builtin.bls12_381_g1_scalar_mul(scalar.to_int(e), point)
 }
 
-test scale_1() {
-  let x = scalar.from_int(2)
-  builtin.bls12_381_g1_add(generator, generator) == scale(generator, x)
-}
-
 /// Hashes arbitrary data to a point in the G1 group.
 /// You can use the `domain_separation_tag` parameter to cryptographically separate different uses of the hash function between applications.
-pub fn hash_to_group(bytes: ByteArray, domain_separation_tag: ByteArray) {
+///
+/// See also the following [`DomainSeparationTag`](../bls12_381.html#DomainSeparationTag):
+///
+/// - [basic](../bls12_381.html#domain_separation_tag_nul)
+/// - [augmented](../bls12_381.html#domain_separation_tag_aug)
+/// - [proof of possession](../bls12_381.html#domain_separation_tag_pop)
+pub fn hash_to_group(
+  bytes: ByteArray,
+  domain_separation_tag: DomainSeparationTag,
+) {
   builtin.bls12_381_g1_hash_to_group(bytes, domain_separation_tag)
-}
-
-test hash_to_group_1() {
-  hash_to_group("hello", "world") == #<Bls12_381, G1>"89223b03c629cc6bcbbdccbba46b6679bc6a79db82f2d3bd115899a45a5a38c391587b59d3d1e297f977d1c4ee9e3388"
 }

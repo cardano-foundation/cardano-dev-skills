@@ -5,7 +5,7 @@ description: "Client types combining wallets and providers"
 
 # Clients
 
-Clients assemble chain-scoped capabilities into one runtime surface. Start with `client(chain)`, then add read access, address context, or signing capability with `.withX(...)`.
+Clients assemble chain-scoped capabilities into one runtime surface. Start with `Client.make(chain)`, then add read access, address context, or signing capability with `.withX(...)`.
 
 Submission only appears once a provider stage is present. Wallet-only assembly stages can sign, but they still hand signed transactions to a provider-backed client or backend for broadcast.
 
@@ -31,17 +31,17 @@ Different combinations create different client stages with distinct capabilities
 
 ## Configuration Pattern
 
-All clients start with `client(chain)` and add capabilities as needed:
+All clients start with `Client.make(chain)` and add capabilities as needed:
 
 ```typescript
-const readClient = client(preprod).withBlockfrost({ ... })
-const addressClient = client(preprod).withAddress("addr_test1...")
-const signingClient = client(preprod).withBlockfrost({ ... }).withSeed({ ... })
+const readClient = Client.make(preprod).withBlockfrost({ ... })
+const addressClient = Client.make(preprod).withAddress("addr_test1...")
+const signingClient = Client.make(preprod).withBlockfrost({ ... }).withSeed({ ... })
 ```
 
 **Rules**:
 
-- `client(chain)` is the empty assembly stage
+- `Client.make(chain)` is the empty assembly stage
 - Add a provider first when you need blockchain reads or submission
 - Add `.withAddress()` when you only need wallet context
 - Add `.withSeed()`, `.withPrivateKey()`, or `.withCip30()` when you need signing

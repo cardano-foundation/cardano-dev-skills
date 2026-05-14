@@ -8,7 +8,7 @@ info:
   license:
     name: Creative Commons Attribution 4.0 International
     url: https://github.com/cardano-community/koios-artifacts/blob/main/LICENSE
-  version: v1.3.2
+  version: v1.4.0
   description: |
     Koios is best described as a Decentralized and Elastic RESTful query layer for exploring data on Cardano blockchain to consume within applications/wallets/explorers/etc. This page not only provides an OpenAPI Spec for live implementation, but also ability to execute live demo from client browser against each endpoint with pre-filled examples.
 
@@ -619,6 +619,29 @@ paths:
       summary: Transaction Metadata Labels
       description: Get a list of all transaction metalabels
       operationId: tx_metalabels
+  /tx_by_metalabel: #RPC
+    get:
+      tags:
+        - Transactions
+      parameters:
+        - $ref: "#/components/parameters/_label"
+        - $ref: "#/components/parameters/_after_block_height"
+      responses:
+        "200":
+          description: Success!!
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/tx_by_metalabel"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Transactions by Metadata Label
+      description: Get a list of all transactions that include a specific metadata label (key)
+      operationId: tx_by_metalabel
   /submittx: #submit-api
     post:
       tags:
@@ -677,7 +700,7 @@ paths:
       tags:
         - Transactions
       parameters:
-        - $ref: "#/components/parameters/_epoch_no"
+        - $ref: "#/components/parameters/_epoch_no_reqd"
       responses:
         "200":
           description: Success!!
@@ -696,9 +719,9 @@ paths:
       operationId: tx_outs_epoch
   /tx_utxos: #RPC
     post:
+      deprecated: true
       tags:
         - Transactions
-      deprecated: true
       requestBody:
         $ref: "#/components/requestBodies/tx_ids"
       responses:
@@ -721,6 +744,26 @@ paths:
         - color: red
           label: "Deprecated"
 
+  /address_list: #RPC
+    get:
+      tags:
+        - Address
+      responses:
+        "200":
+          description: Success!!
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/address_list"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Address List
+      description: Get a list of all used address on blockchain
+      operationId: account_list
   /address_info: #RPC
     post:
       tags:
@@ -1037,6 +1080,7 @@ paths:
       operationId: account_reward_history
   /account_updates: #RPC
     post:
+      deprecated: true
       tags:
         - Stake Account
       requestBody:
@@ -1359,6 +1403,7 @@ paths:
       operationId: asset_nft_address
   /policy_asset_addresses: #RPC
     get:
+      deprecated: true
       tags:
         - Asset
       parameters:
@@ -1385,6 +1430,7 @@ paths:
       operationId: policy_asset_addresses
   /policy_asset_info: #RPC
     get:
+      deprecated: true
       tags:
         - Asset
       parameters:
@@ -1940,6 +1986,29 @@ paths:
       summary: Pool Delegators History
       description: Return information about active delegators (incl. history) for a given pool and epoch number (all epochs if not specified).
       operationId: pool_delegators_history
+  /pool_invalid_delegators: #RPC
+    get:
+      tags:
+        - Pool
+      parameters:
+        - $ref: "#/components/parameters/_pool_bech32"
+        - $ref: "#/components/parameters/_epoch_no"
+      responses:
+        "200":
+          description: Success!!
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pool_invalid_delegators"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Pool Invalid Delegators
+      description: Return information about delegators for a given pool that are invalid for the specified epoch.
+      operationId: pool_invalid_delegators
   /pool_blocks: #RPC
     get:
       tags:
@@ -2412,6 +2481,16 @@ components:
       in: query
       required: false
       allowEmptyValue: true
+    _epoch_no_reqd:
+      deprecated: false
+      name: _epoch_no
+      description: Epoch Number to fetch details for
+      schema:
+        type: string
+      example: "320"
+      in: query
+      required: true
+      allowEmptyValue: false
     _stake_address:
       deprecated: false
       name: _stake_address
@@ -2589,6 +2668,16 @@ components:
       example: "gov_action1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqpzklpgpf"
       schema:
         type: string
+      in: query
+      required: true
+      allowEmptyValue: false
+    _label:
+      deprecated: false
+      name: _label
+      description: Metadata label (key) to filter transactions by
+      schema:
+        type: number
+      example: 721
       in: query
       required: true
       allowEmptyValue: false
@@ -3077,8 +3166,8 @@ components:
                   type: string
             example:
               _drep_ids:
-                -  drep17l6sywnwqu9aedd6aumev42w39ln5zfl9nw7j4ak6u8swyrwvz3
-                -  drep1s9q5uyddsvza4uk2n9wswy90n8wx9d2jmrq4zgcvlyv055007av
+                -  drep1yglrf4el8gghum239fggvfrau25k2576y4dvcz65r2ukj8sqpsc2k
+                -  drep1ytf9f78k7rkwk4cu6l2nvna22keu9yus4kqzc0hqspd36uszu0xc2
     utxo_refs_with_extended:
       content:
         application/json:
@@ -3274,7 +3363,7 @@ components:
           notes:
             type: string
             example: Plomin HF
-            description: Additional information about when this protocol update was pushed (eg: if there is a fork name associated)
+            description: Additional information about when this protocol update was pushed (if there is a fork name associated)
           epoch_no:
             $ref: "#/components/schemas/epoch_info/items/properties/epoch_no"
           first_block_time:
@@ -3864,6 +3953,16 @@ components:
             type: number
             description: Epoch number for the delegation history
             example: 324
+    pool_invalid_delegators:
+      description: Array of pool delegators that are invalid for the specified epoch
+      type: array
+      items:
+        type: object
+        properties:
+          stake_address:
+            $ref: "#/components/schemas/account_history/items/properties/stake_address"
+          epoch_no:
+            $ref: "#/components/schemas/epoch_info/items/properties/epoch_no"
     pool_blocks:
       description: Array of blocks created by pool
       type: array
@@ -4653,6 +4752,30 @@ components:
           plutus_contracts:
             $ref: "#/components/schemas/tx_info/items/properties/plutus_contracts"
 
+    address_list:
+      description: Array of information for address(es)
+      type: array
+      items:
+        type: object
+        properties:
+          address:
+            $ref: "#/components/schemas/utxo_infos/items/properties/address"
+          address_hex:
+            type: string
+            description: Cardano address in hex format
+            example: 60f879af535c02e37bf77fb3b5f51d017229fe47995c37b9aca9e0091c
+          has_script:
+            $ref: "#/components/schemas/drep_info/items/properties/has_script"
+          payment_cred:
+            $ref: "#/components/schemas/utxo_infos/items/properties/payment_cred"
+          stake_address:
+            anyOf:
+              - $ref: "#/components/schemas/account_history/items/properties/stake_address"
+              - type: "null"
+          stake_address_hex:
+            anyOf:
+              - $ref: "#/components/schemas/account_list/items/properties/stake_address_hex"
+              - type: "null"
     address_info:
       description: Array of information for address(es)
       type: array
@@ -5509,6 +5632,24 @@ components:
             type: string
             description: A distinct known metalabel
             example: "721"
+    tx_by_metalabel:
+      description: Array of transactions containing the queried metadata label
+      type: array
+      items:
+        type: object
+        properties:
+          tx_hash:
+            $ref: "#/components/schemas/utxo_infos/items/properties/tx_hash"
+          block_hash:
+            $ref: "#/components/schemas/blocks/items/properties/hash"
+          block_height:
+            $ref: "#/components/schemas/blocks/items/properties/block_height"
+          epoch_no:
+            $ref: "#/components/schemas/blocks/items/properties/epoch_no"
+          absolute_slot:
+            $ref: "#/components/schemas/blocks/items/properties/abs_slot"
+          tx_timestamp:
+            $ref: "#/components/schemas/blocks/items/properties/block_time"
     utxo_infos:
       description: Array of complete UTxO information
       type: array
@@ -5953,10 +6094,14 @@ components:
             type: boolean
             description: Flag which shows if this credential is a script hash
             example: false
-          registered:
-            type: boolean
-            description: Flag to show if the DRep is currently registered
-            example: false
+          drep_status:
+            type: string
+            enum:
+              - registered
+              - deregistered
+              - not_registered
+            description: DRep's current registration status
+            example: registered
           deposit:
             anyOf:
               - type: string
@@ -6015,8 +6160,8 @@ components:
             $ref: "#/components/schemas/drep_info/items/properties/hex"
           has_script:
             $ref: "#/components/schemas/drep_info/items/properties/has_script"
-          registered:
-            $ref: "#/components/schemas/drep_info/items/properties/registered"
+          drep_status:
+            $ref: "#/components/schemas/drep_info/items/properties/drep_status"
     drep_delegators:
       description: List of all delegators by requested delegated representative (DRep)
       type: array
@@ -6167,7 +6312,7 @@ components:
             anyOf:
               - type: boolean
               - type: "null"
-            description: Indicate whether data is invalid (currently returns null for all as per dbsync)
+            description: Indicate whether data is invalid
             example: null
     drep_updates:
       description: List of updates for requested (or all) delegated representatives (DReps)

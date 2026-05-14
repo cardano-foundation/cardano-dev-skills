@@ -1,6 +1,6 @@
 ---
 title: TransactionBody.ts
-nav_order: 175
+nav_order: 170
 parent: Modules
 ---
 
@@ -10,8 +10,6 @@ parent: Modules
 
 <h2 className="text-delta">Table of contents</h2>
 
-- [arbitrary](#arbitrary)
-  - [arbitrary](#arbitrary-1)
 - [conversion](#conversion)
   - [fromCBORBytes](#fromcborbytes)
   - [fromCBORBytesWithFormat](#fromcborbyteswithformat)
@@ -21,6 +19,9 @@ parent: Modules
   - [toCBORBytesWithFormat](#tocborbyteswithformat)
   - [toCBORHex](#tocborhex)
   - [toCBORHexWithFormat](#tocborhexwithformat)
+- [hashing](#hashing)
+  - [toHash](#tohash)
+  - [toHashFromBytes](#tohashfrombytes)
 - [model](#model)
   - [TransactionBody (class)](#transactionbody-class)
     - [toJSON (method)](#tojson-method)
@@ -34,27 +35,10 @@ parent: Modules
   - [FromCBORHex](#fromcborhex-1)
 - [utils](#utils)
   - [FromCDDL](#fromcddl)
+  - [arbitrary](#arbitrary)
   - [isTransactionBody](#istransactionbody)
 
 ---
-
-# arbitrary
-
-## arbitrary
-
-FastCheck arbitrary for generating random TransactionBody instances.
-Used for property-based testing to generate valid test data.
-
-Generates basic TransactionBody instances with required fields (inputs, outputs, fee)
-and optionally includes some other common fields.
-
-**Signature**
-
-```ts
-export declare const arbitrary: FastCheck.Arbitrary<TransactionBody>
-```
-
-Added in v2.0.0
 
 # conversion
 
@@ -150,6 +134,32 @@ Convert a TransactionBody to CBOR hex string using an explicit root format tree.
 
 ```ts
 export declare const toCBORHexWithFormat: (data: TransactionBody, format: CBOR.CBORFormat) => string
+```
+
+Added in v2.0.0
+
+# hashing
+
+## toHash
+
+Compute the transaction body hash (blake2b-256 over CBOR of body).
+
+**Signature**
+
+```ts
+export declare const toHash: (body: TransactionBody) => TransactionHash.TransactionHash
+```
+
+Added in v2.0.0
+
+## toHashFromBytes
+
+Compute the transaction body hash from raw CBOR bytes, preserving original encoding.
+
+**Signature**
+
+```ts
+export declare const toHashFromBytes: (bodyBytes: Uint8Array) => TransactionHash.TransactionHash
 ```
 
 Added in v2.0.0
@@ -319,6 +329,14 @@ export declare const FromCDDL: Schema.transformOrFail<
   Schema.SchemaClass<TransactionBody, TransactionBody, never>,
   never
 >
+```
+
+## arbitrary
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<TransactionBody>
 ```
 
 ## isTransactionBody

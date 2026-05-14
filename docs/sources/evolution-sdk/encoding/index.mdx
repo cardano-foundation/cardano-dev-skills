@@ -9,6 +9,27 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 
 Evolution SDK handles multiple encoding formats used across the Cardano ecosystem — hex for raw bytes, Bech32 for addresses, CBOR for on-chain data, and JSON for interchange. The encoding modules provide type-safe conversion between these formats.
 
+## How They Connect
+
+import { Mermaid } from "@/components/mdx/mermaid"
+
+<Mermaid chart={`
+graph LR
+    A["TypeScript Values<br/>(string, bigint, Uint8Array)"] --> B["TSchema<br/>Type-safe schema"]
+    B --> C["PlutusData<br/>(Constr, Int, Bytes, List, Map)"]
+    C --> D["CBOR<br/>Binary encoding"]
+    D --> E["Hex<br/>Hex string"]
+    
+    F["Bech32<br/>addr_test1..."] -.-> G["Address<br/>Bytes"]
+    G -.-> E
+
+    style B fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#92400e
+    style C fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#1e3a5f
+    style D fill:#f3e8ff,stroke:#7c3aed,stroke-width:2px,color:#4c1d95
+`} />
+
+**Typical flow:** Define a schema with TSchema → encode values to PlutusData → serialize to CBOR → get hex for transactions. Addresses use a separate Bech32 path.
+
 ## Encoding Formats
 
 | Format | Use Case | Example |

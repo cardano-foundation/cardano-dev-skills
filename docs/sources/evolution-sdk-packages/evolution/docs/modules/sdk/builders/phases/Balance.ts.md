@@ -1,6 +1,6 @@
 ---
 title: sdk/builders/phases/Balance.ts
-nav_order: 137
+nav_order: 135
 parent: Modules
 ---
 
@@ -17,10 +17,76 @@ Added in v2.0.0
 
 <h2 class="text-delta">Table of contents</h2>
 
+- [utilities](#utilities)
+  - [calculateCertificateBalance](#calculatecertificatebalance)
+  - [calculateProposalDeposits](#calculateproposaldeposits)
+  - [calculateWithdrawals](#calculatewithdrawals)
 - [utils](#utils)
   - [executeBalance](#executebalance)
 
 ---
+
+# utilities
+
+## calculateCertificateBalance
+
+Calculate certificate deposits and refunds from a list of certificates.
+
+Certificates with deposits (money OUT):
+
+- RegCert: Stake registration deposit
+- RegDrepCert: DRep registration deposit
+- RegPoolCert: Pool registration deposit (PoolRegistration)
+- StakeRegDelegCert: Combined stake registration + delegation deposit
+- VoteRegDelegCert: Combined vote registration + delegation deposit
+- StakeVoteRegDelegCert: Combined stake + vote registration + delegation deposit
+
+Certificates with refunds (money IN):
+
+- UnregCert: Stake deregistration refund
+- UnregDrepCert: DRep deregistration refund
+- PoolRetirement: Pool retirement (no refund in Conway era; pool deposits are burned)
+
+**Signature**
+
+```ts
+export declare const calculateCertificateBalance: (
+  certificates: ReadonlyArray<Certificate.Certificate>,
+  poolDeposits: ReadonlyMap<string, bigint>
+) => { deposits: bigint; refunds: bigint }
+```
+
+Added in v2.0.0
+
+## calculateProposalDeposits
+
+Calculate total proposal deposits from proposal procedures.
+
+Each proposal requires a deposit (govActionDeposit) which is tracked in the
+ProposalProcedure structure. This deposit is deducted from transaction inputs
+during balancing.
+
+**Signature**
+
+```ts
+export declare const calculateProposalDeposits: (
+  proposalProcedures: { readonly procedures: ReadonlyArray<{ readonly deposit: bigint }> } | undefined
+) => bigint
+```
+
+Added in v2.0.0
+
+## calculateWithdrawals
+
+Calculate total withdrawal amount from a map of reward accounts to withdrawal amounts.
+
+**Signature**
+
+```ts
+export declare const calculateWithdrawals: (withdrawals: ReadonlyMap<unknown, bigint>) => bigint
+```
+
+Added in v2.0.0
 
 # utils
 

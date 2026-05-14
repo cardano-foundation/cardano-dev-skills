@@ -31,9 +31,9 @@ The builder uses these to convert: `slot = zeroSlot + (unixTime - zeroTime) / sl
 For devnet or custom networks, you can override the slot config in build options:
 
 ```typescript twoslash
-import { Address, Assets, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -54,6 +54,36 @@ const tx = await client
     }
   })
 ```
+
+## Manual Slot Conversion
+
+The builder handles slot conversion automatically, but you can also convert manually using `Time.unixTimeToSlot` and `Time.slotToUnixTime`:
+
+```typescript
+import { Time, SlotConfig } from "@evolution-sdk/evolution"
+
+// Use built-in network configs
+const preprodConfig = SlotConfig.SLOT_CONFIG_NETWORK.Preprod
+const mainnetConfig = SlotConfig.SLOT_CONFIG_NETWORK.Mainnet
+
+// Unix time → slot
+const now = BigInt(Date.now())
+const currentSlot = Time.unixTimeToSlot(now, preprodConfig)
+console.log("Current slot:", currentSlot)
+
+// Slot → Unix time
+const targetSlot = 50000000n
+const targetTime = Time.slotToUnixTime(targetSlot, preprodConfig)
+console.log("Slot 50M is at:", new Date(Number(targetTime)))
+```
+
+### Available Network Configs
+
+| Network | `SlotConfig.SLOT_CONFIG_NETWORK.X` | Zero Time | Zero Slot | Slot Length |
+| --- | --- | --- | --- | --- |
+| Mainnet | `.Mainnet` | 1596059091000 (Shelley start) | 4492800 | 1000ms |
+| Preprod | `.Preprod` | 1655769600000 | 0 | 1000ms |
+| Preview | `.Preview` | 1666656000000 | 0 | 1000ms |
 
 ## Next Steps
 

@@ -12,9 +12,9 @@ Check which pool a stake credential is delegated to and how many rewards have ac
 The simplest way to check delegation for your connected wallet:
 
 ```typescript twoslash
-import { preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -32,9 +32,9 @@ console.log("Rewards:", delegation.rewards) // Accumulated lovelace
 For querying any address's delegation, use `getDelegation` with a reward address:
 
 ```typescript twoslash
-import { preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!

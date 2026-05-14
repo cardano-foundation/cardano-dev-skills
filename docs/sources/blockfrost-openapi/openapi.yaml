@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  version: 0.1.87
+  version: 0.1.88
   title: Blockfrost.io ~ API Documentation
   x-logo:
     url: 'https://staging.blockfrost.io/images/logo.svg'
@@ -1644,7 +1644,17 @@ paths:
       tags:
         - Cardano » Governance
       summary: Specific proposal metadata
-      description: Proposal metadata information.
+      description: >
+        Proposal metadata information.
+
+
+        If this endpoint returns `404` or empty metadata for a known proposal,
+        the off-chain metadata could not be fetched (e.g. unreachable URL or
+        hash mismatch). Use the
+        [`/governance/proposals/{gov_action_id}/metadata`](#tag/cardano--governance/GET/governance/proposals/{gov_action_id}/metadata)
+        variant instead — it always returns the anchor `url` and `hash` along
+        with an `error` object describing the fetch failure, so you can retrieve
+        the metadata manually if needed.
       parameters:
         - in: path
           name: tx_hash
@@ -7382,17 +7392,26 @@ components:
               - deregistered
               - updated
             description: Action in the certificate
+          deposit:
+            type: string
+            nullable: true
+            description: >-
+              Deposit in Lovelaces paid at this registration. `null` on
+              `deregistered` and `updated` rows.
         required:
           - tx_hash
           - cert_index
           - action
+          - deposit
       example:
         - tx_hash: f4097fbdb87ab7c7ab44b30d4e2b81713a058488975d1ab8b05c381dd946a393
           cert_index: 0
           action: registered
+          deposit: '500000000'
         - tx_hash: dd3243af975be4b5bedce4e5f5b483b2386d5ad207d05e0289c1df0eb261447e
           cert_index: 0
           action: deregistered
+          deposit: null
     drep_votes:
       type: array
       items:
@@ -8416,6 +8435,7 @@ components:
           additionalProperties: true
           type: object
           nullable: true
+          deprecated: true
           example:
             PlutusV1:
               addInteger-cpu-arguments-intercept: 197209
@@ -8423,18 +8443,68 @@ components:
             PlutusV2:
               addInteger-cpu-arguments-intercept: 197209
               addInteger-cpu-arguments-slope: 0
-          description: Cost models parameters for Plutus Core scripts
+          description: >-
+            Cost models parameters for Plutus Core scripts. Deprecated, use
+            `cost_models_raw` instead.
         cost_models_raw:
           additionalProperties: true
           type: object
           nullable: true
           example:
             PlutusV1:
-              - 197209
+              - 100788
+              - 420
+              - 1
+              - 1
+              - 1000
+              - 173
               - 0
+              - 1
+              - 1000
+              - 59957
+              - 4
+              - 1
+              - 11183
+              - 32
+              - 201305
+              - 8356
+              - ...
             PlutusV2:
-              - 197209
+              - 100788
+              - 420
+              - 1
+              - 1
+              - 1000
+              - 173
               - 0
+              - 1
+              - 1000
+              - 59957
+              - 4
+              - 1
+              - 11183
+              - 32
+              - 201305
+              - 8356
+              - ...
+            PlutusV3:
+              - 100788
+              - 420
+              - 1
+              - 1
+              - 1000
+              - 173
+              - 0
+              - 1
+              - 1000
+              - 59957
+              - 4
+              - 1
+              - 11183
+              - 32
+              - 201305
+              - 8356
+              - ...
           description: Cost models parameters for Plutus Core scripts in raw list form
         price_mem:
           type: number
@@ -9615,6 +9685,12 @@ components:
               - registered
               - deregistered
             description: Action in the certificate
+          deposit:
+            type: string
+            nullable: true
+            description: >-
+              Deposit in Lovelaces paid at this registration. `null` on
+              `deregistered` rows.
           tx_slot:
             type: integer
             description: >-
@@ -9633,17 +9709,20 @@ components:
         required:
           - tx_hash
           - action
+          - deposit
           - tx_slot
           - block_time
           - block_height
       example:
         - tx_hash: 2dd15e0ef6e6a17841cb9541c27724072ce4d4b79b91e58432fbaa32d9572531
           action: registered
+          deposit: '2000000'
           tx_slot: 45093580
           block_time: 1646437200
           block_height: 6745358
         - tx_hash: 1a0570af966fb355a7160e4f82d5a80b8681b7955f5d44bec0dde628516157f0
           action: deregistered
+          deposit: null
           tx_slot: 48093580
           block_time: 1649033600
           block_height: 7126896

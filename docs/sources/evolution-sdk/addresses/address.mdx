@@ -21,7 +21,7 @@ Legacy formats (Byron, Pointer) exist for historical compatibility but are no lo
 ### Parsing Addresses
 
 ```typescript twoslash
-import { Address, KeyHash } from "@evolution-sdk/evolution";
+import { Address } from "@evolution-sdk/evolution";
 
 // Parse from Bech32 (most common format)
 const address = Address.fromBech32(
@@ -37,7 +37,7 @@ const address2 = Address.fromHex(
 ### Converting Formats
 
 ```typescript twoslash
-import { Address, KeyHash } from "@evolution-sdk/evolution";
+import { Address } from "@evolution-sdk/evolution";
 
 const address = Address.fromBech32(
   "addr1qx2kd28nq8ac5prwg32hhvudlwggpgfp8utlyqxu6wqgz62f79qsdmm5dsknt9ecr5w468r9ey0fxwkdrwh08ly3tu9sy0f4qd"
@@ -52,7 +52,7 @@ const bytes = Address.toBytes(address);    // Uint8Array
 ### Validating User Input
 
 ```typescript twoslash
-import { Address, KeyHash } from "@evolution-sdk/evolution";
+import { Address } from "@evolution-sdk/evolution";
 
 function validateAddress(input: string): Address.Address | null {
   try {
@@ -76,7 +76,7 @@ function validateAddress(input: string): Address.Address | null {
 ### Type Checking
 
 ```typescript twoslash
-import { Address, KeyHash } from "@evolution-sdk/evolution";
+import { Address } from "@evolution-sdk/evolution";
 
 const address = Address.fromBech32(
   "addr1qx2kd28nq8ac5prwg32hhvudlwggpgfp8utlyqxu6wqgz62f79qsdmm5dsknt9ecr5w468r9ey0fxwkdrwh08ly3tu9sy0f4qd"
@@ -99,7 +99,7 @@ if (details?.type === "Base") {
 For comprehensive information about an address:
 
 ```typescript twoslash
-import { Address, KeyHash } from "@evolution-sdk/evolution";
+import { Address } from "@evolution-sdk/evolution";
 
 const details = Address.getAddressDetails(
   "addr1qx2kd28nq8ac5prwg32hhvudlwggpgfp8utlyqxu6wqgz62f79qsdmm5dsknt9ecr5w468r9ey0fxwkdrwh08ly3tu9sy0f4qd"

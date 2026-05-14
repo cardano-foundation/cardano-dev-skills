@@ -21,8 +21,6 @@ The architecture establishes a thin interface capturing what transaction buildin
 
 The abstraction remains thin by design—it does not attempt to expose every provider's unique features. Focused scope keeps the interface stable and implementations maintainable.
 
-The abstraction remains thin by design—it does not attempt to expose every provider's unique features. Focused scope keeps the interface stable and implementations maintainable.
-
 ## Provider Interface Contract
 
 All providers implement the same core operations required for transaction building:
@@ -62,12 +60,10 @@ graph TD
 **[1] Provider Interface**: Defines required operations:
 - `getUtxos(address)` - Query unspent outputs at address
 - `getProtocolParameters()` - Fetch current protocol parameters
-- `submitTx(cbor)` - Submit signed transaction
+- `submitTx(tx)` - Submit signed transaction
 - `evaluateTx(tx, utxos)` - Calculate script execution costs
 - `getDatum(hash)` - Retrieve datum by hash
 - `awaitTx(hash)` - Wait for transaction confirmation
-
-**[2] Provider Implementations**: Each translates interface calls to their native API. Application code depends only on interface, never on specific implementation.
 
 **[2] Provider Implementations**: Each translates interface calls to their native API. Application code depends only on interface, never on specific implementation.
 

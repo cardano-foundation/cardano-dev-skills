@@ -21,9 +21,9 @@ Evolution SDK supports Cardano's Conway-era governance system (CIP-1694). Regist
 ## Quick Example
 
 ```typescript twoslash
-import { Credential, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Credential, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -44,9 +44,9 @@ await signed.submit()
 All governance operations support script-controlled credentials. Provide a redeemer when the credential is a script hash:
 
 ```typescript twoslash
-import { Credential, Data, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Credential, Data, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!

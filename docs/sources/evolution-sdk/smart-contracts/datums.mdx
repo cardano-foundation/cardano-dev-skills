@@ -21,9 +21,9 @@ Evolution SDK supports two ways to attach datums to outputs:
 Inline datums embed the full data in the output. The spending transaction can read it directly without needing to provide the datum separately:
 
 ```typescript twoslash
-import { Address, Assets, Data, InlineDatum, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, Data, InlineDatum, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -46,9 +46,9 @@ const tx = await client
 Datum hashes store only a 32-byte hash in the output. The full datum must be provided when spending:
 
 ```typescript
-import { Address, Assets, Data, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, Data, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -57,7 +57,7 @@ const client = makeClient(preprod)
 
 // Compute datum hash from PlutusData
 const datum = Data.constr(0n, [5000000n])
-const datumHash = Data.hashData(datum)
+const datumHash = Data.toDatumHash(datum)
 
 const tx = await client
   .newTx()
@@ -153,9 +153,9 @@ const datum = Data.constr(0n, [
 When querying UTxOs, inline datums are available directly on the UTxO object:
 
 ```typescript twoslash
-import { Address, Data, TSchema, Bytes, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Data, TSchema, Bytes, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!

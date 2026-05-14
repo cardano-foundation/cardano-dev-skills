@@ -1,6 +1,6 @@
 ---
 title: sdk/builders/operations/Operations.ts
-nav_order: 128
+nav_order: 126
 parent: Modules
 ---
 
@@ -32,8 +32,10 @@ parent: Modules
   - [~~DelegateToParams~~ (interface)](#delegatetoparams-interface)
   - [DelegateToPoolAndDRepParams (interface)](#delegatetopoolanddrepparams-interface)
   - [DelegateToPoolParams (interface)](#delegatetopoolparams-interface)
+  - [DeregisterStakeLegacyParams (interface)](#deregisterstakelegacyparams-interface)
   - [DeregisterStakeParams (interface)](#deregisterstakeparams-interface)
   - [RegisterAndDelegateToParams (interface)](#registeranddelegatetoparams-interface)
+  - [RegisterStakeLegacyParams (interface)](#registerstakelegacyparams-interface)
   - [RegisterStakeParams (interface)](#registerstakeparams-interface)
   - [WithdrawParams (interface)](#withdrawparams-interface)
 - [utils](#utils)
@@ -425,6 +427,28 @@ export interface DelegateToPoolParams {
 
 Added in v2.0.0
 
+## DeregisterStakeLegacyParams (interface)
+
+Parameters for legacy (pre-Conway) stake credential deregistration.
+
+Creates a StakeDeregistration certificate (CDDL tag 1) with no deposit refund.
+This is the pre-Conway deregistration format still accepted on mainnet.
+
+**Signature**
+
+```ts
+export interface DeregisterStakeLegacyParams {
+  /** The stake credential to deregister */
+  readonly stakeCredential: Credential.Credential
+  /** Redeemer for script-controlled stake credentials */
+  readonly redeemer?: RedeemerBuilder.RedeemerArg
+  /** Optional label for debugging script failures - identifies this operation in error messages */
+  readonly label?: string
+}
+```
+
+Added in v2.0.0
+
 ## DeregisterStakeParams (interface)
 
 Parameters for deregistering a stake credential.
@@ -464,6 +488,28 @@ export interface RegisterAndDelegateToParams {
   readonly poolKeyHash?: PoolKeyHash.PoolKeyHash
   /** DRep to delegate voting power to (optional) */
   readonly drep?: DRep.DRep
+  /** Redeemer for script-controlled stake credentials */
+  readonly redeemer?: RedeemerBuilder.RedeemerArg
+  /** Optional label for debugging script failures - identifies this operation in error messages */
+  readonly label?: string
+}
+```
+
+Added in v2.0.0
+
+## RegisterStakeLegacyParams (interface)
+
+Parameters for legacy (pre-Conway) stake credential registration.
+
+Creates a StakeRegistration certificate (CDDL tag 0) with no deposit.
+This is the pre-Conway registration format still accepted on mainnet.
+
+**Signature**
+
+```ts
+export interface RegisterStakeLegacyParams {
+  /** The stake credential to register (key hash or script hash) */
+  readonly stakeCredential: Credential.Credential
   /** Redeemer for script-controlled stake credentials */
   readonly redeemer?: RedeemerBuilder.RedeemerArg
   /** Optional label for debugging script failures - identifies this operation in error messages */
@@ -614,9 +660,9 @@ Times are in Unix milliseconds and will be converted to slots based on network c
 ```ts
 export interface ValidityParams {
   /** Transaction valid after this Unix time (milliseconds). Converted to slot. */
-  readonly from?: Time.UnixTime
+  readonly from?: UnixTime.UnixTime
   /** Transaction expires after this Unix time (milliseconds). Converted to slot. */
-  readonly to?: Time.UnixTime
+  readonly to?: UnixTime.UnixTime
 }
 ```
 

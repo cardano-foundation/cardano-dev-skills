@@ -10,25 +10,28 @@ Governance proposals submit actions for the community to vote on. The deposit is
 ## Submitting a Proposal
 
 ```typescript twoslash
-import { Anchor, GovernanceAction, RewardAccount, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Anchor, GovernanceAction, RewardAccount, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
   })
   .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
+// Governance action — e.g. new GovernanceAction.InfoAction() for informational proposals.
+// Other types: ParameterChangeAction, HardForkInitiationAction,
+// TreasuryWithdrawalsAction, NoConfidenceAction, UpdateCommitteeAction, NewConstitutionAction
 declare const governanceAction: GovernanceAction.GovernanceAction
-declare const rewardAccount: RewardAccount.RewardAccount
-declare const anchor: Anchor.Anchor
+declare const rewardAccount: RewardAccount.RewardAccount // your stake reward account — deposit refunded here
+declare const anchor: Anchor.Anchor // metadata URL + content hash describing the proposal
 
 const tx = await client
   .newTx()
   .propose({
     governanceAction,
-    rewardAccount, // Deposit refunded here when finalized
-    anchor // Metadata URL + hash (or null)
+    rewardAccount,
+    anchor
   })
   .build()
 
@@ -55,9 +58,9 @@ The `govActionDeposit` is deducted automatically during transaction balancing.
 Submit multiple proposals in a single transaction by chaining `.propose()`:
 
 ```typescript twoslash
-import { Anchor, GovernanceAction, RewardAccount, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Anchor, GovernanceAction, RewardAccount, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!

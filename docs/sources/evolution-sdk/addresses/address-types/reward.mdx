@@ -21,7 +21,7 @@ Reward Address = Staking Credential Only
 Create reward addresses by instantiating the `RewardAccount` class:
 
 ```typescript twoslash
-import { KeyHash, RewardAccount, ScriptHash } from "@evolution-sdk/evolution";
+import { KeyHash, RewardAccount } from "@evolution-sdk/evolution";
 
 const rewardAccount = new RewardAccount.RewardAccount({
   networkId: 1, // mainnet
@@ -40,7 +40,7 @@ console.log(bech32); // "stake1..."
 Parse a Bech32 stake address string into a `RewardAccount` instance:
 
 ```typescript twoslash
-import { KeyHash, RewardAccount, ScriptHash } from "@evolution-sdk/evolution";
+import { RewardAccount } from "@evolution-sdk/evolution";
 
 const bech32 = "stake1uyehkck0lajq8gr28t9uxnuvgcqrc6070x3k9r8048z8y5gh6ffgw";
 
@@ -55,7 +55,7 @@ console.log("Stake credential:", address.stakeCredential);
 Reward addresses can use script hashes for the staking credential:
 
 ```typescript twoslash
-import { KeyHash, RewardAccount, ScriptHash } from "@evolution-sdk/evolution";
+import { RewardAccount, ScriptHash } from "@evolution-sdk/evolution";
 
 // Reward address with script credential
 const scriptRewardAccount = new RewardAccount.RewardAccount({
@@ -83,7 +83,7 @@ Reward Address:  stake1uy... (stake only)
 
 **Bech32 Prefix**: `stake` (mainnet) or `stake_test` (testnet)  
 **Length**: 29 bytes raw / ~59 characters Bech32  
-**Header Bits**: `1110xxxx` (reward address type)
+**Header Bits**: `1110xxxx` (key hash) or `1111xxxx` (script hash)
 
 ## Address Components
 

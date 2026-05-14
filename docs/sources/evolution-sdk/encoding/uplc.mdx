@@ -1,0 +1,201 @@
+---
+title: UPLC
+description: Working with Untyped Plutus Lambda Calculus programs
+---
+
+# UPLC
+
+UPLC (Untyped Plutus Lambda Calculus) is the low-level language that Plutus smart contracts compile to. Evolution SDK provides a complete UPLC module for parsing, constructing, encoding, and manipulating UPLC programs.
+
+Most developers interact with UPLC indirectly through `applyParamsToScript` (see [Parameterized Scripts](/docs/smart-contracts/apply-params)). This guide covers the UPLC module in depth for advanced use cases.
+
+## Program Structure
+
+A UPLC program consists of a version and a body (a term):
+
+```typescript
+import { UPLC } from "@evolution-sdk/evolution"
+
+// Parse a program from flat-encoded bytes
+declare const flatBytes: Uint8Array
+const program = UPLC.fromFlatBytes(flatBytes)
+
+console.log(program.version) // e.g., "1.1.0"
+console.log(program.body)    // The root Term
+```
+
+## CBOR Encoding Levels
+
+Plutus scripts on-chain are typically **double CBOR-encoded**: the Flat-encoded bytes are wrapped in CBOR bytes, then wrapped again. Evolution SDK handles all encoding levels:
+
+```typescript
+import { UPLC } from "@evolution-sdk/evolution"
+
+declare const scriptHex: string
+
+// Detect encoding level
+const level = UPLC.getCborEncodingLevel(scriptHex)
+// "double" | "single" | "none"
+
+// Convert between encoding levels
+const singleEncoded = UPLC.applySingleCborEncoding(scriptHex)
+const doubleEncoded = UPLC.applyDoubleCborEncoding(scriptHex)
+
+// Decode double-CBOR to flat bytes
+const flatBytes = UPLC.decodeDoubleCborHexToFlat(scriptHex)
+
+// Parse directly from CBOR hex to a Program
+const program = UPLC.fromCborHexToProgram(scriptHex)
+```
+
+## Flat Encoding
+
+Flat is the binary serialization format for UPLC. Convert between programs and flat bytes:
+
+```typescript
+import { UPLC } from "@evolution-sdk/evolution"
+
+declare const program: UPLC.Program
+
+// Program → flat bytes
+const flatBytes = UPLC.toFlatBytes(program)
+const flatHex = UPLC.toFlatHex(program)
+
+// Flat bytes → Program
+const parsed = UPLC.fromFlatBytes(flatBytes)
+const parsedFromHex = UPLC.fromFlatHex(flatHex)
+```
+
+## Constructing Terms
+
+Build UPLC terms programmatically using the term constructors:
+
+```typescript
+import { UPLC, Data, CBOR } from "@evolution-sdk/evolution"
+
+// Variable reference
+const x = UPLC.varTerm(0n)
+
+// Lambda abstraction
+const identity = UPLC.lambdaTerm(0n, UPLC.varTerm(0n))
+
+// Function application
+const applied = UPLC.applyTerm(identity, UPLC.constantTerm("integer", 42n))
+
+// Builtin function
+const addInteger = UPLC.builtinTerm("addInteger")
+
+// Delay and Force (for lazy evaluation)
+const delayed = UPLC.delayTerm(UPLC.constantTerm("integer", 1n))
+const forced = UPLC.forceTerm(delayed)
+
+// Constructor (Plutus V3)
+const constr = UPLC.constrTerm(0n, [
+  UPLC.constantTerm("integer", 100n)
+])
+
+// Case expression (Plutus V3)
+const caseExpr = UPLC.caseTerm(constr, [
+  UPLC.constantTerm("integer", 1n),
+  UPLC.constantTerm("integer", 2n)
+])
+
+// Error term
+const err = UPLC.errorTerm
+```
+
+## Data Constants
+
+Create UPLC constant terms from PlutusData — this is what `applyParamsToScript` uses internally:
+
+```typescript
+import { UPLC, Data } from "@evolution-sdk/evolution"
+
+// Create a data constant from PlutusData
+const term = UPLC.dataConstant(Data.int(42n))
+
+// With custom CBOR options (default is Aiken-compatible)
+const aikenTerm = UPLC.dataConstant(
+  Data.constr(0n, [Data.int(1n)]),
+)
+```
+
+## Applying Parameters
+
+The most common UPLC operation — apply runtime parameters to a compiled script:
+
+```typescript
+import { UPLC, Data, CBOR } from "@evolution-sdk/evolution"
+
+declare const compiledScript: string // Double-CBOR hex from Aiken
+
+// Apply parameters
+const applied = UPLC.applyParamsToScript(compiledScript, [
+  Data.bytearray("abc123"),
+  Data.int(1000000n)
+])
+
+// With typed schemas
+const typedApplied = UPLC.applyParamsToScriptWithSchema(
+  compiledScript,
+  [{ owner: new Uint8Array(28), deadline: 1000000n }],
+  (params) => Data.constr(0n, [
+    Data.bytearray(params.owner.toString()),
+    Data.int(params.deadline)
+  ])
+)
+```
+
+See [Parameterized Scripts](/docs/smart-contracts/apply-params) for a complete tutorial.
+
+## Builtin Functions
+
+UPLC includes a fixed set of builtin functions matching Plutus V3. The full list is available via `UPLC.BuiltinFunctions`:
+
+| Category | Examples |
+| --- | --- |
+| Arithmetic | `addInteger`, `subtractInteger`, `multiplyInteger`, `divideInteger` |
+| Comparison | `equalsInteger`, `lessThanInteger`, `lessThanEqualsInteger` |
+| ByteString | `appendByteString`, `sliceByteString`, `lengthOfByteString` |
+| Cryptography | `sha2_256`, `sha3_256`, `blake2b_256`, `verifyEd25519Signature` |
+| Data | `constrData`, `mapData`, `listData`, `iData`, `bData`, `unConstrData` |
+| String | `appendString`, `equalsString`, `encodeUtf8`, `decodeUtf8` |
+| BLS | `bls12_381_G1_add`, `bls12_381_G2_add`, `bls12_381_millerLoop` |
+
+## Version Management
+
+UPLC programs carry a semantic version:
+
+```typescript
+import { UPLC } from "@evolution-sdk/evolution"
+
+// Create a version
+const version = UPLC.makeSemVer(1, 1, 0)
+
+// Parse version components
+const parts = UPLC.parseSemVer("1.1.0")
+// { major: 1, minor: 1, patch: 0 }
+```
+
+## Error Handling
+
+UPLC operations throw `UPLC.UPLCError` on failure:
+
+```typescript
+import { UPLC } from "@evolution-sdk/evolution"
+
+try {
+  const program = UPLC.fromFlatHex("invalid")
+} catch (e) {
+  if (e instanceof UPLC.UPLCError) {
+    console.error("UPLC error:", e.message)
+  }
+}
+```
+
+## Next Steps
+
+- [Parameterized Scripts](/docs/smart-contracts/apply-params) — Apply parameters to validators
+- [Blueprint Codegen](/docs/smart-contracts/blueprint-codegen) — Generate types from CIP-57 blueprints
+- [CBOR Encoding](/docs/encoding/cbor) — Low-level CBOR operations
+- [Data Encoding](/docs/encoding/data) — PlutusData construction

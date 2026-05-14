@@ -1,6 +1,6 @@
 ---
 title: PoolMetadata.ts
-nav_order: 102
+nav_order: 100
 parent: Modules
 ---
 

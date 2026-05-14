@@ -1,0 +1,46 @@
+---
+title: API Overview
+description: Find the right module for what you need to do
+---
+
+# API Overview
+
+Find the right module by what you want to do. For full API docs, browse the [Module Reference](/docs/modules).
+
+## Find by Task
+
+| I want to... | Module | Key Functions |
+| --- | --- | --- |
+| **Parse or create an address** | [Address](/docs/modules/Address) | `fromBech32`, `fromHex`, `toHex`, `toBech32`, `fromSeed` |
+| **Work with ADA and tokens** | [Assets](/docs/modules/Assets) | `fromLovelace`, `addByHex`, `merge` |
+| **Build a transaction** | [TransactionBuilder](/docs/modules/sdk/builders/TransactionBuilder) | `newTx`, `payToAddress`, `collectFrom`, `build` |
+| **Sign a transaction** | [SignBuilder](/docs/modules/sdk/builders/SignBuilder) | `sign`, `signAndSubmit`, `partialSign` |
+| **Submit a transaction** | [SubmitBuilder](/docs/modules/sdk/builders/SubmitBuilder) | `submit` |
+| **Create PlutusData** | [Data](/docs/modules/Data) | `constr`, `int`, `bytearray`, `list`, `map` |
+| **Define type-safe schemas** | [TSchema](/docs/modules/TSchema) | `Struct`, `Variant`, `Array`, `Map`, `ByteArray`, `Integer` |
+| **Encode/decode CBOR** | [CBOR](/docs/modules/CBOR) | `fromCBORHex`, `toCBORHex`, `match` |
+| **Work with UPLC scripts** | [UPLC](/docs/modules/UPLC) | `applyParamsToScript`, `fromFlatBytes`, `toFlatBytes` |
+| **Connect a provider** | [Client](/docs/modules/sdk/client/Client) | `make`, `withBlockfrost`, `withKupmios` |
+| **Query UTxOs** | [Provider](/docs/modules/sdk/provider/Provider) | `getUtxos`, `getUtxoByUnit`, `getProtocolParameters` |
+| **Manage wallets** | [Wallet](/docs/modules/sdk/wallet/Wallet) | `withSeed`, `withPrivateKey`, `withCip30` |
+| **Derive keys** | [Derivation](/docs/modules/sdk/wallet/Derivation) | `walletFromSeed`, `keysFromSeed`, `addressFromSeed` |
+| **Sign messages (CIP-30)** | [SignData](/docs/modules/cose/SignData) | `signData`, `verifyData` |
+| **Generate from blueprints** | [codegen](/docs/modules/blueprint/codegen) | `generateTypeScript` |
+| **Work with credentials** | [Credential](/docs/modules/Credential) | `makeKeyHash`, `makeScriptHash` |
+| **Handle governance** | [DRep](/docs/modules/DRep), [VotingProcedures](/docs/modules/VotingProcedures) | `fromKeyHash`, `vote`, `propose` |
+
+## Module Categories
+
+### Core Types
+Address, Assets, Credential, Data, TSchema, CBOR, UPLC, Transaction, UTxO, Value
+
+### SDK
+Client, Provider (Blockfrost, Kupmios, Maestro, Koios), Wallet, TransactionBuilder, SignBuilder, SubmitBuilder, CoinSelection
+
+### Domains
+Blueprint (codegen), COSE (message signing), Plutus (on-chain types)
+
+### Primitives
+Bytes, BigInt, Coin, PolicyId, ScriptHash, KeyHash, Slot, UnixTime, and 100+ more
+
+For the complete list, browse the [Module Reference](/docs/modules) sidebar.

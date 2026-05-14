@@ -18,16 +18,16 @@ Reference scripts (Plutus V2+) let you store a script on-chain in a UTxO and ref
 Store your validator script on-chain by including it in a UTxO output:
 
 ```typescript twoslash
-import { Address, Assets, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
   })
   .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
-declare const validatorScript: any
+declare const validatorScript: any // compiled Plutus script (from Aiken build or Blueprint codegen)
 
 // Store script in a UTxO (send to your own address or a permanent holder)
 const myAddress = await client.address()
@@ -56,18 +56,18 @@ import {
   Data,
   preprod,
   type UTxO,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
   })
   .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
-declare const scriptUtxos: UTxO.UTxO[]
-declare const referenceScriptUtxo: UTxO.UTxO
+declare const scriptUtxos: UTxO.UTxO[] // from client.getUtxos(scriptAddress)
+declare const referenceScriptUtxo: UTxO.UTxO // the UTxO where you deployed the script in Step 1
 
 // Reference the UTxO containing the script instead of attaching it
 const tx = await client
@@ -105,10 +105,10 @@ import {
   Data,
   preprod,
   type UTxO,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!

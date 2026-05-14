@@ -1,0 +1,105 @@
+---
+title: cose/Utils.ts
+nav_order: 47
+parent: Modules
+---
+
+## Utils overview
+
+Utility functions for COSE message signing.
+
+Added in v2.0.0
+
+---
+
+<h2 className="text-delta">Table of contents</h2>
+
+- [Model](#model)
+  - [Payload (type alias)](#payload-type-alias)
+- [Testing](#testing)
+  - [arbitraryPayload](#arbitrarypayload)
+- [Utilities](#utilities)
+  - [fromHex](#fromhex)
+  - [fromText](#fromtext)
+  - [toHex](#tohex)
+  - [toText](#totext)
+
+---
+
+# Model
+
+## Payload (type alias)
+
+Payload type - represents the data to be signed.
+
+**Signature**
+
+```ts
+export type Payload = Uint8Array
+```
+
+Added in v2.0.0
+
+# Testing
+
+## arbitraryPayload
+
+FastCheck arbitrary for generating random Payload instances.
+
+**Signature**
+
+```ts
+export declare const arbitraryPayload: FastCheck.Arbitrary<Uint8Array>
+```
+
+Added in v2.0.0
+
+# Utilities
+
+## fromHex
+
+Convert hex string to Payload.
+
+**Signature**
+
+```ts
+export declare const fromHex: (hex: string) => Payload
+```
+
+Added in v2.0.0
+
+## fromText
+
+Convert text to Payload (UTF-8 encoding).
+
+**Signature**
+
+```ts
+export declare const fromText: (text: string) => Payload
+```
+
+Added in v2.0.0
+
+## toHex
+
+Convert Payload to hex string.
+
+**Signature**
+
+```ts
+export declare const toHex: (payload: Payload) => string
+```
+
+Added in v2.0.0
+
+## toText
+
+Convert Payload to text (UTF-8 decoding).
+
+**Signature**
+
+```ts
+export declare const toText: (payload: Payload) => string
+```
+
+Added in v2.0.0

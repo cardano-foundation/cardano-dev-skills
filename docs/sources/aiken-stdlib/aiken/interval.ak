@@ -276,91 +276,29 @@ pub const everything: Interval =
 /// interval.contains(iv, 42) == False
 /// ```
 pub fn contains(self: Interval, elem: Int) -> Bool {
-  let is_greater_than_lower_bound =
-    when self.lower_bound.bound_type is {
-      NegativeInfinity -> True
-      Finite(lower_bound) ->
-        if self.lower_bound.is_inclusive {
-          elem >= lower_bound
-        } else {
-          elem > lower_bound
-        }
-      PositiveInfinity -> False
-    }
+  let is_greater_than_lower_bound = when self.lower_bound.bound_type is {
+    NegativeInfinity -> True
+    Finite(lower_bound) ->
+      if self.lower_bound.is_inclusive {
+        elem >= lower_bound
+      } else {
+        elem > lower_bound
+      }
+    PositiveInfinity -> False
+  }
 
-  let is_smaller_than_upper_bound =
-    when self.upper_bound.bound_type is {
-      NegativeInfinity -> False
-      Finite(upper_bound) ->
-        if self.upper_bound.is_inclusive {
-          elem <= upper_bound
-        } else {
-          elem < upper_bound
-        }
-      PositiveInfinity -> True
-    }
+  let is_smaller_than_upper_bound = when self.upper_bound.bound_type is {
+    NegativeInfinity -> False
+    Finite(upper_bound) ->
+      if self.upper_bound.is_inclusive {
+        elem <= upper_bound
+      } else {
+        elem < upper_bound
+      }
+    PositiveInfinity -> True
+  }
 
   is_greater_than_lower_bound && is_smaller_than_upper_bound
-}
-
-test contains_1() {
-  let iv = everything
-  contains(iv, 14)
-}
-
-test contains_2() {
-  let iv = entirely_before(15)
-  contains(iv, 14)
-}
-
-test contains_3() {
-  let iv = before(14)
-  contains(iv, 14)
-}
-
-test contains_4() {
-  let iv = entirely_before(14)
-  !contains(iv, 14)
-}
-
-test contains_5() {
-  let iv = entirely_after(13)
-  contains(iv, 14)
-}
-
-test contains_6() {
-  let iv = after(14)
-  contains(iv, 14)
-}
-
-test contains_7() {
-  let iv = entirely_after(14)
-  !contains(iv, 14)
-}
-
-test contains_8() {
-  let iv = between(42, 1337)
-  !contains(iv, 14)
-}
-
-test contains_9() {
-  let iv = between(0, 42)
-  contains(iv, 14)
-}
-
-test contains_10() {
-  let iv = between(0, 42)
-  contains(iv, 42)
-}
-
-test contains_11() {
-  let iv = entirely_between(0, 42)
-  !contains(iv, 0)
-}
-
-test contains_12() {
-  let iv = empty
-  !contains(iv, 14)
 }
 
 /// Tells whether an interval is empty; i.e. that is contains no value.
@@ -393,12 +331,11 @@ pub fn is_empty(Interval { lower_bound, upper_bound }: Interval) -> Bool {
       when upper_bound.bound_type is {
         NegativeInfinity -> True
         Finite(r) -> {
-          let l =
-            if lower_bound.is_inclusive {
-              l
-            } else {
-              l + 1
-            }
+          let l = if lower_bound.is_inclusive {
+            l
+          } else {
+            l + 1
+          }
           if upper_bound.is_inclusive {
             l > r
           } else {
@@ -432,58 +369,6 @@ pub fn is_entirely_after(self: Interval, point: Int) -> Bool {
   }
 }
 
-test is_entirely_after_1() {
-  is_entirely_after(after(10), 5)
-}
-
-test is_entirely_after_2() {
-  !is_entirely_after(after(10), 10)
-}
-
-test is_entirely_after_3() {
-  !is_entirely_after(after(10), 15)
-}
-
-test is_entirely_after_4() {
-  !is_entirely_after(between(10, 20), 30)
-}
-
-test is_entirely_after_5() {
-  is_entirely_after(between(10, 20), 5)
-}
-
-test is_entirely_after_6() {
-  is_entirely_after(entirely_after(10), 10)
-}
-
-test is_entirely_after_7() {
-  !is_entirely_after(before(10), 5)
-}
-
-test is_entirely_after_8() {
-  !is_entirely_after(before(10), 15)
-}
-
-test is_entirely_after_9() {
-  !is_entirely_after(entirely_before(10), 5)
-}
-
-test is_entirely_after_10() {
-  is_entirely_after(
-    Interval {
-      lower_bound: IntervalBound {
-        bound_type: PositiveInfinity,
-        is_inclusive: True,
-      },
-      upper_bound: IntervalBound {
-        bound_type: PositiveInfinity,
-        is_inclusive: False,
-      },
-    },
-    1,
-  )
-}
-
 /// Check whether the interval is entirely before a given point.
 ///
 /// ```aiken
@@ -506,77 +391,23 @@ pub fn is_entirely_before(self: Interval, point: Int) -> Bool {
   }
 }
 
-test is_entirely_before_1() {
-  is_entirely_before(before(10), 15)
-}
-
-test is_entirely_before_2() {
-  !is_entirely_before(before(10), 10)
-}
-
-test is_entirely_before_3() {
-  !is_entirely_before(before(10), 5)
-}
-
-test is_entirely_before_4() {
-  is_entirely_before(between(10, 20), 30)
-}
-
-test is_entirely_before_5() {
-  !is_entirely_before(between(10, 20), 5)
-}
-
-test is_entirely_before_6() {
-  is_entirely_before(entirely_before(10), 10)
-}
-
-test is_entirely_before_7() {
-  !is_entirely_before(after(10), 15)
-}
-
-test is_entirely_before_8() {
-  !is_entirely_before(after(10), 5)
-}
-
-test is_entirely_before_9() {
-  !is_entirely_before(entirely_after(10), 5)
-}
-
-test is_entirely_before_10() {
-  is_entirely_before(
-    Interval {
-      lower_bound: IntervalBound {
-        bound_type: NegativeInfinity,
-        is_inclusive: True,
-      },
-      upper_bound: IntervalBound {
-        bound_type: NegativeInfinity,
-        is_inclusive: False,
-      },
-    },
-    1,
-  )
-}
-
 /// Obtain a human-readable string representation of the interval. Useful for debugging.
 pub fn to_string(self: Interval) -> String {
-  let lower_bracket =
-    if self.lower_bound.is_inclusive {
-      @"["
-    } else {
-      @"("
-    }
+  let lower_bracket = if self.lower_bound.is_inclusive {
+    @"["
+  } else {
+    @"("
+  }
 
   let lower_bound = bound_type_to_string(self.lower_bound.bound_type)
 
   let upper_bound = bound_type_to_string(self.upper_bound.bound_type)
 
-  let upper_bracket =
-    if self.upper_bound.is_inclusive {
-      @"]"
-    } else {
-      @")"
-    }
+  let upper_bracket = if self.upper_bound.is_inclusive {
+    @"]"
+  } else {
+    @")"
+  }
 
   lower_bracket
     |> string.concat(lower_bound)
@@ -617,24 +448,6 @@ pub fn hull(iv1: Interval, iv2: Interval) -> Interval {
   }
 }
 
-test hull_1() {
-  let iv1 = between(0, 10)
-  let iv2 = between(2, 14)
-  hull(iv1, iv2) == between(0, 14)
-}
-
-test hull_2() {
-  let iv1 = between(5, 10)
-  let iv2 = before(0)
-  hull(iv1, iv2) == before(10)
-}
-
-test hull_3() {
-  let iv1 = entirely_after(0)
-  let iv2 = between(10, 42)
-  hull(iv1, iv2) == entirely_after(0)
-}
-
 /// Checks whether the second interval is fully included in the first.
 ///
 /// ```aiken
@@ -663,61 +476,6 @@ pub fn includes(self: Interval, other: Interval) -> Bool {
   }
 }
 
-// contains :: (Enum a, Ord a) => Interval a -> Interval a -> Bool
-// -- Everything contains the empty interval
-// contains _ i2 | isEmpty i2 = True
-// -- Nothing is contained in the empty interval (except the empty interval,
-// -- which is already handled)
-// contains i1 _ | isEmpty i1 = False
-// -- Otherwise we check the endpoints. This doesn't work for empty intervals,
-// -- hence the cases above.
-// contains (Interval l1 h1) (Interval l2 h2) = l1 <= l2 && h2 <= h1
-// {-# INLINABLE contains #-}
-
-test includes_1() {
-  between(-5, 5) |> includes(between(-5, 5))
-}
-
-test includes_2() {
-  between(-5, 5) |> includes(between(0, 2))
-}
-
-test includes_3() {
-  between(-5, 5) |> includes(entirely_between(-5, 5))
-}
-
-test includes_4() {
-  !(entirely_between(-5, 5) |> includes(between(-5, 5)))
-}
-
-test includes_5() {
-  and {
-    after(0) |> includes(after(1)),
-    entirely_after(0) |> includes(entirely_after(1)),
-  }
-}
-
-test includes_6() {
-  and {
-    after(0) |> includes(after(1)),
-    entirely_after(0) |> includes(after(1)),
-  }
-}
-
-test includes_7() {
-  and {
-    before(0) |> includes(before(-1)),
-    entirely_before(0) |> includes(before(-1)),
-  }
-}
-
-test includes_8() {
-  and {
-    !(before(-1) |> includes(before(0))),
-    !(entirely_before(-1) |> includes(before(0))),
-  }
-}
-
 /// Computes the largest interval contained in the two given intervals, if any.
 ///
 /// ```aiken
@@ -738,44 +496,6 @@ pub fn intersection(iv1: Interval, iv2: Interval) -> Interval {
     lower_bound: max(iv1.lower_bound, iv2.lower_bound, inclusive_lower_bound),
     upper_bound: min(iv1.upper_bound, iv2.upper_bound, inclusive_upper_bound),
   }
-}
-
-test intersection_1() {
-  let iv1 = between(0, 10)
-  let iv2 = between(2, 14)
-  intersection(iv1, iv2) == between(2, 10)
-}
-
-test intersection_2() {
-  let iv1 = between(0, 1)
-  let iv2 = between(1, 2)
-  intersection(iv1, iv2) == between(1, 1)
-}
-
-test intersection_3() {
-  let iv1 = between(0, 1)
-  let iv2 = entirely_between(1, 2)
-  intersection(iv1, iv2)
-    |> is_empty
-}
-
-test intersection_4() {
-  let iv1 = entirely_between(0, 1)
-  let iv2 = entirely_between(1, 2)
-  intersection(iv1, iv2)
-    |> is_empty
-}
-
-test intersection_5() {
-  let iv1 = between(0, 10)
-  let iv2 = before(4)
-  intersection(iv1, iv2) == between(0, 4)
-}
-
-test intersection_6() {
-  let iv1 = entirely_before(10)
-  let iv2 = entirely_after(0)
-  intersection(iv1, iv2) == entirely_between(0, 10)
 }
 
 /// Return the highest bound of the two. For equal `IntervalBoundType`,

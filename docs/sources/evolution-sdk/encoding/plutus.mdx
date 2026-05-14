@@ -171,7 +171,7 @@ Multi-asset value representing ADA and native tokens as nested maps.
 ```typescript twoslash
 import { Value } from "@evolution-sdk/evolution/plutus"
 import { Bytes, Data } from "@evolution-sdk/evolution"
-import * as Text from "@evolution-sdk/evolution/Text"
+import { Text } from "@evolution-sdk/evolution"
 
 // ADA only
 const adaOnly: Value.Value = new Map([
@@ -232,7 +232,7 @@ Reference token metadata following CIP-68 standard with versioning and extensibi
 ```typescript twoslash
 import { CIP68Metadata } from "@evolution-sdk/evolution/plutus"
 import { Bytes, Data } from "@evolution-sdk/evolution"
-import * as Text from "@evolution-sdk/evolution/Text"
+import { Text } from "@evolution-sdk/evolution"
 
 // NFT metadata (label 222)
 const nftMetadata = Data.map([
@@ -352,7 +352,7 @@ Complete CIP-68 NFT mint creating both reference token (label 100, immutable met
 ```typescript twoslash
 import { CIP68Metadata, Value } from "@evolution-sdk/evolution/plutus"
 import { Bytes, Data } from "@evolution-sdk/evolution"
-import * as Text from "@evolution-sdk/evolution/Text"
+import { Text } from "@evolution-sdk/evolution"
 
 // Metadata for both reference and user tokens
 const metadata = Data.map([
@@ -394,7 +394,7 @@ Decentralized exchange limit order specifying what assets are offered, what's re
 ```typescript twoslash
 import { Credential, Value } from "@evolution-sdk/evolution/plutus"
 import { Bytes, Data } from "@evolution-sdk/evolution"
-import * as Text from "@evolution-sdk/evolution/Text"
+import { Text } from "@evolution-sdk/evolution"
 
 interface DexOrderDatum {
   owner: Credential.Credential
@@ -413,7 +413,7 @@ const orderDatum: DexOrderDatum = {
     [new Uint8Array(), new Map([[new Uint8Array(), 100000000n]])] // 100 ADA
   ]),
   requested_value: new Map([
-    [Bytes.fromHex("token_policy_id_28_bytes_hex_encoded_here_abcd"), new Map([
+    [Bytes.fromHex("a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8"), new Map([
       [Text.toBytes("USDC"), 10000000n] // 10 USDC (6 decimals)
     ])]
   ]),

@@ -1,6 +1,6 @@
 ---
 title: plutus/CIP68Metadata.ts
-nav_order: 91
+nav_order: 89
 parent: Modules
 ---
 
@@ -63,29 +63,29 @@ export type CIP68Datum = typeof CIP68Datum.Type
 ```ts
 export declare const Codec: {
   toData: (
-    a: { readonly metadata: Data.Data; readonly version: bigint; readonly extra: readonly Data.Data[] },
+    a: { readonly version: bigint; readonly metadata: Data.Data; readonly extra: readonly Data.Data[] },
     overrideOptions?: ParseOptions
   ) => Data.Constr
   fromData: (
     i: Data.Constr,
     overrideOptions?: ParseOptions
-  ) => { readonly metadata: Data.Data; readonly version: bigint; readonly extra: readonly Data.Data[] }
+  ) => { readonly version: bigint; readonly metadata: Data.Data; readonly extra: readonly Data.Data[] }
   toCBORHex: (
-    a: { readonly metadata: Data.Data; readonly version: bigint; readonly extra: readonly Data.Data[] },
+    a: { readonly version: bigint; readonly metadata: Data.Data; readonly extra: readonly Data.Data[] },
     overrideOptions?: ParseOptions
   ) => string
   toCBORBytes: (
-    a: { readonly metadata: Data.Data; readonly version: bigint; readonly extra: readonly Data.Data[] },
+    a: { readonly version: bigint; readonly metadata: Data.Data; readonly extra: readonly Data.Data[] },
     overrideOptions?: ParseOptions
   ) => any
   fromCBORHex: (
     i: string,
     overrideOptions?: ParseOptions
-  ) => { readonly metadata: Data.Data; readonly version: bigint; readonly extra: readonly Data.Data[] }
+  ) => { readonly version: bigint; readonly metadata: Data.Data; readonly extra: readonly Data.Data[] }
   fromCBORBytes: (
     i: any,
     overrideOptions?: ParseOptions
-  ) => { readonly metadata: Data.Data; readonly version: bigint; readonly extra: readonly Data.Data[] }
+  ) => { readonly version: bigint; readonly metadata: Data.Data; readonly extra: readonly Data.Data[] }
 }
 ```
 

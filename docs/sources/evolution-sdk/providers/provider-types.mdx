@@ -14,9 +14,9 @@ Hosted API service with generous free tier and pay-as-you-grow pricing.
 ### Configuration
 
 ```typescript twoslash
-import { mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { mainnet, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -75,16 +75,36 @@ Self-hosted combination of Ogmios (Cardano node interface) and Kupo (lightweight
 ### Configuration
 
 ```typescript twoslash
-import { mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { mainnet, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withKupmios({
     ogmiosUrl: "http://localhost:1337",
     kupoUrl: "http://localhost:1442"
   })
 ```
 
-### Setup Requirements
+### With Custom Headers (Demeter / Hosted)
+
+For hosted Kupmios services like [Demeter](https://demeter.run), pass API keys via custom headers:
+
+```typescript twoslash
+import { mainnet, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(mainnet)
+  .withKupmios({
+    ogmiosUrl: "https://ogmios.demeter.run",
+    kupoUrl: "https://kupo.demeter.run",
+    headers: {
+      ogmiosHeader: { "dmtr-api-key": process.env.DEMETER_API_KEY! },
+      kupoHeader: { "dmtr-api-key": process.env.DEMETER_API_KEY! },
+    }
+  })
+```
+
+Each service can have its own header — useful when Kupo and Ogmios use different authentication.
+
+### Setup Requirements (Self-Hosted)
 
 Requires running Cardano node, Ogmios, and Kupo services:
 
@@ -152,9 +172,9 @@ Hosted API service with advanced features and analytics capabilities.
 ### Configuration
 
 ```typescript twoslash
-import { mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { mainnet, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withMaestro({
     baseUrl: "https://mainnet.gomaestro-api.org/v1",
     apiKey: process.env.MAESTRO_API_KEY!
@@ -212,9 +232,9 @@ Community-driven distributed API infrastructure.
 ### Configuration
 
 ```typescript twoslash
-import { mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { mainnet, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withKoios({
     baseUrl: "https://api.koios.rest/api/v1"
   })
@@ -275,17 +295,17 @@ Applications prioritizing decentralization, community infrastructure, or wanting
 The unified interface allows switching providers with minimal code changes:
 
 ```typescript twoslash
-import { preprod, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { preprod, mainnet, Client } from "@evolution-sdk/evolution"
 
 // Development: Blockfrost
-const devClient = makeClient(preprod)
+const devClient = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
   })
 
 // Production: Self-hosted Kupmios
-const prodClient = makeClient(mainnet)
+const prodClient = Client.make(mainnet)
   .withKupmios({
     ogmiosUrl: process.env.OGMIOS_URL!,
     kupoUrl: process.env.KUPO_URL!
@@ -300,22 +320,22 @@ const params = await devClient.getProtocolParameters()
 Manage provider configuration per environment:
 
 ```typescript twoslash
-import { preprod, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { preprod, mainnet, Client } from "@evolution-sdk/evolution"
 
 const environment = (process.env.NODE_ENV || "development") as "development" | "staging" | "production"
 
 const client =
   environment === "production"
-    ? makeClient(mainnet).withKupmios({
+    ? Client.make(mainnet).withKupmios({
         ogmiosUrl: process.env.OGMIOS_URL!,
         kupoUrl: process.env.KUPO_URL!
       })
     : environment === "staging"
-      ? makeClient(preprod).withMaestro({
+      ? Client.make(preprod).withMaestro({
           baseUrl: "https://preprod.gomaestro-api.org/v1",
           apiKey: process.env.MAESTRO_STAGING_API_KEY!
         })
-      : makeClient(preprod).withBlockfrost({
+      : Client.make(preprod).withBlockfrost({
           baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
           projectId: process.env.BLOCKFROST_PREPROD_PROJECT_ID!
         })

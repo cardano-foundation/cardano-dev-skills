@@ -32,10 +32,10 @@ Each address type encodes different credential combinations:
 
 | Address Type | Payment | Staking | On-Chain Size | Bech32 Prefix | Header Bits |
 |--------------|---------|---------|---------------|---------------|-------------|
-| **[Base](/docs/addresses/address-types/base)** | ✓ | ✓ | 57 bytes | `addr`/`addr_test` | `0000xxxx` |
-| **[Enterprise](/docs/addresses/address-types/enterprise)** | ✓ | ✗ | 29 bytes | `addr`/`addr_test` | `0110xxxx` |
-| **[Reward](/docs/addresses/address-types/reward)** | ✗ | ✓ | 29 bytes | `stake`/`stake_test` | `1110xxxx` |
-| **[Pointer](/docs/addresses/address-types/pointer)** | ✓ | Pointer | Variable | `addr`/`addr_test` | `0100xxxx` |
+| **[Base](/docs/addresses/address-types/base)** | ✓ | ✓ | 57 bytes | `addr`/`addr_test` | `0000`–`0011` |
+| **[Enterprise](/docs/addresses/address-types/enterprise)** | ✓ | ✗ | 29 bytes | `addr`/`addr_test` | `0110`–`0111` |
+| **[Reward](/docs/addresses/address-types/reward)** | ✗ | ✓ | 29 bytes | `stake`/`stake_test` | `1110`–`1111` |
+| **[Pointer](/docs/addresses/address-types/pointer)** | ✓ | Pointer | Variable | `addr`/`addr_test` | `0100`–`0101` |
 
 ## Address Type Documentation
 

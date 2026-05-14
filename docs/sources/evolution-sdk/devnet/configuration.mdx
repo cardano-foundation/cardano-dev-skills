@@ -27,19 +27,13 @@ import {
   Config } from "@evolution-sdk/devnet"
 import { Address,
   TransactionHash,
-  preprod,
-  client as makeClient,
 } from "@evolution-sdk/evolution"
 
-// Create a client to generate an address (preprod has id: 0, producing testnet-format addresses)
-const client = makeClient(preprod)
-  .withSeed({
-    mnemonic: "your twenty-four word mnemonic phrase here",
-    accountIndex: 0
-  })
-
-// Get the address
-const address = await client.address()
+// Derive address from seed (synchronous, no network required)
+const address = Address.fromSeed("test test test test test test test test test test test test test test test test test test test test test test test sauce", {
+  accountIndex: 0,
+  networkId: 0 // testnet address format
+})
 
 // Convert to hex for genesis configuration
 const addressHex = Address.toHex(address)
@@ -78,24 +72,17 @@ import {
   Config } from "@evolution-sdk/devnet"
 import { Address,
   TransactionHash,
-  preprod,
-  client as makeClient,
 } from "@evolution-sdk/evolution"
 
-const client1 = makeClient(preprod)
-  .withSeed({
-    mnemonic: "your mnemonic here",
-    accountIndex: 0
-  })
+const address1 = Address.toHex(Address.fromSeed("your mnemonic here", {
+  accountIndex: 0,
+  networkId: 0
+}))
 
-const client2 = makeClient(preprod)
-  .withSeed({
-    mnemonic: "your mnemonic here",
-    accountIndex: 1 // Different account index = different address
-  })
-
-const address1 = Address.toHex(await client1.address())
-const address2 = Address.toHex(await client2.address())
+const address2 = Address.toHex(Address.fromSeed("your mnemonic here", {
+  accountIndex: 1, // Different account index = different address
+  networkId: 0
+}))
 
 const genesisConfig = {
   ...Config.DEFAULT_SHELLEY_GENESIS,
@@ -120,7 +107,9 @@ This pattern enables testing multi-party protocols, delegation scenarios, and wa
 
 After creating a genesis configuration, calculate the resulting UTxOs to verify addresses and amounts.
 
-**Important**: Genesis UTxOs do NOT appear in Kupo's index because Kupo reads chain events starting from block 1, while genesis UTxOs exist in block 0 (the genesis block itself). You must use `calculateUtxosFromConfig` to derive these UTxOs and provide them to your transaction builder via the `availableUtxos` parameter. After spending a genesis UTxO, the resulting outputs will be indexed normally by Kupo.
+<Callout type="warn">
+**Genesis UTxOs do NOT appear in Kupo's index** — Kupo reads from block 1, but genesis UTxOs are in block 0. Use `calculateUtxosFromConfig` to derive these UTxOs and pass them via `availableUtxos`. After spending a genesis UTxO, resulting outputs are indexed normally.
+</Callout>
 
 ```typescript twoslash
 import { Config, Genesis } from "@evolution-sdk/devnet"
@@ -237,7 +226,9 @@ Common protocol parameter customizations:
 - **collateralPercentage**: Collateral % for script transactions (default: 150)
 - **maxCollateralInputs**: Max collateral inputs (default: 3)
 
-**Important**: The devnet runs Conway era. At runtime, the node uses `coinsPerUtxoByte` (from Alonzo's `lovelacePerUTxOWord`), not Shelley's legacy `minUTxOValue`.
+<Callout type="info">
+The devnet runs Conway era. At runtime, the node uses `coinsPerUtxoByte` (from Alonzo's `lovelacePerUTxOWord`), not Shelley's legacy `minUTxOValue`.
+</Callout>
 
 See the exported types `Config.ShelleyGenesis`, `Config.AlonzoGenesis`, and `Config.ConwayGenesis` for complete definitions.
 
@@ -314,25 +305,18 @@ import {
   Genesis } from "@evolution-sdk/devnet"
 import { Address,
   TransactionHash,
-  preprod,
-  client as makeClient,
 } from "@evolution-sdk/evolution"
 
-// Generate funded addresses
-const wallet1 = makeClient(preprod)
-  .withSeed({
-    mnemonic: "test wallet one mnemonic here",
-    accountIndex: 0
-  })
+// Generate funded addresses (synchronous, no network required)
+const addr1 = Address.toHex(Address.fromSeed("test wallet one mnemonic here", {
+  accountIndex: 0,
+  networkId: 0
+}))
 
-const wallet2 = makeClient(preprod)
-  .withSeed({
-    mnemonic: "test wallet two mnemonic here",
-    accountIndex: 0
-  })
-
-const addr1 = Address.toHex(await wallet1.address())
-const addr2 = Address.toHex(await wallet2.address())
+const addr2 = Address.toHex(Address.fromSeed("test wallet two mnemonic here", {
+  accountIndex: 0,
+  networkId: 0
+}))
 
 // Custom genesis configuration
 const genesisConfig = {
@@ -471,6 +455,6 @@ With custom genesis configuration, you can now:
 
 **Protocol parameter validation**: Some parameter combinations are invalid (e.g., `lovelacePerUTxOWord` too low in Alonzo genesis). Check cardano-node logs if startup fails.
 
-**Client chain parameter**: Use `chain: preprod` (or `Cluster.getChain(cluster)` once the cluster is running) to create testnet-format addresses (`addr_test...`).
+**Address network**: Use `networkId: 0` in `Address.fromSeed()` for testnet-format addresses (`addr_test...`), or use `Cluster.getChain(cluster)` with `Client.make()` once the cluster is running.
 
 **Excessive funds**: While genesis supports arbitrary amounts, extremely large values may cause numeric overflow in some calculations. Stay under 45B ADA (total supply) per address.

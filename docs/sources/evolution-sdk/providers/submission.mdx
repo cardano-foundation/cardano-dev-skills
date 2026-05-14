@@ -12,9 +12,9 @@ Providers handle transaction submission and confirmation monitoring. Submit pre-
 Submit a signed transaction CBOR string:
 
 ```typescript twoslash
-import { Transaction, TransactionHash, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { Transaction, TransactionHash, mainnet, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -33,9 +33,9 @@ console.log("Transaction submitted:", txHash)
 Monitor transaction until confirmed on blockchain:
 
 ```typescript twoslash
-import { Transaction, TransactionHash, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { Transaction, TransactionHash, mainnet, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -45,425 +45,71 @@ const signedTxCbor = "84a300..."
 const signedTx = Transaction.fromCBORHex(signedTxCbor)
 const txHash = await client.submitTx(signedTx)
 
+// ---cut---
 // Wait for confirmation (checks every 5 seconds by default)
 const confirmed = await client.awaitTx(txHash)
 
-if (confirmed) {
-  console.log("Transaction confirmed!")
-} else {
-  console.log("Transaction not found")
-}
-```
-
-## Custom Check Interval
-
-Specify how often to check for confirmation:
-
-```typescript twoslash
-import { Transaction, TransactionHash, mainnet, client as makeClient } from "@evolution-sdk/evolution"
-
-const client = makeClient(mainnet)
-  .withBlockfrost({
-    baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
-    projectId: process.env.BLOCKFROST_PROJECT_ID!
-  })
-
-const txHashHex = "abc123..."
-const txHash = TransactionHash.fromHex(txHashHex)
-
-// Check every 10 seconds
-const confirmed = await client.awaitTx(txHash, 10000)
-
-console.log("Confirmed:", confirmed)
+// Custom interval: check every 10 seconds
+// const confirmed = await client.awaitTx(txHash, 10000)
 ```
 
 ## Transaction Evaluation
 
-Evaluate transaction before submission to estimate script execution costs:
+Evaluate a transaction before submission to estimate script execution costs:
 
 ```typescript twoslash
-import { Transaction, TransactionHash, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { Transaction, mainnet, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
   })
 
-const unsignedTxCbor = "84a300..." // Unsigned transaction
+const unsignedTxCbor = "84a300..." // Unsigned transaction with scripts
 const unsignedTx = Transaction.fromCBORHex(unsignedTxCbor)
 
-// Evaluate script execution
+// ---cut---
+// Evaluate script execution costs
 const redeemers = await client.evaluateTx(unsignedTx)
 
 redeemers.forEach((redeemer) => {
-  console.log("Redeemer tag:", redeemer.redeemer_tag)
-  console.log("Redeemer index:", redeemer.redeemer_index)
-  console.log("Memory units:", redeemer.ex_units.mem)
-  console.log("CPU steps:", redeemer.ex_units.steps)
+  console.log(`[${redeemer.redeemer_tag}#${redeemer.redeemer_index}]`,
+    `mem: ${redeemer.ex_units.mem}, steps: ${redeemer.ex_units.steps}`)
 })
 ```
 
-## Submission Service Pattern
-
-Create a transaction submission service with error handling:
-
-```typescript twoslash
-import { Transaction, TransactionHash, mainnet, client as makeClient } from "@evolution-sdk/evolution"
-
-const client = makeClient(mainnet)
-  .withBlockfrost({
-    baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
-    projectId: process.env.BLOCKFROST_PROJECT_ID!
-  })
-
-interface SubmissionResult {
-  success: boolean
-  txHash?: string
-  confirmed?: boolean
-  error?: string
-}
-
-export async function submitAndWait(signedTxCbor: string, checkInterval = 5000): Promise<SubmissionResult> {
-  try {
-    const signedTx = Transaction.fromCBORHex(signedTxCbor)
-    const txHash = await client.submitTx(signedTx)
-
-    console.log("Transaction submitted:", txHash)
-
-    const confirmed = await client.awaitTx(txHash, checkInterval)
-
-    return {
-      success: true,
-      txHash: TransactionHash.toHex(txHash),
-      confirmed
-    }
-  } catch (error: any) {
-    console.error("Submission failed:", error)
-
-    return {
-      success: false,
-      error: error.message
-    }
-  }
-}
-```
-
-## Batch Submission
-
-Submit multiple transactions sequentially:
-
-```typescript twoslash
-import { Transaction, TransactionHash, mainnet, client as makeClient } from "@evolution-sdk/evolution"
-
-const client = makeClient(mainnet)
-  .withBlockfrost({
-    baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
-    projectId: process.env.BLOCKFROST_PROJECT_ID!
-  })
-
-async function submitBatch(signedTxs: string[]) {
-  const results = []
-
-  for (const txCbor of signedTxs) {
-    try {
-      const tx = Transaction.fromCBORHex(txCbor)
-      const txHash = await client.submitTx(tx)
-      console.log("Submitted:", txHash)
-
-      const confirmed = await client.awaitTx(txHash)
-
-      results.push({
-        success: true,
-        txHash: TransactionHash.toHex(txHash),
-        confirmed
-      })
-    } catch (error: any) {
-      results.push({
-        success: false,
-        error: error.message
-      })
-    }
-  }
-
-  return results
-}
-```
-
-## Error Handling
-
-Handle common submission errors:
-
-```typescript twoslash
-import { Transaction, TransactionHash, mainnet, client as makeClient } from "@evolution-sdk/evolution"
-
-const client = makeClient(mainnet)
-  .withBlockfrost({
-    baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
-    projectId: process.env.BLOCKFROST_PROJECT_ID!
-  })
-
-async function safeSubmit(signedTxCbor: string) {
-  try {
-    const signedTx = Transaction.fromCBORHex(signedTxCbor)
-    const txHash = await client.submitTx(signedTx)
-    return { success: true as const, txHash }
-  } catch (error: any) {
-    // Common errors
-    if (error.message.includes("OutsideValidityIntervalUTxO")) {
-      return {
-        success: false as const,
-        error: "Transaction expired (outside validity interval)"
-      }
-    }
-
-    if (error.message.includes("BadInputsUTxO")) {
-      return {
-        success: false as const,
-        error: "UTxO already spent"
-      }
-    }
-
-    if (error.message.includes("ValueNotConservedUTxO")) {
-      return {
-        success: false as const,
-        error: "Input/output value mismatch"
-      }
-    }
-
-    if (error.message.includes("FeeTooSmallUTxO")) {
-      return {
-        success: false as const,
-        error: "Transaction fee too low"
-      }
-    }
-
-    return {
-      success: false as const,
-      error: error.message
-    }
-  }
-}
-```
-
-## Retry Logic
-
-Implement retry logic for transient failures:
-
-```typescript twoslash
-import { Transaction, TransactionHash, mainnet, client as makeClient } from "@evolution-sdk/evolution"
-
-const client = makeClient(mainnet)
-  .withBlockfrost({
-    baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
-    projectId: process.env.BLOCKFROST_PROJECT_ID!
-  })
-
-async function submitWithRetry(signedTxCbor: string, maxRetries = 3, delayMs = 1000) {
-  let lastError: any
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const signedTx = Transaction.fromCBORHex(signedTxCbor)
-      const txHash = await client.submitTx(signedTx)
-      console.log(`Success on attempt ${attempt}:`, txHash)
-      return { success: true as const, txHash }
-    } catch (error: any) {
-      lastError = error
-      console.log(`Attempt ${attempt} failed:`, error.message)
-
-      // Don't retry on certain errors
-      if (error.message.includes("BadInputsUTxO") || error.message.includes("OutsideValidityIntervalUTxO")) {
-        break
-      }
-
-      if (attempt < maxRetries) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs))
-      }
-    }
-  }
-
-  return {
-    success: false as const,
-    error: lastError?.message || "Unknown error"
-  }
-}
-```
-
-## Monitoring Pattern
-
-Track transaction status with periodic checks:
-
-```typescript twoslash
-import { Transaction, TransactionHash, mainnet, client as makeClient } from "@evolution-sdk/evolution"
-
-const client = makeClient(mainnet)
-  .withBlockfrost({
-    baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
-    projectId: process.env.BLOCKFROST_PROJECT_ID!
-  })
-
-async function monitorTransaction(
-  txHashHex: string,
-  timeout = 300000, // 5 minutes
-  checkInterval = 5000
-): Promise<boolean> {
-  const startTime = Date.now()
-  const txHash = TransactionHash.fromHex(txHashHex)
-
-  while (Date.now() - startTime < timeout) {
-    try {
-      const confirmed = await client.awaitTx(txHash, checkInterval)
-
-      if (confirmed) {
-        console.log("Transaction confirmed:", txHashHex)
-        return true
-      }
-    } catch (error: any) {
-      console.error("Monitoring error:", error)
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, checkInterval))
-  }
-
-  console.log("Transaction confirmation timeout:", txHashHex)
-  return false
-}
-```
-
-## Complete Submission Flow
-
-End-to-end transaction submission with all error handling:
-
-```typescript twoslash
-import { Transaction, TransactionHash, mainnet, client as makeClient } from "@evolution-sdk/evolution"
-
-const client = makeClient(mainnet)
-  .withBlockfrost({
-    baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
-    projectId: process.env.BLOCKFROST_PROJECT_ID!
-  })
-
-interface TransactionStatus {
-  status: "submitted" | "confirmed" | "failed"
-  txHash?: string
-  error?: string
-  attempts?: number
-  confirmedAt?: Date
-}
-
-export async function submitTransaction(signedTxCbor: string): Promise<TransactionStatus> {
-  const maxRetries = 3
-  let attempts = 0
-
-  // Submission with retry
-  while (attempts < maxRetries) {
-    attempts++
-
-    try {
-      const signedTx = Transaction.fromCBORHex(signedTxCbor)
-      const txHash = await client.submitTx(signedTx)
-
-      console.log(`Submitted (attempt ${attempts}):`, txHash)
-
-      // Wait for confirmation
-      const confirmed = await client.awaitTx(txHash, 5000)
-
-      if (confirmed) {
-        return {
-          status: "confirmed",
-          txHash: TransactionHash.toHex(txHash),
-          attempts,
-          confirmedAt: new Date()
-        }
-      }
-
-      return {
-        status: "submitted",
-        txHash: TransactionHash.toHex(txHash),
-        attempts
-      }
-    } catch (error: any) {
-      console.error(`Attempt ${attempts} failed:`, error.message)
-
-      // Terminal errors - don't retry
-      if (
-        error.message.includes("BadInputsUTxO") ||
-        error.message.includes("OutsideValidityIntervalUTxO") ||
-        error.message.includes("ValueNotConservedUTxO")
-      ) {
-        return {
-          status: "failed",
-          error: error.message,
-          attempts
-        }
-      }
-
-      // Wait before retry
-      if (attempts < maxRetries) {
-        await new Promise((resolve) => setTimeout(resolve, 2000))
-      }
-    }
-  }
-
-  return {
-    status: "failed",
-    error: "Max retries exceeded",
-    attempts
-  }
-}
-```
-
-## Evaluation Before Submission
-
-Validate scripts before submitting:
-
-```typescript twoslash
-import { Transaction, TransactionHash, mainnet, client as makeClient } from "@evolution-sdk/evolution"
-
-const client = makeClient(mainnet)
-  .withBlockfrost({
-    baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
-    projectId: process.env.BLOCKFROST_PROJECT_ID!
-  })
-
-async function evaluateAndSubmit(signedTxCbor: string) {
-  try {
-    // Evaluate first
-    const signedTx = Transaction.fromCBORHex(signedTxCbor)
-    const redeemers = await client.evaluateTx(signedTx)
-
-    console.log("Script evaluation:")
-    redeemers.forEach((r, i) => {
-      console.log(`  Redeemer ${i}:`, {
-        tag: r.redeemer_tag,
-        memory: r.ex_units.mem,
-        steps: r.ex_units.steps
-      })
-    })
-
-    // Submit if evaluation succeeds
-    const txHash = await client.submitTx(signedTx)
-    const confirmed = await client.awaitTx(txHash)
-
-    return {
-      success: true,
-      txHash: TransactionHash.toHex(txHash),
-      confirmed,
-      redeemers
-    }
-  } catch (error: any) {
-    return {
-      success: false,
-      error: error.message
-    }
+## Common Submission Errors
+
+| Error String | Meaning | Retryable? |
+| --- | --- | --- |
+| `OutsideValidityIntervalUTxO` | Transaction expired | No — rebuild with new validity |
+| `BadInputsUTxO` | UTxO already spent | No — rebuild with fresh UTxOs |
+| `ValueNotConservedUTxO` | Input/output value mismatch | No — fix transaction logic |
+| `FeeTooSmallUTxO` | Fee too low | No — rebuild with correct fee |
+| Network timeout | Provider unreachable | Yes — retry after delay |
+
+```typescript
+try {
+  const signedTx = Transaction.fromCBORHex(signedTxCbor)
+  const txHash = await client.submitTx(signedTx)
+  const confirmed = await client.awaitTx(txHash)
+} catch (error: any) {
+  // Terminal errors — don't retry, rebuild the transaction
+  if (error.message.includes("BadInputsUTxO")) {
+    console.error("UTxO already spent — rebuild with fresh UTxOs")
+  } else if (error.message.includes("OutsideValidityIntervalUTxO")) {
+    console.error("Transaction expired — rebuild with new validity window")
+  } else {
+    // Transient errors — safe to retry
+    console.error("Submission failed:", error.message)
   }
 }
 ```
 
 ## Next Steps
 
-Explore real-world use cases:
-
-- [Use Cases](/docs/providers/use-cases) - Complete examples and patterns
-- [Provider Types](/docs/providers/provider-types) - Choose the right provider
+- [Use Cases](/docs/providers/use-cases) — Complete real-world examples
+- [Provider Types](/docs/providers/provider-types) — Choose the right provider
+- [Error Handling](/docs/advanced/error-handling) — Full error type reference and debugging
+- [Retry-Safe Transactions](/docs/transactions/retry-safe) — Builder-level retry patterns

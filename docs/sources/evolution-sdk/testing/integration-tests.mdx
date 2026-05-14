@@ -9,7 +9,7 @@ Integration tests run against a local devnet cluster, validating the full transa
 
 ## Test Setup Pattern
 
-```typescript
+```typescript title="test/integration.test.ts"
 import {
   describe,
   it,
@@ -23,20 +23,19 @@ import {
   Address,
   Assets,
   preprod,
-  type SigningClient,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
 describe("Transaction Tests", () => {
   let cluster: Cluster.Cluster
-  let client: SigningClient
+  let client: Client.SigningClient
   let genesisConfig: any
 
   beforeAll(async () => {
     const mnemonic =
       "test test test test test test test test test test test test test test test test test test test test test test test sauce"
 
-    const wallet = makeClient(preprod)
+    const wallet = Client.make(preprod)
   .withSeed({ mnemonic, accountIndex: 0 })
 
     const addressHex = Address.toHex(await wallet.address())
@@ -59,7 +58,7 @@ describe("Transaction Tests", () => {
     await Cluster.start(cluster)
     await new Promise((resolve) => setTimeout(resolve, 8000))
 
-    client = makeClient(preprod)
+    client = Client.make(preprod)
   .withKupmios({ kupoUrl: "http://localhost:1442", ogmiosUrl: "http://localhost:1337" })
   .withSeed({ mnemonic, accountIndex: 0 })
   }, 180_000) // Extended timeout for cluster startup

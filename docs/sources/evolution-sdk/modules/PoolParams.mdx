@@ -1,6 +1,6 @@
 ---
 title: PoolParams.ts
-nav_order: 103
+nav_order: 101
 parent: Modules
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: TxOut.ts
-nav_order: 184
+nav_order: 179
 parent: Modules
 ---
 

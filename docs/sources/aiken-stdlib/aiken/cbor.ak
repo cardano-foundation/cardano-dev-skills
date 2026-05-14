@@ -2,7 +2,7 @@ use aiken
 use aiken/builtin.{decode_utf8, serialise_data}
 use aiken/primitive/bytearray
 
-/// Obtain a String representation of _anything_. This is particularly (and only) useful for tracing
+/// Obtain a `String` representation of _anything_. This is particularly (and only) useful for tracing
 /// and debugging. This function is expensive and should not be used in any production code as it
 /// will very likely explodes the validator's budget.
 ///
@@ -45,29 +45,29 @@ pub fn diagnostic(self: Data) -> String {
 pub fn deserialise(bytes: ByteArray) -> Option<Data> {
   let length = bytearray.length(bytes)
 
-  let peek =
-    fn(offset: Int, callback: fn(Byte) -> Decoder<Data>) -> Decoder<Data> {
-      fn(cursor) {
-        if 0 >= cursor {
-          deserialise_failure
-        } else {
-          callback(bytearray.at(bytes, length - cursor))(cursor - offset)
-        }
+  let peek = fn(offset: Int, callback: fn(Byte) -> Decoder<Data>) -> Decoder<
+    Data,
+  > {
+    fn(cursor) {
+      if 0 >= cursor {
+        deserialise_failure
+      } else {
+        callback(bytearray.at(bytes, length - cursor))(cursor - offset)
       }
     }
+  }
 
-  let take =
-    fn(n: Int, callback: fn(ByteArray) -> Decoder<Data>) -> Decoder<Data> {
-      fn(cursor) {
-        if 0 >= cursor {
-          deserialise_failure
-        } else {
-          callback(builtin.slice_bytearray(length - cursor, n, bytes))(
-            cursor - n,
-          )
-        }
+  let take = fn(n: Int, callback: fn(ByteArray) -> Decoder<Data>) -> Decoder<
+    Data,
+  > {
+    fn(cursor) {
+      if 0 >= cursor {
+        deserialise_failure
+      } else {
+        callback(builtin.slice_bytearray(length - cursor, n, bytes))(cursor - n)
       }
     }
+  }
 
   if length == 0 {
     None
@@ -160,12 +160,11 @@ fn decode_data(peek: Peek<Data>, take: Take<Data>) -> Decoder<Data> {
     if tag == 102 {
       fn(_) { deserialise_failure }
     } else {
-      let ix =
-        if tag >= 1280 {
-          tag - 1280 + 7
-        } else {
-          tag - 121
-        }
+      let ix = if tag >= 1280 {
+        tag - 1280 + 7
+      } else {
+        tag - 121
+      }
       if next == token_begin_list {
         let fields <- decode_indefinite(peek, take, decode_data)
         return(builtin.constr_data(ix, fields))

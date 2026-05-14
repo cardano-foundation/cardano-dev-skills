@@ -86,6 +86,7 @@ properties:
     additionalProperties: true
     type: object
     nullable: true
+    deprecated: true
     example:
       PlutusV1:
         addInteger-cpu-arguments-intercept: 197209
@@ -93,16 +94,73 @@ properties:
       PlutusV2:
         addInteger-cpu-arguments-intercept: 197209
         addInteger-cpu-arguments-slope: 0
-    description: Cost models parameters for Plutus Core scripts
+    description: Cost models parameters for Plutus Core scripts. Deprecated, use
+      `cost_models_raw` instead.
   cost_models_raw:
     additionalProperties: true
     type: object
     nullable: true
     example:
       PlutusV1:
-        [197209, 0]
+        [
+          100788,
+          420,
+          1,
+          1,
+          1000,
+          173,
+          0,
+          1,
+          1000,
+          59957,
+          4,
+          1,
+          11183,
+          32,
+          201305,
+          8356,
+          "...",
+        ]
       PlutusV2:
-        [197209, 0]
+        [
+          100788,
+          420,
+          1,
+          1,
+          1000,
+          173,
+          0,
+          1,
+          1000,
+          59957,
+          4,
+          1,
+          11183,
+          32,
+          201305,
+          8356,
+          "...",
+        ]
+      PlutusV3:
+        [
+          100788,
+          420,
+          1,
+          1,
+          1000,
+          173,
+          0,
+          1,
+          1000,
+          59957,
+          4,
+          1,
+          11183,
+          32,
+          201305,
+          8356,
+          "...",
+        ]
     description: Cost models parameters for Plutus Core scripts in raw list form
   price_mem:
     type: number
@@ -118,12 +176,14 @@ properties:
     type: string
     nullable: true
     example: "10000000"
-    description: The maximum number of execution memory allowed to be used in a single transaction
+    description: The maximum number of execution memory allowed to be used in a
+      single transaction
   max_tx_ex_steps:
     type: string
     nullable: true
     example: "10000000000"
-    description: The maximum number of execution steps allowed to be used in a single transaction
+    description: The maximum number of execution steps allowed to be used in a
+      single transaction
   max_block_ex_mem:
     type: string
     nullable: true
@@ -143,7 +203,8 @@ properties:
     type: integer
     nullable: true
     example: 150
-    description: The percentage of the transactions fee which must be provided as collateral when including non-native scripts
+    description: The percentage of the transactions fee which must be provided as
+      collateral when including non-native scripts
   max_collateral_inputs:
     type: integer
     nullable: true
@@ -244,7 +305,8 @@ properties:
     type: number
     nullable: true
     deprecated: true
-    description: Pool Voting threshold for security-relevant protocol parameters changes. Renamed to pvt_p_p_security_group.
+    description: Pool Voting threshold for security-relevant protocol parameters
+      changes. Renamed to pvt_p_p_security_group.
   pvt_p_p_security_group:
     type: number
     nullable: true

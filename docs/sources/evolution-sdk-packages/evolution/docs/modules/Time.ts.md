@@ -1,0 +1,145 @@
+---
+title: Time.ts
+nav_order: 168
+parent: Modules
+---
+
+## Time overview
+
+Time utilities for Cardano blockchain time operations.
+Provides type-safe conversions between slots and Unix time.
+
+Added in v2.0.0
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [Conversion](#conversion)
+  - [slotToUnixTime](#slottounixtime)
+  - [unixTimeToSlot](#unixtimetoslot)
+- [Utility](#utility)
+  - [getCurrentSlot](#getcurrentslot)
+  - [getSlotAt](#getslotat)
+  - [isSlotInFuture](#isslotinfuture)
+  - [isSlotInPast](#isslotinpast)
+
+---
+
+# Conversion
+
+## slotToUnixTime
+
+Convert a slot number to Unix time (in milliseconds).
+
+**Signature**
+
+```ts
+export declare const slotToUnixTime: (slot: Slot, slotConfig: SlotConfig) => UnixTime
+```
+
+**Example**
+
+```typescript
+import * as Time from "@evolution-sdk/evolution/Time"
+
+const slot = 12345678n
+const config = { zeroTime: 1596059091000n, zeroSlot: 4492800n, slotLength: 1000 }
+const unixTime = Time.slotToUnixTime(slot, config)
+```
+
+Added in v2.0.0
+
+## unixTimeToSlot
+
+Convert Unix time (in milliseconds) to the enclosing slot number.
+Uses floor division to find the slot that contains the given time.
+
+**Signature**
+
+```ts
+export declare const unixTimeToSlot: (unixTime: UnixTime, slotConfig: SlotConfig) => Slot
+```
+
+**Example**
+
+```typescript
+import * as Time from "@evolution-sdk/evolution/Time"
+
+const unixTime = 1596059091000n
+const config = { zeroTime: 1596059091000n, zeroSlot: 4492800n, slotLength: 1000 }
+const slot = Time.unixTimeToSlot(unixTime, config)
+```
+
+Added in v2.0.0
+
+# Utility
+
+## getCurrentSlot
+
+Get the current slot number for a network.
+
+**Signature**
+
+```ts
+export declare const getCurrentSlot: (network: Network.Network) => Slot
+```
+
+**Example**
+
+```typescript
+import * as Time from "@evolution-sdk/evolution/Time"
+
+const currentSlot = Time.getCurrentSlot("Mainnet")
+console.log(currentSlot) // Current mainnet slot
+```
+
+Added in v2.0.0
+
+## getSlotAt
+
+Get the slot at a specific offset from now (in milliseconds).
+
+**Signature**
+
+```ts
+export declare const getSlotAt: (offsetMs: number, network: Network.Network) => Slot
+```
+
+**Example**
+
+```typescript
+import * as Time from "@evolution-sdk/evolution/Time"
+
+// Get slot 5 minutes from now
+const futureSlot = Time.getSlotAt(5 * 60 * 1000, "Mainnet")
+
+// Get slot 10 minutes ago
+const pastSlot = Time.getSlotAt(-10 * 60 * 1000, "Mainnet")
+```
+
+Added in v2.0.0
+
+## isSlotInFuture
+
+Check if a slot is in the future relative to current time.
+
+**Signature**
+
+```ts
+export declare const isSlotInFuture: (slot: Slot, slotConfig: SlotConfig) => boolean
+```
+
+Added in v2.0.0
+
+## isSlotInPast
+
+Check if a slot is in the past relative to current time.
+
+**Signature**
+
+```ts
+export declare const isSlotInPast: (slot: Slot, slotConfig: SlotConfig) => boolean
+```
+
+Added in v2.0.0

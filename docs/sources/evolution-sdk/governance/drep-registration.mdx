@@ -10,9 +10,9 @@ Delegated Representatives (DReps) vote on governance actions on behalf of ADA ho
 ## Register as a DRep
 
 ```typescript twoslash
-import { Credential, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Credential, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -34,9 +34,9 @@ The deposit amount is fetched automatically from protocol parameters (`drepDepos
 Attach an anchor containing a metadata URL and its hash:
 
 ```typescript twoslash
-import { Anchor, Credential, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Anchor, Credential, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -63,9 +63,9 @@ await signed.submit()
 Change the metadata anchor for an existing DRep registration:
 
 ```typescript twoslash
-import { Anchor, Credential, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Anchor, Credential, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -92,9 +92,9 @@ await signed.submit()
 Remove DRep registration and reclaim the deposit:
 
 ```typescript twoslash
-import { Credential, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Credential, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -116,9 +116,9 @@ await signed.submit()
 Committee members keep their cold credential offline and authorize a hot credential for day-to-day signing:
 
 ```typescript twoslash
-import { Credential, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Credential, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -137,9 +137,9 @@ await signed.submit()
 ### Resign from Committee
 
 ```typescript twoslash
-import { Anchor, Credential, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Anchor, Credential, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!

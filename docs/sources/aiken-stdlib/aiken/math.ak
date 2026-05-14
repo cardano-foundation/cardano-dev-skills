@@ -34,14 +34,6 @@ pub fn abs(self: Int) -> Int {
   }
 }
 
-test abs_1() {
-  abs(14) == 14
-}
-
-test abs_2() {
-  abs(-42) == 42
-}
-
 /// Restrict the value of an integer between two min and max bounds
 ///
 /// ```aiken
@@ -57,18 +49,6 @@ pub fn clamp(self: Int, min: Int, max: Int) -> Int {
       self
     }
   }
-}
-
-test clamp_1() {
-  clamp(14, min: 0, max: 10) == 10
-}
-
-test clamp_2() {
-  clamp(7, min: 0, max: 10) == 7
-}
-
-test clamp_3() {
-  clamp(7, min: 10, max: 100) == 10
 }
 
 /// The greatest common divisor of two integers.
@@ -89,18 +69,6 @@ fn do_gcd(x: Int, y: Int) -> Int {
   }
 }
 
-test gcd_test1() {
-  gcd(10, 300) == 10
-}
-
-test gcd_test2() {
-  gcd(-10, 300) == 10
-}
-
-test gcd_test3() {
-  gcd(42, 14) == 14
-}
-
 /// Checks if an integer has a given integer square root x.
 /// The check has constant time complexity $O(1)$.
 ///
@@ -112,14 +80,6 @@ test gcd_test3() {
 /// ```
 pub fn is_sqrt(self: Int, x: Int) -> Bool {
   x * x <= self && ( x + 1 ) * ( x + 1 ) > self
-}
-
-test is_sqrt1() {
-  is_sqrt(44203, 210)
-}
-
-test is_sqrt2() {
-  is_sqrt(975461057789971041, 987654321)
 }
 
 /// The logarithm in base `b` of an element using integer divisions.
@@ -142,30 +102,6 @@ pub fn log(self: Int, base: Int) -> Int {
   } else {
     1 + log(self / base, base)
   }
-}
-
-test log_10_2() {
-  log(10, base: 2) == 3
-}
-
-test log_42_2() {
-  log(42, base: 2) == 5
-}
-
-test log_42_3() {
-  log(42, base: 3) == 3
-}
-
-test log_5_0() {
-  log(5, base: 0) == 0
-}
-
-test log_4_4() {
-  log(4, base: 4) == 1
-}
-
-test log_4_43() {
-  log(4, base: 43) == 0
 }
 
 /// The integer logarithm in base 2. Faster than [`log`](#log) in this particular case.
@@ -204,19 +140,6 @@ pub fn log2(x: Int) -> Int {
   }
 }
 
-test log2_matrix() {
-  and {
-    log2(1) == 0,
-    log2(2) == 1,
-    log2(3) == 1,
-    log2(4) == 2,
-    log2(256) == 8,
-    log2(257) == 8,
-    log2(511) == 8,
-    log2(1025) == 10,
-  }
-}
-
 /// Return the maximum of two integers.
 pub fn max(a: Int, b: Int) -> Int {
   if a > b {
@@ -226,18 +149,6 @@ pub fn max(a: Int, b: Int) -> Int {
   }
 }
 
-test max_1() {
-  max(0, 0) == 0
-}
-
-test max_2() {
-  max(14, 42) == 42
-}
-
-test max_3() {
-  max(42, 14) == 42
-}
-
 /// Return the minimum of two integers.
 pub fn min(a: Int, b: Int) -> Int {
   if a > b {
@@ -245,18 +156,6 @@ pub fn min(a: Int, b: Int) -> Int {
   } else {
     a
   }
-}
-
-test min_1() {
-  min(0, 0) == 0
-}
-
-test min_2() {
-  min(14, 42) == 14
-}
-
-test min_3() {
-  min(42, 14) == 14
 }
 
 /// Calculates a number to the power of `e` using the exponentiation by
@@ -279,36 +178,6 @@ pub fn pow(self: Int, e: Int) -> Int {
   } else {
     self * pow(self * self, ( e - 1 ) / 2)
   }
-}
-
-test pow_3_5() {
-  pow(3, 5) == 243
-}
-
-test pow_7_2() {
-  pow(7, 2) == 49
-}
-
-test pow_3__4() {
-  // negative powers round to zero
-  pow(3, -4) == 0
-}
-
-test pow_0_0() {
-  // sorry math
-  pow(0, 0) == 1
-}
-
-test pow_513_3() {
-  pow(513, 3) == 135005697
-}
-
-test pow_2_4() {
-  pow(2, 4) == 16
-}
-
-test pow_2_42() {
-  pow(2, 42) == 4398046511104
 }
 
 /// Calculates the power of 2 for a given exponent `e`. Much cheaper than
@@ -334,30 +203,6 @@ pub fn pow2(e: Int) -> Int {
   } else {
     4294967296 * pow2(e - 32)
   }
-}
-
-test pow2_neg() {
-  pow2(-2) == 0
-}
-
-test pow2_0() {
-  pow2(0) == 1
-}
-
-test pow2_1() {
-  pow2(1) == 2
-}
-
-test pow2_4() {
-  pow2(4) == 16
-}
-
-test pow2_42() {
-  pow2(42) == 4398046511104
-}
-
-test pow2_256() {
-  pow2(256) == 115792089237316195423570985008687907853269984665640564039457584007913129639936
 }
 
 /// Calculates the square root of an integer using the [Babylonian
@@ -397,28 +242,4 @@ fn sqrt_babylonian(self: Int, x: Int, y: Int) -> Int {
   } else {
     sqrt_babylonian(self, y, ( y + self / y ) / 2)
   }
-}
-
-test sqrt1() {
-  sqrt(0) == Some(0)
-}
-
-test sqrt2() {
-  sqrt(1) == Some(1)
-}
-
-test sqrt3() {
-  sqrt(25) == Some(5)
-}
-
-test sqrt4() {
-  sqrt(44203) == Some(210)
-}
-
-test sqrt5() {
-  sqrt(975461057789971041) == Some(987654321)
-}
-
-test sqrt6() {
-  sqrt(-42) == None
 }

@@ -41,7 +41,7 @@ Frontend creates API wallet client without provider. It can sign transactions an
 The raw CIP-30 wallet API can submit transactions, but Evolution keeps submission on provider-backed clients so wallet-only assembly stays strictly signing-focused.
 
 ```typescript twoslash
-import { Transaction, TransactionWitnessSet, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { Transaction, TransactionWitnessSet, mainnet, Client } from "@evolution-sdk/evolution"
 
 declare const cardano: any // window.cardano
 
@@ -50,7 +50,7 @@ async function signAndSubmit() {
   const walletApi = await cardano.eternl.enable()
 
   // 2. Create API wallet client (signing only)
-  const client = makeClient(mainnet)
+  const client = Client.make(mainnet)
   .withCip30(walletApi)
 
   // 3. Get user address
@@ -98,7 +98,7 @@ interface ApiWalletConfig {
 ## Complete dApp Example
 
 ```typescript twoslash
-import { Address, Transaction, TransactionWitnessSet, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Transaction, TransactionWitnessSet, mainnet, Client } from "@evolution-sdk/evolution"
 
 declare const cardano: any
 
@@ -114,7 +114,7 @@ async function connectAndPay() {
   const walletApi = await cardano[walletName].enable()
 
   // Create API wallet client
-  const client = makeClient(mainnet)
+  const client = Client.make(mainnet)
   .withCip30(walletApi)
 
   // Get user address
@@ -158,7 +158,7 @@ async function connectAndPay() {
 Hardware wallets work through browser extensions. The extension communicates with the hardware device.
 
 ```typescript twoslash
-import { mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { mainnet, Client } from "@evolution-sdk/evolution"
 
 declare const cardano: any
 
@@ -167,7 +167,7 @@ async function useHardwareWallet() {
   const walletApi = await cardano.eternl.enable() // Extension handles hardware
 
   // Create API wallet client (same as software wallets)
-  const client = makeClient(mainnet)
+  const client = Client.make(mainnet)
   .withCip30(walletApi)
 
   // Extension will prompt hardware wallet for signatures
@@ -198,7 +198,7 @@ Hardware wallets and extensions follow Cardano's BIP-32 derivation paths:
 ## Error Handling
 
 ```typescript twoslash
-import { mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { mainnet, Client } from "@evolution-sdk/evolution"
 
 declare const cardano: any
 
@@ -213,7 +213,7 @@ async function connectWallet(walletName: string) {
     const walletApi = await cardano[walletName].enable()
 
     // Create API wallet client
-    const client = makeClient(mainnet)
+    const client = Client.make(mainnet)
   .withCip30(walletApi)
 
     return client

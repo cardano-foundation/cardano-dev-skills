@@ -47,9 +47,9 @@ Transactions must be **submitted in order**. Each transaction spends outputs cre
 The simplest case: two payments built back-to-back, submitted in order.
 
 ```typescript twoslash
-import { Address, Assets, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -86,9 +86,9 @@ await signed2.submit()
 Use `tx1.chainResult().available` to find the output you want to spend in tx2.
 
 ```typescript twoslash
-import { Address, Assets, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -129,9 +129,9 @@ await (await tx2.sign()).submit()
 Chain three builds together up-front, then submit all three.
 
 ```typescript twoslash
-import { Address, Assets, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -176,6 +176,50 @@ for (const tx of [tx1, tx2, tx3]) {
 - **Not retry-safe by default.** The chain is built from a single snapshot of chain state. If tx1 fails after you've built tx2 (e.g. a network error mid-submit), you cannot safely retry just tx2 — you need to rebuild the whole chain. See [Retry-Safe Transactions](/docs/transactions/retry-safe) for how to structure resilient pipelines.
 - **`chainResult()` is memoized.** It's computed once from the build result and cached. Calling it multiple times is free but you always get the same snapshot.
 - **The outputs in `available` are not yet on-chain.** They exist only as pre-computed UTxOs. Don't pass them to any provider call (e.g. `getUtxos`) — they won't be there yet.
+
+## Composing Builders
+
+Use `.compose()` to merge multiple builder configurations into a single transaction. This enables reusable, modular transaction patterns:
+
+```typescript
+import { Address, Assets, preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
+
+declare const recipientAddress: Address.Address
+
+// Define reusable builder fragments
+const paymentBuilder = client.newTx().payToAddress({
+  address: recipientAddress,
+  assets: Assets.fromLovelace(5_000_000n)
+})
+
+const validityBuilder = client.newTx().setValidity({
+  to: BigInt(Date.now()) + 300_000n // 5 minutes
+})
+
+// Compose them into one transaction
+const tx = await client
+  .newTx()
+  .compose(paymentBuilder)
+  .compose(validityBuilder)
+  .build()
+
+const signed = await tx.sign()
+await signed.submit()
+```
+
+Each `.compose(other)` copies the other builder's queued operations into the current builder. The composed builder is captured at compose-time — later changes to the source builder don't affect the composed result.
+
+**Use cases:**
+- Reusable payment templates shared across different flows
+- Separating concerns: one builder for payments, another for validity, another for metadata
+- Testing: compose mock operations in test setups
 
 ## Next Steps
 

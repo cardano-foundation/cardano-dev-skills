@@ -1,6 +1,6 @@
 ---
 title: Transaction.ts
-nav_order: 174
+nav_order: 169
 parent: Modules
 ---
 
@@ -349,7 +349,7 @@ export declare const fromCBORHex: (hex: string, options?: CBOR.CodecOptions) => 
 **Signature**
 
 ```ts
-export declare const toCBORBytes: (data: Transaction, options?: CBOR.CodecOptions) => any
+export declare const toCBORBytes: (data: Transaction, options?: CBOR.CodecOptions) => Uint8Array
 ```
 
 ## toCBORHex

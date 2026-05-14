@@ -1,6 +1,6 @@
 ---
 title: Redeemers.ts
-nav_order: 112
+nav_order: 110
 parent: Modules
 ---
 
@@ -19,6 +19,8 @@ parent: Modules
   - [toCBORBytesMap](#tocborbytesmap)
   - [toCBORHex](#tocborhex)
   - [toCBORHexMap](#tocborhexmap)
+- [hashing](#hashing)
+  - [toScriptDataHash](#toscriptdatahash)
 - [model](#model)
   - [RedeemerArray (class)](#redeemerarray-class)
     - [toArray (method)](#toarray-method)
@@ -136,6 +138,34 @@ Encode to CBOR hex string (map format).
 
 ```ts
 export declare const toCBORHexMap: (data: RedeemerMap, options?: CBOR.CodecOptions) => string
+```
+
+Added in v2.0.0
+
+# hashing
+
+## toScriptDataHash
+
+Compute script_data_hash using standard module encoders.
+
+Accepts the concrete `Redeemers` union type — encoding format is determined
+by `_tag` (`RedeemerMap` → map CBOR, `RedeemerArray` → array CBOR).
+
+The payload format per CDDL spec is raw concatenation (not a CBOR structure):
+
+```
+redeemers_bytes || datums_bytes || language_views_bytes
+```
+
+**Signature**
+
+```ts
+export declare const toScriptDataHash: (
+  redeemers: Redeemers,
+  costModels: CostModel.CostModels,
+  datums?: ReadonlyArray<Data.Data>,
+  options?: CBOR.CodecOptions
+) => ScriptDataHash.ScriptDataHash
 ```
 
 Added in v2.0.0

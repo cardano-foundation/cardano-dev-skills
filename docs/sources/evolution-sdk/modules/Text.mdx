@@ -1,6 +1,6 @@
 ---
 title: Text.ts
-nav_order: 169
+nav_order: 166
 parent: Modules
 ---
 

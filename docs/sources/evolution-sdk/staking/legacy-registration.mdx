@@ -1,0 +1,352 @@
+---
+title: Legacy Stake Registration
+description: Register stake credentials using the pre-Conway certificate format (no deposit)
+---
+
+# Legacy Stake Registration
+
+The Conway era introduced new registration certificates (`RegCert`, CDDL tag 7) that require a 2 ADA deposit. However, the **legacy** certificates (`StakeRegistration`, CDDL tag 0) are still accepted on mainnet and are what most wallets and tools use today.
+
+Use legacy registration when:
+
+- You want to avoid the 2 ADA deposit
+- You need compatibility with pre-Conway tooling
+- You're building a wallet that supports older node versions
+
+## Legacy vs Conway Registration
+
+| | Legacy (pre-Conway) | Conway |
+| --- | --- | --- |
+| Certificate | `StakeRegistration` (tag 0) | `RegCert` (tag 7) |
+| Deposit | None | 2 ADA (from protocol params) |
+| Builder method | `registerStakeLegacy()` | `registerStake()` |
+| Deregistration | `deregisterStakeLegacy()` | `deregisterStake()` |
+| Combined register + delegate | Not available | `registerAndDelegateTo()` |
+
+<Callout type="info">
+Both formats are valid on mainnet today. The ledger accepts either. Choose legacy for simplicity or Conway for deposit-based guarantees.
+</Callout>
+
+## Basic Legacy Registration
+
+```typescript twoslash
+import { Credential, preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
+
+const address = await client.address()
+const stakeCredential = address.stakingCredential!
+
+// Legacy registration — no deposit required
+const tx = await client.newTx().registerStakeLegacy({ stakeCredential }).build()
+
+const signed = await tx.sign()
+await signed.submit()
+```
+
+Compare with Conway registration which fetches `keyDeposit` from protocol parameters:
+
+```typescript twoslash
+import { Credential, preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
+
+declare const stakeCredential: Credential.Credential
+
+// Conway registration — 2 ADA deposit deducted automatically
+const tx = await client.newTx().registerStake({ stakeCredential }).build()
+```
+
+## Register and Delegate in One Transaction
+
+Legacy registration doesn't have a combined certificate, but you can chain both operations in a single transaction:
+
+```typescript twoslash
+import { Credential, preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
+
+declare const stakeCredential: Credential.Credential
+declare const poolKeyHash: any // pool key hash from a stake pool explorer
+
+// Register (legacy) + delegate in one transaction
+const tx = await client
+  .newTx()
+  .registerStakeLegacy({ stakeCredential })
+  .delegateToPool({ stakeCredential, poolKeyHash })
+  .build()
+
+const signed = await tx.sign()
+await signed.submit()
+```
+
+## Script-Controlled Legacy Registration
+
+For stake credentials controlled by a Plutus script, provide a redeemer:
+
+```typescript twoslash
+import { Credential, Data, preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
+
+declare const scriptStakeCredential: Credential.Credential
+declare const stakeScript: any // compiled Plutus staking script
+
+const tx = await client
+  .newTx()
+  .registerStakeLegacy({
+    stakeCredential: scriptStakeCredential,
+    redeemer: Data.constr(0n, []),
+    label: "legacy-register-script-stake"
+  })
+  .attachScript({ script: stakeScript })
+  .build()
+
+const signed = await tx.sign()
+await signed.submit()
+```
+
+## Withdrawal with a Stake Script
+
+Stake scripts are Plutus validators that run when you withdraw rewards. This is also the foundation of the **coordinator pattern** used by DeFi protocols — a zero-amount withdrawal triggers the stake validator, which can enforce global invariants across multiple script inputs.
+
+### Basic Script Withdrawal
+
+```typescript twoslash
+import { Credential, Data, preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
+
+declare const scriptStakeCredential: Credential.Credential
+declare const stakeScript: any // compiled Plutus staking script
+declare const rewardAmount: bigint
+
+// Withdraw rewards — the stake script validates this transaction
+const tx = await client
+  .newTx()
+  .withdraw({
+    stakeCredential: scriptStakeCredential,
+    amount: rewardAmount,
+    redeemer: Data.constr(0n, []),
+    label: "withdraw-rewards"
+  })
+  .attachScript({ script: stakeScript })
+  .build()
+
+const signed = await tx.sign()
+await signed.submit()
+```
+
+### Coordinator Pattern (Zero-Amount Withdrawal)
+
+Use `amount: 0n` to trigger a stake validator without withdrawing rewards. The validator runs and can enforce rules across the entire transaction — checking that inputs, outputs, and certificates meet your protocol's invariants:
+
+```typescript twoslash
+import { Credential, Data, preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
+
+declare const scriptStakeCredential: Credential.Credential
+declare const stakeScript: any
+
+// Zero withdrawal — triggers the validator without moving funds
+const tx = await client
+  .newTx()
+  .withdraw({
+    stakeCredential: scriptStakeCredential,
+    amount: 0n,
+    redeemer: Data.constr(0n, []),
+    label: "coordinator-trigger"
+  })
+  .attachScript({ script: stakeScript })
+  .build()
+
+const signed = await tx.sign()
+await signed.submit()
+```
+
+### Batch Redeemer (Coordinated Spend + Withdraw)
+
+The most powerful pattern combines script UTxO spending with a withdrawal validator. The withdrawal redeemer receives the indices of all spent inputs, so the stake validator can verify each one:
+
+```typescript twoslash
+import { Credential, Data, preprod, Client, Cardano } from "@evolution-sdk/evolution"
+import * as Bytes from "@evolution-sdk/evolution/Bytes"
+import * as PlutusV3 from "@evolution-sdk/evolution/PlutusV3"
+import * as ScriptHash from "@evolution-sdk/evolution/ScriptHash"
+import * as InlineDatum from "@evolution-sdk/evolution/InlineDatum"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
+
+// Your compiled multi-validator (spend + withdraw endpoints)
+declare const compiledCode: string
+const stakeScript = new PlutusV3.PlutusV3({ bytes: Bytes.fromHex(compiledCode) })
+const scriptHash = ScriptHash.fromScript(stakeScript)
+const scriptStakeCredential = scriptHash // ScriptHash is a valid Credential
+
+// Redeemer constructors matching your Aiken validator
+const makeSpendRedeemer = (inputIndex: bigint): Data.Data =>
+  Data.int(inputIndex)
+
+const makeWithdrawRedeemer = (inputIndices: Array<bigint>): Data.Data =>
+  Data.constr(0n, [Data.list(inputIndices.map(Data.int))])
+
+// Fetch UTxOs locked at the script address
+declare const scriptUtxos: Cardano.UTxO.UTxO[]
+const utxosToSpend = scriptUtxos.slice(0, 2)
+
+// Build the coordinated transaction
+let txBuilder = client.newTx()
+
+// Collect from each script UTxO — self-referencing redeemer gets the final input index
+for (const utxo of utxosToSpend) {
+  txBuilder = txBuilder.collectFrom({
+    inputs: [utxo],
+    redeemer: (indexedInput) => makeSpendRedeemer(BigInt(indexedInput.index))
+  })
+}
+
+// Attach the script once (shared by spend + withdraw endpoints)
+txBuilder = txBuilder.attachScript({ script: stakeScript })
+
+// Zero withdrawal with batch redeemer — receives all input indices
+txBuilder = txBuilder.withdraw({
+  stakeCredential: scriptStakeCredential,
+  amount: 0n,
+  redeemer: {
+    all: (indexedInputs) =>
+      makeWithdrawRedeemer(indexedInputs.map((inp) => BigInt(inp.index))),
+    inputs: utxosToSpend
+  },
+  label: "coordinator-withdraw"
+})
+
+const tx = await txBuilder.build()
+const signed = await tx.sign()
+await signed.submit()
+```
+
+<Callout type="info">
+**Why batch redeemers?** Input indices aren't known until coin selection runs. The `all` callback receives the final sorted indices after the transaction is balanced — solving the chicken-and-egg problem.
+</Callout>
+
+## Legacy Deregistration
+
+Deregister a legacy-registered stake credential. No deposit is refunded (since none was paid):
+
+```typescript twoslash
+import { Credential, preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
+
+const address = await client.address()
+const stakeCredential = address.stakingCredential!
+
+// Withdraw rewards first, then deregister — in one transaction
+const delegation = await client.getWalletDelegation()
+
+const tx = await client
+  .newTx()
+  .withdraw({ stakeCredential, amount: delegation.rewards })
+  .deregisterStakeLegacy({ stakeCredential })
+  .build()
+
+const signed = await tx.sign()
+await signed.submit()
+```
+
+<Callout type="warn">
+Always withdraw rewards before deregistering. Rewards are lost after deregistration regardless of which certificate format you used.
+</Callout>
+
+## Full Lifecycle Example
+
+Register, delegate, withdraw, and deregister — all using legacy certificates:
+
+```typescript twoslash
+import { Credential, preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
+
+declare const poolKeyHash: any
+
+const address = await client.address()
+const stakeCredential = address.stakingCredential!
+
+// 1. Register + delegate
+const regTx = await client
+  .newTx()
+  .registerStakeLegacy({ stakeCredential })
+  .delegateToPool({ stakeCredential, poolKeyHash })
+  .build()
+await (await regTx.sign()).submit()
+
+// ... epochs pass, rewards accumulate ...
+
+// 2. Withdraw rewards
+const delegation = await client.getWalletDelegation()
+const withdrawTx = await client
+  .newTx()
+  .withdraw({ stakeCredential, amount: delegation.rewards })
+  .build()
+await (await withdrawTx.sign()).submit()
+
+// 3. Deregister when done
+const deregTx = await client
+  .newTx()
+  .deregisterStakeLegacy({ stakeCredential })
+  .build()
+await (await deregTx.sign()).submit()
+```
+
+## Next Steps
+
+- [Registration (Conway)](/docs/staking/registration) — Conway-era registration with deposit
+- [Delegation](/docs/staking/delegation) — Pool and DRep delegation options
+- [Withdrawal](/docs/staking/withdrawal) — Reward withdrawal patterns
+- [Deregistration](/docs/staking/deregistration) — Conway-era deregistration with refund

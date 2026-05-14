@@ -12,14 +12,23 @@ items:
       type: string
       enum: [registered, deregistered, updated]
       description: Action in the certificate
+    deposit:
+      type: string
+      nullable: true
+      description: >-
+        Deposit in Lovelaces paid at this registration. `null` on
+        `deregistered` and `updated` rows.
   required:
     - tx_hash
     - cert_index
     - action
+    - deposit
 example:
   - tx_hash: "f4097fbdb87ab7c7ab44b30d4e2b81713a058488975d1ab8b05c381dd946a393"
     cert_index: 0
     action: registered
+    deposit: "500000000"
   - tx_hash: "dd3243af975be4b5bedce4e5f5b483b2386d5ad207d05e0289c1df0eb261447e"
     cert_index: 0
     action: deregistered
+    deposit: null

@@ -10,9 +10,9 @@ When a UTxO uses a datum hash (instead of an inline datum), the full datum must 
 ## Fetch Datum by Hash
 
 ```typescript twoslash
-import { preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!

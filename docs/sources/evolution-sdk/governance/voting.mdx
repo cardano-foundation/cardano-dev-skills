@@ -9,23 +9,50 @@ DReps, Constitutional Committee members, and Stake Pool Operators can vote on go
 
 ## Casting a Vote
 
-```typescript twoslash
-import { VotingProcedures, preprod, client as makeClient } from "@evolution-sdk/evolution"
+Build a `VotingProcedures` object with a voter, the governance action to vote on, and your vote (yes/no/abstain):
 
-const client = makeClient(preprod)
+```typescript twoslash
+import { DRep, GovernanceAction, TransactionHash, VotingProcedures, preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
   })
   .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
-declare const votingProcedures: VotingProcedures.VotingProcedures
+// 1. Create a voter (DRep identified by key hash, script hash, or built-in)
+declare const drep: DRep.DRep // from DRep.fromKeyHash() or DRep.fromScriptHash()
+const voter = new VotingProcedures.DRepVoter({ drep })
+
+// 2. Identify the governance action to vote on (from chain query or governance explorer)
+declare const govActionTxHash: TransactionHash.TransactionHash
+const govActionId = new GovernanceAction.GovActionId({
+  transactionId: govActionTxHash,
+  govActionIndex: 0n,
+})
+
+// 3. Create a voting procedure — yes(), no(), or abstain()
+const procedure = new VotingProcedures.VotingProcedure({
+  vote: VotingProcedures.yes(),
+  anchor: null, // optional metadata URL + hash
+})
+
+// 4. Combine into VotingProcedures and submit
+const votingProcedures = VotingProcedures.singleVote(voter, govActionId, procedure)
 
 const tx = await client.newTx().vote({ votingProcedures }).build()
-
 const signed = await tx.sign()
 await signed.submit()
 ```
+
+### Vote Options
+
+| Function | Meaning |
+| --- | --- |
+| `VotingProcedures.yes()` | Vote in favor |
+| `VotingProcedures.no()` | Vote against |
+| `VotingProcedures.abstain()` | Explicitly abstain |
 
 ## Voter Types
 
@@ -40,17 +67,17 @@ await signed.submit()
 For DReps or Committee members with script credentials, provide a redeemer:
 
 ```typescript twoslash
-import { Data, VotingProcedures, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Data, VotingProcedures, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
   })
   .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
-declare const votingProcedures: VotingProcedures.VotingProcedures
-declare const votingScript: any
+declare const votingProcedures: VotingProcedures.VotingProcedures // built with singleVote() as shown above
+declare const votingScript: any // compiled Plutus voting script (from Aiken build or Blueprint codegen)
 
 const tx = await client
   .newTx()

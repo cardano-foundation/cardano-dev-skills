@@ -30,11 +30,11 @@ interface ReadOnlyWalletConfig {
 
 ### Backend Transaction Building
 
-```typescript twoslash
-import { Address, Assets, Transaction, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+```typescript twoslash title="server/build-tx.ts"
+import { Address, Assets, Transaction, mainnet, Client } from "@evolution-sdk/evolution"
 
 // Backend: Create provider client, then attach read-only wallet
-const providerClient = makeClient(mainnet)
+const providerClient = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -83,15 +83,15 @@ Frontend applications connect to user wallets through CIP-30 but never have prov
 
 ### Implementation
 
-```typescript
-import { Address, Transaction, TransactionWitnessSet, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+```typescript title="app/sign-tx.ts"
+import { Address, Transaction, TransactionWitnessSet, mainnet, Client } from "@evolution-sdk/evolution"
 
 // 1. Connect wallet
 declare const cardano: any
 const walletApi = await cardano.eternl.enable()
 
 // 2. Create signing-only client
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withCip30(walletApi)
 
 // 3. Get user address for backend
@@ -146,13 +146,13 @@ Backend services use read-only wallets configured with user addresses to build u
 
 ### Implementation
 
-```typescript
-import { Address, Assets, Transaction, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+```typescript title="server/api/build-tx.ts"
+import { Address, Assets, Transaction, mainnet, Client } from "@evolution-sdk/evolution"
 
 // Backend endpoint
 export async function buildTransaction(userAddress: string) {
   // Create read-only client with user's address
-  const client = makeClient(mainnet)
+  const client = Client.make(mainnet)
   .withBlockfrost({
       baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
       projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -202,7 +202,7 @@ export type SubmitTxResponse = { txHash: string }
 
 // @filename: frontend.ts
 // ===== Frontend (Browser) =====
-import { Address, Transaction, TransactionWitnessSet, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Transaction, TransactionWitnessSet, mainnet, Client } from "@evolution-sdk/evolution"
 import type { BuildPaymentResponse, SubmitTxResponse } from "./shared"
 
 declare const cardano: any
@@ -210,7 +210,7 @@ declare const cardano: any
 async function sendPayment(recipientAddress: string, lovelace: bigint) {
   // 1. Connect user wallet
   const walletApi = await cardano.eternl.enable()
-  const walletClient = makeClient(mainnet)
+  const walletClient = Client.make(mainnet)
   .withCip30(walletApi)
 
   // 2. Get user address (returns Core Address, convert to bech32 for backend)
@@ -251,10 +251,10 @@ async function sendPayment(recipientAddress: string, lovelace: bigint) {
 
 // @filename: backend.ts
 // ===== Backend (Server) =====
-import { Address, Assets, Transaction, TransactionHash, mainnet, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, Transaction, TransactionHash, mainnet, Client } from "@evolution-sdk/evolution"
 import type { SubmitTxResponse } from "./shared"
 
-const providerClient = makeClient(mainnet)
+const providerClient = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -292,8 +292,6 @@ export async function submitSignedTx(signedTxCbor: string): Promise<SubmitTxResp
 
 ### Why This Works
 
-### Why This Works
-
 User keys never leave their device. Provider API keys never exposed to frontend. Backend cannot sign transactions (compromised server results in no fund loss). Frontend cannot build transactions alone (no provider access). Both components required for complete transactions. Clean separation of concerns provides scalable architecture.
 
 ---
@@ -319,7 +317,7 @@ These rows reflect the assembled client shapes used on this page.
 
 ```typescript
 // WRONG - Frontend has no provider
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withCip30(walletApi)
 
 const builder = client.newTx() // Error: Cannot build without provider
@@ -329,7 +327,7 @@ const builder = client.newTx() // Error: Cannot build without provider
 
 ```typescript
 // CORRECT - Frontend signs, backend builds
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withCip30(walletApi)
 
 // Get tx from backend, then sign
@@ -340,7 +338,7 @@ const witnessSet = await client.signTx(txCborFromBackend)
 
 ```typescript
 // WRONG - Backend has no private keys
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({ ...providerConfig })
   .withAddress(userAddress)
 
@@ -351,7 +349,7 @@ await client.signTx(txCbor) // Error: Cannot sign with read-only wallet
 
 ```typescript
 // CORRECT - Backend builds, frontend signs
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({ ...providerConfig })
   .withAddress(userAddress)
 

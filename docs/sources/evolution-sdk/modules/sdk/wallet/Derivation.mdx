@@ -1,6 +1,6 @@
 ---
 title: sdk/wallet/Derivation.ts
-nav_order: 164
+nav_order: 159
 parent: Modules
 ---
 
@@ -68,7 +68,7 @@ export declare function addressFromSeed(
     password?: string
     addressType?: "Base" | "Enterprise"
     accountIndex?: number
-    network?: "Mainnet" | "Testnet" | "Custom"
+    networkId?: number
   } = {}
 ): { address: CoreAddress.Address; rewardAddress: CoreRewardAddress.RewardAddress | undefined }
 ```
@@ -101,7 +101,7 @@ export declare function walletFromBip32(
   options: {
     addressType?: "Base" | "Enterprise"
     accountIndex?: number
-    network?: "Mainnet" | "Testnet" | "Custom"
+    networkId?: number
   } = {}
 ): SeedDerivationResult
 ```
@@ -119,7 +119,7 @@ export declare function walletFromPrivateKey(
   options: {
     stakeKeyBech32?: string
     addressType?: "Base" | "Enterprise"
-    network?: "Mainnet" | "Testnet" | "Custom"
+    networkId?: number
   } = {}
 ): Effect.Effect<SeedDerivationResult, DerivationError>
 ```
@@ -137,7 +137,7 @@ export declare const walletFromSeed: (
     accountIndex?: number
     paymentIndex?: number
     stakeIndex?: number
-    network?: "Mainnet" | "Testnet" | "Custom"
+    networkId?: number
   }
 ) => Effect.Effect<SeedDerivationResult, DerivationError | Bip32PrivateKey.Bip32PrivateKeyError>
 ```

@@ -1,6 +1,6 @@
 ---
 title: sdk/client/Client.ts
-nav_order: 156
+nav_order: 151
 parent: Modules
 ---
 
@@ -11,7 +11,7 @@ parent: Modules
 <h2 class="text-delta">Table of contents</h2>
 
 - [constructors](#constructors)
-  - [client](#client)
+  - [make](#make)
 - [model](#model)
   - [AddressClient (type alias)](#addressclient-type-alias)
   - [AddressClientEffect (interface)](#addressclienteffect-interface)
@@ -34,14 +34,14 @@ parent: Modules
 
 # constructors
 
-## client
+## make
 
 Construct a chain-scoped client assembly stage.
 
 **Signature**
 
 ```ts
-export declare const client: (chain?: Chain) => ClientAssembly
+export declare const make: (chain?: Chain) => ClientAssembly
 ```
 
 Added in v2.1.0

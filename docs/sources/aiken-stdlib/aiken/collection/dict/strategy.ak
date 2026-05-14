@@ -1,11 +1,11 @@
 //// This module contains strategies used to transform [`Dict`](../dict.html#Dict). You can safely ignore this module if you aren't using [`union_with`](../dict.html#union_with) nor [`insert_with`](../dict.html#insert_with).
 
-/// A strategy for combining two values in a dictionnary that belong to the same key.
+/// A strategy for combining two values in a dictionary that belong to the same key.
 pub type UnionStrategy<key, value> =
   fn(key, value, value, KeepValue<key, value>, DiscardValue<key, value>) ->
     Pairs<key, value>
 
-/// A strategy for inserting a value from a dictionnary into another.
+/// A strategy for inserting a value from a dictionary into another.
 pub type InsertStrategy<key, value> =
   fn(key, value, KeepValue<key, value>, DiscardValue<key, value>) ->
     Pairs<key, value>

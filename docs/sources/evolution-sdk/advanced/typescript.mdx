@@ -42,16 +42,16 @@ const addr = Address.fromBech32("addr_test1vrm9x2dgvdau8vckj4duc89m638t8djmluqw5
 The client type narrows based on configuration:
 
 ```typescript twoslash
-import { preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { preprod, Client } from "@evolution-sdk/evolution"
 
 // Provider-only client (no wallet) — can query but not sign
-const queryClient = makeClient(preprod)
-  .withBlockfrost({ baseUrl: "", projectId: "" })
+const queryClient = Client.make(preprod)
+  .withBlockfrost({ baseUrl: "https://cardano-preprod.blockfrost.io/api/v0", projectId: process.env.BLOCKFROST_API_KEY! })
 
 // Signing client (wallet + provider) — full capabilities
-const signingClient = makeClient(preprod)
-  .withBlockfrost({ baseUrl: "", projectId: "" })
-  .withSeed({ mnemonic: "", accountIndex: 0 })
+const signingClient = Client.make(preprod)
+  .withBlockfrost({ baseUrl: "https://cardano-preprod.blockfrost.io/api/v0", projectId: process.env.BLOCKFROST_API_KEY! })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 ```
 
 ## Effect Integration

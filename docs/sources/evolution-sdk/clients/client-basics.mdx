@@ -14,9 +14,9 @@ Think of the client as your persistent connection: configure it once with your n
 Configure your client with three essential pieces: the network (mainnet/preprod/preview), your blockchain provider, and the wallet for signing:
 
 ```ts twoslash
-import { Address, Assets, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -36,11 +36,11 @@ Evolution SDK follows a three-stage pattern: build, sign, submit. Each stage ret
 Start with `client.newTx()` and chain operations to specify outputs, metadata, or validity ranges:
 
 ```ts twoslash
-import { Address, Assets, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
-  .withBlockfrost({ baseUrl: "", projectId: "" })
-  .withSeed({ mnemonic: "", accountIndex: 0 })
+const client = Client.make(preprod)
+  .withBlockfrost({ baseUrl: "https://cardano-preprod.blockfrost.io/api/v0", projectId: process.env.BLOCKFROST_API_KEY! })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
 const builder = client.newTx()
 
@@ -59,11 +59,11 @@ const signBuilder = await builder.build()
 Call `.sign()` on the built transaction to create signatures with your wallet:
 
 ```ts twoslash
-import { Address, Assets, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
-  .withBlockfrost({ baseUrl: "", projectId: "" })
-  .withSeed({ mnemonic: "", accountIndex: 0 })
+const client = Client.make(preprod)
+  .withBlockfrost({ baseUrl: "https://cardano-preprod.blockfrost.io/api/v0", projectId: process.env.BLOCKFROST_API_KEY! })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
 const builder = client.newTx()
 builder.payToAddress({
@@ -82,11 +82,11 @@ const submitBuilder = await signBuilder.sign()
 Finally, `.submit()` broadcasts the signed transaction to the blockchain and returns the transaction hash:
 
 ```ts twoslash
-import { Address, Assets, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
-  .withBlockfrost({ baseUrl: "", projectId: "" })
-  .withSeed({ mnemonic: "", accountIndex: 0 })
+const client = Client.make(preprod)
+  .withBlockfrost({ baseUrl: "https://cardano-preprod.blockfrost.io/api/v0", projectId: process.env.BLOCKFROST_API_KEY! })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
 const builder = client.newTx()
 builder.payToAddress({
@@ -107,9 +107,9 @@ console.log("Transaction submitted:", txId)
 Here's the complete workflow in a single example—from client creation through transaction submission:
 
 ```ts twoslash
-import { Address, Assets, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!

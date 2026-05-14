@@ -14,9 +14,9 @@ This is the first half of any smart contract interaction — you lock funds, the
 Send ADA to a script address with an inline datum:
 
 ```typescript twoslash
-import { Address, Assets, Data, InlineDatum, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, Data, InlineDatum, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -44,9 +44,9 @@ console.log("Locked funds at:", txHash)
 For real contracts, define your datum with TSchema for type safety:
 
 ```typescript twoslash
-import { Address, Assets, Bytes, Data, InlineDatum, TSchema, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, Bytes, Data, InlineDatum, TSchema, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -89,9 +89,9 @@ const txHash = await signed.submit()
 Lock both ADA and native tokens to a script:
 
 ```typescript twoslash
-import { Address, Assets, Data, InlineDatum, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, Data, InlineDatum, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -102,7 +102,7 @@ const scriptAddress = Address.fromBech32("addr_test1wrm9x2dgvdau8vckj4duc89m638t
 
 // Create assets with ADA + tokens
 let assets = Assets.fromLovelace(5_000_000n)
-assets = Assets.addByHex(assets, "7edb7a2d9fbc4d2a68e4c9e9d3d7a5c8f2d1e9f8a7b6c5d4e3f2a1b0c9d8e7f6", "", 100n)
+assets = Assets.addByHex(assets, "7edb7a2d9fbc4d2a68e4c9e9d3d7a5c8f2d1e9f8a7b6c5d4e3f2a1", "", 100n)
 
 const tx = await client
   .newTx()
@@ -122,16 +122,16 @@ await signed.submit()
 Store a script on-chain alongside the locked funds. Other transactions can reference this script instead of including it directly:
 
 ```typescript twoslash
-import { Address, Assets, Data, InlineDatum, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, Data, InlineDatum, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
   })
   .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
-declare const validatorScript: any
+declare const validatorScript: any // compiled Plutus script (from Aiken build or Blueprint codegen)
 
 const scriptAddress = Address.fromBech32("addr_test1wrm9x2dgvdau8vckj4duc89m638t8djmluqw5pdrFollw8qnmqsyu")
 
@@ -154,9 +154,9 @@ await signed.submit()
 Lock funds to multiple script addresses in a single transaction:
 
 ```typescript twoslash
-import { Address, Assets, Data, InlineDatum, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, Data, InlineDatum, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!

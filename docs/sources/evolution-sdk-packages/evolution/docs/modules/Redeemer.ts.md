@@ -1,6 +1,6 @@
 ---
 title: Redeemer.ts
-nav_order: 111
+nav_order: 109
 parent: Modules
 ---
 
@@ -16,7 +16,6 @@ parent: Modules
   - [reward](#reward)
   - [spend](#spend)
 - [generators](#generators)
-  - [arbitrary](#arbitrary)
   - [arbitraryExUnits](#arbitraryexunits)
   - [arbitraryRedeemerTag](#arbitraryredeemertag)
 - [model](#model)
@@ -49,8 +48,10 @@ parent: Modules
 - [utilities](#utilities)
   - [integerToTag](#integertotag)
   - [tagToInteger](#tagtointeger)
+  - [totalExUnits](#totalexunits)
 - [utils](#utils)
   - [RedeemerTag (type alias)](#redeemertag-type-alias)
+  - [arbitrary](#arbitrary)
 
 ---
 
@@ -105,18 +106,6 @@ export declare const spend: (index: bigint, data: PlutusData.Data, exUnits: ExUn
 Added in v2.0.0
 
 # generators
-
-## arbitrary
-
-FastCheck arbitrary for generating random Redeemer instances.
-
-**Signature**
-
-```ts
-export declare const arbitrary: FastCheck.Arbitrary<Redeemer>
-```
-
-Added in v2.0.0
 
 ## arbitraryExUnits
 
@@ -522,6 +511,18 @@ export declare const tagToInteger: (tag: RedeemerTag) => bigint
 
 Added in v2.0.0
 
+## totalExUnits
+
+Compute total ex_units by summing over redeemers.
+
+**Signature**
+
+```ts
+export declare const totalExUnits: (redeemers: ReadonlyArray<Redeemer>) => ExUnits
+```
+
+Added in v2.0.0
+
 # utils
 
 ## RedeemerTag (type alias)
@@ -530,4 +531,12 @@ Added in v2.0.0
 
 ```ts
 export type RedeemerTag = typeof RedeemerTag.Type
+```
+
+## arbitrary
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<Redeemer>
 ```

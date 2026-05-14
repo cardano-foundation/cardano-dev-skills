@@ -28,10 +28,6 @@ pub const field_size = 32
 pub type Scalar =
   ByteArray
 
-test field_prime_1() {
-  builtin.integer_to_bytearray(True, 32, field_prime) == #"73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"
-}
-
 // ## Constructing
 /// Constructs a new `Scalar` element from a Big-Endian (most-significant bits first) `ByteArray`.
 pub fn from_bytes(b: ByteArray) -> State<Scalar> {
@@ -52,23 +48,6 @@ pub fn from_int(n: Int) -> State<Scalar> {
   bitwise.from_int(n, field_prime)
 }
 
-test new_1() {
-  trace from_int(-1)
-  and {
-    ( from_int(-1) |> to_int ) == field_prime - 1,
-    ( from_int(field_prime) |> to_int ) == 0,
-    ( from_int(834884848) |> to_int ) == 834884848,
-  }
-}
-
-test from_bytearray_big_endian_1() {
-  ( from_bytes(#"ffff00") |> to_int ) == 16776960
-}
-
-test from_bytearray_little_endian_1() {
-  ( from_bytes_little_endian(#"ffff00") |> to_int ) == 65535
-}
-
 type BitwiseScalarBytes =
   fn(State<Scalar>, ByteArray) -> State<Scalar>
 
@@ -87,40 +66,10 @@ pub fn scale(self: State<Scalar>, e: Int) -> State<Scalar> {
   bitwise.scale(self, e, mul)
 }
 
-test scale_1() {
-  let x = from_int(834884848)
-
-  and {
-    ( x |> scale(-1) ) == zero,
-    ( x |> scale(0) ) == one,
-    ( x |> scale(1) ) == x,
-    ( x |> scale(2) |> to_int ) == 697032709419983104,
-    ( x |> scale(3) |> to_int ) == 581942047655130761945608192,
-    (
-      from_int(field_prime - 4)
-        |> scale(200)
-        |> to_int
-    ) == 12843927705572658539565969578937286576443167978938369866871449552629978143484,
-  }
-}
-
 /// A faster version of `scale` for the case where the exponent is a power of two.
 /// That is, the exponent `e = 2^k` for some non-negative integer `k`. Which is used alot in zk-SNARKs.
 pub fn scale2(self: State<Scalar>, k: Int) -> State<Scalar> {
   bitwise.scale2(self, k, mul)
-}
-
-test scale2_1() {
-  let x = from_int(834884848)
-
-  and {
-    scale2(x, -1) == zero,
-    scale2(x, 0) == scale(x, 1),
-    scale2(x, 1) == scale(x, 2),
-    scale2(x, 2) == scale(x, 4),
-    scale2(x, 3) == scale(x, 8),
-    scale2(x, 4) == scale(x, 16),
-  }
 }
 
 // ## Combining
@@ -142,18 +91,6 @@ const add_i_scalar: BitwiseScalarInt = bitwise.add_int(field_prime)
 
 pub fn add_int(intermediate: State<Scalar>, int: Int) -> State<Scalar> {
   add_i_scalar(intermediate, int)
-}
-
-test add_1() {
-  let x = from_int(834884848)
-  let y = from_int(field_prime - 1)
-  let z = from_int(3)
-
-  and {
-    (( add(x, x) |> to_int ) == 1669769696)?,
-    (add(y, one) == zero)?,
-    (add(z, add(y, one)) == z)?,
-  }
 }
 
 /// Divides one `Scalar` element by another, returning `None` if the divisor is zero.
@@ -184,20 +121,6 @@ pub fn div_bytes(left: State<Scalar>, right: ByteArray) -> Option<State<Scalar>>
   }
 }
 
-test div_1() {
-  let x = from_int(834884848)
-
-  and {
-    div(x, x) == Some(one),
-    div(x, zero) == None,
-    div(from_int(field_prime - 1), from_int(2)) == Some(
-      from_int(
-        26217937587563095239723870254092982918845276250263818911301829349969290592256,
-      ),
-    ),
-  }
-}
-
 const mul_s_scalar: BitwiseScalarState = bitwise.mul_state(field_prime)
 
 /// Multiplies two `Scalar` elements, with the result constrained within the finite field.
@@ -217,17 +140,6 @@ pub fn mul_int(intermediate: State<Scalar>, int: Int) -> State<Scalar> {
   mul_i_scalar(intermediate, int)
 }
 
-test mul_1() {
-  let x = from_int(834884848)
-  and {
-    mul(x, x) == from_int(697032709419983104),
-    mul(zero, x) == zero,
-    mul(from_int(field_prime - 1), from_int(2)) == from_int(
-      52435875175126190479447740508185965837690552500527637822603658699938581184511,
-    ),
-  }
-}
-
 const neg_scalar: fn(State<Scalar>) -> State<Scalar> = bitwise.neg(field_prime)
 
 /// Calculates the additive inverse of a `Scalar` element.
@@ -235,32 +147,9 @@ pub fn neg(intermediate: State<Scalar>) -> State<Scalar> {
   neg_scalar(intermediate)
 }
 
-test neg_1() {
-  trace neg(zero)
-
-  and {
-    neg(from_int(834884848)) == from_int(
-      52435875175126190479447740508185965837690552500527637822603658699937746299665,
-    ),
-    neg(zero) == zero,
-    neg(one) == from_int(field_prime - 1),
-  }
-}
-
 /// Calculates the multiplicative inverse of an `Scalar` element, returning `None` if the element is zero.
 pub fn recip(self: State<Scalar>) -> Option<State<Scalar>> {
   div(one, self)
-}
-
-test recip_1() {
-  and {
-    recip(from_int(834884848)) == Some(
-      from_int(
-        35891248691642227249400403463796410930702563777316955162085759263735363466421,
-      ),
-    ),
-    recip(zero) == None,
-  }
 }
 
 const sub_s_scalar: BitwiseScalarState = bitwise.sub_state(field_prime)
@@ -282,15 +171,6 @@ pub fn sub_int(intermediate: State<Scalar>, int: Int) -> State<Scalar> {
   sub_i_scalar(intermediate, int)
 }
 
-test sub_1() {
-  let x = from_int(834884848)
-
-  and {
-    (sub(x, x) == zero)?,
-    (sub(zero, from_int(5)) == from_int(field_prime - 5))?,
-  }
-}
-
 // ## Transforming
 
 /// Converts a `Scalar` element back to its integer representation.
@@ -306,12 +186,4 @@ pub fn to_bytes(s: State<Scalar>) -> ByteArray {
 /// Converts a `Scalar` element to a Little-Endian (least-significant bits first) `ByteArray`.
 pub fn to_bytes_little_endian(s: State<Scalar>) -> ByteArray {
   s |> bitwise.to_int |> builtin.integer_to_bytearray(False, field_size, _)
-}
-
-test to_int_1() {
-  to_int(from_int(834884848)) == 834884848
-}
-
-test to_bytearray_1() {
-  ( to_bytes(from_int(16777215)) |> builtin.slice_bytearray(29, 32, _) ) == #"ffffff"
 }

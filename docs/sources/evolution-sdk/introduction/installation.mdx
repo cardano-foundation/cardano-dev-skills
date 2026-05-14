@@ -11,23 +11,23 @@ Install it for any Cardano project: dApps, wallets, transaction tools, or when m
 
 ## Quick Install
 
-### npm
-
+<Tabs items={["npm", "yarn", "pnpm"]}>
+<Tab value="npm">
 ```bash
 npm install @evolution-sdk/evolution
 ```
-
-### yarn
-
+</Tab>
+<Tab value="yarn">
 ```bash
 yarn add @evolution-sdk/evolution
 ```
-
-### pnpm
-
+</Tab>
+<Tab value="pnpm">
 ```bash
 pnpm add @evolution-sdk/evolution
 ```
+</Tab>
+</Tabs>
 
 ## Requirements
 
@@ -60,9 +60,9 @@ Most modern frameworks (React, Vue, Svelte) bundle Evolution SDK without issues.
 Test that everything is working:
 
 ```ts twoslash
-import { preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: "your-project-id"

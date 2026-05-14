@@ -1,6 +1,6 @@
 ---
 title: GovernanceAction.ts
-nav_order: 57
+nav_order: 62
 parent: Modules
 ---
 
@@ -217,11 +217,14 @@ export declare const match: <R>(
     NoConfidenceAction: (govActionId: GovActionId | null) => R
     UpdateCommitteeAction: (
       govActionId: GovActionId | null,
-      membersToRemove: ReadonlyArray<typeof CommiteeColdCredential.CommitteeColdCredential.Credential.Type>,
-      membersToAdd: ReadonlyMap<typeof CommiteeColdCredential.CommitteeColdCredential.Credential.Type, EpochNo.EpochNo>,
+      membersToRemove: ReadonlyArray<typeof CommitteeColdCredential.CommitteeColdCredential.Credential.Type>,
+      membersToAdd: ReadonlyMap<
+        typeof CommitteeColdCredential.CommitteeColdCredential.Credential.Type,
+        EpochNo.EpochNo
+      >,
       threshold: UnitInterval.UnitInterval
     ) => R
-    NewConstitutionAction: (govActionId: GovActionId | null, constitution: Constituion.Constitution) => R
+    NewConstitutionAction: (govActionId: GovActionId | null, constitution: Constitution.Constitution) => R
     InfoAction: () => R
   }
 ) => R

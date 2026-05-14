@@ -11,7 +11,11 @@ Complete security guide covering essential rules, environment setup, common mist
 
 ### Never Do
 
-Never hardcode private keys or mnemonics in your source code. This exposes them to anyone with access to your repository. Never commit keys to version control, even in environment files. Never log secrets to console or logging systems. Never expose keys in frontend code where they can be bundled into client-side JavaScript. Never share wallet instances across user requests, as this creates a shared wallet that all users would access.
+<Callout type="error">
+**Never** hardcode private keys or mnemonics in source code. **Never** commit keys to version control. **Never** log secrets. **Never** expose keys in frontend bundles. **Never** share wallet instances across user requests.
+</Callout>
+
+These practices expose credentials to anyone with repository access, leak secrets to logging systems, bundle keys into client-side JavaScript, or create shared wallets that all users access.
 
 ```typescript
 // Error: Hardcoded credentials exposed in source
@@ -343,7 +347,7 @@ Use private key wallets for automated operations. Store keys in vault solutions 
 
 ## Next Steps
 
-- **[Patterns](/docs/wallets/patterns)** - Frontend/backend architecture
+- **[Client Architecture](/docs/clients/architecture)** - Frontend/backend patterns
 - **[API Wallets](/docs/wallets/api-wallet)** - CIP-30 integration
 - **[Private Key](/docs/wallets/private-key)** - Vault integration
 - **[Seed Phrase](/docs/wallets/seed-phrase)** - Development wallets

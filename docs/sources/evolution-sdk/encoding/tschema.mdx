@@ -234,6 +234,162 @@ const person2: Person = {
 }
 ```
 
+### NullOr
+
+Alternative to `UndefinedOr` — represents optional values as `T | null`:
+
+```typescript twoslash
+import { Data, TSchema } from "@evolution-sdk/evolution"
+
+const ConfigSchema = TSchema.Struct({
+  timeout: TSchema.Integer,
+  retryLimit: TSchema.NullOr(TSchema.Integer)
+})
+
+type Config = typeof ConfigSchema.Type
+// {
+//   timeout: bigint
+//   retryLimit: bigint | null
+// }
+
+const Codec = Data.withSchema(ConfigSchema)
+
+const config: Config = {
+  timeout: 30000n,
+  retryLimit: null // No retry limit
+}
+```
+
+### Boolean
+
+Maps `true`/`false` to Plutus constructors (`True = Constr(1, [])`, `False = Constr(0, [])`):
+
+```typescript twoslash
+import { Data, TSchema } from "@evolution-sdk/evolution"
+
+const SettingsSchema = TSchema.Struct({
+  isActive: TSchema.Boolean,
+  amount: TSchema.Integer
+})
+
+const Codec = Data.withSchema(SettingsSchema)
+
+const settings = Codec.toData({ isActive: true, amount: 100n })
+```
+
+### PlutusData
+
+Escape hatch for arbitrary PlutusData — use when a field can hold any Plutus data:
+
+```typescript twoslash
+import { Data, TSchema } from "@evolution-sdk/evolution"
+
+const FlexibleDatumSchema = TSchema.Struct({
+  version: TSchema.Integer,
+  payload: TSchema.PlutusData // Accepts any PlutusData
+})
+
+const Codec = Data.withSchema(FlexibleDatumSchema)
+
+const datum = Codec.toData({
+  version: 1n,
+  payload: Data.constr(0n, [Data.int(42n)])
+})
+```
+
+### Literal
+
+For enum-like constructors with no fields:
+
+```typescript twoslash
+import { Data, TSchema } from "@evolution-sdk/evolution"
+
+const UnitSchema = TSchema.Literal("Unit" as const)
+
+const Codec = Data.withSchema(UnitSchema)
+
+const unit = Codec.toData("Unit" as const)
+```
+
+### Tuple
+
+For fixed-length positional data (encoded as a Plutus constructor with indexed fields):
+
+```typescript twoslash
+import { Data, TSchema } from "@evolution-sdk/evolution"
+
+const PairSchema = TSchema.Tuple([TSchema.ByteArray, TSchema.Integer])
+
+type Pair = typeof PairSchema.Type
+// readonly [Uint8Array, bigint]
+
+const Codec = Data.withSchema(PairSchema)
+
+const pair: Pair = [new Uint8Array(28), 42n]
+const cbor = Codec.toCBORHex(pair)
+```
+
+### TaggedStruct
+
+Like `Struct` but includes an Effect `_tag` field for pattern matching:
+
+```typescript twoslash
+import { Data, TSchema } from "@evolution-sdk/evolution"
+
+const ClaimAction = TSchema.TaggedStruct("Claim", {})
+const UpdateAction = TSchema.TaggedStruct("Update", {
+  newValue: TSchema.Integer
+})
+
+type Claim = typeof ClaimAction.Type
+// { readonly _tag: "Claim" }
+
+type Update = typeof UpdateAction.Type
+// { readonly _tag: "Update"; readonly newValue: bigint }
+```
+
+### Union (Direct)
+
+Combine multiple schemas into a discriminated union — useful for complex redeemer types:
+
+```typescript twoslash
+import { Data, TSchema } from "@evolution-sdk/evolution"
+
+const ActionSchema = TSchema.Union(
+  TSchema.TaggedStruct("Claim", {}),
+  TSchema.TaggedStruct("Cancel", {}),
+  TSchema.TaggedStruct("Update", { amount: TSchema.Integer })
+)
+
+type Action = typeof ActionSchema.Type
+
+const Codec = Data.withSchema(ActionSchema)
+
+const claim: Action = { _tag: "Claim" }
+const update: Action = { _tag: "Update", amount: 500n }
+```
+
+## Utility Functions
+
+TSchema re-exports several Effect Schema utilities:
+
+```typescript
+import { TSchema } from "@evolution-sdk/evolution"
+
+// Type guard
+TSchema.is(MySchema)(someValue)  // boolean
+
+// Compose schemas
+const Composed = TSchema.compose(SchemaA, SchemaB)
+
+// Filter with refinement
+const Positive = TSchema.filter(TSchema.Integer, (n) => n > 0n)
+
+// Structural equality
+const eq = TSchema.equivalence(MySchema)
+eq(a, b)  // boolean
+```
+
 ## Creating Codecs
 
 Use `Data.withSchema()` to create a codec from any schema:

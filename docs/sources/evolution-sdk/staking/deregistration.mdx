@@ -10,16 +10,18 @@ Deregistering a stake credential removes it from the chain and refunds the depos
 ## Basic Deregistration
 
 ```typescript twoslash
-import { Credential, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Credential, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
   })
   .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
-declare const stakeCredential: Credential.Credential
+// Get your stake credential from your wallet address
+const address = await client.address()
+const stakeCredential = address.stakingCredential!
 
 const tx = await client.newTx().deregisterStake({ stakeCredential }).build()
 
@@ -32,17 +34,20 @@ await signed.submit()
 Best practice: withdraw rewards and deregister in the same transaction to avoid losing rewards:
 
 ```typescript twoslash
-import { Credential, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Credential, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
   })
   .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
-declare const stakeCredential: Credential.Credential
-declare const rewardBalance: bigint
+// Query rewards first, then withdraw + deregister in one transaction
+const address = await client.address()
+const stakeCredential = address.stakingCredential!
+const delegation = await client.getWalletDelegation()
+const rewardBalance = delegation.rewards // accumulated lovelace
 
 const tx = await client
   .newTx()
@@ -57,17 +62,17 @@ await signed.submit()
 ## Script-Controlled Deregistration
 
 ```typescript twoslash
-import { Credential, Data, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Credential, Data, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
   })
   .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
-declare const scriptStakeCredential: Credential.Credential
-declare const stakeScript: any
+declare const scriptStakeCredential: Credential.Credential // script-controlled stake credential
+declare const stakeScript: any // compiled Plutus staking script (from Aiken build or Blueprint codegen)
 
 const tx = await client
   .newTx()

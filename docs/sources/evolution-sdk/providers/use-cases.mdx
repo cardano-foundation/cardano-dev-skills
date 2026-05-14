@@ -19,10 +19,10 @@ import {
   Transaction,
   TransactionHash,
   mainnet,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -61,10 +61,10 @@ import {
   Transaction,
   TransactionHash,
   mainnet,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -133,10 +133,10 @@ import {
   Transaction,
   TransactionHash,
   mainnet,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -215,10 +215,10 @@ import {
   Transaction,
   TransactionHash,
   mainnet,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -281,10 +281,10 @@ import {
   Transaction,
   TransactionHash,
   mainnet,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -358,10 +358,10 @@ import {
   Transaction,
   TransactionHash,
   mainnet,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -425,10 +425,10 @@ import {
   Transaction,
   TransactionHash,
   mainnet,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(mainnet)
+const client = Client.make(mainnet)
   .withBlockfrost({
     baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_PROJECT_ID!
@@ -513,7 +513,7 @@ import {
   Transaction,
   TransactionHash,
   mainnet,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
 // Type for clients with common provider methods
@@ -567,11 +567,11 @@ class ProviderWithFallback {
 
 // Usage
 const resilientProvider = new ProviderWithFallback([
-  makeClient(mainnet).withBlockfrost({
+  Client.make(mainnet).withBlockfrost({
       baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
       projectId: process.env.BLOCKFROST_PROJECT_ID!
     }),
-  makeClient(mainnet).withMaestro({
+  Client.make(mainnet).withMaestro({
       baseUrl: "https://mainnet.gomaestro-api.org/v1",
       apiKey: process.env.MAESTRO_API_KEY!
     })

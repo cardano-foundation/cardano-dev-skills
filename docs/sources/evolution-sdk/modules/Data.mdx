@@ -1,6 +1,6 @@
 ---
 title: Data.ts
-nav_order: 45
+nav_order: 50
 parent: Modules
 ---
 
@@ -34,7 +34,8 @@ parent: Modules
   - [arbitraryPlutusList](#arbitraryplutuslist)
   - [arbitraryPlutusMap](#arbitraryplutusmap)
 - [hashing](#hashing)
-  - [hashData](#hashdata)
+  - [~~hashData~~](#hashdata)
+  - [toDatumHash](#todatumhash)
 - [model](#model)
   - [Data (type alias)](#data-type-alias)
   - [DataEncoded (type alias)](#dataencoded-type-alias)
@@ -312,7 +313,17 @@ Added in v2.0.0
 
 # hashing
 
-## hashData
+## ~~hashData~~
+
+**Signature**
+
+```ts
+export declare const hashData: (data: Data, options?: CBOR.CodecOptions) => DatumHash.DatumHash
+```
+
+Added in v2.0.0
+
+## toDatumHash
 
 Compute the hash of PlutusData using blake2b-256 over its CBOR encoding.
 Defaults to CML_DATA_DEFAULT_OPTIONS (indefinite-length arrays/maps).
@@ -320,7 +331,7 @@ Defaults to CML_DATA_DEFAULT_OPTIONS (indefinite-length arrays/maps).
 **Signature**
 
 ```ts
-export declare const hashData: (data: Data, options?: CBOR.CodecOptions) => DatumHash.DatumHash
+export declare const toDatumHash: (data: Data, options?: CBOR.CodecOptions) => DatumHash.DatumHash
 ```
 
 **Example**
@@ -330,15 +341,15 @@ import * as Data from "@evolution-sdk/evolution/Data"
 
 // Hash a simple integer
 const intData = 42n
-const intHash = Data.hashData(intData)
+const intHash = Data.toDatumHash(intData)
 
 // Hash a constructor
 const constr = new Data.Constr({ index: 0n, fields: [1n, 2n] })
-const constrHash = Data.hashData(constr)
+const constrHash = Data.toDatumHash(constr)
 
 // Hash a bytearray
 const bytes = new Uint8Array([0xde, 0xad, 0xbe, 0xef])
-const bytesHash = Data.hashData(bytes)
+const bytesHash = Data.toDatumHash(bytes)
 ```
 
 Added in v2.0.0

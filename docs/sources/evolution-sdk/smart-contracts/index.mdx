@@ -11,6 +11,26 @@ Evolution SDK provides full support for Cardano smart contracts — Plutus V1, V
 
 The transaction builder handles script evaluation, redeemer indexing, and collateral selection automatically. You focus on your contract logic.
 
+## Smart Contract Flow
+
+import { Mermaid } from "@/components/mdx/mermaid"
+
+<Mermaid chart={`
+graph LR
+    A["📝 Compile Script<br/>(Aiken, Plutarch)"] --> B{"Parameterized?"}
+    B -->|Yes| C["⚙️ Apply Params<br/>UPLC.applyParamsToScript"]
+    B -->|No| D["📦 Script Ready"]
+    C --> D
+    D --> E["🔒 Lock<br/>payToAddress + datum"]
+    E --> F["🔓 Spend<br/>collectFrom + redeemer"]
+    
+    style A fill:#f0f9ff,stroke:#0284c7,stroke-width:2px,color:#0c4a6e
+    style C fill:#fefce8,stroke:#ca8a04,stroke-width:2px,color:#713f12
+    style D fill:#f0fdf4,stroke:#16a34a,stroke-width:2px,color:#14532d
+    style E fill:#fdf2f8,stroke:#db2777,stroke-width:2px,color:#831843
+    style F fill:#faf5ff,stroke:#9333ea,stroke-width:2px,color:#581c87
+`} />
+
 ## How It Works
 
 Smart contract interaction in Cardano involves three concepts:
@@ -26,9 +46,9 @@ Smart contract interaction in Cardano involves three concepts:
 **Locking** (sending funds to a script):
 
 ```typescript twoslash
-import { Address, Assets, Data, InlineDatum, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, Assets, Data, InlineDatum, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -58,18 +78,18 @@ import {
   Data,
   preprod,
   type UTxO,
-  client as makeClient,
+  Client,
 } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
   })
   .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
-declare const scriptUtxos: UTxO.UTxO[]
-declare const validatorScript: any
+declare const scriptUtxos: UTxO.UTxO[] // from client.getUtxos(scriptAddress)
+declare const validatorScript: any // compiled Plutus script (from Aiken build or Blueprint codegen)
 
 // Spend from script with a redeemer
 const tx = await client
@@ -96,13 +116,9 @@ const hash = await signed.submit()
 
 ## What the Builder Handles
 
-When you build a transaction with scripts, Evolution SDK automatically:
-
-- **Evaluates scripts** — Computes execution units (memory + CPU) for each script
-- **Indexes redeemers** — Assigns correct indices after coin selection changes input order
-- **Selects collateral** — Sets aside collateral UTxOs required for script transactions
-- **Calculates fees** — Includes script execution costs in fee computation
-- **Attaches cost models** — Includes protocol cost models in the script data hash
+<Callout type="info">
+**You focus on your contract logic — the builder handles the rest.** When you build a transaction with scripts, Evolution SDK automatically evaluates scripts (computes execution units), indexes redeemers (after coin selection reorders inputs), selects collateral, calculates fees (including script execution costs), and attaches cost models.
+</Callout>
 
 ## Next Steps
 
@@ -116,10 +132,31 @@ When you build a transaction with scripts, Evolution SDK automatically:
   <Card title="Spending from Script" href="/docs/smart-contracts/spending">
     Unlock funds with redeemers
   </Card>
+  <Card title="Minting Tokens" href="/docs/smart-contracts/minting">
+    Mint and burn native tokens with minting policies
+  </Card>
+  <Card title="Native Scripts" href="/docs/smart-contracts/native-scripts">
+    Time-locks, multi-sig, and simple minting without Plutus
+  </Card>
   <Card title="Redeemers" href="/docs/smart-contracts/redeemers">
     Static, self, and batch redeemer modes
   </Card>
   <Card title="Reference Scripts" href="/docs/smart-contracts/reference-scripts">
     Reduce transaction size with on-chain scripts
+  </Card>
+  <Card title="Parameterized Scripts" href="/docs/smart-contracts/apply-params">
+    Apply parameters to reusable validators
+  </Card>
+  <Card title="Blueprint Codegen" href="/docs/smart-contracts/blueprint-codegen">
+    Generate type-safe schemas from CIP-57 blueprints
+  </Card>
+  <Card title="Tutorial: Token Vesting" href="/docs/smart-contracts/vesting">
+    End-to-end tutorial — lock, wait, claim
+  </Card>
+  <Card title="Tutorial: Mint an NFT" href="/docs/smart-contracts/mint-nft">
+    Mint with CIP-25 metadata — name, image, description
+  </Card>
+  <Card title="Tutorial: Multi-Sig Treasury" href="/docs/smart-contracts/multi-sig">
+    2-of-3 shared funds — no single person controls spending
   </Card>
 </Cards>

@@ -10,9 +10,9 @@ UTxOs (Unspent Transaction Outputs) represent available funds on the blockchain.
 ## By Address
 
 ```typescript twoslash
-import { Address, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -33,9 +33,9 @@ for (const utxo of utxos) {
 Query all UTxOs belonging to your connected wallet:
 
 ```typescript twoslash
-import { preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -52,9 +52,9 @@ console.log("Total balance:", totalLovelace, "lovelace")
 Find UTxOs containing a specific native token:
 
 ```typescript twoslash
-import { Address, preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { Address, preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
@@ -76,16 +76,17 @@ const nftUtxo = await client.getUtxoByUnit(unit)
 Fetch specific UTxOs by their transaction hash and output index:
 
 ```typescript twoslash
-import { preprod, client as makeClient } from "@evolution-sdk/evolution"
+import { preprod, Client } from "@evolution-sdk/evolution"
 
-const client = makeClient(preprod)
+const client = Client.make(preprod)
   .withBlockfrost({
     baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
     projectId: process.env.BLOCKFROST_API_KEY!
   })
   .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
 
-declare const refs: any[]
+// TransactionInput identifies a specific UTxO by tx hash + output index
+declare const refs: any[] // Array of TransactionInput (from previous tx results or chain queries)
 
 const utxos = await client.getUtxosByOutRef(refs)
 ```

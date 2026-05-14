@@ -40,7 +40,7 @@ console.log(bech32); // "addr1..."
 Parse a Bech32 address string into an `EnterpriseAddress` instance:
 
 ```typescript twoslash
-import { AddressEras, EnterpriseAddress, KeyHash, ScriptHash } from "@evolution-sdk/evolution";
+import { AddressEras, EnterpriseAddress } from "@evolution-sdk/evolution";
 
 const bech32 = "addr1vx2kd28nq8ac5prwg32hhvudlwggpgfp8utlyqxu6wqgz6cevnrgl";
 
@@ -55,7 +55,7 @@ console.log("Payment:", address.paymentCredential);
 Enterprise addresses can use script hashes as payment credentials:
 
 ```typescript twoslash
-import { AddressEras, EnterpriseAddress, KeyHash, ScriptHash } from "@evolution-sdk/evolution";
+import { AddressEras, EnterpriseAddress, ScriptHash } from "@evolution-sdk/evolution";
 
 // Script address example
 const scriptAddr = new EnterpriseAddress.EnterpriseAddress({
@@ -74,7 +74,7 @@ console.log("Script enterprise address:", bech32);
 
 **Bech32 Prefix**: `addr` (mainnet) or `addr_test` (testnet)  
 **Length**: 29 bytes raw / ~59 characters Bech32  
-**Header Bits**: `0110xxxx` (enterprise address type)  
+**Header Bits**: `0110xxxx` (key hash) or `0111xxxx` (script hash)  
 **Size Advantage**: Half the size of base addresses (29 vs 57 bytes)
 
 ## Comparison with Base Addresses

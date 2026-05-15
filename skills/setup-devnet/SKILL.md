@@ -30,7 +30,7 @@ Help the developer set up a local Cardano development network for building, test
 ## Key principles
 
 1. **Start local, then move to testnets.** Local devnets give instant feedback. Use Preview/Preprod for integration testing.
-2. **Yaci DevKit is the fastest path.** Docker-based, pre-configured, includes funded wallets.
+2. **Two fast local-devnet options.** Yaci DevKit (standalone CLI tool with a visual explorer) and Evolution SDK devnet (`@evolution-sdk/devnet`, a TypeScript library) are both Docker-based — pick by workflow, not speed.
 3. **Automate from day one.** Scripts for devnet startup, contract deployment, and testing save hours.
 4. **Match your devnet to your target network.** Ensure protocol parameters and era match what you will deploy to.
 5. **Keep test wallets organized.** Use named wallets with known keys for reproducible testing.
@@ -48,7 +48,8 @@ Ask the developer (if not already clear):
 
 | Environment | Best for | Setup time |
 |---|---|---|
-| **Yaci DevKit** | Smart contract dev, fast iteration, isolated testing | 5 minutes |
+| **Yaci DevKit** | Smart contract dev, fast iteration, visual block explorer | 5 minutes |
+| **Evolution SDK devnet** | TypeScript projects; code-first devnet inside the test suite | 5 minutes |
 | **Preview testnet** | Integration testing, shared state, longer-lived deployments | 10 minutes |
 | **Preprod testnet** | Pre-production testing, mirrors mainnet parameters | 10 minutes |
 | **Custom local cluster** | Advanced scenarios, custom protocol params | 30+ minutes |
@@ -58,9 +59,10 @@ Ask the developer (if not already clear):
 Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/yaci-devkit/` - Yaci DevKit docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/yaci-store/` - Yaci Store docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/devnet/` - Evolution SDK devnet docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-node-wiki/` - Cardano node wiki
 
-### Step 3: Set up Yaci DevKit (recommended for local dev)
+### Step 3: Set up Yaci DevKit (CLI tool, visual explorer)
 
 Reference the quickstart guide for detailed commands:
 
@@ -89,6 +91,35 @@ File: skills/infrastructure/setup-devnet/references/yaci-devkit-quickstart.md
 - Adjust protocol parameters (min fee, collateral percentage)
 - Configure slot length for faster/slower block production
 - Enable/disable Plutus cost model overrides for testing
+
+### Step 3b: Set up Evolution SDK devnet (code-first alternative)
+
+If the project is TypeScript-based, `@evolution-sdk/devnet` runs the same local Cardano network as a library — the devnet's genesis, lifecycle, and UTxO queries live in your code and test suite instead of a separate CLI tool. Reference the quickstart:
+
+```
+File: skills/infrastructure/setup-devnet/references/evolution-sdk-devnet.md
+```
+
+#### Quick setup
+
+1. **Prerequisites**: Docker running, Node.js 18+
+2. **Install**: `pnpm add @evolution-sdk/devnet @evolution-sdk/evolution`
+3. **Create and start a cluster** in code:
+   ```typescript
+   import { Cluster } from "@evolution-sdk/devnet";
+
+   const cluster = await Cluster.make({
+     clusterName: "dev",
+     ports: { node: 3001, submit: 3002 },
+     kupo: { enabled: true, port: 1442 },
+     ogmios: { enabled: true, port: 1337 },
+   });
+   await Cluster.start(cluster);
+   ```
+4. **Fund addresses at genesis** via `shelleyGenesis.initialFunds` — deterministic, no faucet. Genesis UTxOs are not indexed by Kupo; derive them with `Genesis.calculateUtxosFromConfig(...)` and pass via the builder's `availableUtxos`.
+5. **Connect a client**: `Client.make(Cluster.getChain(cluster)).withKupmios({ kupoUrl, ogmiosUrl })`.
+
+Choose this over Yaci DevKit when you want the devnet managed from inside integration tests; choose Yaci DevKit for its visual block explorer and Blockfrost-compatible REST API. Both run a standard `cardano-node`, so chain behaviour is identical.
 
 ### Step 4: Set up local chain indexers
 
@@ -217,7 +248,9 @@ jobs:
 ## References
 
 - `skills/infrastructure/setup-devnet/references/yaci-devkit-quickstart.md` -- Yaci DevKit quickstart guide
+- `skills/infrastructure/setup-devnet/references/evolution-sdk-devnet.md` -- Evolution SDK devnet quickstart guide
 - Yaci DevKit: https://github.com/bloxbean/yaci-devkit
+- Evolution SDK devnet: https://github.com/IntersectMBO/evolution-sdk
 - Cardano testnets: https://docs.cardano.org/cardano-testnets/
 - Aiken: https://aiken-lang.org
 - Ogmios: https://ogmios.dev

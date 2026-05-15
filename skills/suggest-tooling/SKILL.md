@@ -85,16 +85,17 @@ File: skills/integration/suggest-tooling/references/ecosystem-map.md
 | SDK | Language | Best for | Status |
 |---|---|---|---|
 | **Mesh SDK** | TypeScript/JS | Full-stack dApp development, beginners | Production |
-| **Evolution SDK** | TypeScript/JS | Type-safe, Effect-based composable tx building; lightweight alternative to Mesh (live fork of the now-dead Lucid Evolution) | Production |
+| **Evolution SDK** | TypeScript/JS | Type-safe, Effect-based composable tx building. IntersectMBO's canonical Lucid-lineage successor | Production |
 | **PyCardano** | Python | Python backends, scripting, data science | Production |
 | **Cardano CLI** | Shell | DevOps, scripting, node operators | Production |
 | **cardano-js-sdk** | TypeScript | Lace wallet ecosystem, full node interaction | Production |
+| **Lucid Evolution** | TypeScript/JS | Anastasia-Labs continuation of Lucid; separate API from Evolution SDK | Production |
 | **Blaze** | TypeScript | Lightweight, modular tx building | Production |
 | **Cardano Java Client Lib** | Java/Kotlin | JVM backends, Android | Production |
 | **Pallas** | Rust | High-performance, custom node interaction | Production |
 
 **Default recommendation by language**:
-- TypeScript/JavaScript: **Mesh SDK** (comprehensive, well-documented, great for beginners) or **Evolution SDK** (lighter, more control)
+- TypeScript/JavaScript: **Mesh SDK** (comprehensive, well-documented, great for beginners) or **Evolution SDK** (type-safe, Effect-based composable builder)
 - Python: **PyCardano**
 - Rust: **Pallas**
 - Java/Kotlin: **Cardano Java Client Lib**
@@ -196,6 +197,7 @@ For each recommendation, briefly note:
 - Cardano developer portal: https://developers.cardano.org
 - Aiken: https://aiken-lang.org
 - Mesh SDK: https://meshjs.dev
-- Evolution SDK: https://evolution-sdk.dev (live fork of the now-dead Lucid Evolution)
+- Evolution SDK: https://github.com/IntersectMBO/evolution-sdk (docs: https://evolution-sdk.dev)
+- Lucid Evolution: https://github.com/Anastasia-Labs/lucid-evolution
 - PyCardano: https://pycardano.readthedocs.io
 - Blockfrost: https://blockfrost.io

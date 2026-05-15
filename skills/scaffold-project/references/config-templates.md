@@ -231,7 +231,7 @@ When you flip `CARDANO_NETWORK` between scaffolded environments, update only the
     "@evolution-sdk/evolution": "^X.Y.Z",      // PIN: latest Evolution SDK release.
                                                // Check ${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/.
     "dotenv": "^16.4.5",
-    "effect": "^3.0.0"                         // peer dep; Evolution is built on Effect-TS
+    "effect": "^3.21.0"                        // peer dep; @evolution-sdk/evolution pins ^3.21.1 upstream
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

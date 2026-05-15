@@ -301,24 +301,22 @@ const txHash = await wallet.submitTx(signedTx);
 
 #### With Evolution SDK
 
+Evolution SDK's CIP-30 client is **signing-only by design** — it carries no provider, so the browser cannot build or submit transactions itself. A provider-backed backend builds the unsigned transaction and submits the signed one; the wallet only signs. (See `wallets/api-wallet.mdx` in the bundled docs.)
+
 ```typescript
-import { Lucid, Blockfrost } from "@evolution-sdk/lucid";
+import { Client, Transaction, TransactionWitnessSet, mainnet } from "@evolution-sdk/evolution";
 
-const lucid = await Lucid(
-  new Blockfrost("https://cardano-preprod.blockfrost.io/api", projectId),
-  "Preprod"
+// Connect the browser wallet, then create a signing-only client (no provider).
+const walletApi = await window.cardano.eternl.enable();
+const client = Client.make(mainnet).withCip30(walletApi);
+
+// `unsignedTxCbor` comes from your backend's provider-backed transaction builder.
+const witnessSet = await client.signTx(unsignedTxCbor); // prompts the user
+const signedTxCbor = Transaction.addVKeyWitnessesHex(
+  unsignedTxCbor,
+  TransactionWitnessSet.toCBORHex(witnessSet),
 );
-
-// Connect to browser wallet
-lucid.selectWallet.fromAPI(walletApi);
-
-const tx = await lucid
-  .newTx()
-  .pay.ToAddress(recipientAddress, { lovelace: 5000000n })
-  .complete();
-
-const signedTx = await tx.sign.withWallet().complete();
-const txHash = await signedTx.submit();
+// POST signedTxCbor back to the backend for provider-backed submission.
 ```
 
 #### With raw CIP-30
@@ -335,7 +333,18 @@ const signedTxCbor = assembleTx(unsignedTxCbor, witnessSetCbor);
 const txHash = await api.submitTx(signedTxCbor);
 ```
 
-### Step 7: CIP-95 governance extensions
+### Step 7: Message signing (CIP-8)
+
+Wallets can sign arbitrary data — not just transactions — to prove the user controls an address. This backs "sign in with wallet" logins, attestations, and off-chain authorization. No transaction, no fee.
+
+```javascript
+// Raw CIP-30 — returns a COSE_Sign1 signature + key
+const { signature, key } = await api.signData(addressHex, payloadHex);
+```
+
+Evolution SDK exposes this as `client.signMessage(payload)` on a CIP-30 client, and ships `COSE.SignData.verifyData(...)` to verify a signature server-side (see `wallets/message-signing.mdx` in the bundled docs). Always verify server-side — a signature proves key ownership only once you check it against the claimed address.
+
+### Step 8: CIP-95 governance extensions
 
 For dApps that need governance features (DRep registration, voting, delegation):
 
@@ -353,7 +362,7 @@ const unregisteredPubStakeKeys = await api.cip95.getUnregisteredPubStakeKeys();
 
 Not all wallets support CIP-95 yet. Check wallet compatibility before relying on it. Wallets supporting CIP-95: Eternl, Lace, Flint, Vespr, Typhon.
 
-### Step 8: Common issues and solutions
+### Step 9: Common issues and solutions
 
 | Issue | Cause | Solution |
 |---|---|---|
@@ -374,4 +383,4 @@ Not all wallets support CIP-95 yet. Check wallet compatibility before relying on
 - CIP-30 specification: https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030
 - CIP-95 specification: https://github.com/cardano-foundation/CIPs/tree/master/CIP-0095
 - Mesh SDK docs: https://meshjs.dev
-- Evolution SDK: https://evolution-sdk.dev (live fork of the now-dead Lucid Evolution)
+- Evolution SDK: https://github.com/IntersectMBO/evolution-sdk

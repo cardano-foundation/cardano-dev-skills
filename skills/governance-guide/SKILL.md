@@ -103,7 +103,7 @@ Cardano governance has three pillars:
 
 4. **SDK support**:
    - **Mesh SDK**: Governance transaction builders available
-   - **Evolution SDK**: Conway-era governance support
+   - **Evolution SDK**: Conway-era governance — DRep registration via `.registerDRep({ drepCredential })`, voting via `.vote({ votingProcedures })`, DRep delegation, proposals, and committee operations
    - **cardano-cli**: Full governance command set (`cardano-cli conway governance ...`)
 
 #### For DReps

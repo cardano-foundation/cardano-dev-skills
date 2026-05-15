@@ -224,7 +224,7 @@ Report the final state to the developer plainly: "Scaffold built successfully. R
 
 Aiken emits CIP-57 `plutus.json` as part of `aiken build`. This is the single source of truth that bridges on-chain and off-chain code. Every off-chain SDK in the v1 stack matrix can load this file directly:
 
-- Evolution SDK: `applyParamsToScript(blueprint.validators[0].compiledCode, [])` plus `validatorToAddress`
+- Evolution SDK: `Blueprint.Codegen.generateTypeScript(blueprint)` emits TSchema types plus per-validator metadata — `compiledCode` (attach with `.attachScript`) and `hash` (→ script address via `new Address.Address({ paymentCredential: ScriptHash.fromHex(hash) })`). Parameterized validators: apply params first with `UPLC.applyParamsToScript(compiledCode, [params])`
 - Mesh SDK: `applyParamsToScript` and `serializePlutusScript` consume the compiled CBOR
 - PyCardano: reads `plutus.json` and constructs `PlutusV3Script` from the CBOR
 - cardano-client-lib: parses `plutus.json` via `PlutusBlueprintLoader` + `PlutusBlueprintUtil`

@@ -126,14 +126,16 @@ const provider = new YaciProvider("http://localhost:10000/api/v1");
 
 ### Evolution SDK (TypeScript)
 
-```typescript
-import { Lucid, Kupmios } from "@evolution-sdk/lucid";
+If running Ogmios + Kupo alongside Yaci DevKit, point the client at them via `.withKupmios(...)`. Evolution SDK also ships its own first-party local devnet (`@evolution-sdk/devnet`) as a code-first alternative to Yaci DevKit — see `evolution-sdk-devnet.md` in this directory.
 
-// If running Ogmios + Kupo alongside DevKit
-const lucid = await Lucid(
-  new Kupmios("http://localhost:1442", "ws://localhost:1337"),
-  "Custom"
-);
+```typescript
+import { Client, preprod } from "@evolution-sdk/evolution"
+
+// Pick `preprod` (or `preview`) depending on which network Yaci is emulating.
+const client = Client.make(preprod).withKupmios({
+  ogmiosUrl: "http://localhost:1337",
+  kupoUrl: "http://localhost:1442",
+})
 ```
 
 ### PyCardano (Python)

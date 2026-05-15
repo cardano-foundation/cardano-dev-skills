@@ -62,19 +62,17 @@ Mesh quirk noted in the upstream code: do not pass an `evaluator` to `MeshTxBuil
 
 ### Evolution SDK
 
-Source of truth: `docs/sources/cardano-use-case-templates/vesting/offchain/evolutionsdk/vesting.ts`.
+Source of truth: `docs/sources/evolution-sdk/smart-contracts/vesting.mdx`.
 
 Patterns to lift:
 
-- `applyParamsToScript(blueprint.validators[0].compiledCode, [])` then wrap as `{ type: "PlutusV3", script }`.
-- `validatorToAddress(NETWORK, validator)` for the script address.
-- Inline datum encoding: `Data.to(new Constr(0, [BigInt(lockUntilMs), ownerVkh, beneficiaryVkh]))`.
-- Deposit: `lucid.newTx().pay.ToContract(scriptAddress, { kind: "inline", value: datum }, { lovelace }).complete()`.
-- Withdraw: `lucid.newTx().collectFrom([utxo], Data.to(new Constr(0, []))).attach.SpendingValidator(validator).addSigner(addr).validFrom(...).validTo(...).complete()`.
+- `UPLC.applyParamsToScript(blueprint.validators[0].compiledCode, [])` for the compiled script.
+- Script address: `new Address.Address({ networkId, paymentCredential: ScriptHash.fromHex(blueprint.validators[0].hash), stakingCredential: undefined })` — a `ScriptHash` is a `Credential`; pass the resulting object straight to `payToAddress`.
+- Inline datum encoding: `Data.constr(0n, [BigInt(lockUntilMs), ownerVkh, beneficiaryVkh])`.
+- Deposit: `client.newTx().payToAddress({ address: scriptAddress, assets: Assets.fromLovelace(lovelace), datum: new InlineDatum.InlineDatum({ data: datum }) }).build()`.
+- Withdraw: `client.newTx().collectFrom({ inputs: [utxo], redeemer: Data.constr(0n, []) }).attachScript({ script }).addSigner({ keyHash }).setValidity({ from, to }).build()`.
 
 Evolution wraps the Effect library internally — the public API hides most of it, but you may occasionally see Effect types in advanced usage. See https://effect.website/ if you want to go deeper.
-
-Slot alignment for Yaci DevKit: the upstream code reads `/blocks/latest` and patches `SLOT_CONFIG_NETWORK.Preview.zeroTime` so `validFrom(Date.now())` round-trips against the validator's POSIX view. Copy that block when running locally.
 
 ### cardano-client-lib (Java)
 
@@ -302,8 +300,6 @@ def withdraw_as_beneficiary(
     # PyCardano's TransactionBuilder exposes `validity_start` (POSIX slot
     # number) and `ttl` (slot number). Converting POSIX ms to slot requires
     # the network's protocol parameters; on testnets the helper below works.
-    # For Yaci DevKit, see the slot-alignment note in the Evolution section
-    # above and adjust accordingly.
     now_slot = ctx.last_block_slot
     lock_slot = _posix_ms_to_slot(ctx, lock_until_ms)
     if now_slot <= lock_slot:
@@ -417,7 +413,7 @@ if __name__ == "__main__":
 - **Inline datum.** Pass `datum=datum` (a `PlutusData` instance) on `TransactionOutput`. PyCardano serialises it inline (CIP-32) and the off-chain caller never needs to ship the datum on the spending tx.
 - **Redeemer.** The validator ignores the redeemer; `Redeemer(Unit())` is the conventional placeholder.
 - **Validity range.** `TransactionBuilder.validity_start` (in slot units) is the lower bound the on-chain `valid_after` check inspects. Set it to `lock_slot + 1` for strict-after semantics matching the validator.
-- **Slot conversion.** `_posix_ms_to_slot` is a best-effort helper using the chain context's `genesis_param`. On Yaci DevKit the compressed eras shift the genesis; copy the slot-alignment technique from the Evolution section. A future PyCardano helper may handle this directly.
+- **Slot conversion.** `_posix_ms_to_slot` is a best-effort helper using the chain context's `genesis_param`. On Yaci DevKit the compressed eras shift the genesis. A future PyCardano helper may handle this directly.
 - **Collateral.** PyCardano's `TransactionBuilder` auto-selects collateral from `add_input_address`. The dev wallet must hold at least one pure-ADA UTxO of ~5 ADA for this to succeed.
 - **Key files vs mnemonic.** The walkthrough uses `.skey` files generated and stored under `.keys/`. PyCardano can also derive keys from a mnemonic via its BIP32 module (`pycardano.crypto.bip32`); switch when integrating with a multi-account dev wallet.
 
@@ -427,7 +423,7 @@ The frontend is the same shape regardless of which backend stack you picked. It 
 
 Three components:
 
-1. **Wallet connect button.** Hand off to `connect-wallet` skill for the CIP-30 details. Mesh's `<CardanoWallet />` component is the fastest path; Evolution exposes `selectWallet.fromAPI(walletApi)`.
+1. **Wallet connect button.** Hand off to `connect-wallet` skill for the CIP-30 details. Mesh's `<CardanoWallet />` component is the fastest path; Evolution SDK exposes `Client.make(network).withCip30(walletApi)`.
 2. **Lock funds form.** Fields: beneficiary address (bech32), unlock deadline (datetime-local input → POSIX ms), ADA amount. On submit, build the lock tx client-side using the same patterns as the off-chain code above, sign through the wallet, submit via Blockfrost.
 3. **Unlock funds button.** Visible only to the beneficiary (compare `wallet.getUsedAddresses()` against the datum's `beneficiary` field). Disabled until the deadline passes. On click, build the unlock tx with `invalidBefore` set strictly after the deadline.
 

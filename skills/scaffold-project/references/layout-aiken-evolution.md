@@ -23,8 +23,8 @@ Bump these when a new Aiken minor lands and the standard libraries follow. Don't
 
 Before writing `package.json`, run `npm view <pkg> version` for each off-chain dep and embed the exact result. Do not write `^X.Y.Z`. Concrete deps to look up:
 
-- `@evolution-sdk/lucid` (the SDK)
-- `@evolution-sdk/plutus` (slot config helpers)
+- `@evolution-sdk/evolution` (the SDK)
+- `effect` (peer dependency)
 - `typescript`, `tsx`, `@types/node`
 - (Frontend, if enabled) `next`, `react`, `react-dom`
 
@@ -117,8 +117,8 @@ This produces `onchain/plutus.json` — the CIP-57 blueprint that off-chain code
     "vesting": "tsx src/vesting.ts"
   },
   "dependencies": {
-    "@evolution-sdk/lucid": "2.0.1",
-    "@evolution-sdk/plutus": "2.0.0"
+    "@evolution-sdk/evolution": "0.5.8",
+    "effect": "3.21.1"
   },
   "devDependencies": {
     "typescript": "5.6.3",
@@ -189,7 +189,7 @@ npm run typecheck            # tsc --noEmit
 npm run build                # produces dist/
 ```
 
-A working scaffold reaches this point with zero errors. If `typecheck` reports unknown identifiers, the most likely cause is a `@evolution-sdk/lucid` version mismatch — re-check `npm view @evolution-sdk/lucid version` and update the pin.
+A working scaffold reaches this point with zero errors. If `typecheck` reports unknown identifiers, the most likely cause is a `@evolution-sdk/evolution` version mismatch — re-check `npm view @evolution-sdk/evolution version` and update the pin.
 
 ### Step 8. Run end-to-end against Yaci DevKit
 
@@ -232,68 +232,74 @@ WITHDRAW (beneficiary) ok. tx=<hash>
 To use a real network (preview or preprod) instead of Yaci, edit `offchain/src/vesting.ts`:
 
 ```typescript
-const NETWORK = "Preprod" as const;                          // or "Preview"
-const lucid = await Lucid(
-  new Blockfrost(
-    "https://cardano-preprod.blockfrost.io/api/v0",         // or preview
-    process.env.BLOCKFROST_PROJECT_ID!,
-  ),
-  NETWORK,
-);
+import { Client, preprod } from "@evolution-sdk/evolution"; // or `preview`
+
+const client = Client.make(preprod).withBlockfrost({
+  baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",     // or preview
+  projectId: process.env.BLOCKFROST_PROJECT_ID!,
+});
 ```
 
 Get a project ID free at https://blockfrost.io. Each network has a separate key prefix (`preview…`, `preprod…`); they are not interchangeable. Test ADA from the public faucet at https://docs.cardano.org/cardano-testnets/tools/faucet.
 
-Remove or comment out the `alignSlotConfig()` call — that helper is Yaci-specific and only needed to compensate for Yaci's fake era timeline.
+No slot-config patching is needed when moving off Yaci — `.setValidity({ from, to })` takes Unix-millisecond bigints and the builder converts to slots using protocol parameters fetched from the provider.
 
-## API surface used (verified against `@evolution-sdk/lucid` 2.0.1)
+## API surface used (verified against `@evolution-sdk/evolution` 0.5.8)
 
 The patterns below are the real public API. Do not invent new method names.
 
 ```typescript
 import {
-  Lucid,
-  Blockfrost,
-  Constr,
+  Address,
+  Assets,
+  Client,
   Data,
-  applyParamsToScript,
-  getAddressDetails,
-  validatorToAddress,
-  type LucidEvolution,
-  type Validator,
-} from "@evolution-sdk/lucid";
-import { SLOT_CONFIG_NETWORK } from "@evolution-sdk/plutus";
+  InlineDatum,
+  ScriptHash,
+  UPLC,
+  preview,
+} from "@evolution-sdk/evolution";
 
 // Client init
-const lucid = await Lucid(new Blockfrost(url, projectId), "Preview");
-lucid.selectWallet.fromSeed(MNEMONIC, { accountIndex: 0 });
+const client = Client.make(preview)
+  .withBlockfrost({ baseUrl: url, projectId })
+  .withSeed({ mnemonic: MNEMONIC, accountIndex: 0 });
 
 // Validator from blueprint
-const script = applyParamsToScript(blueprint.validators[0].compiledCode, []);
-const validator: Validator = { type: "PlutusV3", script };
-const scriptAddress = validatorToAddress("Preview", validator);
+const script = UPLC.applyParamsToScript(blueprint.validators[0].compiledCode, []);
+// A ScriptHash is a Credential; pass it as the payment credential of an Address.
+// Add a stakingCredential for a base address, or leave undefined for payment-only.
+const scriptAddress = new Address.Address({
+  networkId: 0, // 0 = testnet, 1 = mainnet
+  paymentCredential: ScriptHash.fromHex(blueprint.validators[0].hash),
+  stakingCredential: undefined,
+});
 
 // Pay to script with inline datum
-const datum = Data.to(new Constr(0, [lockUntilMs, ownerVkh, benVkh]));
-const tx = await lucid
+const datum = Data.constr(0n, [lockUntilMs, ownerVkh, benVkh]);
+const tx = await client
   .newTx()
-  .pay.ToContract(scriptAddress, { kind: "inline", value: datum }, { lovelace: 5_000_000n })
-  .complete();
+  .payToAddress({
+    address: scriptAddress, // Address object; Address.toBech32(...) if a string is needed
+    assets: Assets.fromLovelace(5_000_000n),
+    datum: new InlineDatum.InlineDatum({ data: datum }),
+  })
+  .build();
 
 // Spend script UTxO
-const tx = await lucid
+const spendTx = await client
   .newTx()
-  .collectFrom([utxo], Data.to(new Constr(0, [])))
-  .attach.SpendingValidator(validator)
-  .addSigner(addr)
-  .complete();
+  .collectFrom({ inputs: [utxo], redeemer: Data.constr(0n, []) })
+  .attachScript({ script })
+  .addSigner({ keyHash })
+  .build();
 ```
 
 For the wider surface, search `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/` and `evolution-sdk-packages/`.
 
 ## Frontend (optional)
 
-When the developer opts in, scaffold a sibling Next.js App Router app under `frontend/`. It runs independently of `offchain/` — it imports the same blueprint and uses `@evolution-sdk/lucid` directly with Blockfrost as the chain provider.
+When the developer opts in, scaffold a sibling Next.js App Router app under `frontend/`. It runs independently of `offchain/` — it imports the same blueprint and uses `@evolution-sdk/evolution` directly with Blockfrost as the chain provider.
 
 `frontend/package.json` (look up versions at scaffold time — current as of writing):
 
@@ -308,8 +314,8 @@ When the developer opts in, scaffold a sibling Next.js App Router app under `fro
     "start": "next start"
   },
   "dependencies": {
-    "@evolution-sdk/lucid": "2.0.1",
-    "@evolution-sdk/plutus": "2.0.0",
+    "@evolution-sdk/evolution": "0.5.8",
+    "effect": "3.21.1",
     "next": "16.2.6",
     "react": "19.0.0",
     "react-dom": "19.0.0"
@@ -323,7 +329,7 @@ When the developer opts in, scaffold a sibling Next.js App Router app under `fro
 }
 ```
 
-CIP-30 wallet integration: hand off to `connect-wallet`. The pattern is `lucid.selectWallet.fromAPI(walletApi)` after the user connects via `window.cardano.<wallet>.enable()`. Keep `BLOCKFROST_PROJECT_ID` server-side (Next.js route handler); wallet calls stay client-side.
+CIP-30 wallet integration: hand off to `connect-wallet`. The pattern is `Client.make(network).withCip30(walletApi)` after the user connects via `window.cardano.<wallet>.enable()`. Keep `BLOCKFROST_PROJECT_ID` server-side (Next.js route handler); wallet calls stay client-side.
 
 ## Next steps
 

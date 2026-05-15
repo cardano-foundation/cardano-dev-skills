@@ -198,7 +198,7 @@ Suggest practices to avoid the error in the future:
 Most SDKs support evaluating a transaction without submitting:
 
 - **Mesh SDK:** Use Ogmios `evaluateTx` endpoint
-- **Evolution SDK:** Build the transaction with `client.newTx()...build()` and inspect the result for errors before signing
+- **Evolution SDK:** Use `client.newTx()...buildEither()` for non-throwing inspection (`result._tag === "Left"` carries a tagged error). On Plutus failure, `EvaluationError` exposes `failures[]` with per-script `purpose`, `label`, `validationError`, and `traces` for trace-message-level debugging
 - **PyCardano:** `context.evaluate_tx(tx)`
 - **cardano-cli:** `cardano-cli transaction evaluate`
 

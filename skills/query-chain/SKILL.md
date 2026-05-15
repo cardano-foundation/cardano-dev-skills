@@ -54,6 +54,7 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/koios/` - Koios API docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-graphql/` - Cardano GraphQL docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/db-sync/` - DB-Sync docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/` - Evolution SDK docs (TypeScript client; see `providers/` and `querying/`)
 
 ### Step 3: Evaluate providers for the context
 
@@ -141,6 +142,27 @@ GET /epochs/latest/parameters
 - Outputs to Kafka, Elasticsearch, webhooks, files
 - Filters and maps chain events
 - Best for: real-time event processing, data pipelines, notifications
+
+#### Evolution SDK (TypeScript client over providers)
+
+Not a provider — a TypeScript library that wraps Blockfrost, Kupmios, Maestro, and Koios behind one query interface, so the provider becomes a config choice rather than a code rewrite. For read-only work, build a **provider-only client** (no wallet attached):
+
+```typescript
+import { Address, Client, preprod } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod).withBlockfrost({
+  baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+  projectId: process.env.BLOCKFROST_PROJECT_ID!,
+}) // or .withKupmios(...) / .withMaestro(...) / .withKoios(...) — same query API
+
+const utxos   = await client.getUtxos(Address.fromBech32("addr_test1..."))
+const nftUtxo = await client.getUtxoByUnit(unit)          // the one UTxO holding an NFT
+const datum   = await client.getDatum(datumHash)
+const params  = await client.getProtocolParameters()
+const { poolId, rewards } = await client.getDelegation(rewardAddress)
+```
+
+Query methods: `getUtxos`, `getUtxosWithUnit`, `getUtxoByUnit`, `getUtxosByOutRef`, `getDatum`, `getDelegation`, `getProtocolParameters`, `awaitTx`. Best for: TypeScript backends and dApps that want one query API independent of the underlying provider. See `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/providers/` and `.../querying/`.
 
 ### Step 6: Provide working code
 

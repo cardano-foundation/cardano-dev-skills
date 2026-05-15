@@ -333,7 +333,18 @@ const signedTxCbor = assembleTx(unsignedTxCbor, witnessSetCbor);
 const txHash = await api.submitTx(signedTxCbor);
 ```
 
-### Step 7: CIP-95 governance extensions
+### Step 7: Message signing (CIP-8)
+
+Wallets can sign arbitrary data — not just transactions — to prove the user controls an address. This backs "sign in with wallet" logins, attestations, and off-chain authorization. No transaction, no fee.
+
+```javascript
+// Raw CIP-30 — returns a COSE_Sign1 signature + key
+const { signature, key } = await api.signData(addressHex, payloadHex);
+```
+
+Evolution SDK exposes this as `client.signMessage(payload)` on a CIP-30 client, and ships `COSE.SignData.verifyData(...)` to verify a signature server-side (see `wallets/message-signing.mdx` in the bundled docs). Always verify server-side — a signature proves key ownership only once you check it against the claimed address.
+
+### Step 8: CIP-95 governance extensions
 
 For dApps that need governance features (DRep registration, voting, delegation):
 
@@ -351,7 +362,7 @@ const unregisteredPubStakeKeys = await api.cip95.getUnregisteredPubStakeKeys();
 
 Not all wallets support CIP-95 yet. Check wallet compatibility before relying on it. Wallets supporting CIP-95: Eternl, Lace, Flint, Vespr, Typhon.
 
-### Step 8: Common issues and solutions
+### Step 9: Common issues and solutions
 
 | Issue | Cause | Solution |
 |---|---|---|

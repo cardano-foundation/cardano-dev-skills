@@ -94,7 +94,12 @@ import {
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-csl";
 
-const blockchainProvider = new BlockfrostProvider(process.env.BLOCKFROST_PROJECT_ID);
+const projectId = process.env.BLOCKFROST_PROJECT_ID;
+if (!projectId) {
+  throw new Error("Missing BLOCKFROST_PROJECT_ID");
+}
+
+const blockchainProvider = new BlockfrostProvider(projectId);
 
 // wallet for signing transactions
 export const wallet = new MeshWallet({
@@ -109,7 +114,7 @@ export const wallet = new MeshWallet({
 ```
 
 <Callout type="warning">
-Note that the highlighted line above looks for an environment variable named `BLOCKFROST_PROJECT_ID` which its value must be set to your Blockfrost project id.
+Note that the setup above looks for an environment variable named `BLOCKFROST_PROJECT_ID` which its value must be set to your Blockfrost project id.
 You can define a new environment variable in your terminal by running (in the same session you're also executing the script!):
 
 ```
@@ -121,7 +126,7 @@ Replace `preview...` with your actual project id.
 
 Next, we'll need to read the validator from the blueprint (`plutus.json`) we generated earlier. We'll also need to convert it to a format that Mesh understands. This is done by serializing the validator and then converting it to a hexadecimal text string, we can do this by using the `applyParamsToScript` function.
 
-```ts filename="common.ts" {10, 25-36}
+```ts filename="common.ts" {10, 30-41}
 import fs from "node:fs";
 import {
   BlockfrostProvider,
@@ -133,7 +138,12 @@ import {
 import { applyParamsToScript } from "@meshsdk/core-csl";
 import blueprint from "./plutus.json";
 
-const blockchainProvider = new BlockfrostProvider(process.env.BLOCKFROST_PROJECT_ID);
+const projectId = process.env.BLOCKFROST_PROJECT_ID;
+if (!projectId) {
+  throw new Error("Missing BLOCKFROST_PROJECT_ID");
+}
+
+const blockchainProvider = new BlockfrostProvider(projectId);
 
 // wallet for signing transactions
 export const wallet = new MeshWallet({
@@ -162,7 +172,7 @@ export function getScript() {
 
 Lastly, let's add 2 more useful functions to our `common.ts` file. One to get a transaction builder and another function to fetch a UTxO by transaction hash.
 
-```ts filename="common.ts" {38-53}
+```ts filename="common.ts" {43-58}
 import fs from "node:fs";
 import {
   BlockfrostProvider,
@@ -174,7 +184,12 @@ import {
 import { applyParamsToScript } from "@meshsdk/core-csl";
 import blueprint from "./plutus.json";
 
-const blockchainProvider = new BlockfrostProvider(process.env.BLOCKFROST_PROJECT_ID);
+const projectId = process.env.BLOCKFROST_PROJECT_ID;
+if (!projectId) {
+  throw new Error("Missing BLOCKFROST_PROJECT_ID");
+}
+
+const blockchainProvider = new BlockfrostProvider(projectId);
 
 // wallet for signing transactions
 export const wallet = new MeshWallet({

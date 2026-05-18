@@ -940,6 +940,151 @@ paths:
           $ref: '#/components/responses/429'
         '500':
           $ref: '#/components/responses/500'
+  /governance/committee:
+    get:
+      tags:
+        - Cardano » Governance
+      summary: Constitutional committee
+      description: |
+        Information about the currently active constitutional committee
+
+        When `is_dissolved` is `true`, the committee has been removed by an enacted `NoConfidence` governance action; `quorum` and `members` still describe the last seated committee for historical reference.
+      responses:
+        '200':
+          description: Return the active constitutional committee
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/committee'
+        '400':
+          $ref: '#/components/responses/400'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '418':
+          $ref: '#/components/responses/418'
+        '429':
+          $ref: '#/components/responses/429'
+        '500':
+          $ref: '#/components/responses/500'
+  /governance/committee/votes:
+    get:
+      tags:
+        - Cardano » Governance
+      summary: Constitutional committee votes
+      description: History of all votes cast by constitutional committee members across all committees (current and past). Not scoped to the currently active committee.
+      parameters:
+        - in: query
+          name: count
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+          description: The number of results displayed on one page.
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 21474836
+            default: 1
+          description: The page number for listing the results.
+        - in: query
+          name: order
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: asc
+          description: |
+            The ordering of items from the point of view of the blockchain,
+            not the page listing itself. By default, we return oldest first, newest last.
+      responses:
+        '200':
+          description: Return constitutional committee votes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/committee_votes'
+        '400':
+          $ref: '#/components/responses/400'
+        '403':
+          $ref: '#/components/responses/403'
+        '418':
+          $ref: '#/components/responses/418'
+        '429':
+          $ref: '#/components/responses/429'
+        '500':
+          $ref: '#/components/responses/500'
+  /governance/committee/{cc_id}/votes:
+    get:
+      tags:
+        - Cardano » Governance
+      summary: Constitutional committee member votes
+      description: |-
+        Votes cast under a given constitutional committee credential. Accepts both the CIP-129 hot bech32 (`cc_hot1...`) and the cold bech32 (`cc_cold1...`).
+        When queried by a cold credential, this returns votes cast by any hot key that the cold key has authorized over time (so the result aggregates across hot-key rotations).
+      parameters:
+        - in: path
+          name: cc_id
+          required: true
+          schema:
+            type: string
+          description: CIP-129 bech32 committee credential (`cc_hot1...` or `cc_cold1...`).
+          example: cc_hot1qf4xq9mlra5j68w8zjz2lvf3kc3rtsdtu98ka7zx4u6jvqyy39ww0
+        - in: query
+          name: count
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+          description: The number of results displayed on one page.
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 21474836
+            default: 1
+          description: The page number for listing the results.
+        - in: query
+          name: order
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: asc
+          description: |
+            The ordering of items from the point of view of the blockchain,
+            not the page listing itself. By default, we return oldest first, newest last.
+      responses:
+        '200':
+          description: Return votes for the given committee credential
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/committee_votes'
+        '400':
+          $ref: '#/components/responses/400'
+        '403':
+          $ref: '#/components/responses/403'
+        '418':
+          $ref: '#/components/responses/418'
+        '429':
+          $ref: '#/components/responses/429'
+        '500':
+          $ref: '#/components/responses/500'
   /governance/dreps:
     get:
       tags:
@@ -6802,6 +6947,197 @@ components:
         - slot_length
         - max_kes_evolutions
         - security_param
+    committee:
+      type: object
+      properties:
+        gov_action_id:
+          type: string
+          nullable: true
+          description: CIP-129 Governance Action Identifier of the `NewCommittee` action that seated this committee. `null` for the Conway-genesis committee.
+        proposal_tx_hash:
+          type: string
+          nullable: true
+          description: Hash of the transaction containing the `NewCommittee` action that seated this committee. `null` for the Conway-genesis committee.
+        proposal_index:
+          type: integer
+          nullable: true
+          description: Index of the proposal within its transaction. `null` for the Conway-genesis committee.
+        is_dissolved:
+          type: boolean
+          description: True iff an enacted `NoConfidence` governance action has dissolved this committee.
+        quorum:
+          type: object
+          description: Voting threshold of the committee.
+          properties:
+            numerator:
+              type: integer
+            denominator:
+              type: integer
+          required:
+            - numerator
+            - denominator
+        members:
+          type: array
+          description: Members of the committee.
+          items:
+            type: object
+            properties:
+              cc_cold_id:
+                type: string
+                description: CIP-129 bech32 encoded cold credential (`cc_cold1...`).
+              cc_cold_hex:
+                type: string
+                description: Hex of the raw 28-byte cold key/script hash.
+              cc_cold_has_script:
+                type: boolean
+              cc_hot_id:
+                type: string
+                nullable: true
+                description: CIP-129 bech32 encoded current hot credential (`cc_hot1...`). `null` unless `status` is `authorized`.
+              cc_hot_hex:
+                type: string
+                nullable: true
+              cc_hot_has_script:
+                type: boolean
+                nullable: true
+              status:
+                type: string
+                enum:
+                  - authorized
+                  - not_authorized
+                  - resigned
+                description: '`authorized` — member has a currently active hot key. `not_authorized` — member has never authorized a hot key. `resigned` — member''s most recent on-chain event is a resignation certificate.'
+              expiration_epoch:
+                type: integer
+                description: Epoch at which this member's term expires.
+            required:
+              - cc_cold_id
+              - cc_cold_hex
+              - cc_cold_has_script
+              - cc_hot_id
+              - cc_hot_hex
+              - cc_hot_has_script
+              - status
+              - expiration_epoch
+      required:
+        - proposal_tx_hash
+        - proposal_index
+        - gov_action_id
+        - is_dissolved
+        - quorum
+        - members
+      example:
+        proposal_tx_hash: null
+        proposal_index: null
+        gov_action_id: null
+        is_dissolved: false
+        quorum:
+          numerator: 2
+          denominator: 3
+        members:
+          - cc_cold_id: cc_cold1zgkfeeu07qq9smfqfn0nrf2cqgr5x6jpu8x6lxgxay85t6cmt54xz
+            cc_cold_hex: 12c9ce78ff8005436901336f8d2ac0411a1b520f0e6d7e6066907a2f
+            cc_cold_has_script: false
+            cc_hot_id: cc_hot1qf4xq9mlra5j68w8zjz2lvf3kc3rtsdtu98ka7zx4u6jvqyy39ww0
+            cc_hot_hex: 0269808bbf8fb495a3b8e290a5f626362236c1abf853eddf08d79a930
+            cc_hot_has_script: false
+            status: authorized
+            expiration_epoch: 580
+          - cc_cold_id: cc_cold1zgxxx2trz0vyl5ksetnsrct5n5gznn3jmkj6dlpu4lz6lecz5h
+            cc_cold_hex: 8cc6529626c4c9fa5a195ce03c2e93a204e7193b76967e8794fc59d6
+            cc_cold_has_script: false
+            cc_hot_id: null
+            cc_hot_hex: null
+            cc_hot_has_script: null
+            status: not_authorized
+            expiration_epoch: 580
+    committee_votes:
+      type: array
+      items:
+        type: object
+        properties:
+          tx_hash:
+            type: string
+            description: Hash of the vote transaction.
+          voter_hot_id:
+            type: string
+            description: CIP-129 bech32 encoded hot credential of the committee member that cast this vote (`cc_hot1...`).
+          proposal_id:
+            type: string
+            description: CIP-129 Governance Action Identifier of the proposal being voted on.
+          proposal_tx_hash:
+            type: string
+            description: Hash of the proposal transaction.
+          proposal_index:
+            type: integer
+            description: Index of the proposal within its transaction.
+          governance_type:
+            type: string
+            enum:
+              - hard_fork_initiation
+              - new_committee
+              - new_constitution
+              - info_action
+              - no_confidence
+              - parameter_change
+              - treasury_withdrawals
+            description: Type of the governance action being voted on.
+          vote:
+            type: string
+            enum:
+              - 'yes'
+              - 'no'
+              - abstain
+            description: The Vote. Can be one of yes, no, abstain.
+          metadata_url:
+            type: string
+            nullable: true
+            description: Voting anchor URL — pointer to the off-chain rationale published by the voter.
+          metadata_hash:
+            type: string
+            nullable: true
+            description: Hex hash of the off-chain anchor document.
+          block_height:
+            type: integer
+            description: Block height of the vote transaction.
+          block_time:
+            type: integer
+            description: Block creation time in UNIX time of the vote transaction.
+        required:
+          - tx_hash
+          - voter_hot_id
+          - proposal_id
+          - proposal_tx_hash
+          - proposal_index
+          - governance_type
+          - vote
+          - metadata_url
+          - metadata_hash
+          - block_height
+          - block_time
+      example:
+        - tx_hash: b302de601defdf11a5261ed31a263804dac4a582a888c998ce24dec5
+          voter_hot_id: cc_hot1qf4xq9mlra5j68w8zjz2lvf3kc3rtsdtu98ka7zx4u6jvqyy39ww0
+          proposal_id: gov_action1k2jertppnnndejjcglszfqq4yzw8evzrd2nt66rr6rqlz54xp0zsq05ecsn
+          proposal_tx_hash: b2a591ac219ce6dcca5847e0248015209c7cb0436aa6bd6863d0c1f152a60bc5
+          proposal_index: 0
+          governance_type: parameter_change
+          vote: 'yes'
+          metadata_url: https://my.cc-member/rationale.jsonld
+          metadata_hash: a4b7d5d34f5d8c5b71a0a5c34b7e7f8a3d2e1c0b9a8f7e6d5c4b3a2918f7e6d5
+          block_height: 11045358
+          block_time: 1746037200
+        - tx_hash: 8a91b32ec2a7bdfde2ab7a1bc5e4d3a2f1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6
+          voter_hot_id: cc_hot1qf4xq9mlra5j68w8zjz2lvf3kc3rtsdtu98ka7zx4u6jvqyy39ww0
+          proposal_id: gov_action1zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsq6dmejn
+          proposal_tx_hash: 2dd15e0ef6e6a17841cb9541c27724072ce4d4b79b91e58432fbaa32d9572531
+          proposal_index: 1
+          governance_type: new_constitution
+          vote: abstain
+          metadata_url: null
+          metadata_hash: null
+          block_height: 11045890
+          block_time: 1746070800
     dreps:
       type: array
       items:

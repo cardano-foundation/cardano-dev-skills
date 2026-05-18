@@ -715,7 +715,7 @@ export const aikenTestResultExample = `<span class="hljs-keyword"><strong>Compil
       ></LightDarkIframe>
 
       <div id="discord-button">
-        <a href="https://discord.gg/ub6atE94v4" target="_blank">
+        <a href="https://discord.gg/JnWjkrErJr" target="_blank">
           <div className="icon">
             <svg className="shake" id="icon-discord" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 245 240">
               <path className="st0" d="M104.4 103.9c-5.7 0-10.2 5-10.2 11.1s4.6 11.1 10.2 11.1c5.7 0 10.2-5 10.2-11.1.1-6.1-4.5-11.1-10.2-11.1zM140.9 103.9c-5.7 0-10.2 5-10.2 11.1s4.6 11.1 10.2 11.1c5.7 0 10.2-5 10.2-11.1s-4.5-11.1-10.2-11.1z" />
@@ -748,31 +748,32 @@ export const aikenTestResultExample = `<span class="hljs-keyword"><strong>Compil
   <h2>Roadmap</h2>
   <div>
     <article>
-      <h3 className="icon-package">Recently delivered<span> ― </span><span>see the <a href="https://github.com/aiken-lang/aiken/blob/main/CHANGELOG.md#changelog">full CHANGELOG</a></span></h3>
+      <h3 className="icon-package">Recently delivered<span> ― </span><span>see the <a target="_blank" href="https://github.com/aiken-lang/aiken/blob/main/CHANGELOG.md#changelog">full CHANGELOG</a></span></h3>
       <ul>
-        <li>Plutus V3 support (language & virtual machine), and Plutus V3 transaction evaluation</li>
-        <li>New standard library v2 ― see <a target="_blank" href="https://aiken-lang.github.io/stdlib/">aiken-lang/stdlib</a></li>
-        <li>Conditional environment and configuration modules</li>
-        <li>Softcasting (a.k.a <code>if/is</code> syntax)</li>
-        <li>Supercharged constants</li>
-        <li>Variadic traces with baked-in CBOR diagnostics</li>
+        <li>New standard library v3.1.0 - see <a target="_blank" href="https://aiken-lang.github.io/stdlib/">aiken-lang/stdlib</a></li>
+        <li>Aiken's benchmark tool: <code>aiken bench</code></li>
+        <li>Additional LSP quickfixes and support</li>
+        <li>Custom traces for <code>expect</code> expressions</li>
+        <li>Compiler optimizations for builtins and constants</li>
+        <li>Better test reports when using continuation-passing style</li>
+        <li>State-machine testing framework for smart contracts - see <a target="_blank" href="https://aiken-lang.github.io/fuzz/aiken/fuzz/scenario.html">aiken-lang/fuzz/scenario</a></li>
+        <li>Various fixes in formatter, parser, type-checker and UPLC backend</li>
       </ul>
     </article>
 
     <article>
-      <h3 className="icon-activity">Currently working on<span> ― </span><span>see <a href="https://github.com/orgs/aiken-lang/projects/2">project tracking</a></span></h3>
+      <h3 className="icon-activity">Currently working on<span> ― </span><span>see <a target="_blank" href="https://github.com/orgs/aiken-lang/projects/2">project tracking</a></span></h3>
       <ul>
-        <li className="todo">Additional LSP quickfixes</li>
-        <li className="todo">Support for mono-repo ― see <a href="https://github.com/aiken-lang/aiken/issues/951">aiken-lang/aiken#951</a></li>
-        <li className="todo">Ecosystem packages registry & search tool</li>
+        <li className="todo">PlutusV4 support</li>
+        <li className="todo">Sourcemaps & code coverage tooling ― see <a href="https://github.com/aiken-lang/aiken/pull/1250">aiken-lang/aiken#1250</a></li>
+        <li className="todo">SMT-based reasoning for Lean via IOG's Blaster - see<a href="https://github.com/aiken-lang/aiken/pull/1311">aiken-lang/aiken#1250</a></li>
+        <li className="todo">Using Aiken (compiler) in browser via WASM</li>
       </ul>
     </article>
 
     <article>
-      <h3 className="icon-map">Future steps & ideas<span> ― </span><span>see <a href="https://github.com/aiken-lang/aiken/discussions">ongoing discussions</a></span></h3>
+      <h3 className="icon-map">Future steps & ideas<span> ― </span><span>see <a target="_blank" href="https://github.com/aiken-lang/aiken/discussions">ongoing discussions</a></span></h3>
       <ul>
-        <li className="todo">Code coverage tooling ― see <a href="https://github.com/aiken-lang/aiken/discussions/933">aiken-lang/aiken#933</a></li>
-        <li className="todo">More aggressive UPLC optimizations</li>
         <li className="todo">First-class zero-knowledge support</li>
         <li className="todo">Layer-2 builtin support ― see <a href="https://github.com/aiken-lang/aiken/discussions/976">aiken-lang/aiken#976</a></li>
       </ul>

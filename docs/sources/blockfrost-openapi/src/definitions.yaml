@@ -381,6 +381,15 @@ paths:
 
   # governance
 
+  /governance/committee:
+    $ref: ./paths/api/governance/committee/index.yaml
+
+  /governance/committee/votes:
+    $ref: ./paths/api/governance/committee/votes.yaml
+
+  /governance/committee/{cc_id}/votes:
+    $ref: ./paths/api/governance/committee/{cc_id}/votes.yaml
+
   /governance/dreps:
     $ref: ./paths/api/governance/dreps/index.yaml
 

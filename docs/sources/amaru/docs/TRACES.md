@@ -356,6 +356,36 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 </details>
 
+## target: `amaru::protocols::peer_selection`
+
+| name | level | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- |
+| `connected` | `TRACE` | public | A connection has been established and the handshake completed successfully. | peer, conn_id, direction, full_duplex_capable, full_duplex |  |
+| `disconnected` | `TRACE` | public | A connection has been terminated (graceful disconnect, error, handshake refusal, or network error). | peer, conn_id, direction | reason |
+
+<details><summary>span: `connected`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `direction` | `string` | ✓ |
+| `full_duplex_capable` | `boolean` | ✓ |
+| `full_duplex` | `boolean` | ✓ |
+
+</details>
+
+<details><summary>span: `disconnected`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `direction` | `string` | ✓ |
+| `reason` | `string` |  |
+
+</details>
+
 ## target: `amaru::stores::consensus`
 
 | name | level | public | description | required fields | optional fields |

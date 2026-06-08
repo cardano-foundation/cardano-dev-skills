@@ -180,20 +180,142 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 </details>
 
+## target: `amaru::ledger::epoch_transition`
+
+| name | level | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- |
+| `apply_governance_updates` | `TRACE` | public | Enact all governance updates and flush their outcome to disk |  |  |
+| `applying_overlay` | `TRACE` | public | Flushing the epoch transition overlay to disk | epoch | should_end_epoch, should_snapshot, should_begin_epoch |
+| `begin_epoch` | `TRACE` | public | Perform start-of-epoch epoch boundary computations |  |  |
+| `end_epoch` | `TRACE` | public | Perform end-of-epoch epoch boundary computations |  |  |
+| `epoch_transition` | `TRACE` | public | Epoch transition processing | from, into |  |
+| `new_governance_updates` | `TRACE` | public | Create governance updates (i.e. ratify proposals) at an epoch boundary. | proposals_count |  |
+| `new_pools_updates` | `TRACE` | public | Create pools updates |  |  |
+| `pay_or_refund_accounts` | `TRACE` | public | Pay withdrawals to accounts, or refund deposits | total_paid_or_refunded, treasury_leftovers |  |
+| `pay_rewards` | `TRACE` | public | Pay rewards to all accounts before the epoch end | accounts_paid, rewards_paid, treasury_delta, reserves_delta |  |
+| `reset_blocks_count` | `TRACE` | public | Reset blocks count to zero |  |  |
+| `reset_fees` | `TRACE` | public | Reset fees to zero |  |  |
+| `update_constitutional_committee` | `TRACE` | public | Add or remove CC members; or switch to a no-confidence state | no_confidence |  |
+| `update_or_retire_pools` | `TRACE` | public | Updating pools metadata or retiring pools at an epoch boundary. | pools_updated, pools_retired |  |
+
+<details><summary>span: `applying_overlay`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+| `should_end_epoch` | `boolean` |  |
+| `should_snapshot` | `boolean` |  |
+| `should_begin_epoch` | `boolean` |  |
+
+</details>
+
+<details><summary>span: `epoch_transition`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from` | `integer` | ✓ |
+| `into` | `integer` | ✓ |
+
+</details>
+
+<details><summary>span: `new_governance_updates`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `proposals_count` | `integer` | ✓ |
+
+</details>
+
+<details><summary>span: `pay_or_refund_accounts`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `total_paid_or_refunded` | `integer` |  |
+| `treasury_leftovers` | `integer` |  |
+
+</details>
+
+<details><summary>span: `pay_rewards`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `accounts_paid` | `integer` |  |
+| `rewards_paid` | `integer` |  |
+| `treasury_delta` | `integer` |  |
+| `reserves_delta` | `integer` |  |
+
+</details>
+
+<details><summary>span: `update_constitutional_committee`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `no_confidence` | `boolean` | ✓ |
+
+</details>
+
+<details><summary>span: `update_or_retire_pools`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `pools_updated` | `integer` | ✓ |
+| `pools_retired` | `integer` | ✓ |
+
+</details>
+
 ## target: `amaru::ledger::governance`
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
-| `ratify_proposals` | `TRACE` | public | Ratify proposals at epoch boundary | roots_protocol_parameters, roots_hard_fork, roots_constitutional_committee, roots_constitution |  |
+| `enacting` | `TRACE` | public | Computing enactment of a ratified proposal | proposal_id, proposal_kind | pruned_relatives |
+| `new_ratification_context` | `TRACE` | public | Create ratification context | ratifying_epoch | treasury, votes |
+| `ratify_proposals` | `TRACE` | public | Ratify proposals at epoch boundary | epoch | roots_protocol_parameters, roots_hard_fork, roots_constitutional_committee, roots_constitution |
+| `ratifying` | `TRACE` | public | Ratify a proposal while traversing the governance forest | proposal_id, proposal_kind | approved_by_constitutional_committee, committee_approval_threshold, approved_by_pools, pools_approval_threshold, approved_by_dreps, dreps_approval_threshold |
+
+<details><summary>span: `enacting`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `proposal_id` | `string` | ✓ |
+| `proposal_kind` | `string` | ✓ |
+| `pruned_relatives` | `string` |  |
+
+</details>
+
+<details><summary>span: `new_ratification_context`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `ratifying_epoch` | `integer` | ✓ |
+| `treasury` | `integer` |  |
+| `votes` | `integer` |  |
+
+</details>
 
 <details><summary>span: `ratify_proposals`</summary>
 
 | field | type | required |
 | --- | --- | --- |
+| `epoch` | `integer` | ✓ |
 | `roots_protocol_parameters` | `string` |  |
 | `roots_hard_fork` | `string` |  |
 | `roots_constitutional_committee` | `string` |  |
 | `roots_constitution` | `string` |  |
+
+</details>
+
+<details><summary>span: `ratifying`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `proposal_id` | `string` | ✓ |
+| `proposal_kind` | `string` | ✓ |
+| `approved_by_constitutional_committee` | `boolean` |  |
+| `committee_approval_threshold` | `string` |  |
+| `approved_by_pools` | `boolean` |  |
+| `pools_approval_threshold` | `string` |  |
+| `approved_by_dreps` | `boolean` |  |
+| `dreps_approval_threshold` | `string` |  |
 
 </details>
 
@@ -202,30 +324,30 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
 | `apply_block` | `TRACE` | public | Apply a block to stable state | point_slot |  |
-| `begin_epoch` | `TRACE` | public | Begin epoch operations |  |  |
-| `compute_rewards` | `TRACE` | public | Compute rewards for epoch |  |  |
+| `compute_rewards` | `TRACE` | public | Compute rewards for epoch | current_epoch | stake_distribution_epoch |
 | `compute_stake_distribution` | `TRACE` | public | Compute stake distribution for epoch | epoch |  |
 | `create_validation_context` | `TRACE` | public | Create validation context for a block | block_body_hash, block_number, block_body_size | total_inputs |
-| `end_epoch` | `TRACE` | public | End epoch operations |  |  |
-| `epoch_transition` | `TRACE` | public | Epoch transition processing | from, into |  |
-| `forward` | `TRACE` | public | Forward ledger state with new volatile state |  |  |
 | `prepare_block` | `TRACE` | public | Prepare block for validation |  |  |
-| `ratification_context_new` | `TRACE` | public | Create ratification context |  |  |
-| `reset_blocks_count` | `TRACE` | public | Reset blocks count to zero |  |  |
-| `reset_fees` | `TRACE` | public | Reset fees to zero |  |  |
+| `push_state` | `TRACE` | public | Forward ledger state with new volatile state |  |  |
 | `resolve_inputs` | `TRACE` | public | Resolve transaction inputs from various sources | resolved_from_context, resolved_from_volatile, resolved_from_db |  |
 | `roll_backward` | `TRACE` | public | Roll backward to a specific point | rollback_point |  |
 | `roll_forward` | `TRACE` | public | Roll forward ledger state with a new block |  |  |
-| `tick_pool` | `TRACE` | public | Tick pool operations |  |  |
-| `tick_proposals` | `TRACE` | public | Tick proposals for ratification | proposals_count |  |
 | `validate_block` | `TRACE` | public | Validate block against rules |  |  |
-| `volatile_to_stable` | `TRACE` | public | Persist the oldest volatile block to stable storage once the security parameter is reached | persisted_point, volatile_len_before, volatile_len_after, k |  |
 
 <details><summary>span: `apply_block`</summary>
 
 | field | type | required |
 | --- | --- | --- |
 | `point_slot` | `integer` | ✓ |
+
+</details>
+
+<details><summary>span: `compute_rewards`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `current_epoch` | `integer` | ✓ |
+| `stake_distribution_epoch` | `integer` |  |
 
 </details>
 
@@ -248,15 +370,6 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 </details>
 
-<details><summary>span: `epoch_transition`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `from` | `integer` | ✓ |
-| `into` | `integer` | ✓ |
-
-</details>
-
 <details><summary>span: `resolve_inputs`</summary>
 
 | field | type | required |
@@ -275,22 +388,50 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 </details>
 
-<details><summary>span: `tick_proposals`</summary>
+## target: `amaru::mempool`
+
+| name | level | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- |
+| `tx_accepted` | `TRACE` | public | Transaction validated and inserted into the mempool. | tx_id, seq_no, origin |  |
+| `tx_evicted` | `TRACE` | public | Transaction removed from the mempool. Reason ∈ {invalid_after_tip}. TODO: split the reason into invalid after tip + present in applied block | tx_id, reason |  |
+| `tx_received` | `TRACE` | public | Transaction received by the mempool stage, before validation. | tx_id, origin |  |
+| `tx_rejected` | `TRACE` | public | Transaction rejected at insertion. Reason ∈ {invalid, duplicate, mempool_full}. | tx_id, reason | validation_error |
+
+<details><summary>span: `tx_accepted`</summary>
 
 | field | type | required |
 | --- | --- | --- |
-| `proposals_count` | `integer` | ✓ |
+| `tx_id` | `string` | ✓ |
+| `seq_no` | `integer` | ✓ |
+| `origin` | `string` | ✓ |
 
 </details>
 
-<details><summary>span: `volatile_to_stable`</summary>
+<details><summary>span: `tx_evicted`</summary>
 
 | field | type | required |
 | --- | --- | --- |
-| `persisted_point` | `string` | ✓ |
-| `volatile_len_before` | `integer` | ✓ |
-| `volatile_len_after` | `integer` | ✓ |
-| `k` | `integer` | ✓ |
+| `tx_id` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `tx_received`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `tx_id` | `string` | ✓ |
+| `origin` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `tx_rejected`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `tx_id` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+| `validation_error` | `string` |  |
 
 </details>
 
@@ -445,22 +586,9 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
-| `dreps_delegation_remove` | `TRACE` | public | Remove DRep delegations | drep_hash, drep_type, db_system_name, db_operation_name, db_collection_name |  |
 | `prune` | `TRACE` | public | Prune old snapshots | functional_minimum, db_system_name, db_operation_name |  |
 | `snapshot` | `TRACE` | public | Create ledger snapshot for epoch | epoch, db_system_name, db_operation_name |  |
-| `try_epoch_transition` | `TRACE` | public | Epoch transition tracking | db_system_name, db_operation_name | has_from, has_to, point, snapshots |
-
-<details><summary>span: `dreps_delegation_remove`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `drep_hash` | `string` | ✓ |
-| `drep_type` | `string` | ✓ |
-| `db_system_name` | `string` | ✓ |
-| `db_operation_name` | `string` | ✓ |
-| `db_collection_name` | `string` | ✓ |
-
-</details>
+| `try_epoch_transition` | `TRACE` | public | Epoch transition tracking | from, to, db_system_name, db_operation_name |  |
 
 <details><summary>span: `prune`</summary>
 
@@ -486,12 +614,10 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | field | type | required |
 | --- | --- | --- |
+| `from` | `string` | ✓ |
+| `to` | `string` | ✓ |
 | `db_system_name` | `string` | ✓ |
 | `db_operation_name` | `string` | ✓ |
-| `has_from` | `boolean` |  |
-| `has_to` | `boolean` |  |
-| `point` | `string` |  |
-| `snapshots` | `string` |  |
 
 </details>
 
@@ -502,7 +628,6 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `accounts_add` | `TRACE` | public | Batch-upsert account entries | db_system_name, db_operation_name, db_collection_name |  |
 | `accounts_get` | `TRACE` | public | Point-read an account entry | db_system_name, db_operation_name, db_collection_name |  |
 | `accounts_remove` | `TRACE` | public | Batch-delete account entries | db_system_name, db_operation_name, db_collection_name |  |
-| `accounts_reset_delegation` | `TRACE` | public | Clear DRep delegation for accounts (protocol v9 bug compat) | db_system_name, db_operation_name, db_collection_name |  |
 | `accounts_reset_many` | `TRACE` | public | Reset rewards counters for many accounts | db_system_name, db_operation_name, db_collection_name |  |
 | `accounts_set` | `TRACE` | public | Update rewards balance for a single account | db_system_name, db_operation_name, db_collection_name |  |
 | `cc_members_upsert` | `TRACE` | public | Upsert a constitutional committee member | db_system_name, db_operation_name, db_collection_name |  |
@@ -546,16 +671,6 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 </details>
 
 <details><summary>span: `accounts_remove`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `db_system_name` | `string` | ✓ |
-| `db_operation_name` | `string` | ✓ |
-| `db_collection_name` | `string` | ✓ |
-
-</details>
-
-<details><summary>span: `accounts_reset_delegation`</summary>
 
 | field | type | required |
 | --- | --- | --- |

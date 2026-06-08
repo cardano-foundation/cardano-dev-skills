@@ -22,7 +22,7 @@ use cardano/transaction.{Redeemer, ScriptPurpose, Withdraw}
 /// In simpler terms, it says: As long as there is a redeemer with a withdrawal
 /// purpose, for the given script in transaction, this UTxO can be spent.
 ///
-/// Allows you to validate based on the withdrawal's redeemer, which ismostly
+/// Allows you to validate based on the withdrawal's redeemer, which is mostly
 /// useful for ensuring specific endpoints are invoked.
 pub fn validate_withdraw(
   withdraw_script_hash: ScriptHash,
@@ -52,7 +52,8 @@ pub fn validate_withdraw_with_amount(
   let withdrawal_credential: Credential = Script(withdraw_script_hash)
 
   expect Some(withdraw_redeemer_pair) =
-    redeemers |> list.at(withdraw_redeemer_index)
+    redeemers
+      |> list.at(withdraw_redeemer_index)
 
   expect withdraw_redeemer_pair.1st == Withdraw(withdrawal_credential)
 

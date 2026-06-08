@@ -25,9 +25,37 @@
 
 ### Installing
 
+#### Pre-compiled executables
+
+We regularly push pre-compiled (statically linked) executables to [Github
+Pages](https://pragma-org.github.io/amaru/) for the following platforms:
+
+| Platform | Arch      |
+| ---      | ---       |
+| Linux    | `x86_64`  |
+| Linux    | `aarch64` |
+| MacOS    | `aarch64` |
+
+We also _in theory_ support Windows (64-bit) as well as WASM and RISC-V for
+certain components (e.g. amaru-ledger, amaru-consensus, ...). The support there
+is preliminary and mostly experimental.
+
+
+#### Docker Images (arm64 / amd64)
+
+```console
+docker pull ghcr.io/pragma-org/amaru:latest
+```
+
+#### Building from sources
+
 ```console
 make build
 ```
+
+> [!TIP]
+> **Prefer not to install Rust locally?** We provide a Docker-based build and run path.
+> See [docker/README.md](./docker/README.md) for instructions on using Docker instead.
 
 ### Running
 
@@ -35,8 +63,7 @@ make build
 > These instructions assume one starts from scratch, and has access to a synced [cardano-node](https://github.com/IntersectMBO/cardano-node/)
 on the selected network (e.g. [preprod](https://book.world.dev.cardano.org/env-preprod.html)).
 >
-> To run a local peer, refer to [Cardano's developers portal](https://developers.cardano.org/docs/get-started/cardano-node/running-cardano).
-> Make sure your peer listens to port `3001` or adapt the `AMARU_PEER_ADDRESS` environment variable (e.g. `export AMARU_PEER_ADDRESS=127.0.0.1:3002`)
+> Although you may explicitly provide peers, Amaru will automatically infer some peers from the ledger state. To run a local peer, refer to [Cardano's developers portal](https://developers.cardano.org/docs/get-started/cardano-node/running-cardano).
 
 1. Bootstrap the node:
 
@@ -56,12 +83,8 @@ docker-compose -f monitoring/jaeger/docker-compose.yml up
 make AMARU_NETWORK=preprod start
 ```
 
-Replace `--peer-address` with your Cardano node peer address. It can be either
-a local or remote node (i.e. any existing node relay), and you can even add
-multiple peers by replicating the option.
-
 > [!TIP]
-> To ensure logs are forwarded to telemetry backend, set `AMARU_WITH_OPEN_TELEMETRY=true`:
+> To ensure logs are forwarded to an OpenTelemetry backend, set `AMARU_WITH_OPEN_TELEMETRY=true`:
 >
 > ```console
 > make AMARU_NETWORK=preprod AMARU_WITH_OPEN_TELEMETRY=true start

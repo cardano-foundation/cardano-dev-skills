@@ -30,9 +30,35 @@ get:
         enum: [asc, desc]
         default: asc
       description: |
-        The ordering of items from the point of view of the blockchain,
-        not the page listing itself. By default, we return oldest first, newest last.
-        Ordering in this case is based on the time of the first mint transaction.
+        The ordering of items. Direction applied to whichever sort key is selected by `order_by`.
+        By default, when sorting by registration order, we return oldest first, newest last.
+    - in: query
+      name: order_by
+      required: false
+      schema:
+        type: string
+        enum: [amount]
+      description: |
+        Optional sort key. When omitted, DReps are ordered by their internal registration order
+        (the current default). Set to `amount` to sort by voting power.
+    - in: query
+      name: retired
+      required: false
+      schema:
+        type: boolean
+      description: |
+        Optional filter. When `true`, only returns DReps that have been deregistered.
+        When `false`, only returns DReps that are currently registered.
+        When omitted, both are returned.
+    - in: query
+      name: expired
+      required: false
+      schema:
+        type: boolean
+      description: |
+        Optional filter. When `true`, only returns DReps that have been inactive for longer than
+        the `drep_activity` protocol parameter. When `false`, only returns DReps that are not
+        expired. When omitted, both are returned.
   responses:
     "200":
       description: Paginated array with the Delegate Representatives (DReps) data

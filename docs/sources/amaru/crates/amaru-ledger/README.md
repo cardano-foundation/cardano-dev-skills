@@ -1,93 +1,143 @@
-# Amaru's Ledger
+# Amaru Ledger
 
-## Role
+`amaru-ledger` is the ledger engine used by Amaru. Its job is to validate block bodies and transactions against a Cardano ledger view, maintain the evolving ledger state for a chain candidate, and materialize the derived views that other parts of the node need at validation and epoch boundaries.
 
-The Amaru's ledger is responsible for tracking the ledger state necessary to (a) the consensus layer to validate block bodies (and headers indirectly), and (b) clients applications interested in the ongoing state of the chain.
+The crate is deliberately not a chain database. It does not try to preserve full block history as its primary data model. Once a block has been validated and its effects have been absorbed into ledger state, long-term block storage belongs elsewhere.
 
-Fundamentally, the ledger is a finite-state transducer driven by transactions. Said differently, it holds on a state that is updated into a new state by applying transactions. That state can be roughly represented as:
+## Responsibility
 
+At a high level, the crate owns five related responsibilities:
+
+- Maintain a rollback-capable ledger state for a candidate chain.
+- Validate block bodies and standalone transactions, including phase one and phase two checks.
+- Track delayed ledger effects that only become active later, such as rewards, governance ratification, protocol parameter changes, and pool updates.
+- Produce derived summaries such as stake distributions, rewards inputs, and governance views.
+- Expose consensus-facing adapters and query surfaces over the current ledger view.
+
+The central runtime type is [`State<S, HS>`](src/state.rs). It combines:
+
+- A stable store of finalized ledger state.
+- A volatile in-memory window of the latest block-level diffs.
+- An overlay for information that already matters for validation but is not yet stable enough to persist.
+- Historical snapshots needed for rewards, governance, and stake-distribution work.
+
+## Architecture
+
+The runtime dataflow is intentionally split into small layers instead of centering everything around a single monolithic state structure:
+
+### State Initialisation (from snapshots)
+
+```mermaid
+flowchart LR
+    BT["Bootstrap"]
+    HS["Historical snapshots"]
+    LS["State"]
+    RW["Rewards"]
+    SD["Stake distribution"]
+    SS["Stable store"]
+    SO["State overlay"]
+
+    BT --> HS
+    BT --> SS
+    SS --> LS
+    HS --> SD
+    HS --> RW
+    SD --> RW
+    RW --> SO
+    SO --> LS
 ```
-Ledger State
- ├─ UTxO (TxIn |-> TxOut)
- ├─ Stake distribution (StakeCredential |-> Lovelace)
- ├─ Certificates
- │   ├─ DReps (DRepID |-> Epoch, Anchor, Lovelace, Set StakeCredential)
- │   ├─ Committee (CCID |-> Committee State)
- │   ├─ SPOs
- │   │   ├─ Current Parameters (PoolID |-> PoolParams)
- │   │   ├─ Future Parameters (PoolID |-> PoolParams)
- │   │   ├─ Retirements (PoolID |-> Epoch)
- │   │   └─ Deposits (PoolID |-> Lovelace)
- │   └─ Ada holders
- │       ├─ Deposits (StakeCredential |-> (Lovelace, Lovelace))
- │       ├─ Pool Delegations (StakeCredential |-> Option PoolID)
- │       └─ Gov Delegations (StakeCredential |-> Option DRepID)
- ├─ Governance State
- │   ├─ Proposals
- │   ├─ Committee
- │   ├─ DReps
- │   ├─ Constitution
- │   └─ Protocol Parameters (current, previous & future)
- ├─ Deposited (Lovelace)
- ├─ Fees (Lovelace)
- └─ Donation (Lovelace)
- ```
+### Block Validations
 
-> [!NOTE]
-> At this point of Amaru's life, we do not yet look at the governance state but will eventually. We're still focused on the overall stake distribution.
+```mermaid
+flowchart LR
+    BK["Block"]
+    LR["Ledger rules"]
+    VC["Validation context"]
+    SO["State overlay"]
+    SS["Stable store"]
+    VD["Volatile DB"]
+    VV["Volatile view"]
 
-So, the ledger state is fundamentally a very large key:value store. Some of those key:value pairs represent a relationship between two entities (e.g. pool delegations and gov delegations). It's important to note that the ledger doesn't need to hold onto the block/transaction history. Transactions can be discarded as soon as they've been applied. Storing blocks is therefore not a responsibility of the ledger.
-
-Now, tracking the ledger state comes with a few challenges:
-
-1. The state transitions are only eventually final; they're only final after `k` blocks. In practice, a single node will need to track multiple chains (at most, one per peer it is connected to) and make a choice for the one it considers as the most plausible candidate. It must do so while maintaining the state across all the candidate chains, and with the ability to switch between them in no-time since it mustn't disrupt the block production.
-
-2. Many operations in the ledger are not immediate, but some are. For example, updating the parameters associated to a stake pool only takes effect on the following epoch boundary. Similarly, retiring a stake pool is only done at the epoch specified in the retirement certificate. So, many transitions of the ledger state must be stashed and applied later at epoch boundary (potentially creating a significant load on the node at each epoch boundary).
-
-3. The calculation of the rewards and the leader schedule are done on snapshots of the stake distribution -- not on the current stake distribution. Thus, the ledger needs the ability to look back up to 2 epochs in the past.
-
-## Design
-
-In the Haskell implementation, those challenges are tackled by maintaining a single unified ledger state as a tree-like structure in plain RAM. By leveraging the persistent nature of various Haskell functional data-structure, it is possible to keep the `k=2160` versions of the ledger state in memory without requiring 2160 times the resources (since two versions are roughly similar and only contain a few changes). Stake distributions snapshots are also kept in memory for as long as they're needed and naturally shift over at every epoch boundary. While practical, this solution results in a rather large memory requirement (>16GB) for the node which we intend to solve for Amaru.
-
-```
-VOLATILE DB                        STABLE DB
-*-------------*-----*------*       *--------*------------*
-| Δ(t - 2159) | ... | Δ(t) |   +   | TxIn   | TxOut      |
-*-------------*-----*------*       *--------*------------*
-                                   | PoolId | PoolParams |
-                                   *--------*------------*
-                                   | ...    | ....       |
+    VD --> VV
+    SS --> VV
+    VV --> VC
+    BK --> LR
+    VC --> LR
+    SO --> LR
 ```
 
-In Amaru, the ledger state is stored in an hybrid fashion. The _stable_ part of the ledger is stored in a key:value store (currently using RocksDB as a backend), while we keep in memory the last `k` delta to apply to that state in plain RAM in a _volatile_ FIFO data-structure. As we process block, we compute the next delta corresponding to the block and push it onto the volatile FIFO data-structure, and we apply the latest delta that is now considered stable.
 
-When looking up information at the current tip, we perform the following:
+### Epoch Transitions
 
-- Compute the resulting delta from executing all delta in sequence (note that this can be cached and computed incrementally);
-- Check whether the information is available in the delta only (e.g. if looking for a transaction output, it may be sufficient to look it up from the delta)
-- Otherwise, reach for the stable database.
+```mermaid
+flowchart LR
+    ET["Epoch transition"]
+    HS["Historical snapshots"]
+    RW["Rewards"]
+    SO["State overlay"]
+    SS["Stable store"]
+    VD["Volatile DB"]
+    VV["Volatile view"]
 
-Some delta changes have immediate effects (e.g. consuming a UTxO entry, or registering a new stake pool), whereas some will be stored as _future states_ marked with an activation epoch (e.g. updating stake pool parameters). When fetching data from the stable database, it may thus be necessary to also select the state corresponding to the right epoch. At each epoch boundary, the future states are analyzed and made active if applicable.
+    VD --> VV
+    SS --> VV
+    VV --> ET
+    HS --> ET
+    RW --> ET
+    ET --> SO
+    SO --> HS
+```
 
-On top of that, we perform a snapshot of the stable db on each epoch boundary (i.e. when we apply to the stable db the last block of a given epoch). The snapshot is done by copying the on-disk state.
+### Module map
 
-### A remark about linearity
+- [`src/state.rs`](src/state.rs), [`src/state/`](src/state): the main ledger runtime. This is where stable state, volatile diffs, overlay state, rollback, persistence, and epoch transitions are orchestrated.
+- [`src/state/volatile.rs`](src/state/volatile.rs), [`src/state/volatile/`](src/state/volatile): the volatile-state subsystem. This now splits the in-memory unstable window into the database, view, and per-block fragment types.
+- [`src/store.rs`](src/store.rs), [`src/store/`](src/store): storage traits and column layouts. The ledger logic is written against `ReadStore`, `Store`, `Snapshot`, and `HistoricalStores` rather than against a single concrete backend.
+- [`src/store/epoch_transition.rs`](src/store/epoch_transition.rs): persistence helpers for epoch-boundary effects once rewards, pool updates, and governance updates are ready to be flushed to stable storage.
+- [`src/context.rs`](src/context.rs), [`src/context/default/`](src/context/default): slice-based preparation and validation contexts. Ledger rules operate on traits describing the pieces of state they need instead of directly reaching into storage.
+- [`src/rules/`](src/rules): ledger validation rules. This contains block-level checks plus transaction phase one and phase two execution.
+- [`src/epoch_transition.rs`](src/epoch_transition.rs), [`src/epoch_transition/`](src/epoch_transition): delayed epoch-boundary logic, including rewards finalization, pool updates, and governance updates.
+- [`src/governance/`](src/governance): governance ratification logic and its supporting data structures.
+- [`src/summary/`](src/summary): derived summaries computed from snapshots, especially stake distribution, rewards, and governance summaries.
+- [`src/block_validator.rs`](src/block_validator.rs): the adapter between ledger state and the consensus-facing traits used by the rest of the node.
+- [`src/bootstrap.rs`](src/bootstrap.rs): snapshot import and initial-state bootstrap from Haskell `NewEpochState` data.
 
-Note that, like the Haskell implementation, we make the choice to keep our view of the ledger mostly linear. It is possible to move backward in time (up to `k` blocks), but a single _ledger state_ is a linear view of **a** chain candidate. This means that in order to track multiple candidates, Amaru will have to instantiate multiple ledger components. However, the design split is such that all ledger instances can share a single stable database and only need to maintain their own volatile view.
+### Execution model
 
-Consequently, the stable database must be concurrent-safe by design, as stable blocks may be applied out of order and multiple times by the different ledger components.
+The normal validation path looks like this:
 
-## Open Questions / TODOs
+1. [`rules::prepare_block`](src/rules.rs) or `prepare_transaction` collects the inputs that must be resolved before validation.
+2. [`State`](src/state.rs) resolves those pieces from the stable store plus the current volatile window and builds a [`DefaultValidationContext`](src/context/default/validation.rs).
+3. [`rules::block::execute`](src/rules/block.rs) runs block-level checks and then validates each transaction through phase one and phase two.
+4. Successful validation does not immediately mutate the stable store. Instead, the validation context accumulates a [`VolatileFragment`](src/state/volatile/fragment.rs).
+5. [`State`](src/state.rs) appends that fragment to the [`VolatileDB`](src/state/volatile/db.rs), materializes a [`VolatileView`](src/state/volatile/view.rs) when needed, persists blocks that have become stable, and triggers epoch-boundary logic when the chain crosses into a new epoch.
 
-- [ ] The approach we take is very much optimized towards the nominal mode of the node, when it is already synchronized and is following the tip. This is quite different from the Haskell node which is optimized for syncing. Amaru removes the syncing problem entirely by bootstrapping from snapshots. At this point, snapshots can be produced by the Haskell node, and in the long-run, they will be able to be produced by Amaru itself. Yet, the time to sync from a snapshot should remain "acceptable" (to be measured).
+This split is important. It keeps pure ledger-rule evaluation separate from storage concerns and from the mechanics of delayed application.
 
-- [ ] We need to properly measure a few things to assert whether the approach is valid overall. In particular:
-    - [ ] The overall validation time of a block from end to end
-    - [ ] The memory footprint of the volatile DB.
-    - [ ] The time needed at the epoch boundary to advance the stable DB (i.e. process all retirements & epoch events)
-    - [ ] The time and space needed to store snapshots of the database at the epoch boundary
+## Key Differentiators from Haskell's `cardano-node`
 
-- [ ] If some of the time above ends up being too significant to be done in a synchronous fashion, we might resort to doing them in a separate thread. It's rather certain already that rewards calculation will need to happen in a separate thread. This might complicate the internal structure a bit.
+Compared with the Haskell node and ledger stack, `amaru-ledger` makes a few explicit design choices:
 
-- [ ] Validations of the ledger state is relatively cumbersome, but a first low-hanging fruit is to compare it with snapshots produced from the Haskell node. So, we've been compiling [data](../../data) from the PreProd network to be compared with.
+- It uses a hybrid storage model. Finalized ledger state lives in a key-value store, while only the recent unstable window is kept in memory as diffs. The Haskell implementation has historically relied heavily on large in-memory persistent data structures and structural sharing. Note that, since recently, an hybrid ledger partially storing the UTxO set on-disk is also available.
+- It is snapshot-first by design. The crate assumes bootstrap from ledger snapshots and historical snapshots for epoch work, rather than trying to solve full chain synchronization from genesis inside the ledger component itself.
+- It keeps storage, rule evaluation, and consensus integration as separate layers. `Store` traits, slice-based contexts, summaries, and the `BlockValidator` adapter are all first-class boundaries in the code.
+- A single `State` value is intentionally linear: it tracks one candidate chain. Multiple candidates can share the same stable backend while maintaining their own volatile views. This differs from representing every branch as one large shared in-memory structure.
+- Delayed epoch state is modeled explicitly through [`StateOverlay`](src/state/overlay.rs), rather than being implicit in one globally updated structure. This makes the boundary between "already relevant for validation" and "stable enough to persist" visible in the code.
+
+These choices are mostly about operational trade-offs: memory footprint, restart behavior, persistence boundaries, and keeping the ledger core testable in isolation.
+
+## Current TODOs And Disclaimers
+
+> [!WARNING]
+> This crate already contains the core shape of the Amaru ledger, but it should not be read as production-ready yet. The items below are material remaining work, not minor cleanup.
+
+- Rewards computation and some epoch-boundary work are still synchronous. The code already marks rewards calculation as work that likely needs asynchronous or background execution.
+- Restart currently assumes an empty volatile window. On restart, consensus is expected to replay the last `k` blocks; durable recovery of the volatile state is not implemented yet.
+- Snapshot bootstrap is intentionally narrow. [`bootstrap`](src/bootstrap.rs) partially decodes Haskell `NewEpochState`, assumes end-of-epoch snapshots, and still rejects some unsupported governance scenarios with hard assertions.
+- Some epoch-boundary accounting is still incomplete, including volatile account deregistrations, unbinding accounts from retired pools, pool-deposit handling, and parts of governance-related voting stake accounting.
+- Governance ratification currently collects all votes in memory before processing them. That is serviceable for now, but it is not the final operational shape for large or adversarial inputs.
+- Context preparation is still incomplete beyond the UTxO path, and some rule code still carries technical debt around script handling, batching, data representation, and error shaping.
+- The performance story is not settled yet. We still need disciplined measurement of end-to-end block validation latency, volatile memory footprint, snapshot costs, and restart or replay behavior.
+- Conformance and test coverage continue to grow, but some branches in rules and epoch-transition code are still explicitly marked as missing coverage or needing refactors.
+
+Until those items are addressed, this README should be read as a description of the intended architecture and the parts already implemented, not as a claim that the crate is feature-complete or operationally finished.

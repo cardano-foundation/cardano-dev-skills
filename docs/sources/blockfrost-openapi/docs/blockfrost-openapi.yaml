@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  version: 0.1.88
+  version: 0.1.89
   title: Blockfrost.io ~ API Documentation
   x-logo:
     url: 'https://staging.blockfrost.io/images/logo.svg'
@@ -1245,13 +1245,48 @@ paths:
               - desc
             default: asc
           description: >
-            The ordering of items from the point of view of the blockchain,
+            The ordering of items. Direction applied to whichever sort key is
+            selected by `order_by`.
 
-            not the page listing itself. By default, we return oldest first,
-            newest last.
+            By default, when sorting by registration order, we return oldest
+            first, newest last.
+        - in: query
+          name: order_by
+          required: false
+          schema:
+            type: string
+            enum:
+              - amount
+          description: >
+            Optional sort key. When omitted, DReps are ordered by their internal
+            registration order
 
-            Ordering in this case is based on the time of the first mint
-            transaction.
+            (the current default). Set to `amount` to sort by voting power.
+        - in: query
+          name: retired
+          required: false
+          schema:
+            type: boolean
+          description: >
+            Optional filter. When `true`, only returns DReps that have been
+            deregistered.
+
+            When `false`, only returns DReps that are currently registered.
+
+            When omitted, both are returned.
+        - in: query
+          name: expired
+          required: false
+          schema:
+            type: boolean
+          description: >
+            Optional filter. When `true`, only returns DReps that have been
+            inactive for longer than
+
+            the `drep_activity` protocol parameter. When `false`, only returns
+            DReps that are not
+
+            expired. When omitted, both are returned.
       responses:
         '200':
           description: Paginated array with the Delegate Representatives (DReps) data
@@ -7542,14 +7577,136 @@ components:
           hex:
             type: string
             description: The raw bytes of the DRep
+          amount:
+            type: string
+            description: The total amount of voting power this DRep is delegated.
+          has_script:
+            type: boolean
+            description: Flag indicating whether this DRep's credential is a script hash
+          retired:
+            type: boolean
+            description: >-
+              Registration state of the DRep. Set to `true` if the DRep has been
+              deregistered; otherwise, `false`.
+          expired:
+            type: boolean
+            description: >-
+              Whether the DRep has been inactive for a consecutive number of
+              epochs (determined by an epoch parameter `drep_activity`)
+          last_active_epoch:
+            type: integer
+            nullable: true
+            description: >-
+              Epoch of the most recent action - registration, update,
+              deregistration or voting
+          metadata:
+            type: object
+            nullable: true
+            description: >
+              Off-chain metadata associated with the DRep's latest registration.
+
+              `null` when the DRep has no registration anchor (e.g. special
+              DReps such as
+
+              `drep_always_abstain` / `drep_always_no_confidence`). When an
+              anchor exists but
+
+              the off-chain content could not be fetched or validated, `error`
+              is populated and
+
+              `json_metadata` / `bytes` are `null`.
+            properties:
+              url:
+                type: string
+                example: 'https://stakenuts.com/drep.json'
+                description: URL to the drep metadata
+              hash:
+                type: string
+                example: >-
+                  69c0c68cb57f4a5b4a87bad896fc274678e7aea98e200fa14a1cb40c0cab1d8c
+                description: Hash of the metadata file
+              json_metadata:
+                anyOf:
+                  - type: string
+                  - type: object
+                    additionalProperties: true
+                  - type: array
+                    items: {}
+                  - type: integer
+                  - type: number
+                  - type: boolean
+                  - type: 'null'
+                description: Content of the JSON metadata (validated CIP-119)
+              bytes:
+                type: string
+                description: Content of the metadata (raw)
+                nullable: true
+              error:
+                type: object
+                description: Present when metadata could not be fetched or validated.
+                properties:
+                  code:
+                    type: string
+                    description: Stable machine-readable error code.
+                    enum:
+                      - HASH_MISMATCH
+                      - CONNECTION_ERROR
+                      - HTTP_RESPONSE_ERROR
+                      - DECODE_ERROR
+                      - SIZE_EXCEEDED
+                      - UNKNOWN_ERROR
+                  message:
+                    type: string
+                    description: Human-readable description of the error.
+                required:
+                  - code
+                  - message
+            required:
+              - url
+              - hash
+              - json_metadata
+              - bytes
         required:
           - drep_id
           - hex
+          - amount
+          - has_script
+          - retired
+          - expired
+          - last_active_epoch
+          - metadata
       example:
         - drep_id: drep1mvdu8slennngja7w4un6knwezufra70887zuxpprd64jxfveahn
           hex: db1bc3c3f99ce68977ceaf27ab4dd917123ef9e73f85c304236eab23
+          amount: '2000000'
+          has_script: false
+          retired: false
+          expired: false
+          last_active_epoch: 509
+          metadata:
+            url: 'https://aaa.xyz/drep.json'
+            hash: a14a5ad4f36bddc00f92ddb39fd9ac633c0fd43f8bfa57758f9163d10ef916de
+            json_metadata:
+              '@context':
+                CIP100: >-
+                  https://github.com/cardano-foundation/CIPs/blob/master/CIP-0100/README.md#
+                CIP119: >-
+                  https://github.com/cardano-foundation/CIPs/blob/master/CIP-0119/README.md#
+              hashAlgorithm: blake2b-256
+              body:
+                givenName: Ryan Williams
+                objectives: Buy myself an island.
+                motivations: I really would like to own an island.
+                qualifications: I have my 100m swimming badge.
+            bytes: \x7b0a20202240636f6e74657874223a...
         - drep_id: drep1cxayn4fgy27yaucvhamsvqj3v6835mh3tjjx6x8hdnr4
           hex: c1ba49d52822bc4ef30cbf77060251668f1a6ef15ca46d18f76cc758
+          amount: '0'
+          has_script: false
+          retired: true
+          expired: false
+          last_active_epoch: 480
+          metadata: null
     drep:
       type: object
       properties:
@@ -7573,7 +7730,7 @@ components:
           deprecated: true
         has_script:
           type: boolean
-          description: Flag which shows if this DRep credentials are a script hash
+          description: Flag indicating whether this DRep's credential is a script hash
         retired:
           type: boolean
           description: >-
@@ -7583,7 +7740,7 @@ components:
           type: boolean
           description: >-
             Whether the DRep has been inactive for a consecutive number of
-            epochs (determined by a epoch parameter `drep_activity`)
+            epochs (determined by an epoch parameter `drep_activity`)
         last_active_epoch:
           type: integer
           nullable: true

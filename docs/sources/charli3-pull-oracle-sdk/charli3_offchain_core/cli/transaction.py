@@ -24,6 +24,31 @@ from .config.keys import KeyManager
 logger = logging.getLogger(__name__)
 
 
+def _canonicalize_ordered_sets(tx: Transaction) -> None:
+    """Sort the transaction body's set-typed fields into a deterministic order.
+
+    PyCardano (through at least v0.19) loses the ordering of Conway-era CBOR sets
+    when deserializing: cbor2 decodes a set tag (258) into a Python ``set``, and
+    ``OrderedSet.from_primitive`` then does ``list(value)`` whose order is
+    randomized per process via PYTHONHASHSEED. The transaction body hash is what
+    every signer signs, so an unstable body serialization makes signatures
+    produced in separate processes (sign-tx, submit-tx) invalid. Sorting each set
+    canonically makes the body hash identical in every process. Set ordering on
+    the wire is irrelevant to the ledger (it re-sorts inputs itself), so this is
+    purely a serialization-determinism fix and changes nothing else.
+    """
+    body = tx.transaction_body
+    for field in ("inputs", "reference_inputs", "collateral", "required_signers"):
+        collection = getattr(body, field, None)
+        if collection is None or len(collection) < 2:
+            continue
+        items = sorted(collection, key=lambda element: element.to_cbor())
+        if hasattr(collection, "_use_tag"):  # pycardano OrderedSet / NonEmptyOrderedSet
+            setattr(body, field, type(collection)(items, use_tag=collection._use_tag))
+        else:
+            setattr(body, field, items)
+
+
 class TransactionProcessor:
     """Common transaction processing functionality."""
 
@@ -52,7 +77,7 @@ class TransactionProcessor:
                 )
 
             tx = Transaction.from_cbor(data["transaction"])
-
+            _canonicalize_ordered_sets(tx)
             await tx_manager.sign_and_submit(tx, [])
 
             if ProcessStatus.TRANSACTION_CONFIRMED == status_success_value:
@@ -104,6 +129,7 @@ class TransactionProcessor:
                 )
 
             transaction = Transaction.from_cbor(data["transaction"])
+            _canonicalize_ordered_sets(transaction)
 
             tx_manager.sign_tx(transaction, payment_sk)
 

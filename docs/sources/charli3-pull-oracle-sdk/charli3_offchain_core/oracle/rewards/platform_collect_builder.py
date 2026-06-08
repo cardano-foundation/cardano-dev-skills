@@ -172,6 +172,7 @@ class PlatformCollectBuilder(BaseBuilder):
                 required_signers=required_signers,
                 change_address=loaded_key.address,
                 signing_key=loaded_key.payment_sk,
+                fee_buffer=self.FEE_BUFFER,
             )
             return RewardTxResult(
                 transaction=tx,

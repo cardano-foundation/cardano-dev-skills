@@ -8,7 +8,7 @@ info:
   license:
     name: Creative Commons Attribution 4.0 International
     url: https://github.com/cardano-community/koios-artifacts/blob/main/LICENSE
-  version: v1.4.0
+  version: v1.4.1
   description: |
     Koios is best described as a Decentralized and Elastic RESTful query layer for exploring data on Cardano blockchain to consume within applications/wallets/explorers/etc. This page not only provides an OpenAPI Spec for live implementation, but also ability to execute live demo from client browser against each endpoint with pre-filled examples.
 
@@ -148,8 +148,6 @@ info:
 servers:
   - url: https://api.koios.rest/api/v1
     description: Mainnet
-  - url: https://guild.koios.rest/api/v1
-    description: Guildnet
   - url: https://preview.koios.rest/api/v1
     description: Preview Network
   - url: https://preprod.koios.rest/api/v1

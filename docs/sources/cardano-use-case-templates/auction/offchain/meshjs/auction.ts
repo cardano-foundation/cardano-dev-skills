@@ -13,7 +13,15 @@ import {
   type UTxO,
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-csl";
-import blueprint from "../../onchain/aiken/plutus.json" with { type: "json" };
+
+// PLUTUS_JSON lets the cross-check runner point this same off-chain flow at a
+// different on-chain implementation's blueprint (e.g. scalus) without code edits.
+// Falls back to the local Aiken blueprint for standalone runs. Loaded dynamically
+// (not a static import) so the path can vary at runtime.
+const BLUEPRINT_PATH =
+  Deno.env.get("PLUTUS_JSON") ??
+  new URL("../../onchain/aiken/plutus.json", import.meta.url).pathname;
+const blueprint = JSON.parse(Deno.readTextFileSync(BLUEPRINT_PATH)) as { validators: any[] };
 
 // Auction: a single PlutusV3 script handling START (mint), BID, and END (spend).
 // Scenario walks init → bid → bid → end with three brewed wallets.
@@ -94,7 +102,12 @@ async function fundFromFunder(targets: Array<{ addr: string; lovelace: bigint }>
 }
 
 function getScriptInfo() {
-  const compiled = applyParamsToScript(blueprint.validators[0].compiledCode, [], "JSON");
+  // Look up the validator BY TITLE (fall back to index 0) so a blueprint that
+  // orders its validators differently can't silently break the cross-check.
+  const v =
+    blueprint.validators.find((x: { title: string }) => x.title === "auction.auction.mint") ??
+    blueprint.validators[0];
+  const compiled = applyParamsToScript(v.compiledCode, [], "JSON");
   const policyId = resolveScriptHash(compiled, "V3");
   const { address: scriptAddress } = serializePlutusScript(
     { code: compiled, version: "V3" },

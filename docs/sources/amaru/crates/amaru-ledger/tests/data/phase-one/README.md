@@ -35,8 +35,8 @@ required-field rules.
 | `network`            | `mainnet`, `preprod`, `preview`, or `testnet_<magic>`. |
 | `eraHistory`         | Inline `{ stabilityWindow, eras: [EraSummary] }` or a `$ref` to a shared file. |
 | `protocolParameters` | Inline (see `schema.json`) or a `$ref` to a shared file, optionally with `$override`. |
-| `initialState`       | `{ utxo: [{input, output}], votingState }`.            |
-| `ledgerEnv`          | `{ slot, txIx }`.                                      |
+| `initialState`       | `{ utxo: [{input, output}], governanceActivity }`.     |
+| `point`              | `{ slot, transactionIndex }`.                          |
 | `transaction`        | Hex-encoded CBOR.                                      |
 | `expected`           | `"Pass"` or `{ "predicate": "<Name>", ... }`.          |
 
@@ -96,7 +96,7 @@ A harness should:
    `protocolParameters`, and `initialState`. Hex-decode then CBOR-decode each
    UTxO entry's `input` and `output`.
 3. Hex-decode and CBOR-decode the `transaction`.
-4. Run phase-one validation against that state and `ledgerEnv`.
+4. Run phase-one validation against that state and `point`.
 5. Compare the result to `expected`:
    - If `expected` is `"Pass"`, validation must succeed.
    - If `expected` is an object, validation must fail with an error that

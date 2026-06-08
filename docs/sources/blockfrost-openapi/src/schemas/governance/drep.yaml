@@ -20,13 +20,13 @@ properties:
     deprecated: true
   has_script:
     type: boolean
-    description: Flag which shows if this DRep credentials are a script hash
+    description: Flag indicating whether this DRep's credential is a script hash
   retired:
     type: boolean
     description: Registration state of the DRep. Set to `true` if the DRep has been deregistered; otherwise, `false`.
   expired:
     type: boolean
-    description: Whether the DRep has been inactive for a consecutive number of epochs (determined by a epoch parameter `drep_activity`)
+    description: Whether the DRep has been inactive for a consecutive number of epochs (determined by an epoch parameter `drep_activity`)
   last_active_epoch:
     type: integer
     nullable: true

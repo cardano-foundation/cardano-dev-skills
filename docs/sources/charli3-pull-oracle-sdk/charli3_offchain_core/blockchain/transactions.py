@@ -285,9 +285,15 @@ class TransactionManager:
         if tx.transaction_witness_set.vkey_witnesses is None:
             tx.transaction_witness_set.vkey_witnesses = []
 
-        # Add witness
+        # Add witness with non-extended verification key.
+        # Mnemonic-derived keys produce extended vkeys; the witness must use the
+        # non-extended form or the signature fails validation.
+        vkey = signing_key.to_verification_key()
+        if hasattr(vkey, "to_non_extended"):
+            vkey = vkey.to_non_extended()
+
         tx.transaction_witness_set.vkey_witnesses.append(
-            VerificationKeyWitness(signing_key.to_verification_key(), signature)
+            VerificationKeyWitness(vkey, signature)
         )
 
     async def sign_and_submit(

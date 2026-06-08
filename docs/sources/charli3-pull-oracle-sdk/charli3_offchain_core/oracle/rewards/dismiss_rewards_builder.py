@@ -189,6 +189,7 @@ class DismissRewardsBuilder(BaseBuilder):
                 validity_start=start_slot,
                 validity_end=end_slot,
                 required_signers=required_signers,
+                fee_buffer=self.FEE_BUFFER,
             )
 
             return RewardTxResult(transaction=tx)

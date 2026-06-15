@@ -1,0 +1,258 @@
+---
+title: "Bitcoin Browser Wallet"
+description: "Connect, query and sign with Bitcoin browser extension wallets (e.g. Xverse) via a unified API."
+icon: BanknotesIcon
+---
+
+`BitcoinBrowserWallet` wraps any installed Bitcoin browser extension and exposes a single, consistent API for connecting, querying balances, signing messages, and broadcasting transactions.
+It communicates with extensions via the [Sats Connect](https://docs.xverse.app/sats-connect) protocol — no SDK dependency on the extension itself is required.
+
+**Currently supported extensions:** Xverse
+
+> **SSR / Next.js note** — All methods guard against server-side rendering. Calling any method outside a browser context throws a clear error. In Next.js, gate calls with `typeof window !== "undefined"` or place them inside `useEffect`.
+
+---
+
+## Get Installed Wallets
+
+Returns the list of Bitcoin wallet extensions the user currently has installed.
+
+```tsx
+import { BitcoinBrowserWallet } from "@meshsdk/wallet";
+
+const wallets = BitcoinBrowserWallet.getInstalledWallets();
+// [{ id: "xverse", name: "Xverse", icon: "https://..." }]
+```
+
+---
+
+## Connect Wallet
+
+Opens the extension's approval popup and returns a connected `BitcoinBrowserWallet` instance.
+
+```tsx
+const wallet = await BitcoinBrowserWallet.enable("xverse");
+```
+
+### Persist session across page reloads
+
+Pass `{ persist: true }` to save the wallet name in `localStorage`. On subsequent page loads the wallet reconnects **silently** (no popup) when `hasPersistedSession()` returns `true`.
+
+```tsx
+// First visit — shows popup
+const wallet = await BitcoinBrowserWallet.enable("xverse", { persist: true });
+
+// On every subsequent page load — silent reconnect
+if (BitcoinBrowserWallet.hasPersistedSession()) {
+  const wallet = await BitcoinBrowserWallet.enable("xverse", { persist: true });
+}
+```
+
+### Restore silently
+
+`restore()` is a one-liner alternative: it reads the persisted name and reconnects, returning `null` if nothing was saved or the extension is no longer available.
+
+```tsx
+const wallet = await BitcoinBrowserWallet.restore();
+if (wallet) {
+  // already connected — no popup shown
+}
+```
+
+### Disconnect
+
+Clears the persisted session so `restore()` returns `null` on the next load.
+
+```tsx
+wallet.disconnect();
+```
+
+---
+
+## Get Network
+
+```tsx
+const network = await wallet.getNetwork();
+// "Mainnet" | "Testnet4"
+```
+
+---
+
+## Get Addresses
+
+Returns the wallet's addresses for the requested purpose(s). Each address includes its public key, address type, and derivation purpose.
+
+```tsx
+import { AddressPurpose } from "@meshsdk/wallet";
+
+const addresses = await wallet.getAddresses([
+  AddressPurpose.Payment,   // P2WPKH (BIP-84)
+  AddressPurpose.Ordinals,  // P2TR   (BIP-86)
+]);
+```
+
+Example response:
+
+```json
+[
+  {
+    "address": "bc1q...",
+    "publicKey": "02abc...",
+    "purpose": "payment",
+    "addressType": "p2wpkh",
+    "walletType": "software"
+  },
+  {
+    "address": "bc1p...",
+    "publicKey": "02def...",
+    "purpose": "ordinals",
+    "addressType": "p2tr",
+    "walletType": "software"
+  }
+]
+```
+
+---
+
+## Get Accounts
+
+Same as `getAddresses` but returns `BitcoinAccount` objects (identical shape, different semantic role — used when you need the full account record).
+
+```tsx
+const accounts = await wallet.getAccounts([AddressPurpose.Payment]);
+```
+
+---
+
+## Get Balance
+
+Returns confirmed, unconfirmed, and total balances **in satoshis** as strings.
+
+```tsx
+const balance = await wallet.getBalance();
+// { confirmed: "100000", unconfirmed: "5000", total: "105000" }
+```
+
+---
+
+## Fetch UTXOs
+
+Returns all unspent outputs for the requested address purposes, each annotated with the owning address and purpose.
+
+```tsx
+const utxos = await wallet.fetchUTXOs([AddressPurpose.Payment]);
+```
+
+Example response:
+
+```json
+[
+  {
+    "txid": "abc123...",
+    "vout": 0,
+    "value": 50000,
+    "address": "bc1q...",
+    "purpose": "payment",
+    "status": { "confirmed": true, "block_height": 840000 }
+  }
+]
+```
+
+---
+
+## Get Transaction History
+
+Returns paginated transaction history across the requested purposes, sorted newest-first (unconfirmed transactions appear first).
+
+```tsx
+const txs = await wallet.getTransactionHistory({
+  purposes: [AddressPurpose.Payment],
+  lastSeenTxid: "abc123...", // optional — for pagination
+});
+```
+
+---
+
+## Sign Message
+
+Signs an arbitrary message using the [BIP-137](https://github.com/bitcoin/bips/blob/master/bip-0137.mediawiki) ECDSA compact format (65 bytes, base64-encoded).
+
+```tsx
+import { MessageSigningProtocols } from "@meshsdk/wallet";
+
+const result = await wallet.signMessage(
+  "bc1q...",           // address to sign with
+  "Hello, Bitcoin!",  // message
+  MessageSigningProtocols.ECDSA,
+);
+
+// {
+//   signature: "H...(base64)",
+//   messageHash: "...(hex)",
+//   address: "bc1q...",
+//   protocol: "ECDSA"
+// }
+```
+
+---
+
+## Verify Message
+
+Verifies a BIP-137 ECDSA signature locally (no extension call). Returns a result object with `.valid`, an optional `.recoveredPublicKey`, and an optional `.reason` string on failure.
+
+```tsx
+const result = await wallet.verifyMessage(
+  "bc1q...",
+  "Hello, Bitcoin!",
+  signatureBase64,
+);
+
+if (result.valid) {
+  console.log("Signed by:", result.recoveredPublicKey);
+} else {
+  console.log("Invalid:", result.reason);
+}
+```
+
+> Non-ECDSA / BIP-322 signatures (e.g. Taproot Schnorr) return `{ valid: false, reason: "..." }` rather than throwing.
+
+---
+
+## Sign Transfer
+
+Prompts the user to sign and broadcast a transfer to one or more recipients in a single step.
+Returns the broadcast **txid** (64-char hex).
+
+```tsx
+const txid = await wallet.signTransfer([
+  { address: "bc1q...", amount: 10_000 }, // amount in satoshis
+]);
+// "a1b2c3..." (64-char txid)
+```
+
+Multi-recipient:
+
+```tsx
+const txid = await wallet.signTransfer([
+  { address: "bc1q...", amount: 10_000 },
+  { address: "bc1p...", amount: 25_000 },
+]);
+```
+
+---
+
+## Sign PSBT
+
+Signs an externally-constructed Partially Signed Bitcoin Transaction (PSBT). The PSBT must be provided as a base64-encoded string.
+
+```tsx
+const result = await wallet.signPsbt({
+  psbt: base64Psbt,
+  signInputs: {
+    "bc1q...": [0], // address → input indices to sign
+  },
+  broadcast: false, // set true to sign and broadcast in one call
+});
+// returns signed PSBT (base64) when broadcast=false
+// returns txid when broadcast=true
+```

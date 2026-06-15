@@ -25,27 +25,61 @@
 
 ### Installing
 
-#### Pre-compiled executables
-
-We regularly push pre-compiled (statically linked) executables to [Github
-Pages](https://pragma-org.github.io/amaru/) for the following platforms:
-
-| Platform | Arch      |
-| ---      | ---       |
-| Linux    | `x86_64`  |
-| Linux    | `aarch64` |
-| MacOS    | `aarch64` |
-
-We also _in theory_ support Windows (64-bit) as well as WASM and RISC-V for
-certain components (e.g. amaru-ledger, amaru-consensus, ...). The support there
-is preliminary and mostly experimental.
-
-
-#### Docker Images (arm64 / amd64)
+<!-- BEGIN GENERATED INSTALLATION -->
+#### Docker Image
 
 ```console
-docker pull ghcr.io/pragma-org/amaru:latest
+docker pull ghcr.io/pragma-org/amaru:v10.10.20260611
 ```
+
+> [!IMPORTANT]
+> The tag `:latest` refers to the latest _nightly build_; not the latest release.
+
+#### Homebrew (macOS & Linux)
+
+```console
+brew tap pragma-org/amaru https://github.com/pragma-org/amaru && brew trust --tap pragma-org/amaru
+brew install amaru
+```
+
+#### Nix (macOS & Linux)
+
+```console
+nix profile install --no-write-lock-file github:pragma-org/amaru#amaru
+```
+
+#### Debian
+
+```console
+VERSION=10.10.20260611 ARCH=x86_64; curl -fsSL -o amaru-$VERSION-linux-$ARCH.deb "https://github.com/pragma-org/amaru/releases/download/v$VERSION/amaru-$VERSION-linux-$ARCH.deb"
+VERSION=10.10.20260611 ARCH=x86_64; sudo apt install amaru-$VERSION-linux-$ARCH.deb
+```
+
+Also available for `ARCH=aarch64`.
+The Debian package installs a systemd unit and reads overrides from `/etc/default/amaru`.
+
+#### RPM
+
+```console
+VERSION=10.10.20260611 ARCH=x86_64; curl -fsSL -o amaru-$VERSION-linux-$ARCH.rpm "https://github.com/pragma-org/amaru/releases/download/v$VERSION/amaru-$VERSION-linux-$ARCH.rpm"
+VERSION=10.10.20260611 ARCH=x86_64; sudo dnf install amaru-$VERSION-linux-$ARCH.rpm
+```
+
+Also available for `ARCH=aarch64`.
+The RPM package installs a systemd unit and reads overrides from `/etc/sysconfig/amaru`.
+<!-- END GENERATED INSTALLATION -->
+
+#### Manual installation: pre-compiled executables
+
+You can install Amaru "manually" by downloading an archive with pre-compiled
+(statically linked) executables for all usual platforms (Linux, macOS &
+Windows). The archives come with shell completions scripts.
+
+See either:
+
+- [latest releases](https://github.com/pragma-org/amaru/releases);
+- [nightly builds](https://pragma-org.github.io/amaru/).
+
 
 #### Building from sources
 

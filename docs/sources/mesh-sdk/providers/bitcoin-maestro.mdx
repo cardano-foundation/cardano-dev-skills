@@ -1,0 +1,384 @@
+---
+title: "Maestro Bitcoin Provider"
+description: "Enterprise-grade Bitcoin chain data and transaction submission via Maestro's Esplora-compatible API."
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+<Link href="https://www.gomaestro.org/">Maestro</Link> provides enterprise-grade blockchain infrastructure for Bitcoin, Cardano, and Dogecoin. `MaestroBitcoinProvider` targets Maestro's <Link href="https://docs.gomaestro.org/bitcoin">Esplora-compatible Bitcoin API</Link> and implements `IBitcoinProvider` from `@meshsdk/provider`, making it a drop-in data source for `BitcoinHeadlessWallet`.
+
+**When to use Maestro Bitcoin:**
+- Production applications requiring higher rate limits and reliability guarantees
+- Applications that need mempool monitoring and enterprise SLAs
+- Teams already using Maestro for Cardano who want a unified provider
+
+## Quick Start
+
+```bash
+npm install @meshsdk/provider @meshsdk/wallet
+```
+
+```ts
+import { MaestroBitcoinProvider } from "@meshsdk/provider";
+import { BitcoinHeadlessWallet } from "@meshsdk/wallet";
+
+const provider = new MaestroBitcoinProvider({
+  apiKey: "your-maestro-api-key",
+  network: "mainnet", // "mainnet" | "testnet"
+});
+
+const wallet = await BitcoinHeadlessWallet.fromMnemonic({
+  network: "Mainnet",
+  mnemonic: ["word1", "word2", "..."],
+  provider,
+});
+
+const balance = await wallet.getBalance();
+// { confirmed: "100000", unconfirmed: "0", total: "100000" }
+```
+
+Get your API key from <Link href="https://docs.gomaestro.org/">Maestro Documentation</Link>.
+
+## Configuration Options
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `apiKey` | `string` | Yes | Your Maestro API key |
+| `network` | `"mainnet" \| "testnet"` | Yes | Bitcoin network to connect to |
+
+The base URLs used internally:
+
+| Network | Base URL |
+|---------|----------|
+| `"mainnet"` | `https://xbt-mainnet.gomaestro-api.org/v0/esplora` |
+| `"testnet"` | `https://xbt-testnet.gomaestro-api.org/v0/esplora` |
+
+All requests include the `api-key` header automatically.
+
+## API Reference
+
+### fetchAddressInfo
+
+Retrieve chain and mempool statistics for a Bitcoin address.
+
+```ts
+await provider.fetchAddressInfo(address: string): Promise<BitcoinAddressInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | Bitcoin address (bech32, P2PKH, P2SH, etc.) |
+
+**Returns:** `BitcoinAddressInfo` — confirmed and mempool funding/spending counts and sums.
+
+**Example:**
+
+```ts
+import { MaestroBitcoinProvider } from "@meshsdk/provider";
+
+const provider = new MaestroBitcoinProvider({
+  apiKey: "your-maestro-api-key",
+  network: "mainnet",
+});
+
+const info = await provider.fetchAddressInfo("bc1q...");
+
+console.log(info.chain_stats.funded_txo_sum);   // total confirmed received (sats)
+console.log(info.mempool_stats.funded_txo_sum); // unconfirmed incoming (sats)
+```
+
+**Return shape:**
+
+```ts
+{
+  address: "bc1q...",
+  chain_stats: {
+    funded_txo_count: 5,
+    funded_txo_sum: 500000,
+    spent_txo_count: 3,
+    spent_txo_sum: 300000,
+    tx_count: 8
+  },
+  mempool_stats: {
+    funded_txo_count: 1,
+    funded_txo_sum: 50000,
+    spent_txo_count: 0,
+    spent_txo_sum: 0,
+    tx_count: 1
+  }
+}
+```
+
+---
+
+### fetchAddressUTxOs
+
+Retrieve all unspent outputs for a Bitcoin address.
+
+```ts
+await provider.fetchAddressUTxOs(address: string): Promise<BitcoinUTxO[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | Bitcoin address to query |
+
+**Returns:** Array of `BitcoinUTxO` objects.
+
+**Example:**
+
+```ts
+const utxos = await provider.fetchAddressUTxOs("bc1q...");
+
+utxos.forEach((utxo) => {
+  console.log(`${utxo.txid}:${utxo.vout} — ${utxo.value} sats`);
+});
+```
+
+**Return shape:**
+
+```ts
+[
+  {
+    txid: "abc123...",
+    vout: 0,
+    value: 50000,
+    status: {
+      confirmed: true,
+      block_height: 840000,
+      block_hash: "00000000...",
+      block_time: 1710000000
+    }
+  }
+]
+```
+
+---
+
+### fetchUTxO
+
+Retrieve specific unspent output(s) from a transaction. Filters out already-spent outputs by cross-referencing the outspends endpoint.
+
+```ts
+await provider.fetchUTxO(txid: string, vout?: number): Promise<BitcoinUTxO[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `txid` | `string` | Yes | Transaction ID (64-char hex) |
+| `vout` | `number` | No | Output index to filter to; omit to return all unspent outputs |
+
+**Example:**
+
+```ts
+// All unspent outputs from a transaction
+const utxos = await provider.fetchUTxO("abc123...");
+
+// A specific output (only returned if unspent)
+const utxo = await provider.fetchUTxO("abc123...", 0);
+```
+
+---
+
+### fetchAddressTxs
+
+Retrieve transaction history for a Bitcoin address, sorted newest-first. Supports cursor-based pagination.
+
+```ts
+await provider.fetchAddressTxs(
+  address: string,
+  lastSeenTxid?: string,
+): Promise<BitcoinTxInfo[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | Bitcoin address to query |
+| `lastSeenTxid` | `string` | No | Txid of the last transaction seen; fetches the next page of results |
+
+**Example:**
+
+```ts
+// First page
+const txs = await provider.fetchAddressTxs("bc1q...");
+
+// Next page
+const moreTxs = await provider.fetchAddressTxs("bc1q...", txs[txs.length - 1].txid);
+```
+
+> Maestro paginates using the `after_txid` query parameter (Esplora-compatible): `GET /address/{address}/txs?after_txid={lastSeenTxid}`.
+
+---
+
+### fetchTxInfo
+
+Retrieve the confirmation status of a transaction.
+
+```ts
+await provider.fetchTxInfo(txid: string): Promise<BitcoinTxStatus>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `txid` | `string` | Yes | Transaction ID (64-char hex) |
+
+**Returns:** `BitcoinTxStatus` — confirmation status and block details.
+
+**Example:**
+
+```ts
+const status = await provider.fetchTxInfo("abc123...");
+
+if (status.confirmed) {
+  console.log(`Confirmed at block ${status.block_height}`);
+} else {
+  console.log("Pending in mempool");
+}
+```
+
+**Return shape:**
+
+```ts
+{
+  confirmed: true,
+  block_height: 840000,
+  block_hash: "00000000...",
+  block_time: 1710000000
+}
+```
+
+---
+
+### fetchFeeEstimates
+
+Retrieve the recommended fee rate (sat/vB) for a target confirmation within `blocks` blocks. Falls back to the next-closest target if an exact match is unavailable; defaults to `2 sat/vB` if the fee API is unreachable.
+
+```ts
+await provider.fetchFeeEstimates(blocks: number): Promise<number>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `blocks` | `number` | Yes | Target confirmation speed in blocks (e.g. `1`, `6`, `144`) |
+
+**Example:**
+
+```ts
+const feeRate = await provider.fetchFeeEstimates(6); // next ~1 hour
+console.log(`Recommended: ${feeRate} sat/vB`);
+```
+
+---
+
+### fetchScriptInfo
+
+Retrieve chain and mempool statistics for a script hash (P2SH / P2WSH).
+
+```ts
+await provider.fetchScriptInfo(hash: string): Promise<BitcoinScriptInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `hash` | `string` | Yes | Script hash (hex, SHA256 of the script) |
+
+---
+
+### fetchScriptUTxOs
+
+Retrieve unspent outputs locked by a script hash.
+
+```ts
+await provider.fetchScriptUTxOs(hash: string): Promise<BitcoinUTxO[]>
+```
+
+---
+
+### fetchScriptTxs
+
+Retrieve transaction history for a script hash, with optional pagination.
+
+```ts
+await provider.fetchScriptTxs(
+  hash: string,
+  lastSeenTxid?: string,
+): Promise<BitcoinTxInfo[]>
+```
+
+> Uses the `after_txid` query parameter for pagination, consistent with `fetchAddressTxs`.
+
+---
+
+### submitTx
+
+Broadcast a signed raw transaction to the Bitcoin network.
+
+```ts
+await provider.submitTx(txHex: string): Promise<string>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `txHex` | `string` | Yes | Signed raw transaction in hex format |
+
+**Returns:** The broadcast transaction ID (64-char hex).
+
+**Example:**
+
+```ts
+const txid = await provider.submitTx(signedRawTxHex);
+console.log(`Broadcast: ${txid}`);
+```
+
+> The `api-key` header is included automatically alongside `Content-Type: text/plain`. Maestro returns the txid as plain text on success.
+
+---
+
+## Complete Example
+
+```ts
+import { MaestroBitcoinProvider } from "@meshsdk/provider";
+import { BitcoinHeadlessWallet, AddressPurpose } from "@meshsdk/wallet";
+
+async function sendBitcoin() {
+  const provider = new MaestroBitcoinProvider({
+    apiKey: "your-maestro-api-key",
+    network: "mainnet",
+  });
+
+  const wallet = await BitcoinHeadlessWallet.fromMnemonic({
+    network: "Mainnet",
+    mnemonic: ["your", "twelve", "word", "mnemonic", "phrase", "here", "..."],
+    provider,
+  });
+
+  // Check balance
+  const balance = await wallet.getBalance();
+  console.log(`Balance: ${balance.total} sats`);
+
+  // Get receive address
+  const [address] = await wallet.getAddresses([AddressPurpose.Payment]);
+  console.log(`Address: ${address.address}`);
+
+  // Send to a recipient
+  const txid = await wallet.signTransfer([
+    { address: "bc1q...", amount: 10_000 }, // satoshis
+  ]);
+  console.log(`Sent: ${txid}`);
+}
+```
+
+## References
+
+- [Maestro Bitcoin API Documentation](https://docs.gomaestro.org/bitcoin) - Official API reference and endpoint documentation
+- [Maestro Platform](https://www.gomaestro.org/) - Enterprise blockchain infrastructure for Bitcoin, Cardano, and Dogecoin
+- [Blockstream Esplora API](https://github.com/Blockstream/esplora/blob/master/API.md) - The Esplora spec that Maestro's Bitcoin API is compatible with
+
+## Related
+
+- <Link href="/providers/bitcoin-blockstream">Blockstream Bitcoin Provider</Link> - Free alternative, no API key required
+- <Link href="/apis/wallets/bitcoin/headless-wallet">Bitcoin Headless Wallet</Link> - Use this provider with a self-custodial HD wallet
+- <Link href="/providers/maestro">Maestro Cardano Provider</Link> - Maestro's Cardano provider for the same infrastructure
+- <Link href="/providers">All Providers</Link> - Compare all available providers

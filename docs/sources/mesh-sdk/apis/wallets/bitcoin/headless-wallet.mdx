@@ -1,0 +1,378 @@
+---
+title: "Bitcoin Headless Wallet"
+description: "A fully self-custodial HD Bitcoin wallet for Node.js and browser environments — no extension required."
+icon: WalletIcon
+---
+
+`BitcoinHeadlessWallet` is a software HD wallet built on BIP-39 / BIP-32. It derives addresses, signs messages and transactions, fetches chain data, and broadcasts — all without requiring any browser extension.
+
+It supports both **testnet** and **mainnet**, and can be initialized from a mnemonic phrase, BIP-39 entropy, or a raw private key.
+
+> **Provider note** — Chain operations (`getBalance`, `fetchUTXOs`, `signTransfer`, `signPsbt` with `broadcast: true`) require an `IBitcoinProvider`. Ready-to-use implementations are available in `@meshsdk/provider`: `BlockstreamBitcoinProvider` (no API key) and `MaestroBitcoinProvider` (enterprise, API key required). See [Provider Setup](#provider-setup) below.
+
+---
+
+## Initialize Wallet
+
+### From Mnemonic
+
+The most common initialization path. Derives a BIP-84 (P2WPKH) and BIP-86 (P2TR) key tree from the phrase.
+
+```ts
+import { BitcoinHeadlessWallet } from "@meshsdk/wallet";
+import { BlockstreamBitcoinProvider } from "@meshsdk/provider";
+
+const provider = new BlockstreamBitcoinProvider("testnet"); // "mainnet" | "testnet"
+
+const wallet = await BitcoinHeadlessWallet.fromMnemonic({
+  network:  "Testnet4",   // "Mainnet" | "Testnet4"
+  mnemonic: ["word1", "word2", "..."], // 12 or 24 BIP-39 words
+  provider,               // optional — omit for offline / sign-only usage
+  account:  0,            // optional BIP-32 account index (default 0)
+  password: "",           // optional BIP-39 passphrase (default "")
+});
+```
+
+### From Entropy
+
+If you store entropy rather than the phrase itself:
+
+```ts
+const wallet = await BitcoinHeadlessWallet.fromEntropy({
+  network:  "Mainnet",
+  entropy:  "a1b2c3d4...", // 16–32 byte hex string (BIP-39 entropy)
+  provider,
+});
+```
+
+### From Private Key
+
+For importing a single key (useful for testing or hardware-derived keys). Accepts either a 32-byte hex string or a WIF-encoded key.
+
+```ts
+// 32-byte hex
+const wallet = await BitcoinHeadlessWallet.fromPrivateKey({
+  network:    "Testnet4",
+  privateKey: "0123456789abcdef...", // 64 hex chars
+  provider,
+});
+
+// WIF
+const wallet = await BitcoinHeadlessWallet.fromPrivateKey({
+  network:    "Mainnet",
+  privateKey: "5Kb8kLf9zgWQnogidDA76MzPL6TsZZY36hWXMssSzNydYXYB9KF",
+  provider,
+});
+```
+
+---
+
+## Get Network
+
+```ts
+const network = await wallet.getNetwork();
+// "Mainnet" | "Testnet4"
+```
+
+---
+
+## Get Addresses
+
+Returns the default receive addresses (index 0, external chain) for the requested purposes.
+
+```ts
+import { AddressPurpose } from "@meshsdk/wallet";
+
+const addresses = await wallet.getAddresses([
+  AddressPurpose.Payment,   // P2WPKH — BIP-84 path m/84'/0'/0'/0/0
+  AddressPurpose.Ordinals,  // P2TR   — BIP-86 path m/86'/0'/0'/0/0
+]);
+```
+
+Example response:
+
+```json
+[
+  {
+    "address": "tb1q...",
+    "publicKey": "02abc...",
+    "purpose": "payment",
+    "addressType": "p2wpkh",
+    "walletType": "software"
+  }
+]
+```
+
+---
+
+## Get Accounts
+
+Identical to `getAddresses` but returns `BitcoinAccount` objects.
+
+```ts
+const accounts = await wallet.getAccounts([AddressPurpose.Payment]);
+```
+
+---
+
+## Get Balance
+
+Sums confirmed and unconfirmed balances across all payment addresses. Returns values **in satoshis** as strings.
+
+*Requires a provider.*
+
+```ts
+const balance = await wallet.getBalance();
+// { confirmed: "100000", unconfirmed: "5000", total: "105000" }
+```
+
+---
+
+## Fetch UTXOs
+
+Returns UTXOs for all addresses under the requested purposes.
+
+*Requires a provider.*
+
+```ts
+const utxos = await wallet.fetchUTXOs([AddressPurpose.Payment]);
+// restrict to payment addresses only when building a send transaction
+```
+
+Each UTXO is annotated with `address` and `purpose`:
+
+```json
+[
+  {
+    "txid": "abc123...",
+    "vout": 0,
+    "value": 50000,
+    "address": "tb1q...",
+    "purpose": "payment",
+    "status": { "confirmed": true, "block_height": 840000 }
+  }
+]
+```
+
+---
+
+## Get Transaction History
+
+Returns transactions across the requested purposes, sorted newest-first.
+
+*Requires a provider.*
+
+```ts
+const txs = await wallet.getTransactionHistory({
+  purposes:     [AddressPurpose.Payment],
+  lastSeenTxid: "abc123...", // optional — for pagination
+});
+```
+
+---
+
+## Sign Message
+
+Signs a message using [BIP-137](https://github.com/bitcoin/bips/blob/master/bip-0137.mediawiki) ECDSA compact format (deterministic via RFC 6979).
+The signature is 65 bytes, base64-encoded.
+
+```ts
+import { MessageSigningProtocols } from "@meshsdk/wallet";
+
+const result = await wallet.signMessage(
+  "tb1q...",            // must be a managed address
+  "Hello, Bitcoin!",
+  MessageSigningProtocols.ECDSA,
+);
+
+// {
+//   signature:   "H...(base64)",
+//   messageHash: "...(hex)",
+//   address:     "tb1q...",
+//   protocol:    "ECDSA"
+// }
+```
+
+> BIP-322 (Schnorr / Taproot) is not yet supported and will throw `UnsupportedProtocol`.
+
+---
+
+## Verify Message
+
+Verifies a BIP-137 ECDSA signature locally. Returns a rich result object — no network call required.
+
+```ts
+const result = await wallet.verifyMessage(
+  "tb1q...",
+  "Hello, Bitcoin!",
+  signatureBase64,
+);
+
+if (result.valid) {
+  console.log("Signer public key:", result.recoveredPublicKey);
+} else {
+  console.log("Failed:", result.reason);
+}
+```
+
+---
+
+## Sign Transfer
+
+Selects UTXOs, builds a PSBT, signs, and broadcasts in one call. Returns the broadcast **txid**.
+
+*Requires a provider.*
+
+```ts
+const txid = await wallet.signTransfer([
+  { address: "tb1q...", amount: 10_000 }, // satoshis
+]);
+// "a1b2c3..." (64-char txid)
+```
+
+Multi-recipient:
+
+```ts
+const txid = await wallet.signTransfer([
+  { address: "tb1q...", amount: 10_000 },
+  { address: "tb1p...", amount: 25_000 },
+]);
+```
+
+**UTXO selection strategy:** largest-first.
+**Fee rate:** fetched live from the provider (6-block target); falls back to 2 sat/vB if the fee API is unavailable.
+**RBF:** all inputs use sequence `0xFFFFFFFD`.
+**Dust:** change outputs below 546 sats are dropped.
+
+---
+
+## Sign PSBT
+
+Signs an externally-constructed PSBT. Accepts a base64-encoded PSBT string. Useful for integrating with external transaction builders (e.g. `@scure/btc-signer`, `bitcoinjs-lib`).
+
+```ts
+const result = await wallet.signPsbt({
+  psbt:      base64Psbt,
+  broadcast: false, // true = sign + broadcast, returns txid
+});
+// returns signed PSBT (base64) when broadcast=false
+// returns txid when broadcast=true
+```
+
+You can also specify which inputs to sign when not all inputs belong to this wallet:
+
+```ts
+const result = await wallet.signPsbt({
+  psbt:       base64Psbt,
+  signInputs: { "tb1q...": [0, 2] }, // address → input indices
+  broadcast:  true,
+});
+```
+
+---
+
+## Address Derivation (HD-only)
+
+These methods are available on `BitcoinHeadlessWallet` and are **not** available on browser extension wallets.
+
+### Derive a Range of Addresses
+
+```ts
+const addresses = wallet.getAddressesByPurpose(
+  AddressPurpose.Payment,
+  0,   // start index (default 0)
+  20,  // count (default 20)
+  0,   // chain: 0 = external/receive, 1 = internal/change
+);
+// DerivedBitcoinAddress[] — includes derivationPath, change, index
+```
+
+### Find a Managed Address
+
+Scans the derivation path to locate an address. Returns the full `DerivedBitcoinAddress` (with `change` and `index`) or `undefined`.
+
+```ts
+const found = wallet.findManagedAddress(
+  "tb1q...",            // address to search for
+  AddressPurpose.Payment,
+  20,                   // maxGap (default 20)
+);
+```
+
+---
+
+## Export Extended Public Keys
+
+Export account-level public keys for watch-only wallets or third-party tools.
+
+```ts
+// BIP-84 P2WPKH account key
+// returns xpub (mainnet) or tpub (testnet)
+const xpub = wallet.getAccountXpub();
+
+// BIP-86 P2TR / Taproot account key
+// returns xpub (mainnet) or tpub (testnet)
+const taprootXpub = wallet.getTaprootXpub();
+
+// BIP-84 with zpub/vpub version prefix
+// returns zpub (mainnet) or vpub (testnet)
+const zpub = wallet.getAccountZpub();
+```
+
+---
+
+## Provider Setup
+
+`@meshsdk/wallet` exports the `IBitcoinProvider` interface.
+`@meshsdk/provider` ships two ready-to-use implementations:
+
+| Provider | Package | API key | Network |
+|----------|---------|---------|---------|
+| `BlockstreamBitcoinProvider` | `@meshsdk/provider` | None (free) | mainnet / testnet |
+| `MaestroBitcoinProvider` | `@meshsdk/provider` | Required | mainnet / testnet |
+
+Both implement `IBitcoinProvider` and are plug-and-play with `BitcoinHeadlessWallet`.
+
+### Blockstream (no API key)
+
+Uses the public [Blockstream Esplora](https://github.com/Blockstream/esplora/blob/master/API.md) API — ideal for development, testing, and low-volume production.
+
+```ts
+import { BitcoinHeadlessWallet } from "@meshsdk/wallet";
+import { BlockstreamBitcoinProvider } from "@meshsdk/provider";
+
+const provider = new BlockstreamBitcoinProvider("testnet"); // "mainnet" | "testnet"
+
+const wallet = await BitcoinHeadlessWallet.fromMnemonic({
+  network:  "Testnet4",
+  mnemonic: ["word1", "word2", "..."],
+  provider,
+});
+
+const balance = await wallet.getBalance();
+// { confirmed: "100000", unconfirmed: "0", total: "100000" }
+```
+
+### Maestro (API key required)
+
+Uses [Maestro's](https://docs.gomaestro.org/bitcoin) Esplora-compatible Bitcoin API — enterprise-grade, higher rate limits, mempool monitoring.
+
+```ts
+import { BitcoinHeadlessWallet } from "@meshsdk/wallet";
+import { MaestroBitcoinProvider } from "@meshsdk/provider";
+
+const provider = new MaestroBitcoinProvider({
+  apiKey:  "your-maestro-api-key",
+  network: "mainnet", // "mainnet" | "testnet"
+});
+
+const wallet = await BitcoinHeadlessWallet.fromMnemonic({
+  network:  "Mainnet",
+  mnemonic: ["word1", "word2", "..."],
+  provider,
+});
+
+const txid = await wallet.signTransfer([
+  { address: "bc1q...", amount: 10_000 },
+]);
+```

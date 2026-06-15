@@ -1,6 +1,6 @@
 ---
-title: "Cardano Blockchain Providers"
-description: "Connect to the Cardano blockchain with Blockfrost, Koios, Ogmios, Maestro, and UTxO RPC. Unified provider interface for data fetching and transaction submission."
+title: "Blockchain Providers"
+description: "Connect to Cardano with Blockfrost, Koios, Ogmios, Maestro, UTxO RPC, and Bitcoin with Blockstream, and more. Unified provider interface for data fetching and transaction submission."
 icon: CloudIcon
 ---
 
@@ -12,11 +12,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-Providers are the bridge between your application and the Cardano blockchain. They handle data fetching, transaction submission, and blockchain queries so you can focus on building your application.
+Providers are the bridge between your application and the blockchain. They handle data fetching, transaction submission, and blockchain queries so you can focus on building your application.
 
 ## Overview
 
 MeshJS supports multiple blockchain data providers, each with different strengths:
+
+### Cardano Providers
 
 | Provider | Best For | Key Features |
 |----------|----------|--------------|
@@ -29,6 +31,13 @@ MeshJS supports multiple blockchain data providers, each with different strength
 | [Hydra](/providers/hydra) | Layer 2 scaling | High throughput, low latency |
 | [Offline Fetcher](/providers/offline-fetcher) | Testing | No network required, mock data |
 | [Offline Evaluator](/providers/offline-evaluator) | Script testing | Plutus evaluation, cost analysis |
+
+### Bitcoin Providers
+
+| Provider | Best For | Key Features |
+|----------|----------|--------------|
+| [Blockstream](/providers/bitcoin-blockstream) | Development & prototyping | No API key, free public Esplora API |
+| [Maestro Bitcoin](/providers/bitcoin-maestro) | Production applications | Enterprise-grade, higher rate limits |
 
 ## Quick Start
 
@@ -103,6 +112,10 @@ interface IEvaluator {
 
 **For Layer 2 applications:**
 - Use [Hydra](/providers/hydra) for high-throughput, low-latency transactions
+
+**For Bitcoin applications:**
+- Use [Blockstream](/providers/bitcoin-blockstream) for free, zero-config access to mainnet and testnet
+- Use [Maestro Bitcoin](/providers/bitcoin-maestro) for enterprise rate limits and production SLAs
 
 ## Available Providers
 

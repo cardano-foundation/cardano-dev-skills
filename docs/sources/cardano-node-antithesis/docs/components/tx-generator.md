@@ -92,7 +92,7 @@ Request kinds:
 - `{"snapshot":null}` — read-only: returns population size, percentile
   cuts of the UTxO value distribution, current tip slot, and
   `lastTxId`. Used by `eventually_population_grew.sh` and
-  `finally_pressure_summary.sh`.
+  `eventually_pressure_summary.sh`.
 - `{"ready":null}` — read-only: returns indexer-ready and
   faucet-known flags.
 
@@ -182,7 +182,7 @@ In `components/tx-generator/composer/tx-generator/`:
 | `parallel_driver_transact.sh`         | Fires one `transact` request per tick.                                                     |
 | `parallel_driver_refill.sh`           | Fires one `refill` request per tick (lower composer weight than transact).                 |
 | `eventually_population_grew.sh`       | Snapshots populationSize and asserts `Sometimes` it has grown. Gated on `lastTxId` being non-null so the assertion never fires before any tx has been attempted. |
-| `finally_pressure_summary.sh`         | End-of-run pressure summary (population size + UTxO value percentiles + tip slot).         |
+| `eventually_pressure_summary.sh`      | Post-workload pressure summary (population size + UTxO value percentiles + tip slot).      |
 | `helper_sdk_lib.sh`                   | Shared SDK helpers: `sdk_reachable`, `sdk_sometimes`, `sdk_unreachable`. All scripts source this. |
 
 All composer scripts use `set -u` (NOT `set -e`) and **always exit 0**.

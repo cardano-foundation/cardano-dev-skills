@@ -1,0 +1,470 @@
+# Scalus Blueprint Examples — Bug Review & Style-Unification Plan
+
+Scope: the 21 Cardano Blueprint use cases
+(<https://github.com/cardano-foundation/cardano-template-and-ecosystem-monitoring>)
+as implemented under `scalus-examples/jvm/src/main/scala/scalus/examples/`.
+Reference style = **HTLC** (`htlc/`). Out of scope (not blueprint templates):
+`setbench`, `cape`, `bilinearAccumulator`, `linkedlist`, `buidlerfest`, `knights`, `Groth16`,
+`HelloCardano`, `MembershipToken`, `PubKeyValidator`, `MintingPolicy`.
+
+> Status: **PLAN ONLY — no source edits made.** Bugs marked ✅ were spot-checked against source
+> by the reviewer; others are high-confidence agent findings with precise `file:line` evidence and
+> should be re-verified before fixing.
+
+---
+
+## 0. Template → directory map
+
+| # | Template | Directory | On-chain? | Notes |
+|---|----------|-----------|-----------|-------|
+| 1 | Bet | `betting/` | yes | |
+| 2 | Simple transfer | `simpletransfer/` | yes | no Transactions file |
+| 3 | Token transfer | — | — | **appears unimplemented** (no native-token transfer example) |
+| 4 | HTLC | `htlc/` | yes | **gold standard, clean** |
+| 5 | Escrow | `escrow/` | yes | extra `EscrowOffchain.scala` (Bloxbean) |
+| 6 | Auction | `auction/` | yes | monolith + `UnfixedAuction` (intentionally vulnerable) |
+| 7 | Crowdfund | `crowdfunding/` | yes | monolith + `Endpoints` |
+| 8 | Vault | `vault/` | yes | |
+| 9 | Vesting | `vesting/` | yes | |
+| 10 | Storage | `storage/` | **no** | off-chain only (by design) |
+| 11 | Simple wallet | `simplewallet/` | **no** | off-chain only (by design) |
+| 12 | Price Bet | `pricebet/` | yes | + oracle validator |
+| 13 | Payment splitter | `paymentsplitter/` | yes | Naive + Optimized |
+| 14 | Lottery | `lottery/` | yes | |
+| 15 | Constant-product AMM | `amm/` | yes | `AmmOffchain` naming |
+| 16 | Upgradeable Proxy | `upgradeableproxy/` | yes | `Offchain` naming, no Contract obj |
+| 17 | Factory | `factory/` | yes | `FactoryExample.scala` naming |
+| 18 | Decentralized identity | `decentralizedidentity/` | yes | |
+| 19 | Editable NFT | `editablenft/` | yes | CIP-68 |
+| 20 | Anonymous Data | `anonymousdata/` | **no** | off-chain only (datum-hash commitment; rewritten this branch) |
+| 21 | Atomic Transactions | `atomictransactions/` | **no** | off-chain only (by design) |
+
+---
+
+## 1. The unified style ("HTLC standard")
+
+Derived from `htlc/` + `CLAUDE.md`. This is the target every example is measured against.
+
+### On-chain examples — 3 files + README
+- **`XxxContract.scala`**: `object XxxContract extends Contract`; `private given Options = Options.release`;
+  `lazy val compiled = PlutusV3.compile(XxxValidator.validate)`;
+  `lazy val blueprint = Blueprint.plutusV3[Config, Action](title, description, version,
+  license = Some("Apache License Version 2.0"), compiled)`.
+- **`XxxValidator.scala`**: `@Compile object XxxValidator`; datum
+  `case class Config(...) derives FromData, ToData`; redeemer
+  `enum Action derives FromData, ToData`; error strings as
+  `inline val Foo = "..."` collected at the bottom; checks via `require(cond, Foo)`; imports
+  `scalus.cardano.onchain.plutus.v3.*` and `.prelude.*`. **Do not** add empty `@Compile object Config` /
+  `@Compile object Action` companions — `derives FromData, ToData` is sufficient and the empty `@Compile`
+  companions are redundant (verified by clean build; removed from htlc + vesting on this branch).
+- **`XxxTransactions.scala`**: `case class XxxTransactions(env: CardanoInfo, contract: PlutusV3[Data => Unit])`;
+  pure `TxBuilder` methods returning `Transaction`; **no** provider / `Future` / `.submit` / `Thread.sleep`;
+  `private val scriptAddress`, `private val builder`.
+- **`README.md`**: short, with a "How it works" section.
+
+### Off-chain-only examples (`storage`, `simplewallet`, `atomictransactions`, `anonymousdata`)
+Do **not** force the Contract/Validator triad. Instead unify on a single off-chain convention:
+`case class XxxTransactions(env: CardanoInfo)` with `TxBuilder` methods returning `Transaction`;
+no `object`-with-`???`-placeholder shape; no hardcoded `CardanoInfo.mainnet`. (`anonymousdata` was
+rewritten into this category this branch — a datum-hash commitment store, `AnonymousDataTransactions(env)`.)
+
+### Cross-cutting cleanups (apply everywhere)
+1. **Hoist error strings** to `inline val` constants — near-universal deviation today.
+2. **`license = Some("Apache License Version 2.0")`** — almost all currently `None`.
+3. Remove leftover `// TODO`, `// ???`, `// Vxxx fix` mutation tags, section-banner ASCII comments.
+4. Remove dead code: unused `given Eq[Config]` (escrow, vesting, …), unused error constants,
+   `import scalus.{show as _, *}`, redundant `import …v3.Validator` already covered by `…v3.*`.
+5. Brace/indentation per `CLAUDE.md` (`{}` for top-level/multi-line bodies; indentation for
+   `if`/`match`/`for` under 20 lines; `then`/`do`).
+6. **Tests:** keep exact `ExUnits` assertions and **re-baseline them on every validator change**
+   (user decision, 2026-06-12: budget movement should be tracked, so a shifted assertion is the
+   intended signal — do not relax to upper bounds). Re-baseline fee/script-size the same way. Always
+   **add negative/adversarial tests** (see §3).
+7. **Follow the project Scala style** (`CLAUDE.md`) and **prefer the Scalus standard library** over
+   hand-rolled equivalents (user directive, 2026-06-15): when the on-chain prelude / ledger types already
+   provide an identical or semantically-equivalent function (e.g. `===`/`!==`, `Value` ops, `Interval`
+   helpers, `List`/`SortedMap`/`Option` combinators, `getValidityStartTime`), use it instead of a local
+   re-implementation. Apply to every example as it is touched.
+
+### Two open style decisions (need your call — see questions at end)
+- **(A) Validator shape.** HTLC uses an explicit `inline def validate(scData) { ctx.scriptInfo match … }`.
+  But ~15 examples use the `Validator` / `DataParameterizedValidator` base trait (overriding `spend`/`mint`).
+  The trait pattern is the de-facto norm and is arguably cleaner. Recommendation: **adopt the base-trait
+  pattern as the standard and update HTLC's description to match**, rather than rewriting 15 validators.
+- **(B) Datum/redeemer names.** HTLC uses `Config`/`Action`. Many examples use domain names
+  (`CampaignDatum`, `ProductDatum`, `AmmDatum`, `PricebetState`). These are often *clearer*.
+  Recommendation: **keep meaningful domain names**; only require the redeemer to be an `enum` named
+  by its role and datum/redeemer to `derive FromData, ToData`. Do not blanket-rename to `Config`/`Action`.
+
+---
+
+## 2. Bug catalogue (severity-ranked)
+
+Legend: ✅ = reviewer-verified against source. Sev = High/Med/Low. Conf = agent confidence.
+
+### Critical / High — value-preservation & authorization holes (the dominant theme)
+These are mostly **missing value-preservation** or **missing double-satisfaction guards**, hidden because
+every example's tests build only honest transactions.
+
+| Example | Sev | ✅ | Finding (file:line) |
+|---------|-----|----|---------------------|
+| **AMM** | Critical | ✅ | Datum reserves never tied to pool output `Value` — `Value` imported but unused in `AmmValidator.scala`; swap/deposit/redeem validate only the datum transition. Pool fully drainable. Also: spend doesn't require the LP mint to occur, and the mint check sums all asset names under the policy (LP name unconstrained). |
+| **Lottery** | Critical | ✅ | Winning-reveal branches (`LotteryValidator.scala:199-204`, `:241-247`) check only preimage hash + parity — **no output/value/destination/signature** check. Pot can be sent anywhere by anyone who saw the preimage. Empty-state reveals (`:100-181`) also don't preserve the locked value. No reveal deadline → reveal/timeout windows overlap. |
+| **Crowdfunding** | Critical | ✅ FIXED | `handleReclaimSpend`: `reclaimerOutputIndices` length/uniqueness unchecked; `zip` truncation lets an attacker reclaim all donation UTxOs while paying out only a prefix, sweeping the rest as change. **Fixed** (this branch): require equal length + `requireDistinct(reclaimerOutputIndices)`; anyone-can-trigger is by design (funds routed to each donor). |
+| **AnonymousData** | Critical | ✅ REWRITTEN | The whole on-chain design was unsound: Update/Delete let any member overwrite/delete anyone's entry, and even after fixing that, on-chain writes can't be anonymous (the signing tx links the writer). **Rewritten** (this branch) to the literal rosetta `anonymous_data` spec using a native Cardano primitive — a **datum hash** commitment to `Data.List([B(nonce), data])`, fully off-chain, no validator. Store = a UTxO carrying only the hash; retrieve = reveal the preimage and verify off-chain. Highlights that this use case needs no on-chain execution. |
+| **EditableNft** | Critical | ✅ | Seed UTxO never bound: `EditableNftValidator.scala:65` checks `tx.inputs.get(seedIndex).isDefined` but never compares to `param.seed` → one-shot mint defeated, NFT uniqueness broken. |
+| **Vault** | High | | Wait-time bypass: deadline derived from `getValidityStartTime` (lower bound / 0 if unbounded), so a backdated `validFrom` makes `finalize` pass immediately (`VaultValidator.scala:139-151`). Also `deposit` doesn't constrain `status` and `finalize` has no signature check → anyone flips Idle→Pending and forces payout. Plus double satisfaction across same-owner vaults. README claims a recovery key that doesn't exist. |
+| **PriceBet** | High | ✅ FIXED | `Win` authenticated the oracle reference input only by script credential, never by a beacon NFT, so an attacker could plant a fake oracle UTxO (winning rate, no beacon) at the oracle address and reference it. **Fixed** (this branch): `Win` now requires the oracle reference input to hold the beacon (`quantityOf(oracleScriptHash, OracleBeaconName) === 1`), with the beacon name a hardcoded contract constant; the beacon is a one-shot mint, so only the genuine oracle carries it. |
+| **DecentralizedIdentity** | High | ✅ FIXED | `PublishAttribute` accepted any datum-shaped delegation at the script address without requiring the delegation token → forged delegation (anyone plants a `DelegationDatum` UTxO and publishes), also defeating revocation. **Fixed** (this branch): `PublishAttribute` now requires the delegation reference input to hold its delegation token (`quantityOf(policyId, delegationTokenName(identityTn, delegatePkh)) === 1`). The token is mintable only via owner-signed `AddDelegate` and burned by `RevokeDelegate`, so possession proves authenticity and makes revocation effective. |
+| **Betting** | High | ✅ FIXED | No timeout/reclaim path (enum had only `Join`/`AnnounceWinner`) → funds lock forever if the oracle goes silent or nobody joins; the README documented a Timeout that wasn't implemented. **Fixed** (this branch): added a `Timeout` action — after expiration a player reclaims, splitting the doubled pot back to both players (or refunding player1 if no one joined), guarded by a single-own-input check so the per-player refund accounting can't be gamed by batching. Off-chain `timeout` builder added. **Follow-up:** the bet NFT is now **burned** on `AnnounceWinner`/`Timeout` (mint policy gained a burn branch), making it a true one-shot — a finished bet's NFT can't be re-locked into a forged bet (e.g. `oracle === player1`); resolves the old `// ???`/`// TODO` notes. (Still open: `AnnounceWinner` double-satisfaction guard.) |
+| **EditableNft** | High | ✅ | CIP-68 labels swapped **and** wrong-encoded: `userNftName="100"`, `refNftName="222"` (CIP-68: 100=ref, 222=user), and `ByteString.fromString("100")` is ASCII bytes, not the 4-byte CIP-68 label `0x000643b0`. Breaks all CIP-68 tooling interop. |
+| **Vesting** | High | ✅ | No single-script-input guard (only `contractOutputs.length === 1` at `:101`, not inputs) → double satisfaction spending two vesting UTxOs with one shared continuing output. Also continuing-output check is lovelace-only → native tokens can be stripped. |
+| **PaymentSplitter** | High | ✅ FIXED | Both validators reconciled only `getLovelace` → native tokens in a contract UTxO could be skimmed by the fee payer (no asset preservation); the Naive validator also missed the `reminder >= 0` check the Optimized one has. **Fixed** (this branch): both validators now `require(input.value.withoutLovelace.isZero)` on each contract input (ADA-only — nothing to skim), and Naive gained `reminder >= 0`. |
+| **Auction** | High (Med conf) | ✅ FIXED | "Fixed" `handleEnd` DS guard counted NFTs only under its own script hash; since each instance is one-shot-parameterized (distinct hash), two same-seller instances ended together weren't detected → cross-instance double satisfaction (seller paid once via a shared `>=` output). The old test only covered the single-script case. **Fixed** (this branch): `handleEnd`'s winner branch now requires the seller payout to carry this auction's `scriptHash` as an inline datum, so two distinct-hash auctions can't share one seller output. New ScriptContext test exercises two genuinely distinct one-shot instances. |
+| **UpgradeableProxy** | High | | Continuation located via `.headOption` and checked against own input value, not bound per-input (`UpgradeableProxy.scala:56-69`); `Call` needs no signature → two same-datum proxy UTxOs share one continuation, attacker pockets the other. |
+
+### Medium / Low
+| Example | Sev | Finding |
+|---------|-----|---------|
+| **Escrow** | Med | ✅ FIXED | Deposit precondition used `!=` against the wrong field (`contractBalance != escrowAmount`): idempotent re-deposit accepted, and if `initializationAmount == escrowAmount` the escrow could never be funded. **Fixed** (this branch): `contractBalance === initializationAmount` (matching the error message's intent). Flipped the existing "known bug" test to assert rejection + added an init==escrow funding test. |
+| **Escrow** | Low | Balance/payout computed over credential-aggregated inputs/outputs → batching fails closed; fragile. |
+| **Betting** | Low | Beacon asset name unconstrained on mint. |
+| **PaymentSplitter** | Low | Payee outputs matched on payment credential only (staking-credential redirect of rewards). |
+| **SimpleTransfer** | Low | ✅ FIXED | `datum.get` instead of `getOrFail` (opaque error on hash/none datum). **Fixed** (this branch): single `datum.getOrFail("Datum not found")` reused. Otherwise on-chain logic is sound (single-own-input guard, value + datum preservation). No ExUnits change (`getOrFail` compiles to the same happy-path cost). |
+| **Vault / many** | Low | `d.get` on datum `Option` instead of `getOrFail(Msg)` in several validators. |
+| **HTLC** | Low | Two error-message strings have inclusive/exclusive wording swapped (`HtlcValidator.scala:81-82`); `finite`/`finiteOrFail` discard the bound's closure flag (relies on ledger convention). Logic is correct. |
+| **Storage** | Low | ✅ FIXED | `// 4-byte big-endian` comment was wrong (`BigInt.toByteArray` is minimal-width) — corrected; bare `throw new Exception` → `IllegalStateException`. No runtime bug. |
+| **SimpleWallet / AtomicTransactions** | Low | ✅ FIXED | Were illustrative `object`s with `???` placeholder addresses + `CardanoInfo.mainnet` (untested, throw on init); the `withdraw` did one bare `.spend` (incomplete); the atomic demo mixed `Value.ada`/`Value.lovelace` (7/9 lovelace, below min-UTxO). **Fixed** (this branch): reshaped both into testable `case class …(env)` builders with real params + Emulator tests. |
+
+**Cross-cutting bug recommendation:** the recurring root causes are (1) **no value-preservation on continuing
+outputs** (validate lovelace only, or validate datum only), and (2) **no "exactly one own script input" guard**
+(double satisfaction). A shared `prelude` helper (e.g. `requireSingleOwnInput`, `requireValuePreserved`) plus a
+reusable adversarial test harness would close most of these and prevent regressions.
+
+---
+
+## 3. Per-example plan
+
+Each entry: **structure changes → bug fixes (if in scope) → cleanups → downstream refs**.
+"Downstream refs" lists tests/docs that break on rename (examples are not MiMa-tracked; no deprecation
+shims needed — they're discovered by package, not enumerated in `build.sbt`).
+
+### htlc — reference (keep as-is, tiny polish)
+- Fix swapped inclusive/exclusive wording in `HtlcValidator.scala:81-82`.
+- Optionally add a one-line README note that committer ≠ receiver for cross-chain swaps.
+- Refs: `HtlcTest.scala` (hardcoded ExUnits/size — candidate to relax).
+
+### betting — ✅ High fund-lock FIXED (missing Timeout implemented, this branch)
+- Bug fixed (TDD): **missing Timeout → permanent fund-lock**. The enum had only `Join`/`AnnounceWinner`, so if the
+  oracle never announced (or nobody joined) the pot was locked forever — and the README promised a Timeout that
+  didn't exist. Added `Action.Timeout`: after expiration a player reclaims, with the validator enforcing the refund
+  routing — if `player2` joined, each player must get back ≥ their stake (half the doubled pot, summed by address via
+  `totalPaidTo`); otherwise player1 is refunded the full pot. Guarded by a single-own-input check
+  (`findOwnInputsByCredential(...).length === 1`) so the address-sum accounting can't be gamed by batching two bets.
+  Off-chain `timeout` builder added (splits the pot, beacon rides with player1). Also dropped the unused
+  `import scalus.{show as _, *}`.
+- Tests: 3 new ScriptContext tests (reclaim succeeds after expiry; fails before expiry; fails if a player isn't
+  refunded) + 1 emulator end-to-end reclaim test. Re-baselined the 5 existing exact ExUnits (the extra enum case
+  shifted init/join/announce in both suites) and pinned the deterministic Timeout budget at the ScriptContext level
+  (246934/83506481); the emulator reclaim test omits an exact-ExUnits assertion because random keys + coin selection
+  make the balanced two-payout tx vary run to run.
+- **Follow-up (this branch): one-shot NFT burn.** The bet NFT is now **burned** on `AnnounceWinner`/`Timeout` — the
+  mint policy gained a burn branch (`-1` is allowed; the spend validator authorizes the end), and both spend branches
+  `require(tx.mint.quantityOf(scriptHash, betToken) === -1)`. This makes the token a true one-shot: a finished bet's
+  NFT (previously handed to the winner / kept by a player) can no longer be re-locked at the script with a forged
+  config to bypass the init checks (e.g. `oracle === player1`). The off-chain `win`/`timeout` burn the token and pay
+  only lovelace. Resolves the old `// ???: ...malformed bet, oracle === player1` / `// TODO: ...burnt` notes. New
+  "announce without burning fails" test; re-baselined the betting ExUnits (init got cheaper from the mint-policy
+  restructure; announce/timeout rose from the burn check) on both compiler generations.
+- **Still open** (deferred, not the fund-lock headline): `AnnounceWinner` double-satisfaction guard (per-input
+  lovelace `>=` against a possibly-shared output); hoist error strings to `inline val`; Apache license.
+- Refs: `BettingValidatorTest`, `BettingTransactionTest`, `docs/Examples.md`, `docs/design/cce-generalized-report.md`.
+
+### simpletransfer — ✅ Low `datum.get` FIXED (this branch)
+- Bug fixed: replaced the three `datum.get` uses with a single `datum.getOrFail("Datum not found")` (clear error on a
+  missing/hash datum). The on-chain logic was already sound — single-own-input guard, value + datum preservation,
+  positive-amount and all-vs-partial-withdraw checks. 8 tests pass, no ExUnits change (`getOrFail` is the same
+  happy-path cost as `.get`).
+- **Still open** (deferred, structural — keep domain name `Parties` per decision B): **add
+  `SimpleTransferTransactions.scala`** (deposit/withdraw builders — currently no off-chain code); remove the
+  redundant `Validator` import.
+- Refs: `SimpleTransferValidatorTest`.
+
+### escrow — ✅ Med deposit-precondition bug FIXED (this branch)
+- Bug fixed (TDD): the deposit precondition was `contractBalance != escrowDatum.escrowAmount` — wrong operator and
+  wrong field vs its own message ("Contract must contain only initialization amount before deposit"). It let a buyer
+  re-deposit onto an already-funded contract (idempotent no-op) and made any escrow with `initializationAmount ==
+  escrowAmount` unfundable. Fixed to `contractBalance === escrowDatum.initializationAmount`. The repo's existing
+  "known bug" test (which asserted the buggy re-deposit *succeeds*) was flipped to assert rejection; added a test that
+  funding works when `init == escrow`. Removed the unused `import scalus.{show as _, *}` (warned). Deposit ExUnits
+  re-baselined (231621/79379490→231352/79337104, identical on both compiler generations so it stays a single value).
+- **Still open** (deferred, not the headline bug): delete `EscrowOffchain.scala` (Bloxbean `main` with
+  mnemonics/`Thread.sleep`/`sys.exit`); remove the unused `given Eq[Config]`; hoist error strings; compute balance
+  from the own input rather than the credential-aggregated sum (Low — batching fragility); reconcile the
+  "three-party/trusted intermediary" README wording vs the two-party implementation.
+- Refs: `EscrowTest`.
+
+### auction — ✅ High cross-instance double satisfaction FIXED (this branch)
+- Bug fixed (TDD): **cross-instance double satisfaction across distinct one-shot auctions**. `handleEnd`'s anti-DS
+  guard counts auction NFTs only under its *own* scriptHash at its *own* address; since each auction is
+  one-shot-parameterized to a unique hash, that guard never sees a sibling auction at a different address. With the
+  seller payout checked only `>=` its own bid, an attacker could end two same-seller auctions in one tx, point both
+  `End` redeemers at a single seller output, and pocket the second bid. The old "FIX VERIFICATION" test gave false
+  assurance — it created both auctions at the *same* script hash, where the per-hash NFT count (=2) catches it. Fix:
+  `handleEnd`'s winner branch now requires the seller payout output to carry **this auction's scriptHash as an inline
+  datum**. Two distinct-hash auctions therefore cannot share one seller output (each demands its own tag), forcing a
+  distinct seller payout per auction. Off-chain `endAuction` (and the manual test end-builders) attach the tag.
+- Tests: new `CrossInstanceDoubleSatisfactionTest` builds two *genuinely distinct* one-shot instances and shows the
+  shared-seller-output attack is rejected (auction A accepts its tag; auction B rejects it). Re-baselined the
+  "end auction with winner" budget on both compiler generations (pre38 3.3.7 + since38 3.8.4); only that path shifted
+  (the new code runs only in the winner branch). 20 auction tests pass on both compilers.
+- **Still open** (deferred, not security): split the 820-line `Auction.scala` monolith into Contract/Validator/
+  Transactions; remove embedded `provider.submit`/`Future` from the builders; hoist error strings; keep
+  `UnfixedAuction.scala` as the teaching vuln (documented).
+- Refs: `AuctionValidatorTest`, `AuctionTestKitTest`, `DoubleSatisfactionAttackTest`, `CrossInstanceDoubleSatisfactionTest`, README.
+
+### crowdfunding — ⚠️ Critical reclaim sweep FIXED (this branch); checked vs rosetta spec + our README
+- Bug fixed (TDD, RED→GREEN): **reclaim zip-truncation / shared-output sweep**. `handleReclaimSpend` paired
+  donations to refund outputs with `donationInputIndices.zip(reclaimerOutputIndices)`, which silently truncates to
+  the shorter list, and never checked the outputs were distinct. An attacker could consume N donations (burning all
+  N tokens, as `verifyDonationsBurned` demands) while supplying only a prefix of refund outputs — or aim several
+  donations at one output — pocketing the surplus as change, with no signature required. Fix: `require` the index
+  lists are equal length **and** added a `requireDistinct(reclaimerOutputIndices)` helper (pairwise-distinct,
+  order-free so it doesn't constrain the off-chain output layout). Two new adversarial validator tests
+  (truncation sweep; shared-output theft) demonstrate both attacks; rosetta + our README confirm reclaim must
+  return every donation to its donor and may be triggered by anyone (correctness is in the routing, not a signer).
+- Cleanups (touched file only): removed the duplicated `// 6.` comment and the redundant `v3.Validator` import
+  (`v3.*` already covers it). No exact-`ExUnits` assertions in the suite (validator test asserts `size > 0`;
+  emulator/scenario assert submit success), so nothing to re-baseline. All 8 emulator/scenario/scalacheck tests
+  (incl. honest multi-donor reclaim) still pass — the fix is fail-closed for distinct donors.
+- **Still open** (deferred, not security-critical theft): monolith split (`Crowdfunding.scala` 759 lines →
+  Contract/Validator + `Endpoints`→`Transactions`, drop `Future`/`provider.submit`); hoist ~40 inline error
+  strings; **Donate NFT/value-preservation** (the continuing campaign output's NFT isn't re-checked in
+  `handleDonateSpend` — a griefing/lock vector, not direct theft); unify datum-`amount` vs lovelace accounting to
+  remove the liveness lock; off-chain `reclaim` builds reclaimer indices with `indexWhere(address)` (first-match),
+  correct only for distinct donors — now fail-closed on-chain for same-donor-twice, harden the builder to emit one
+  distinct output per donation.
+- Refs: `CrowdfundingEmulatorTest`, `CrowdfundingScalaCheckCommandTest`, `CrowdfundingScenarioTest`,
+  `CrowdfundingValidatorTest`, README.
+
+### vault — ✅ security bugs FIXED (this branch); cross-checked vs rosetta spec + our README
+- Bugs fixed: **wait-time bypass** — deadline now anchored to the validity **upper** bound via the stdlib
+  `tx.validRange.to.finiteOrFail(...)` (was `getValidityStartTime`, backdatable → instant finalize); off-chain
+  `withdraw` sets `.validTo` accordingly. **Recovery key** — added a `recoveryKey` field to `State`; `Cancel` now
+  requires the *recovery* signature (not the owner's) and a Pending request — implements the spec's core "survive a
+  stolen owner key" property the README promised. **Deposit status** — `deposit` now requires `status` unchanged
+  (`newDatum.status.toData == datum.status.toData`). `d.get`→`getOrFail`.
+- Style/stdlib: dropped the hand-rolled `addressEquals` for `credential === Credential.PubKeyCredential(...)`;
+  removed fully-qualified names (imports for `OutputDatum`, `ShelleyAddress`, `ByteString`); dropped dead
+  `import scalus.*` / `ScriptCredential` / `Interval` / `Value` imports.
+- Tests: added `recovery key cancels` + `owner cannot cancel` (recovery-key feature); added a `cancel` builder
+  + `lockAndRequest` helper; reworked `validTo` timing; re-baselined 3 ExUnits. 7 tests pass.
+- **Still open** (deferred): typed `PubKeyHash` owner/recovery instead of raw `ByteString`; one-own-input guard in
+  finalize (double satisfaction across same-owner vaults); a `cancel`-only-during-wait-time bound.
+
+### vesting — ✅ DONE (template, this branch)
+- Structure: removed dead `given Eq[Config]` + redundant imports (`scalus.*`, `v3.Validator`); hoisted all error
+  strings to `inline val` constants; fixed the misleading over-withdrawal message; Apache license. (Redeemer kept as
+  `case class Action(amount)` per the "keep domain names" decision.)
+- Bugs fixed (TDD, RED→GREEN): single-own-input guard (double satisfaction); full-`Value` preservation on the
+  continuing output (native-token strip); pin continuing output to the exact own input address (staking-credential
+  redirect). Three new negative tests in `VestingValidatorTest`.
+- Tests: re-baselined two exact `ExUnits` budgets in `VestingTransactionTest` (cost rose because the validator now
+  does more) and updated one negative test to the improved error string. README updated.
+- **Not exercised by this example** (already had the 3-file structure): adding a missing `Contract`/`blueprint`
+  object, `Offchain`/`Endpoints`→`Transactions` renames, monolith splits. A structural example (e.g. upgradeableproxy)
+  should be done next to prove that riskier pattern before scaling.
+
+> **Two operational notes for scaling (learned on vesting):**
+> 1. **Stale incremental compilation gives false test results.** The validator tests JIT-compile the validator from
+>    its SIR; after editing a validator, an incremental run can still show the *old* behavior. Always `clean` (or
+>    confirm the example main recompiled) before trusting a validator test result. Factor the extra time into estimates.
+> 2. **Exact `ExUnits` assertions re-baseline on every validator change.** Decide a suite-wide policy up front:
+>    relax to an upper bound, or re-baseline each time. This branch re-baselined to preserve the existing style.
+
+### storage (off-chain only) — ✅ DONE (this branch)
+- Already conformed (`case class StorageTransactions(env, …)`, tested). Fixed the wrong `// 4-byte big-endian`
+  comment (`BigInt.toByteArray` is minimal-width) and replaced the two bare `throw new Exception` with
+  `IllegalStateException`. (Deferred: passing only fresh UTxOs to the append loop — no runtime bug.)
+- Refs: `StorageTest`, README.
+
+### simplewallet (off-chain only) — ✅ DONE (this branch)
+- Reshaped the `object SimpleWallet`/`MultiSigWallet` (with `???`/`CardanoInfo.mainnet`) into testable
+  `case class SimpleWalletTransactions(env)` (`transfer`, `withdrawAll`) and `case class MultiSigWallet(env, owners,
+  required)` (native-script m-of-n); renamed `SimpleWallet.scala`→`SimpleWalletTransactions.scala`; completed the
+  incomplete `withdraw` (now `withdrawAll`); standardized on `.complete(...).sign(...)`. New `SimpleWalletTest`
+  (transfer, withdrawAll, 2-of-3 multisig accept + 1-of-3 reject).
+- Refs: `SimpleWalletTest`, README.
+
+### pricebet — ✅ Critical fake-oracle hole FIXED (this branch); checked vs rosetta spec
+- Bug fixed (TDD, RED→GREEN): **fake-oracle authentication**. `Win` checked only that the oracle reference input sat
+  at the oracle script address — but anyone can pay a forged `OracleState` (winning rate, no beacon) to that address.
+  `Win` now requires the oracle reference input to hold the beacon NFT
+  (`value.quantityOf(config.oracleScriptHash, OracleBeaconName) === 1`), where `OracleBeaconName` is a hardcoded
+  contract constant (a fixed convention shared with the oracle) rather than a datum/param field. The beacon is a
+  one-shot seeded mint under the oracle's own policy (= its script hash), so only the genuine oracle UTxO carries it.
+  New adversarial test plants a beacon-less fake oracle and asserts `Win` rejects it (RED: it won before the fix).
+  Re-baselined the 3 exact ExUnits (join 172011/58223636, win 150256/48964315, timeout 57875/20048299 — note the
+  branch was also rebased onto the PV11 cost-model update, which moved these independently of the fix).
+- README: fixed the Win-timing wording (`Win` happens *before* the deadline — `!isEntirelyAfter(deadline)` — not
+  after, as the old text claimed) and documented the beacon authentication.
+- **Still open** (deferred): wrap both scripts in `Contract` objects with `Blueprint.plutusV3` (currently bare
+  `def`s, no blueprint); hoist error strings; remove unused `ZeroExchangeRateError`; harden `Join` against
+  multi-input merge; validate `newState` (not inbound state) in oracle `Update`.
+- Refs: `PricebetValidatorTest`.
+
+### paymentsplitter — ✅ High native-token skim FIXED (this branch)
+- Bug fixed (TDD): **native-token skim**. Both validators reconciled only `getLovelace`, so a contract UTxO holding
+  native tokens let the fee payer pocket those tokens for free (outputs reconcile lovelace only, and every output
+  must go to a payee — the fee-payer payee grabs the tokens). Since the splitter splits ADA, both validators now
+  `require(input.resolved.value.withoutLovelace.isZero, "Contract input must contain only ADA")` on each contract
+  input — there's nothing to skim. Also added the missing `reminder >= 0` to the Naive validator (parity with
+  Optimized). New adversarial test: a contract input carrying a native token is rejected (`only ADA`).
+- Tests/ExUnits: the per-input guard shifts the success-path cost, so re-baselined all exact budgets on **both
+  compiler generations** — `pre38` (Scala 3.3.7, measured locally) and `since38` (Scala 3.8.4, measured via
+  `++3.8.4`) — across `NaivePaymentSplitterValidatorTest` and `OptimizedPaymentSplitterValidatorTest` (reward + spend
+  budgets).
+- **Still open** (deferred, not security): refactor `PaymentSplitterContract` to `Contract` + `Blueprint.plutusV3`;
+  rename `PaymentSplitterValidator.scala`→`NaivePaymentSplitterValidator.scala`; add `PaymentSplitterTransactions`
+  (off-chain lives only in tests); hoist error strings; remove `// TODO: think`; payee outputs matched on payment
+  credential only (staking-credential redirect — Low).
+- Refs: `NaivePaymentSplitterValidatorTest`, `OptimizedPaymentSplitterValidatorTest`, `PaymentSplitterTxBuilderTest`,
+  `PaymentSplitterTestCases`, README.
+
+### lottery — ⚠️ security bugs FIXED (this branch); checked against rosetta spec
+- **Corrected the review's own framing** (verified against the rosetta Solidity reference): the winning-reveal
+  branches require a *still-secret* preimage, so only the winner can execute them — no payout enforcement is needed
+  there (the earlier "pot can be sent anywhere" claim was wrong for those). The reference's winner is
+  `(len0 + len1) % 2` — **length-based, exactly like ours** — so the winner function is faithful and was kept
+  (its cryptographic weakness is now documented, not "fixed").
+- Bugs fixed (TDD): **Timeout payout theft** — the Timeout preimage is already public (revealed to reach the state),
+  so anyone could claim the pot; now pinned to the stored revealer pkh. **Reveal/timeout overlap** — winning reveals
+  must be `isEntirelyBefore(revealDeadline)` so they can't race a post-deadline Timeout. New theft negative test;
+  ExUnits re-baselined (whole-script cost shift hit 9 assertions).
+- **Documented simplifications** vs rosetta: symmetric reveal order (vs fixed P0-then-P1), single `revealDeadline`
+  (vs `end_join`/`end_reveal`), atomic multisig join (no `end_join` no-show refund).
+- **Still open** (style, not security): hoist error strings; factor the four near-identical reveal/lose branches
+  (~120 lines dup); Apache license. The empty-state reveals DO preserve value (continuation checked) — not a bug.
+- Refs: `LotteryValidatorTest`, `LotteryScenarioTest`, `LotteryScalaCheckCommandTest`.
+
+### amm — ⚠️ Critical drain FIXED (this branch); secondary items remain
+- Bug fixed (TDD): **value-preservation** — `spend` now binds the new datum reserves to the continuing pool
+  output's actual token quantities (`poolOutput.value.quantityOf(t0/t1) === newDatum.r0/r1`), closing the
+  full-drain hole where only the datum transition was checked. New negative test under-funds the continuation.
+- **Still open** (secondary, not yet done): cross-bind spend↔mint LP deltas (spend doesn't require the LP mint to
+  occur); restrict the LP asset name (the mint endpoint sums all names under the policy); validate fee params;
+  hoist remaining error strings; convert `AmmContract` (bare `lazy val`, no blueprint) to `object … extends
+  Contract` + `Blueprint.plutusV3`; rename `AmmOffchain.scala`→`AmmTransactions.scala`.
+- Refs: `AmmTest` (`AmmContract.script`/`.withErrorTraces`, `AmmOffchain(...)`).
+
+### upgradeableproxy — ✅ DONE (structural template, this branch)
+- Structure: added `UpgradeableProxyContract.scala` (`object … extends Contract` + `Blueprint.plutusV3[ProxyDatum,
+  ProxyRedeemer]`, Apache license); renamed `UpgradeableProxy.scala`→`UpgradeableProxyValidator.scala` and
+  `UpgradeableProxyOffchain.scala`→`UpgradeableProxyTransactions.scala`; moved compilation out of the Transactions
+  file (was `ProxyCompilation`/`lazy val ProxyContract`) into the Contract object; dropped redundant `scalus.*` +
+  `v3.Validator` imports.
+- Bug fixed (TDD, RED→GREEN): single-own-input guard (`findOwnInputsByCredential(...).length === 1`) closes the
+  double-satisfaction hole where two proxy inputs shared one continuation. New negative test demonstrates the attack.
+- Refs updated: `UpgradeableProxyTest` (`ProxyContract.withErrorTraces`→`UpgradeableProxyContract.compiled.withErrorTraces`);
+  README file-name references + one-input constraint note.
+- **Proved the riskier structural pattern** (add missing Contract/blueprint object + file renames + compilation move)
+  on top of vesting's security+style pattern. Ready to scale to the remaining examples.
+
+### factory — ✅ creator-authorization hardening DONE (this branch); core logic verified sound
+- Verified the on-chain logic is sound: one-shot NFT (token name = `blake2b_256(seedUtxo)`, seed consumed), and
+  burning the NFT requires spending the product UTxO, which `validateSpend` gates on `datum.creator` signing. No
+  exploitable hole — the review's items were hardening.
+- Hardened (this branch): both `validateCreate` and `validateDestroy` derived `creator = tx.signatories.head` and
+  did `isSignedBy(head)`, which is **vacuous** (head is always a signatory) and crashes opaquely on empty
+  signatories. Now `validateCreate` authorizes against the **product datum's creator** (`isSignedBy(productDatum.
+  creator)`) — order-independent and meaningful (can't attribute a product to a non-signer); the `===creator` field
+  check and the now-unused `DatumCreatorMismatch` constant were dropped. `validateDestroy` drops its vacuous creator
+  check entirely (authorization is enforced by `validateSpend`), keeping only the exactly-one-burn check. Both
+  `FactoryExample` mint branches no longer touch `signatories.head`. Replaced the (now-moot) "destroy creator must
+  sign" test with a burn-quantity test. 14 `EvalTestKit` tests pass (no ExUnits assertions in this suite).
+- **Still open** (deferred, structural): split `FactoryExample.scala` into `FactoryValidator` + keep `FactoryContract`;
+  **add `FactoryTransactions.scala`** (README overstates off-chain coverage — there is none); the single-burn limit
+  (can't batch-destroy) and the `find`-first product output (unambiguous given NFT uniqueness — left as-is).
+- Refs: `FactoryTest`.
+
+### decentralizedidentity — ✅ High forged-delegation hole FIXED (this branch)
+- Bug fixed (TDD, RED→GREEN): **forged delegation**. `PublishAttribute` authenticated the delegation reference input
+  only by its script address + datum shape, never by token possession — so anyone could pay a forged
+  `DelegationDatum` (naming themselves as delegate for a victim's identity, no token) to the script address and
+  publish arbitrary attributes; this also defeated revocation (burning the token didn't stop a re-planted fake).
+  Fix: `PublishAttribute` now requires the delegation ref input to hold the delegation token
+  (`quantityOf(policyId, delegationTokenName(delegDatum.identityTokenName, delegDatum.delegatePkh)) === 1`). The
+  token is minted only by owner-signed `AddDelegate` and burned by `RevokeDelegate`, so possession proves
+  authenticity and makes revocation effective. New adversarial test plants a token-less forged delegation and
+  asserts publish is rejected (RED: it published before the fix). No exact-ExUnits assertions in the suite, nothing
+  to re-baseline; the full create→delegate→publish→revoke→transfer lifecycle still passes (11 tests).
+- **Still open** (deferred, not security): convert `DecentralizedIdentityContract` (bare `lazy val`) to
+  `object … extends Contract` + `Blueprint.plutusV3`; hoist ~30 error strings; enum indentation style; move
+  `submitWithRetry` (`Thread.sleep`) out of the Transactions object.
+- Refs: `DecentralizedIdentityTest`.
+
+### editablenft — ✅ DONE (Critical bugs fixed, this branch)
+- Bugs fixed (TDD): **seed binding** — root cause was a param-encoding mismatch (validator decoded the bare
+  `TxOutRef` param as a `ReferenceNftParam` wrapper → garbage seed, masked by the old `isDefined`-only check);
+  now decodes `param.to[TxOutRef]` and requires the seed is actually spent
+  (`tx.inputs.at(seedIndex).outRef === seed` — O(1), and a wrong index fails closed).
+  **CIP-68 labels** unswapped + real 4-byte encodings (ref = `0x000643b0`, user = `0x000de140`).
+  **Hardened the empty mint `Burn` branch** — it now rejects any positive mint under the policy
+  (`tx.mint.toSortedMap.get(policyId)` per-policy lookup, not `flatten`), closing a side door where
+  `MintRedeemer.Burn` could mint fresh pairs and bypass the seed check entirely; the spend validator
+  still enforces both-tokens-burned.
+  Deduped the "Must burn ref NFT" message; hoisted all error strings to `inline val`.
+- Tests: added "mint without spending seed" negative + "canonical CIP-68 labels" assertion; Burn ExUnits re-baselined.
+- **Deferred:** Contract-object/blueprint conversion — the param'd dual (mint+spend) `DataParameterizedValidator`
+  has a non-obvious blueprint shape; left `EditableNftContract` as the bare `lazy val`. Revisit as a focused change.
+
+### anonymousdata — ✅ REWRITTEN off-chain (datum-hash commitment, this branch)
+- **Why a rewrite, not a patch** (user-driven): the original on-chain design (shared UTxO + Merkle participants +
+  encrypted map + gate/reader) was fundamentally unsound for its stated goal. First the Critical: Store/Update/Delete
+  checked only that the signer was *a* participant, never that they owned the public `dataKey`, so any member could
+  overwrite/delete anyone's entry. Two intermediate fixes were tried and discarded: (1) a nonce-reveal ownership
+  check — reverted because revealing the nonce on-chain publishes the signer↔entry link and *defeats anonymity*;
+  (2) append-only (remove Update/Delete) — matched the rosetta reference but the user pointed out the deeper flaw:
+  **on a public chain the write tx's signer is always visible, so hash(pkh‖nonce) keying gives no real anonymity at
+  all.** True writer-anonymity needs a relayer + ZK membership proof (bilinear accumulator / zk-SNARK), which Scalus
+  actually ships (`crypto/accumulator/G1Accumulator`, Groth16) but is a much larger build.
+- **Implemented** (user decision): the literal rosetta `anonymous_data` spec — "store data associated with a hash so
+  only someone who can generate that hash can retrieve it" — using a native Cardano primitive and **zero on-chain
+  execution**. An entry is a UTxO carrying only a **datum hash** (`DatumOption.Hash`) committing to
+  `Data.List([B(nonce), data])`. Store = create that UTxO (chain holds only the hash); retrieve = reveal the
+  preimage and verify off-chain (`open`). The `nonce` makes the commitment hiding (no brute-force of low-entropy
+  data) and makes repeated stores of the same data unlinkable. The example's *point* is that this needs no validator.
+- Discovered Cardano semantics worth noting: the ledger **rejects** attaching a datum when spending an ordinary
+  key-locked UTxO ("not allowed supplemental datum hashes"), so on-chain disclosure isn't possible on a script-free
+  UTxO — retrieval is inherently off-chain. (Confirmed by a `reveal` test that failed and was removed.)
+- Files: deleted `AnonymousDataValidator`, `AnonymousDataGateValidator`, `AnonymousDataCrypto`; rewrote
+  `AnonymousDataTransactions` (store/open + commitment helpers) and `AnonymousDataTest` (3 tests: hash-only storage,
+  preimage retrieval incl. wrong-nonce/wrong-data, nonce-unlinkability); rewrote README. No validator → no ExUnits.
+- Honest scope note in README/docstring: a datum hash hides the *contents* (confidentiality + selective disclosure),
+  not *who stored it*. The latter is called out as a separate, harder problem (relayer + ZK), intentionally out of
+  scope for this example.
+- Refs: `AnonymousDataTest`.
+
+### atomictransactions (off-chain only) — ✅ DONE (this branch)
+- Reshaped the `object`+`???`+`mainnet` into `case class AtomicTransactions(env)` with a `batchPay` method that
+  spends every sender UTxO and pays a recipient in one atomic transaction (consistent `Coin`/`Value.ada` units, no
+  sub-min-UTxO amounts). New `AtomicTransactionsTest` (verifies all sender UTxOs are inputs and the batch submits).
+- Refs: `AtomicTransactionsTest`, README.
+
+### Token transfer (#3) — missing
+- No native-token transfer example exists. Decide whether to add one (a `TokenTransferTransactions` off-chain
+  demo, or a small validator) to complete the 21, or to document it as intentionally out of scope.
+
+---
+
+## 4. Suggested execution order (if changes are approved)
+
+1. **Cross-cutting, low-risk, mechanical** (one PR): error-string `inline val` hoisting, Apache license,
+   dead-code/import/comment cleanup, brace/indentation, relax brittle ExUnits assertions. No behavior change.
+2. **Naming/structure alignment** (per-example PRs): rename `Offchain`/`Endpoints`/`Example` → `Transactions`/
+   `Contract`/`Validator`; add missing `Contract`+`blueprint` objects; split monoliths (auction, crowdfunding);
+   add missing Transactions files (simpletransfer, paymentsplitter, factory); reshape off-chain trio.
+3. **Security fixes + adversarial tests** (per-example, highest value): value-preservation and single-own-input
+   guards first (AMM, Lottery, Vesting, Crowdfunding, Vault, AnonymousData, EditableNft, DecentralizedIdentity,
+   PriceBet, Betting, Auction, PaymentSplitter, UpgradeableProxy). Add a shared `prelude` helper + negative-test
+   harness so the bug class can't regress.

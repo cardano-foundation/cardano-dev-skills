@@ -1,0 +1,181 @@
+---
+title: "Scalus Emulator"
+description: "A Scalus-based emulator for testing and validation."
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+The Scalus Emulator is extremely useful for testing transactions and ensuring correct chain state evolution. It validates your transactions with proper Ledger rules, so you can ensure that your transactions are valid.
+
+**Use Scalus Emulator when you need:**
+
+- Unit testing without network dependencies
+- Testing smart contract development
+- Validating off-chain code (correct state transitions)
+- Simulating Cardano blockchain state evolution
+
+## Quick Start
+
+Setting up the emulator, if you want accurate time validations, the correct slot configuration must be inputted. The current slot must also be set.
+
+```typescript
+const { ScalusEmulator } = require("@meshsdk/scalus-emulator");
+import { SLOT_CONFIG_NETWORK, unixTimeToEnclosingSlot } from "@meshsdk/core";
+
+const provider = new ScalusEmulator(
+  [
+    {
+      input: {
+        txHash:
+          "0000000000000000000000000000000000000000000000000000000000000000",
+        outputIndex: 0,
+      },
+      output: {
+        address,
+        amount: [{ unit: "lovelace", quantity: "1000000000" }],
+      },
+    },
+  ],
+  SLOT_CONFIG_NETWORK["preview"],
+);
+
+await provider.setSlot(
+  unixTimeToEnclosingSlot(Date.now(), SLOT_CONFIG_NETWORK["preview"]),
+);
+```
+
+## Configuration Options
+
+| Parameter      | Type                                                             | Required | Description                                                                                          |
+| -------------- | ---------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| initialUtxos   | UTxO[]                                                           | Yes      | Initial UTxO state of the emulator                                                                   |
+| slotConfig     | SlotConfig                                                       | Yes      | Configuration for slots of the emulator, used for time validation                                    |
+| protocolParams | Protocol                                                         | No       | Configuration for protocol parameters used for the emulator, default values are used if not provided |
+| costModels     | `{ PlutusV1: number[], PlutusV2: number[], PlutusV3: number[] }` | No       | Cost models used by the emulator for execution unit fees, default values are used if not provided    |
+
+Subsequently, transactions can be built and submitted to the emulator. For example, a simple send transaction.
+
+```typescript
+import { MeshWallet } from "@meshsdk/wallet";
+
+const wallet = new MeshWallet({
+  networkId: 0,
+  key: { type: "mnemonic", words: TEST_MNEMONIC },
+});
+await wallet.init();
+const address = (await wallet.getChangeAddress())[0]!;
+
+const newTxBuilder = () =>
+  new MeshTxBuilder({
+    fetcher: provider,
+    submitter: provider,
+    evaluator: provider,
+  });
+
+const utxos = await provider.fetchAddressUTxOs(address);
+const txHex = await newTxBuilder()
+  .txOut(address, [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(address)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(txHex);
+const txHash = await provider.submitTx(signedTx);
+
+expect(txHash).toBeDefined();
+expect(txHash.length).toBe(64);
+```
+
+The emulator implements the IFetcher interface, allowing you to fetch UTxOs, the states will mutate based on successfully submitted transactions
+
+```typescript
+const utxosBefore = await provider.fetchAddressUTxOs(address);
+const totalBefore = utxosBefore.reduce(
+  (sum, u) =>
+    sum + BigInt(u.output.amount.find((a) => a.unit === "lovelace")!.quantity),
+  0n,
+);
+
+const txHex = await newTxBuilder()
+  .txOut(address, [{ unit: "lovelace", quantity: "3000000" }])
+  .changeAddress(address)
+  .selectUtxosFrom(utxosBefore)
+  .complete();
+
+const signedTx = await wallet.signTx(txHex);
+await provider.submitTx(signedTx);
+
+const utxosAfter = await provider.fetchAddressUTxOs(address);
+const totalAfter = utxosAfter.reduce(
+  (sum, u) =>
+    sum + BigInt(u.output.amount.find((a) => a.unit === "lovelace")!.quantity),
+  0n,
+);
+
+expect(utxosAfter.length).toBeGreaterThan(0);
+// Total should decrease by fees
+expect(totalAfter).toBeLessThan(totalBefore);
+expect(totalAfter).toBeGreaterThan(totalBefore - 1_000_000n);
+```
+
+The emulator also implements IEvaluator, which allows plutus script evaluations, including calculation of execution units. The submission will also reject transactions with script errors.
+
+```typescript
+const policyId = resolveScriptHash(alwaysSucceedCbor, "V3");
+const tokenNameHex = Buffer.from("SpendTest").toString("hex");
+const unit = policyId + tokenNameHex;
+
+const utxos = await provider.fetchAddressUTxOs(address);
+
+// Step 1: Mint tokens using plutus script
+const mintTxHex = await newTxBuilder()
+  .mintPlutusScriptV3()
+  .mint("50", policyId, tokenNameHex)
+  .mintRedeemerValue("")
+  .mintingScript(alwaysSucceedCbor)
+  .txInCollateral(
+    utxos[0]!.input.txHash,
+    utxos[0]!.input.outputIndex,
+    utxos[0]!.output.amount,
+    utxos[0]!.output.address,
+  )
+  .txOut(address, [
+    { unit: "lovelace", quantity: "2000000" },
+    { unit, quantity: "50" },
+  ])
+  .changeAddress(address)
+  .selectUtxosFrom(utxos)
+  .complete();
+const signedMint = await wallet.signTx(mintTxHex);
+const mintHash = await provider.submitTx(signedMint);
+expect(mintHash.length).toBe(64);
+
+// Step 2: Verify the minted tokens via fetchUTxOs
+const mintedUtxos = await provider.fetchUTxOs(mintHash);
+expect(mintedUtxos.length).toBeGreaterThan(0);
+const tokenOutput = mintedUtxos.find((u) =>
+  u.output.amount.some((a) => a.unit === unit),
+);
+expect(tokenOutput).toBeDefined();
+```
+
+With the correct slotConfig and time setup, we can also test that expired transactions get rejected.
+
+```typescript
+const currentSlot = unixTimeToEnclosingSlot(Date.now(), slotConfig);
+const expiredSlot = currentSlot - 100;
+
+const utxos = await provider.fetchAddressUTxOs(address);
+
+const txHex = await newTxBuilder()
+  .txOut(address, [{ unit: "lovelace", quantity: "2000000" }])
+  .invalidHereafter(expiredSlot)
+  .changeAddress(address)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(txHex);
+await expect(provider.submitTx(signedTx)).rejects.toThrow();
+```

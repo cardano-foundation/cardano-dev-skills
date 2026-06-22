@@ -6,13 +6,13 @@
   - `--state-dir FILEPATH`: The directory for persisting ledger state.
   - `--schema-dir FILEPATH`: The directory containing the migrations.
   - `--pg-pass-env ENV`: Alternative env variable to use, defaults to `PGPASSFILE` env variable.
-  - `--disable-epoch`: Makes epoch table remain empty.
   - `--skip-fix`: Disables the db-sync fix procedure for the wrong datum and redeemer_data bytes.
   - `--force-indexes`: Forces the Index creation at the start of db-sync. Normally they're created later.
   - `--fix-only`: Runs only the db-sync fix procedure for the wrong datum, redeemer_data, and plutus script bytes and exits.
   - `--disable-cache`: Disables the db-sync caches. Reduces memory usage but it takes longer to sync.
   - `--rollback-to-slot SLOTNO`: Force a rollback to the specified slot, if the given slot doesn't exist it will use the next greater slot. See [Manual Rollbacks](manual-rollbacks.md) for details.
   - `--disable-in-out`: Disables the `tx_in` and `tx_out` table.
+  - `--allow-private-offchain-urls`: Allows the off-chain pool and vote metadata fetchers to connect to URLs whose host or resolved IP is in a private, loopback, or link-local range. Off by default. Intended for local-cluster testing.
 
 - **Deprecated Options (for historical reference only):**
   - For more details, refer to [Configuration Documentation](https://github.com/IntersectMBO/cardano-db-sync/blob/master/doc/configuration.md)
@@ -20,6 +20,7 @@
   - `--disable-ledger`
   - `--dont-use-ledger`
   - `--keep-tx-metadata`
+  - `--disable-epoch` (replaced by `disable_epoch` in `insert_options`)
   - `--disable-shelley`
   - `--disable-multiassets`
   - `--disable-metadata`

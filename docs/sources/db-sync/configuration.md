@@ -43,7 +43,8 @@ Below is a sample `insert_options` section that shows the recommended defaults:
     "governance": "enable",
     "offchain_pool_data": "disable",
     "offchain_vote_data": "disable",
-    "json_type": "text"
+    "json_type": "text",
+    "disable_epoch": false
   }
 }
 ```
@@ -71,6 +72,7 @@ Below is a sample `insert_options` section that shows the recommended defaults:
 | [remove\_jsonb_from_schema](#remove-jsonb-from-schema) | `enum`     | Optional |
 | [stop\_at\_block](#stop-at-block)            | `integer`  | Optional |
 | [snapshot\_interval](#snapshot-interval)     | `object`   | Optional |
+| [disable\_epoch](#disable-epoch)             | `boolean`  | Optional |
 
 ## Preset
 
@@ -618,6 +620,10 @@ When enabled, the same URL restrictions apply as `offchain_pool_data` (HTTPS req
 
 **Migration Note**: Prior to version 13.7.0.1, governance vote metadata fetching was controlled by the `governance` flag.
 
+### Bypassing the URL restriction for local-cluster testing
+
+The private-IP restriction is enforced for every production deployment and cannot be disabled via configuration. For local-cluster test setups whose pools or governance anchors are served from `http://localhost:.../...` URLs, the `--allow-private-offchain-urls` CLI flag (see [command-line-options.md](command-line-options.md)) replaces the restriction with a no-op so the fetchers can connect to private, loopback, and link-local addresses. The flag is off by default and is intended for testing only.
+
 ## Pool Stat
 
 `pool_stat`
@@ -682,6 +688,27 @@ Stops db-sync after processing the specified block number. Useful for testing an
 {
   "insert_options": {
     "stop_at_block": 12345
+  }
+}
+```
+
+## Disable Epoch
+
+`disable_epoch`
+
+* Type: `boolean`
+* Default: `false`
+
+Controls whether db-sync maintains the `epoch` view. The public `epoch` view unions two backing objects: `epoch_finalized`, a real table that db-sync appends to on each epoch boundary and rolls back via `DELETE WHERE no > $rollback_epoch`, and `epoch_current`, a live view computed from `block`/`tx` for the current (unfinalised) epoch. When `disable_epoch` is `true` both views return no rows and `SELECT * FROM epoch` is empty.
+
+The first start after upgrading runs a one-time backfill of `epoch_finalized` from `block`/`tx`, which can take several minutes on mainnet. Subsequent boundary updates take ~1–3s.
+
+### Example
+
+```json
+{
+  "insert_options": {
+    "disable_epoch": true
   }
 }
 ```

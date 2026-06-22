@@ -139,8 +139,7 @@ Composer scripts under `/opt/antithesis/test/v1/asteria-game/`:
 | `parallel_driver_heartbeat.sh` | Indexer readiness probe during the run. |
 | `anytime_asteria_admin_singleton.sh` | Periodic singleton invariant. |
 | `eventually_alive.sh` | Post-fault indexer liveness probe. |
-| `finally_alive.sh` | End-of-run indexer liveness probe. |
-| `finally_asteria_consistency.sh` | End-of-run game-state consistency snapshot. |
+| `eventually_asteria_consistency.sh` | Post-workload game-state consistency snapshot. |
 | `helper_sdk.sh` | Shared shell SDK emitter and signal-safe wrapper. |
 
 ## Assertions
@@ -155,8 +154,8 @@ Asteria contributes both workload and oracles:
   `asteriaAdmin` NFT exists at the asteria spend address.
 - `asteria_state_consistent` is a `Sometimes` property comparing
   `ship_counter` to `SHIP*` token count.
-- `asteria_game eventually_alive holds` and `asteria_game finally_alive holds` prove the
-  long-lived indexer is responsive and close to the chain tip.
+- `asteria_game eventually_alive holds` proves the long-lived indexer
+  is responsive and close to the chain tip.
 
 ## Build the image
 

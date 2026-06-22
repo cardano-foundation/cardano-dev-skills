@@ -33,7 +33,7 @@ fn get_inline_datum(output: Output) -> Data {
 }
 
 test get_inline_datum_test() {
-  let output = create_output(#"00", True, 10, None, NoDatum, None)
+  let output = create_output(#"00", True, 10, None, InlineDatum(Thing(42)), None)
   expect small: SmallOracleState = get_inline_datum(output)
   True
 }

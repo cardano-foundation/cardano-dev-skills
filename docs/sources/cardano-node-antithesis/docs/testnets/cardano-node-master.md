@@ -52,11 +52,11 @@ realistic tx pressure. With it, the cluster sees the full envelope:
   NFT exists at the asteria spend address — the one-shot mint
   policy must hold under any combination of forks, kills, and
   partitions.
-- **`finally_asteria_consistency.sh`** — end-of-run consistency
+- **`eventually_asteria_consistency.sh`** — post-workload consistency
   snapshot. `ship_counter` on the asteria UTxO must equal the count
   of `SHIP*` tokens at the spacetime address.
-- **`eventually_alive.sh`** / **`finally_alive.sh`** — short
-  liveness probes against the indexer's `ready` endpoint.
+- **`eventually_alive.sh`** — short liveness probe against the
+  indexer's `ready` endpoint.
 
 What this gives Antithesis to score:
 
@@ -105,8 +105,8 @@ Antithesis fires a short command:
   into a fresh population address.
 - **`eventually_population_grew.sh`** - snapshots the daemon state and
   asserts that a populated address set was observed.
-- **`finally_pressure_summary.sh`** - emits an end-of-run snapshot with
-  population size, UTxO value percentiles, tip slot, and last tx id.
+- **`eventually_pressure_summary.sh`** - emits a post-workload snapshot
+  with population size, UTxO value percentiles, tip slot, and last tx id.
 
 Why this belongs in the production-baseline testnet:
 

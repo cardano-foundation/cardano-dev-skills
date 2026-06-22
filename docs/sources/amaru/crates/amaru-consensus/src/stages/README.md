@@ -1,8 +1,8 @@
 # Testing Consensus Stages
 
-This directory contains the consensus stages built on the [`pure-stage`](../../pure-stage) actor library together with their deterministic unit-test harnesses.
+This directory contains the consensus stages built on the [`amaru-pure-stage`](../../amaru-pure-stage) actor library together with their deterministic unit-test harnesses.
 
-Each stage `foo` is implemented in `foo/mod.rs` as an `async fn stage(state: Foo, msg: FooMsg, eff: Effects<FooMsg>) -> Foo`. The pure-stage simulation backend records every effect the stage performs, enabling precise, replayable tests that cover all control-flow paths.
+Each stage `foo` is implemented in `foo/mod.rs` as an `async fn stage(state: Foo, msg: FooMsg, eff: Effects<FooMsg>) -> Foo`. The amaru-pure-stage simulation backend records every effect the stage performs, enabling precise, replayable tests that cover all control-flow paths.
 
 ## Per-Stage Test Layout
 
@@ -33,7 +33,7 @@ A stage `foo` always has:
   `pub fn test_prep(...) -> TestPrep` builds an initial state in a particular configuration. Multiple variants of `test_prep` are normal when different starting worlds are required.
 
 - **`register_guards() -> DeserializerGuards`**
-  Returns a `Vec` of `pure_stage::register_data_deserializer::<T>().boxed()` for every serialisable type that may appear in a trace entry (the stage’s own state and message types, any child stages it wires up, `ManagerMessage`, `ScheduleId`, external-effect request/response types, etc.).
+  Returns a `Vec` of `amaru_pure_stage::register_data_deserializer::<T>().boxed()` for every serialisable type that may appear in a trace entry (the stage’s own state and message types, any child stages it wires up, `ManagerMessage`, `ScheduleId`, external-effect request/response types, etc.).
 
   **Why this is necessary:** When the `TraceBuffer` is deserialized during simulation, the default behaviour yields only a generic JSON-like representation (`cbor4ii::core::Value`) for effects, messages, and states. Registering the concrete types allows the deserializer to recognise the proper Rust types and hydrate the trace entries back into their original, strongly-typed forms. This makes it possible to write readable `assert_trace` expectations that match against the natural Rust values (e.g. `te_state("sc-1", &my_state)`) instead of opaque generic data.
 
@@ -133,7 +133,7 @@ This sequence verifies:
 - The `WireStage` effect together with the exact initial state the child was created with (`tm_wire_stage_state`).
 - The parent stage’s updated `State` after wiring (`tm_state` with a predicate that checks the reference was updated).
 
-These `tm_*` helpers (`tm_add_stage`, `tm_wire_stage_state`, `tm_state`) are provided by `pure-stage` (in `trace_match`) and re-exported / extended via `stages/test_utils.rs`.
+These `tm_*` helpers (`tm_add_stage`, `tm_wire_stage_state`, `tm_state`) are provided by `amaru-pure-stage` (in `trace_match`) and re-exported / extended via `stages/test_utils.rs`.
 
 This pattern is strongly preferred over exact `assert_trace` because:
 - The generated child name is not known in advance.
@@ -190,7 +190,7 @@ fn test_some_message_in_particular_state() {
   1. An initial `State` manufactured by cloning `prep.state` and mutating the right maps/sets/counters.
   2. The exact `Msg` variant that the arm matches on.
 - Use `setup_preload` when a test must inject a sequence of messages (e.g. to exercise cooldown timers or internal child stages).
-- `assert_trace` is the most important assertion — it gives a deterministic, complete record of everything the pure-stage machinery observed.
+- `assert_trace` is the most important assertion — it gives a deterministic, complete record of everything the amaru-pure-stage machinery observed.
 - Log assertions (`Logs::assert_and_remove` / `assert_no_remaining_at`) are useful but secondary.
 - **Every test must finish its `Logs` chain with `.assert_no_remaining_at([Level::INFO, Level::WARN, Level::ERROR])`.** Messages at INFO and above are part of the stage’s public observable behaviour (they may be consumed by operators, monitoring, or other components) and must be explicitly asserted. Use `assert_and_remove` for the messages you expect; the final strict triple guarantees that no unexpected INFO/WARN/ERROR was emitted.
 - The short name passed to `network.stage("sc-1", ...)` becomes the name that appears in every `te_state`/`te_input`/`te_send` entry for that stage; keep it consistent within a test file.

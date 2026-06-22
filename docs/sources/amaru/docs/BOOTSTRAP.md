@@ -11,11 +11,13 @@ Amaru bootstrap expects a window of three consecutive epoch snapshots. The runti
 
 ### Running the command
 
-Generate a bootstrap set by passing the first epoch in the three-epoch window to `create-snapshots`. For example, this creates the set for epochs `163`, `164`, and `165` on `preprod`:
+Generate a bootstrap set by passing the target starting epoch for Amaru to `create-snapshots`. For example, to start in epoch 166:
 
 ```shell
-cargo run create-snapshots --network preprod --epoch 163
+cargo run create-snapshots --network preprod --epoch 166
 ```
+
+This creates the snapshots for epochs `163`, `164`, and `165` on `preprod`:
 
 The command is fully resumable: Mithril downloads are skipped when the local cardano-db already covers all target slots, and db-analyser work is reused when a matching snapshot directory already exists on disk.
 

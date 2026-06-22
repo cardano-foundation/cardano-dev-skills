@@ -4,7 +4,7 @@ Community-curated Cardano developer knowledge — bundled skills, documentation,
 
 Works as a Claude Code plugin, Codex skill set, or standalone reference.
 
-> 📖 **Website:** https://easy1staking-com.github.io/cardano-dev-skills/
+> 📖 **Website:** https://cardano-foundation.github.io/cardano-dev-skills/
 
 ## Why this exists
 
@@ -61,7 +61,7 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#scope-what-belongs-in-this-repo)
 In any Claude Code session:
 
 ```
-/plugin marketplace add easy1staking-com/cardano-dev-skills
+/plugin marketplace add cardano-foundation/cardano-dev-skills
 /plugin install cardano-dev-skills@cardano-dev-skills
 ```
 
@@ -70,7 +70,7 @@ Installed once, active in every Claude Code session in any directory. Verify wit
 ### Codex / other agents
 
 ```bash
-git clone https://github.com/easy1staking-com/cardano-dev-skills.git
+git clone https://github.com/cardano-foundation/cardano-dev-skills.git
 cd your-project
 ln -s ../cardano-dev-skills/skills .agents/skills
 ```
@@ -102,7 +102,7 @@ What it does:
 
 The plugin also tries to set the context automatically. In a Claude Code session:
 
-1. **Session start.** A `SessionStart` hook reports doc freshness — you'll see `[Cardano Dev Skills] Docs loaded: 48 sources, ...` at the top of every session in any directory.
+1. **Session start.** A `SessionStart` hook reports doc freshness — you'll see `[Cardano Dev Skills] Docs loaded: 55 sources, ...` at the top of every session in any directory.
 2. **Skill matching.** When you ask a question that matches a skill's trigger phrases (e.g. *"review my validator"*, *"scaffold a Cardano project"*), the agent auto-invokes that skill.
 3. **Doc consultation** *(in development).* A `UserPromptSubmit` hook scans your prompt for Cardano-specific keywords (`aiken`, `plutus`, `cip-XXXX`, `ogmios`, `drep`, …) and reminds the agent to consult bundled docs before training data or the web.
 
@@ -136,7 +136,7 @@ A `SessionStart` hook (`hooks/check-docs.sh`) inspects the bundled corpus and th
 - **Docs loaded.** Normal: `Docs loaded: N sources, M files (updated Xd ago)`.
 - **Docs stale (>30 days).** Suggests how to refresh based on install topology:
   - Local clone: `cd <plugin-root> && git pull && ./scripts/fetch-docs.sh`.
-  - Marketplace install: `Refresh via: /plugin marketplace update easy1staking-com`.
+  - Marketplace install: `Refresh via: /plugin marketplace update cardano-foundation`.
 - **Plugin clone behind upstream.** Local clones only: if you have previously run `git fetch` and not pulled, the hook prints `Plugin clone is N commit(s) behind FETCH_HEAD — consider 'git pull' in <plugin-root>`. The hook never fetches itself (no network on session start).
 - **Cardano context active.** When `./CLAUDE.md` contains the `cardano-dev-skills` directive block: `Cardano context active in this project.`
 - **Cardano context nudge.** When cwd looks like a project (`.git`, `.claude`, or existing `CLAUDE.md`) but has no block: `Tip: run /cardano-context to enable auto-consultation in this project.`

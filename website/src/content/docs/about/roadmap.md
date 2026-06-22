@@ -17,7 +17,7 @@ for) and **governance** (the lifecycle that keeps that content current).
   tooling).
 - The `cardano-context` skill, which writes a durable per-project directive
   into `CLAUDE.md` so agents reliably consult bundled context.
-- 48 documentation sources mirrored locally — SDKs, languages, infra, CIPs,
+- 55 documentation sources mirrored locally — SDKs, languages, infra, CIPs,
   ledger specs — under `docs/sources/`.
 - A `SessionStart` hook (`hooks/check-docs.sh`) that reports doc freshness
   and surfaces the per-project directive nudge.

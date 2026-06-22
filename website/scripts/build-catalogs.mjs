@@ -27,7 +27,7 @@ const WEBSITE_ROOT = resolve(__dirname, '..');
 const REPO_ROOT = resolve(WEBSITE_ROOT, '..');
 const REGISTRY = join(REPO_ROOT, 'registry', 'sources.yaml');
 const SKILLS_DIR = join(REPO_ROOT, 'skills');
-const REPO_URL = 'https://github.com/easy1staking-com/cardano-dev-skills';
+const REPO_URL = 'https://github.com/cardano-foundation/cardano-dev-skills';
 const REPO_TREE = `${REPO_URL}/tree/main`;
 
 const SKILLS_OUT = join(WEBSITE_ROOT, 'src', 'content', 'docs', 'skills', 'index.md');

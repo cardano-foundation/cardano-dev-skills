@@ -10,7 +10,7 @@ Cardano Dev Skills works in three modes. Pick the one that matches your agent.
 In any Claude Code session:
 
 ```
-/plugin marketplace add easy1staking-com/cardano-dev-skills
+/plugin marketplace add cardano-foundation/cardano-dev-skills
 /plugin install cardano-dev-skills@cardano-dev-skills
 ```
 
@@ -46,7 +46,7 @@ What it does:
 ## Codex / other agents
 
 ```bash
-git clone https://github.com/easy1staking-com/cardano-dev-skills.git
+git clone https://github.com/cardano-foundation/cardano-dev-skills.git
 cd your-project
 ln -s ../cardano-dev-skills/skills .agents/skills
 ```

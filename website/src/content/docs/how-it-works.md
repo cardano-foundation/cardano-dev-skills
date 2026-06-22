@@ -54,7 +54,7 @@ and the current working directory and prints status lines prefixed
 - **Docs loaded.** Normal: `Docs loaded: N sources, M files (updated Xd ago)`.
 - **Docs stale (>30 days).** Suggests how to refresh based on install topology:
   local clone → `git pull && ./scripts/fetch-docs.sh`; marketplace install →
-  `/plugin marketplace update easy1staking-com`.
+  `/plugin marketplace update cardano-foundation`.
 - **Plugin clone behind upstream.** Local clones only: if `git fetch` has run
   and you haven't pulled, the hook prints how many commits behind you are.
 - **Cardano context active.** When `./CLAUDE.md` contains the directive block.

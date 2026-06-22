@@ -3,14 +3,14 @@ import starlight from '@astrojs/starlight';
 
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://easy1staking-com.github.io',
+  site: 'https://cardano-foundation.github.io',
   base: '/cardano-dev-skills',
   integrations: [
     starlight({
       title: 'Cardano Dev Skills',
       description: 'Cardano dev knowledge, native in your AI coding agent.',
       social: {
-        github: 'https://github.com/easy1staking-com/cardano-dev-skills',
+        github: 'https://github.com/cardano-foundation/cardano-dev-skills',
       },
       customCss: ['./src/styles/custom.css'],
       sidebar: [

@@ -34,7 +34,7 @@ from training data alone gets it wrong more often than right.
 
 This plugin ships:
 
-- **Authoritative bundled docs** from 48 active Cardano projects,
+- **Authoritative bundled docs** from 55 active Cardano projects,
   auto-refreshed weekly from upstream. The agent reads from a known-current
   snapshot, not a year-old memory.
 - **Behavioural skills** that encode common workflows: scaffolding,

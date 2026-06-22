@@ -75,5 +75,5 @@ CI runs validation automatically. The weekly refresh workflow picks up the
 new source on its next Monday run.
 
 If you'd rather just nominate a source without writing the YAML, use the
-[**Suggest a source**](https://github.com/easy1staking-com/cardano-dev-skills/issues/new?template=suggest-source.yml)
+[**Suggest a source**](https://github.com/cardano-foundation/cardano-dev-skills/issues/new?template=suggest-source.yml)
 issue template — a maintainer will add it if it passes the bar.

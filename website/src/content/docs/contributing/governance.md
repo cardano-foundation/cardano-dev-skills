@@ -54,7 +54,7 @@ When adding to `registry/sources.yaml`, all must hold:
    Product docs for specific dApps are not.
 
 Full policy: see
-[`docs/CONTRIBUTING.md`](https://github.com/easy1staking-com/cardano-dev-skills/blob/main/docs/CONTRIBUTING.md).
+[`docs/CONTRIBUTING.md`](https://github.com/cardano-foundation/cardano-dev-skills/blob/main/docs/CONTRIBUTING.md).
 
 ## Refresh lifecycle
 

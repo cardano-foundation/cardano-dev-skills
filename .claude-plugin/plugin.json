@@ -3,9 +3,9 @@
   "version": "0.2.0",
   "description": "Community-curated Cardano developer knowledge base: 15 skills covering smart contracts, transactions, governance, and tooling for the Cardano ecosystem",
   "author": {
-    "name": "Cardano Developer Community"
+    "name": "Cardano Foundation"
   },
-  "repository": "https://github.com/easy1staking-com/cardano-dev-skills",
+  "repository": "https://github.com/cardano-foundation/cardano-dev-skills",
   "license": "Apache-2.0",
   "keywords": ["cardano", "blockchain", "smart-contracts", "aiken", "web3", "eutxo"]
 }

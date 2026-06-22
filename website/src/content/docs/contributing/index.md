@@ -18,9 +18,9 @@ and well-documented — pick the page that matches what you want to do.
   maintenance bar.
 
 The canonical contribution guide lives in
-[`docs/CONTRIBUTING.md`](https://github.com/easy1staking-com/cardano-dev-skills/blob/main/docs/CONTRIBUTING.md)
+[`docs/CONTRIBUTING.md`](https://github.com/cardano-foundation/cardano-dev-skills/blob/main/docs/CONTRIBUTING.md)
 in the repo. These pages mirror it; the repo file is authoritative if they
 ever drift.
 
 For freeform feedback or to suggest a missing topic, use the
-[issue templates](https://github.com/easy1staking-com/cardano-dev-skills/issues/new/choose).
+[issue templates](https://github.com/cardano-foundation/cardano-dev-skills/issues/new/choose).

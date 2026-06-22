@@ -62,13 +62,13 @@ inherit it, and is plain text the user can inspect or edit.
 5. **Fail loud, not silent.** If the path is ambiguous or the user is in the
    plugin repo, stop and ask. Do not silently write to the wrong file.
 
-## The canonical v1 block
+## The canonical v2 block
 
 This block is the single source of truth. Treat it as one opaque string when
 matching, replacing, or writing.
 
 ```markdown
-<!-- BEGIN cardano-dev-skills v1 -->
+<!-- BEGIN cardano-dev-skills v2 -->
 ## Cardano Development Context
 
 This project involves Cardano blockchain development.
@@ -83,13 +83,13 @@ recommending any library, tool, code pattern, or CIP behavior:
    one even when you feel confident — confidence is not evidence of currency.
 2. **Search `${CLAUDE_PLUGIN_ROOT}/docs/sources/`** before relying on memory
    or web search. The corpus is regularly refreshed from upstream and covers
-   Aiken, Plutus, current SDKs, all CIPs, on-chain tooling, and ~40 other
+   Aiken, Plutus, current SDKs, all CIPs, on-chain tooling, and ~50 other
    Cardano projects.
 3. **Cite what you used** (skill name or doc path). If bundled docs and your
    training conflict, prefer bundled docs.
 
-Plugin: https://github.com/easy1staking-com/cardano-dev-skills
-<!-- END cardano-dev-skills v1 -->
+Plugin: https://github.com/cardano-foundation/cardano-dev-skills
+<!-- END cardano-dev-skills v2 -->
 ```
 
 ## Workflow
@@ -123,20 +123,20 @@ cardano-dev-skills`. Three cases:
 
 1. **No match.** Skip to Step 4 (write or create).
 2. **Match at the current canonical version** (`<!-- BEGIN cardano-dev-skills
-   v1 -->`). Report: "Cardano context already enabled (v1) at `<path>`. No
+   v2 -->`). Report: "Cardano context already enabled (v2) at `<path>`. No
    changes needed." Exit. Do not rewrite.
-3. **Match at an older version** (e.g., `v0`). Use `Edit` to replace the
+3. **Match at an older version** (e.g., `v1`). Use `Edit` to replace the
    region from the `BEGIN` marker through the matching `END` marker
-   (inclusive) with the current v1 block. Treat any version mismatch as
+   (inclusive) with the current v2 block. Treat any version mismatch as
    "older" — the canonical block is always authoritative.
 
 ### Step 4: Write the block
 
 - **CLAUDE.md exists, no block found.** Append: one blank line separator, then
-  the v1 block, then a trailing newline. Use `Edit` (append-by-anchor) or
+  the v2 block, then a trailing newline. Use `Edit` (append-by-anchor) or
   `Read` + `Write` if `Edit` is awkward.
 - **CLAUDE.md does not exist.** Confirm with the user before creating it.
-  After confirmation, use `Write` to create CLAUDE.md containing only the v1
+  After confirmation, use `Write` to create CLAUDE.md containing only the v2
   block plus a trailing newline.
 
 ### Step 5: Report
@@ -144,8 +144,8 @@ cardano-dev-skills`. Three cases:
 Always finish with a one-line summary stating:
 
 - The resolved path.
-- The action taken: `created`, `appended`, `updated v0→v1` (or similar), or
-  `no-op (already v1)`.
+- The action taken: `created`, `appended`, `updated v1→v2` (or similar), or
+  `no-op (already v2)`.
 - A nudge to commit: `Suggest: git add CLAUDE.md && git commit -m 'Enable
   cardano-dev-skills context'` — so teammates inherit the directive on clone.
 
@@ -161,8 +161,8 @@ Always finish with a one-line summary stating:
   anomaly and ask the user to clean up manually rather than guessing which
   block to replace.
 - **Block content edited by hand.** The skill does not diff content; it only
-  matches the BEGIN marker by version. If a user has hand-edited the v1 block
-  and re-runs the skill at v1, the skill reports "already enabled" and leaves
+  matches the BEGIN marker by version. If a user has hand-edited the v2 block
+  and re-runs the skill at v2, the skill reports "already enabled" and leaves
   their edits in place. This is intentional: respect user edits.
 
 ## References

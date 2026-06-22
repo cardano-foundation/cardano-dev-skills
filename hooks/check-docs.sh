@@ -22,7 +22,7 @@ refresh_hint() {
     if [ "${IS_LOCAL_CLONE}" -eq 1 ]; then
         echo "  cd ${PLUGIN_ROOT} && git pull && ./scripts/fetch-docs.sh"
     else
-        echo "  Refresh via: /plugin marketplace update easy1staking-com"
+        echo "  Refresh via: /plugin marketplace update cardano-foundation"
     fi
 }
 
@@ -31,7 +31,7 @@ if [ ! -d "$DOCS_DIR" ] || [ ! -f "$MANIFEST" ]; then
   echo "[Cardano Dev Skills] Documentation sources not found."
   echo ""
   echo "The skills plugin works but will produce better results with local docs."
-  echo "To fetch all 40+ Cardano documentation sources (~23MB), run:"
+  echo "To fetch all 55 Cardano documentation sources (~23MB), run:"
   echo ""
   refresh_hint
 else

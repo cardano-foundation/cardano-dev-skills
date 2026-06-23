@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect width="64" height="64" rx="12" fill="#0A0A14"/>
-  <text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle"
-        font-family="JetBrains Mono, ui-monospace, Menlo, Consolas, monospace"
-        font-size="32" font-weight="700" fill="#7E57FF">C/</text>
+  <rect width="64" height="64" rx="14" fill="#0033AD"/>
+  <text x="32" y="45" text-anchor="middle"
+        font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+        font-size="40" font-weight="700" fill="#ffffff">₳</text>
 </svg>

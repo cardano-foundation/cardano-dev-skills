@@ -1,97 +1,205 @@
 /* Cardano Dev Skills — Starlight theme overrides.
  *
- * Palette: navy/black + violet accent + light gray. Adjacent to the
- * Cardano Foundation developer portal vibe; intentionally not a clone.
+ * Visual language modelled on the Cardano developer portal
+ * (developers.cardano.org): Cardano Blue (#0033AD) on generous white space,
+ * clean Inter typography, soft rounded cards, minimal shadows. Light mode is
+ * the primary aesthetic; dark mode is a blue-tinted deep navy.
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 :root {
-  /* Violet accent ramp */
-  --sl-color-accent-low: #2a1d5c;
-  --sl-color-accent: #7e57ff;
-  --sl-color-accent-high: #c6b3ff;
+  /* Cardano Blue accent ramp */
+  --cf-blue: #0033ad;
+  --cf-blue-bright: #1a54d8;
+  --cf-blue-deep: #002280;
+
+  --sl-color-accent-low: #0a1b47;
+  --sl-color-accent: #0033ad;
+  --sl-color-accent-high: #b8ccff;
 
   /* Typography */
   --sl-font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --sl-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Slightly rounder corners site-wide */
+  --cf-radius: 12px;
 }
 
-/* Dark mode — deep navy/black bg, high-contrast text */
+/* ---- Dark mode — blue-tinted deep navy --------------------------------- */
 :root[data-theme='dark'] {
-  --sl-color-bg: #0a0a14;
-  --sl-color-bg-nav: #0a0a14;
-  --sl-color-bg-sidebar: #0a0a14;
-  --sl-color-bg-inline-code: #1a1a2a;
-  --sl-color-bg-accent: #1a1330;
+  --sl-color-bg: #070b16;
+  --sl-color-bg-nav: #070b16;
+  --sl-color-bg-sidebar: #070b16;
+  --sl-color-bg-inline-code: #141b2e;
+  --sl-color-bg-accent: #0d1832;
 
-  --sl-color-text: #e8e8f2;
-  --sl-color-text-accent: #c6b3ff;
-  --sl-color-text-invert: #0a0a14;
+  --sl-color-text: #e6ebf5;
+  --sl-color-text-accent: #8fb2ff;
+  --sl-color-text-invert: #070b16;
 
-  --sl-color-gray-1: #f1f1f6;
-  --sl-color-gray-2: #c8c8d6;
-  --sl-color-gray-3: #9a9ab0;
-  --sl-color-gray-4: #6b6b80;
-  --sl-color-gray-5: #2a2a3a;
-  --sl-color-gray-6: #14141f;
-  --sl-color-gray-7: #0f0f18;
+  --sl-color-gray-1: #eef2fb;
+  --sl-color-gray-2: #c4cde0;
+  --sl-color-gray-3: #94a0bc;
+  --sl-color-gray-4: #65728f;
+  --sl-color-gray-5: #2a3450;
+  --sl-color-gray-6: #131a2c;
+  --sl-color-gray-7: #0d1322;
 
-  --sl-color-hairline: #1f1f2e;
-  --sl-color-hairline-light: #2a2a3e;
-  --sl-color-hairline-shade: #14141f;
+  --sl-color-hairline: #1c2740;
+  --sl-color-hairline-light: #28344f;
+  --sl-color-hairline-shade: #111a2e;
 }
 
-/* Light mode — white bg, dark text, same violet accent */
+/* ---- Light mode — white + Cardano Blue (primary aesthetic) ------------- */
 :root[data-theme='light'] {
   --sl-color-bg: #ffffff;
   --sl-color-bg-nav: #ffffff;
-  --sl-color-bg-sidebar: #fafafc;
-  --sl-color-bg-inline-code: #f3f3f8;
-  --sl-color-bg-accent: #f4f0ff;
+  --sl-color-bg-sidebar: #f6f8fc;
+  --sl-color-bg-inline-code: #eef2fb;
+  --sl-color-bg-accent: #eaf0fd;
 
-  --sl-color-text: #14141f;
-  --sl-color-text-accent: #5b3edb;
+  --sl-color-text: #0d1b2a;
+  --sl-color-text-accent: #0033ad;
   --sl-color-text-invert: #ffffff;
 
-  --sl-color-gray-1: #14141f;
-  --sl-color-gray-2: #3a3a4a;
-  --sl-color-gray-3: #5a5a6e;
-  --sl-color-gray-4: #8a8aa0;
-  --sl-color-gray-5: #d4d4e0;
-  --sl-color-gray-6: #ecedf2;
-  --sl-color-gray-7: #f5f5fa;
+  --sl-color-gray-1: #0d1b2a;
+  --sl-color-gray-2: #33415c;
+  --sl-color-gray-3: #54627d;
+  --sl-color-gray-4: #8794ab;
+  --sl-color-gray-5: #d3dbe9;
+  --sl-color-gray-6: #eaeff7;
+  --sl-color-gray-7: #f4f7fc;
 
-  --sl-color-hairline: #e4e4ee;
-  --sl-color-hairline-light: #ecedf2;
-  --sl-color-hairline-shade: #d4d4e0;
+  --sl-color-hairline: #e2e8f2;
+  --sl-color-hairline-light: #eaeff7;
+  --sl-color-hairline-shade: #d3dbe9;
 }
 
-/* Hero polish on the splash page */
+/* ---- Brand mark in the header ------------------------------------------ */
+.site-title img {
+  border-radius: 8px;
+}
+
+/* ---- Splash hero ------------------------------------------------------- */
+/* Soft Cardano-blue banner behind the hero, echoing the dev portal. */
+.hero {
+  position: relative;
+  padding-block: clamp(2rem, 6vw, 4.5rem);
+  border-radius: var(--cf-radius);
+  background:
+    radial-gradient(120% 120% at 50% -20%, rgba(0, 51, 173, 0.16), transparent 60%),
+    radial-gradient(90% 90% at 100% 0%, rgba(26, 84, 216, 0.10), transparent 55%);
+}
+
+:root[data-theme='dark'] .hero {
+  background:
+    radial-gradient(120% 120% at 50% -20%, rgba(43, 108, 255, 0.22), transparent 60%),
+    radial-gradient(90% 90% at 100% 0%, rgba(0, 51, 173, 0.25), transparent 55%);
+}
+
 .hero h1 {
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  background: linear-gradient(180deg, var(--sl-color-text), var(--cf-blue));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+:root[data-theme='dark'] .hero h1 {
+  background: linear-gradient(180deg, #ffffff, #8fb2ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .hero .tagline {
   color: var(--sl-color-gray-2);
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  line-height: 1.5;
 }
 
-/* Subtle violet glow on focus states */
+/* ---- Hero call-to-action buttons --------------------------------------- */
+.sl-link-button.primary {
+  background: var(--cf-blue);
+  border-color: var(--cf-blue);
+  color: #ffffff;
+  border-radius: 999px;
+  font-weight: 600;
+  box-shadow: 0 6px 18px -8px rgba(0, 51, 173, 0.7);
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.sl-link-button.primary:hover {
+  background: var(--cf-blue-deep);
+  border-color: var(--cf-blue-deep);
+  transform: translateY(-1px);
+}
+
+.sl-link-button.minimal,
+.sl-link-button.secondary {
+  border-radius: 999px;
+  border: 1px solid var(--sl-color-hairline-shade);
+  color: var(--sl-color-text-accent);
+  font-weight: 600;
+}
+
+.sl-link-button.minimal:hover,
+.sl-link-button.secondary:hover {
+  border-color: var(--cf-blue);
+  background: var(--sl-color-bg-accent);
+}
+
+/* ---- Card grid (homepage) ---------------------------------------------- */
+.card {
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: var(--cf-radius);
+  background: var(--sl-color-bg);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.card:hover {
+  border-color: var(--cf-blue);
+  box-shadow: 0 12px 30px -18px rgba(0, 51, 173, 0.55);
+  transform: translateY(-2px);
+}
+
+.card .icon {
+  color: var(--cf-blue);
+  background: var(--sl-color-bg-accent);
+  border-color: transparent;
+}
+
+:root[data-theme='dark'] .card .icon {
+  color: #8fb2ff;
+}
+
+.card .title {
+  font-weight: 700;
+}
+
+/* ---- Links ------------------------------------------------------------- */
+.sl-markdown-content a:not(:where(.not-content *)) {
+  color: var(--sl-color-text-accent);
+  text-underline-offset: 0.2em;
+}
+
+/* ---- Focus states ------------------------------------------------------ */
 :focus-visible {
-  outline: 2px solid var(--sl-color-accent);
+  outline: 2px solid var(--cf-blue);
   outline-offset: 2px;
 }
 
-/* Auto-catalog tables: keep identifiers in the first column on one line so
- * the table doesn't squash skill/source names to a single character per row
- * when descriptions are long. */
+/* ---- Auto-catalog tables ----------------------------------------------- */
+/* Keep identifiers in the first column on one line so long descriptions don't
+ * squash skill/source names to one character per row. */
 .sl-markdown-content table td code,
 .sl-markdown-content table th code {
   white-space: nowrap;
 }
 
-/* Give the first column some breathing room in the dense catalogs */
 .sl-markdown-content table th:first-child,
 .sl-markdown-content table td:first-child {
   min-width: 14ch;

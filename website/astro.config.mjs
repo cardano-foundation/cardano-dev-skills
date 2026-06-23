@@ -9,6 +9,10 @@ export default defineConfig({
     starlight({
       title: 'Cardano Dev Skills',
       description: 'Cardano dev knowledge, native in your AI coding agent.',
+      logo: {
+        src: './src/assets/logo.svg',
+        alt: 'Cardano Dev Skills',
+      },
       social: {
         github: 'https://github.com/cardano-foundation/cardano-dev-skills',
       },

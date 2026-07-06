@@ -80,6 +80,36 @@ async function signAndSubmit() {
 }
 ```
 
+## Reading Wallet UTxOs
+
+CIP-30 wallets expose their own UTxOs, so you can read them directly from the wallet rather than querying a provider by address. The raw CIP-30 `getUtxos()` returns each UTxO as the CBOR of a `[transaction_input, transaction_output]` pair; the client parses these into typed `UTxO` values for you.
+
+```typescript twoslash
+import { mainnet, Client } from "@evolution-sdk/evolution"
+
+declare const walletApi: any
+
+const client = Client.make(mainnet)
+  .withBlockfrost({
+    baseUrl: "https://cardano-mainnet.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withCip30(walletApi)
+
+// Typed UTxOs sourced from the wallet (not the provider)
+const utxos = await client.getWalletUtxos()
+```
+
+When you build with a CIP-30 wallet, coin selection draws from the wallet's own UTxOs as well. Because the wallet tracks UTxOs created by transactions it just submitted, chained transactions see the previous transaction's change immediately, without waiting for a provider to index it:
+
+```typescript
+// Build, sign, and submit tx1 through the wallet, then build tx2.
+// tx2's coin selection sees tx1's change UTxO from the wallet right away.
+const tx2 = await client.newTx().payToAddress({ address, assets }).build()
+```
+
+A provider is still required for protocol parameters during `build()` — CIP-30 does not expose them. Pass them explicitly via `build({ fullProtocolParameters })` only if you have no provider.
+
 ## Configuration Options
 
 ```typescript twoslash

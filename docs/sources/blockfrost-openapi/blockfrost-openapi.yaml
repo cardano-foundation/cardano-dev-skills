@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  version: 0.1.89
+  version: 0.1.90
   title: Blockfrost.io ~ API Documentation
   x-logo:
     url: https://staging.blockfrost.io/images/logo.svg
@@ -5635,6 +5635,73 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/script_redeemers'
+        '400':
+          $ref: '#/components/responses/400'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '418':
+          $ref: '#/components/responses/418'
+        '429':
+          $ref: '#/components/responses/429'
+        '500':
+          $ref: '#/components/responses/500'
+  /scripts/{script_hash}/utxos:
+    get:
+      tags:
+        - Cardano » Scripts
+      summary: UTXOs holding the script as a reference script
+      description: |
+        List of UTXOs that hold the given script as a reference script (CIP-33).
+        These outputs can be used as reference inputs (CIP-31) in a transaction to
+        execute the script without including its full bytes. A single script may be
+        held by multiple UTXOs, potentially at different addresses.
+      parameters:
+        - in: path
+          name: script_hash
+          required: true
+          schema:
+            type: string
+          description: Hash of the script
+          example: e1457a0c47dfb7a2f6b8fbb059bdceab163c05d34f195b87b9f2b30e
+        - in: query
+          name: count
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+          description: The number of results displayed on one page.
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 21474836
+            default: 1
+          description: The page number for listing the results.
+        - in: query
+          name: order
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: asc
+          description: |
+            The ordering of items from the point of view of the blockchain,
+            not the page listing itself. By default, we return oldest first, newest last.
+      responses:
+        '200':
+          description: Return the UTXOs holding the script as a reference script
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/script_utxos'
         '400':
           $ref: '#/components/responses/400'
         '403':
@@ -11651,6 +11718,73 @@ components:
           - unit_mem
           - unit_steps
           - fee
+    script_utxos:
+      type: array
+      items:
+        type: object
+        properties:
+          address:
+            type: string
+            description: Bech32 encoded address of the UTXO holding the reference script
+            example: addr1qxqs59lphg8g6qndelq8xwqn60ag3aeyfcp33c2kdp46a09re5df3pzwwmyq946axfcejy5n4x0y99wqpgtp2gd0k09qsgy6pz
+          tx_hash:
+            type: string
+            description: Transaction hash of the UTXO
+          output_index:
+            type: integer
+            description: UTXO index in the transaction
+          amount:
+            type: array
+            items:
+              type: object
+              description: The sum of all the UTXO per asset
+              properties:
+                unit:
+                  type: string
+                  format: Lovelace or concatenation of asset policy_id and hex-encoded asset_name
+                  description: The unit of the value
+                quantity:
+                  type: string
+                  description: The quantity of the unit
+              required:
+                - unit
+                - quantity
+          block:
+            type: string
+            description: Block hash of the UTXO
+          data_hash:
+            type: string
+            nullable: true
+            description: The hash of the transaction output datum
+          inline_datum:
+            type: string
+            nullable: true
+            description: CBOR encoded inline datum
+            example: 19a6aa
+          reference_script_hash:
+            type: string
+            description: The hash of the reference script of the output. Equals the queried script hash.
+            example: 13a3efd825703a352a8f71f4e2758d08c28c564e8dfcce9f77776ad1
+        required:
+          - address
+          - tx_hash
+          - output_index
+          - amount
+          - block
+          - data_hash
+          - inline_datum
+          - reference_script_hash
+      example:
+        - address: addr1qxqs59lphg8g6qndelq8xwqn60ag3aeyfcp33c2kdp46a09re5df3pzwwmyq946axfcejy5n4x0y99wqpgtp2gd0k09qsgy6pz
+          tx_hash: 39a7a284c2a0948189dc45dec670211cd4d72f7b66c5726c08d9b3df11e44d58
+          output_index: 0
+          amount:
+            - unit: lovelace
+              quantity: '42000000'
+          block: 7eb8e27d18686c7db9a18f8bbcfe34e3fed6e047afaa2d969904d15e934847e6
+          data_hash: null
+          inline_datum: null
+          reference_script_hash: 13a3efd825703a352a8f71f4e2758d08c28c564e8dfcce9f77776ad1
     script_datum:
       type: object
       properties:

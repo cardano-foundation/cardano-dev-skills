@@ -154,6 +154,13 @@ python3 scripts/validate.py
 
 Open a PR. CI runs validation + count-drift check.
 
+## Verifying executable claims
+
+When a change touches runnable content (validator code, CLI commands, ports, version pins),
+verify it by running it, not just by cross-referencing docs. Note the bundled `docs/sources/`
+mirror each project's upstream default branch, so check version-sensitive claims against
+released packages (npm dist-tags, Maven metadata, GitHub releases), not the mirrored docs.
+
 ## Documentation governance
 
 Docs (`CLAUDE.md`, `README.md`, `docs/DESIGN.md`, `docs/CONTRIBUTING.md`) must reflect current state. When you change something **observable from outside the repo**, update related docs in the same PR.
@@ -177,7 +184,7 @@ Pure internal tweaks (refactor a script, fix a typo in a skill body) don't trigg
 
 ### Auto-derived counts
 
-`scripts/update-doc-counts.sh` rewrites sentinels in CLAUDE.md and README.md from disk state. Sentinels look like `<!-- COUNT:skills -->14<!-- /COUNT:skills -->`. Run before pushing — CI runs `--check` and fails PRs on drift.
+`scripts/update-doc-counts.sh` rewrites sentinels in CLAUDE.md and README.md from disk state. Sentinels look like `<!-- COUNT:skills -->15<!-- /COUNT:skills -->`. Run before pushing — CI runs `--check` and fails PRs on drift.
 
 ## Refreshing content
 
@@ -205,9 +212,5 @@ To refresh locally:
 
 ## Future automation (tracked, not yet built)
 
-See [DESIGN.md Decision 9](DESIGN.md) for the full roadmap. Highlights:
-
-- `UserPromptSubmit` auto-consultation hook + local usage telemetry
-- PR-time source-build check (validates new entries actually clone + match files)
-- AI-powered governance review on PRs (advisory comments, not blocking)
-- GitHub Pages site with auto-generated catalogs
+The planned automation is listed on the [roadmap](../website/src/content/docs/about/roadmap.md);
+the rationale for each item is in [DESIGN.md Decision 9](DESIGN.md).

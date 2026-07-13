@@ -64,18 +64,9 @@ Docs must reflect current state. When you change something **observable from out
 
 ### What to update for each change type
 
-| Change | Update these docs |
-|---|---|
-| New skill (`skills/<name>/SKILL.md`) | README.md skills table; DESIGN.md if it changes the skill graph. Pages site skills catalog auto-regenerates on build. |
-| New source in `registry/sources.yaml` | Run `scripts/update-doc-counts.sh` (counts auto-update); CONTRIBUTING.md only if introducing a new category or format. Pages site sources catalog auto-regenerates on build. |
-| New schema field (category, format, etc.) | `registry/sources.yaml` header comment; CONTRIBUTING.md valid-values lists; DESIGN.md if it's architectural |
-| New script in `scripts/` | README.md "Contributing" / "Architecture" section if user-facing |
-| New hook in `hooks/` | README.md "How to set the Cardano context" section; CLAUDE.md repo structure; `website/src/content/docs/how-it-works.md` |
-| Scope / vetting / governance policy change | CLAUDE.md governance section; CONTRIBUTING.md; `website/src/content/docs/contributing/` pages |
-| Vision / "why" change | README.md; `website/src/content/docs/about/why.md` |
-| Install flow change | README.md install section; `website/src/content/docs/getting-started.md` |
-| Roadmap change | Memory `project_skill_roadmap.md`; `website/src/content/docs/about/roadmap.md` |
-| Removed/renamed file or path | All docs that reference it — grep first |
+The canonical change→docs matrix lives in `docs/CONTRIBUTING.md` (§Documentation
+governance) — consult it whenever a change is externally observable (per the rule above)
+to see which docs to update in the same PR.
 
 ### Auto-derived counts
 
@@ -83,14 +74,9 @@ Docs must reflect current state. When you change something **observable from out
 
 ### Source-vetting bar
 
-When adding to `registry/sources.yaml`:
-- Last commit < 6 months old
-- ≥1 release tag OR active issue/PR activity in the last 3 months
-- No archived/deprecated/sunset banner
-- For forks: pick the maintained canonical (e.g. Evolution SDK is the live fork of dead Lucid Evolution)
-- **No branded dApps.** The repo teaches BUILDING on Cardano, not how specific deployed products work. Generic primitives (SDKs, frameworks, validator libraries, design patterns, infrastructure) are in scope. Product docs for specific dApps (SundaeSwap, Minswap, Liqwid, Indigo, JPG Store, etc.) are not.
-
-Full policy lives in `docs/CONTRIBUTING.md`.
+Before adding to `registry/sources.yaml`, meet the maintenance bar in `docs/CONTRIBUTING.md`
+(commit recency, release/activity signal, no archival banner, fork canonicality) and the
+scope rule (no branded dApps). That doc is canonical — don't restate the bar here.
 
 ### When in doubt
 

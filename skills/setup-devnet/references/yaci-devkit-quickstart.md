@@ -1,118 +1,93 @@
 # Yaci DevKit Quickstart
 
-Yaci DevKit provides a local Cardano devnet using Docker for fast smart contract development and testing.
+Yaci DevKit provides a local Cardano devnet using Docker for fast smart contract
+development and testing. Commands and ports below match the current DevKit —
+always cross-check `docs/sources/yaci-devkit/getting-started/docker.mdx` and
+`docs/sources/yaci-devkit/services.mdx`, as the CLI evolves.
 
 ## Prerequisites
 
 - Docker and Docker Compose installed
 - At least 4GB RAM available for Docker
-- Ports 3001 and 10000 available
 
-## Starting the DevKit
+## Installing and starting the DevKit
 
-### Option 1: Interactive mode (recommended for exploration)
-
-```bash
-docker run -it --name yaci-devkit \
-  -p 3001:3001 \
-  -p 10000:10000 \
-  bloxbean/yaci-devkit:latest
-```
-
-This drops you into the Yaci CLI where you can manage the devnet interactively.
-
-### Option 2: Detached mode (for CI/scripts)
+The DevKit ships as a `devkit` script (curl installer or zip distribution) that
+manages the Docker containers and drops you into the Yaci CLI:
 
 ```bash
-docker run -d --name yaci-devkit \
-  -p 3001:3001 \
-  -p 10000:10000 \
-  bloxbean/yaci-devkit:latest
+# Install (curl-based)
+curl --proto '=https' --tlsv1.2 -LsSf https://devkit.yaci.xyz/install.sh | bash
+
+# Start containers + Yaci CLI
+devkit start          # zip install: ./devkit.sh start
+
+# Other script options: stop | cli | ssh | info | version
 ```
 
-## Yaci CLI Commands
-
-Once inside the interactive CLI:
+## Creating a devnet (inside the Yaci CLI)
 
 ```bash
-# Create and start a devnet
-devnet:create
-devnet:start
+# Create and start a default devnet (1-second blocks)
+yaci-cli:> create-node -o --start
 
-# Check devnet status
-devnet:info
-
-# Fund an address with test ADA
-devnet:topup <address> <amount_in_ada>
-
-# Reset the devnet (clean state)
-devnet:reset
-
-# Stop the devnet
-devnet:stop
+# Faster blocks (always set both flags for sub-second times)
+yaci-cli:> create-node -o --block-time 0.2 --slot-length 0.2 --start
 ```
 
-## Configuration
-
-### Custom devnet configuration
-
-Create a `devnet-config.yaml` to customize:
-
-```yaml
-# Protocol parameters
-slotLength: 0.2          # Seconds per slot (faster = quicker testing)
-protocolMagic: 42        # Network magic number
-era: Conway              # Babbage or Conway
-
-# Genesis configuration
-initialFunds:
-  - address: addr_test1qz...
-    amount: 10000000000   # 10,000 ADA in lovelace
-```
-
-Mount the config when starting:
+Once running you land in the `devnet:default>` context:
 
 ```bash
-docker run -it --name yaci-devkit \
-  -p 3001:3001 \
-  -p 10000:10000 \
-  -v $(pwd)/devnet-config.yaml:/app/config/devnet-config.yaml \
-  bloxbean/yaci-devkit:latest
+devnet:default> topup <address> <ada_amount>   # fund an address with test ADA
+devnet:default> utxos <address>                # check UTxOs
+devnet:default> info                           # devnet status
+devnet:default> reset                          # clean state
+devnet:default> stop                           # stop the devnet
 ```
 
-### Era selection
+Note: `devnet:default` is the CLI *prompt*, not a command prefix — the commands
+are bare (`topup`, `info`, …).
 
-- **Babbage**: Standard Plutus V1/V2 smart contracts
-- **Conway**: Governance features (CIP-1694), Plutus V3
+## Service URLs and ports
 
-## Pre-funded Wallets
+| Service | URL |
+|---|---|
+| **Yaci Store API (Blockfrost-compatible)** | `http://localhost:8080/api/v1/` |
+| Yaci Store Swagger UI | `http://localhost:8080/swagger-ui.html` |
+| Yaci Viewer (block explorer) | `http://localhost:5173` |
+| CLI/Admin Swagger UI | `http://localhost:10000/swagger-ui.html` |
+| Wallet page / MCP endpoint | `http://localhost:10000/wallet` / `http://localhost:10000/mcp` |
+| Ogmios (if enabled) | `ws://localhost:1337` |
+| Kupo (if enabled) | `http://localhost:1442` |
+| Cardano node (n2n) | `localhost:3001` |
 
-DevKit creates pre-funded wallets on devnet creation. Access wallet details:
+The application/query API you point SDKs at is port **8080** (Yaci Store).
+Port 10000 serves the CLI/admin/wallet/MCP endpoints, not chain queries.
+Ports are configurable via the `config/env` file (`HOST_STORE_API_PORT`, …).
+
+## Era and block-time configuration
+
+- Current DevKit devnets run the Conway era (governance, Plutus V3)
+- `--block-time` / `--slot-length` / `--epoch-length` flags on `create-node`
+  control timing (see docker.mdx for constraints)
+- Auto-fund addresses at startup via `topup_addresses=addr1:amount,...` in
+  `config/env`
+
+## Enabling Ogmios and Kupo
+
+Prefer the DevKit's built-in services over hand-run containers:
 
 ```bash
 # Inside Yaci CLI
-devnet:default-addresses
+yaci-cli:> enable-kupomios
+
+# Or in config/env
+ogmios_enabled=true
+kupo_enabled=true
 ```
 
-Default wallets come with sufficient test ADA for development. Use `devnet:topup` to fund additional addresses.
-
-## Yaci Store API
-
-The built-in Yaci Store provides a REST API at `http://localhost:10000`:
-
-```bash
-# Query UTxOs at an address
-curl http://localhost:10000/api/v1/addresses/<address>/utxos
-
-# Get latest block
-curl http://localhost:10000/api/v1/blocks/latest
-
-# Get transaction details
-curl http://localhost:10000/api/v1/txs/<tx_hash>
-
-# Protocol parameters
-curl http://localhost:10000/api/v1/epochs/latest/parameters
-```
+Since DevKit v0.12.0-beta5, Yaci Store evaluates scripts with `scalus` when
+Ogmios is not running — Ogmios is optional for transaction evaluation.
 
 ## Connecting SDKs
 
@@ -121,12 +96,12 @@ curl http://localhost:10000/api/v1/epochs/latest/parameters
 ```typescript
 import { YaciProvider } from "@meshsdk/core";
 
-const provider = new YaciProvider("http://localhost:10000/api/v1");
+const provider = new YaciProvider("http://localhost:8080/api/v1");
 ```
 
 ### Evolution SDK (TypeScript)
 
-If running Ogmios + Kupo alongside Yaci DevKit, point the client at them via `.withKupmios(...)`. Evolution SDK also ships its own first-party local devnet (`@evolution-sdk/devnet`) as a code-first alternative to Yaci DevKit — see `evolution-sdk-devnet.md` in this directory.
+If running Ogmios + Kupo (enable-kupomios), point the client at them via `.withKupmios(...)`. Evolution SDK also ships its own first-party local devnet (`@evolution-sdk/devnet`) as a code-first alternative to Yaci DevKit — see `evolution-sdk-devnet.md` in this directory.
 
 ```typescript
 import { Client, preprod } from "@evolution-sdk/evolution"
@@ -145,7 +120,7 @@ from pycardano import BlockFrostChainContext
 
 # Yaci Store is compatible with Blockfrost API format
 context = BlockFrostChainContext(
-    base_url="http://localhost:10000/api/v1",
+    base_url="http://localhost:8080/api/v1",
     project_id="yaci"  # Any string works locally
 )
 ```
@@ -161,84 +136,52 @@ aiken build
 # 2. The plutus.json blueprint is generated
 # 3. Use your SDK to read the blueprint and deploy
 
-# Example with cardano-cli (inside the container)
-docker exec -it yaci-devkit bash
-cardano-cli transaction build ...
+# Or query the node directly with the bundled cardano-cli
+devkit cli    # runs cardano-cli against the DevKit node
 ```
 
 ## Common Issues
 
 ### Port conflicts
 
-```bash
-# Check if ports are in use
-lsof -i :3001
-lsof -i :10000
-
-# Use different ports
-docker run -it --name yaci-devkit \
-  -p 3002:3001 \
-  -p 10001:10000 \
-  bloxbean/yaci-devkit:latest
-```
-
-### Container already exists
-
-```bash
-# Remove existing container
-docker rm -f yaci-devkit
-
-# Or restart it
-docker start -i yaci-devkit
-```
+Update port variables in the DevKit's `config/env` file
+(`HOST_STORE_API_PORT=8080`, `HOST_VIEWER_PORT=5173`,
+`HOST_CLUSTER_API_PORT=10000`, …) and restart the containers.
 
 ### Devnet not producing blocks
 
 ```bash
-# Inside Yaci CLI, restart the devnet
-devnet:stop
-devnet:start
+# Inside the CLI, restart the devnet
+devnet:default> stop
+yaci-cli:> create-node -o --start   # or restart the existing node
 ```
 
 ### Transactions failing with "era mismatch"
 
-Ensure your transaction is built for the same era as the devnet. Check with `devnet:info` and match your SDK/CLI configuration.
+Ensure your transaction is built for the same era as the devnet. Check with
+`info` and match your SDK/CLI configuration.
 
 ### Resetting state
 
 ```bash
-# Clean reset (inside CLI)
-devnet:reset
-
-# Or remove container and recreate
-docker rm -f yaci-devkit
-# Then run the docker run command again
+devnet:default> reset        # clean reset, keeps configuration
+# or stop the DevKit and remove its state entirely
+devkit stop
 ```
 
 ## CI/CD Usage
 
-```yaml
-# GitHub Actions service
-services:
-  yaci-devkit:
-    image: bloxbean/yaci-devkit:latest
-    ports:
-      - 3001:3001
-      - 10000:10000
-    options: >-
-      --health-cmd "curl -f http://localhost:10000/api/v1/blocks/latest || exit 1"
-      --health-interval 10s
-      --health-timeout 5s
-      --health-retries 10
-```
-
-Wait for the devnet to be ready before running tests:
+Run the DevKit containers in CI and wait for the Store API before tests:
 
 ```bash
-# Wait script
-until curl -sf http://localhost:10000/api/v1/blocks/latest; do
+# Wait script — Store API is the readiness signal
+until curl -sf http://localhost:8080/api/v1/blocks/latest; do
   echo "Waiting for Yaci DevKit..."
   sleep 2
 done
 echo "DevKit ready"
 ```
+
+See `docs/sources/yaci-devkit/` for the current recommended CI setup (the
+distribution is compose-based; a single-image `docker run` is no longer the
+documented path).

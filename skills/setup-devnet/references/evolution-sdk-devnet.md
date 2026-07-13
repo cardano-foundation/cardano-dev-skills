@@ -19,7 +19,7 @@ choice is about workflow (per `docs/sources/evolution-sdk/devnet/index.mdx`):
 | Block explorer | Web-based explorer included | None |
 | Chain APIs | Blockfrost-compatible REST built in | Kupo + Ogmios (opt-in containers) |
 | Genesis / funded addresses | Configured via CLI / config file | Genesis-as-code; UTxOs deterministic and pre-computable |
-| Cluster lifecycle | `devnet:create` / `devnet:start` CLI commands | `Cluster.make()` / `Cluster.start()` in code |
+| Cluster lifecycle | `create-node -o --start` in the Yaci CLI | `Cluster.make()` / `Cluster.start()` in code |
 | Rollback simulation | 3-node cluster mode | Not built in |
 | Best for | Visual exploration, broad SDK compatibility | Code-first workflows; devnet living inside your test suite |
 

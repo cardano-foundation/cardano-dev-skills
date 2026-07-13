@@ -67,23 +67,24 @@ Search the bundled documentation for relevant content:
 Reference the quickstart guide for detailed commands:
 
 ```
-File: skills/infrastructure/setup-devnet/references/yaci-devkit-quickstart.md
+File: skills/setup-devnet/references/yaci-devkit-quickstart.md
 ```
 
 #### Quick setup
 
 1. **Prerequisites**: Docker and Docker Compose installed
-2. **Start the devnet**:
+2. **Install + start the devnet** (the DevKit ships as a `devkit` script that
+   manages the containers and opens the Yaci CLI):
    ```bash
-   # Pull and run Yaci DevKit
-   docker run -it --name yaci-devkit \
-     -p 3001:3001 -p 10000:10000 \
-     bloxbean/yaci-devkit:latest
+   devkit start                        # opens yaci-cli
+   yaci-cli:> create-node -o --start   # create + start a default devnet
    ```
-3. **Pre-funded wallets**: DevKit provides wallets with test ADA on startup
+3. **Fund wallets**: `topup <address> <ada>` inside the CLI (the `devnet:default>` prompt), or pre-fund via `config/env`
 4. **Access points**:
-   - Yaci Store API: `http://localhost:10000`
-   - Node socket for cardano-cli: available inside the container
+   - Yaci Store API (Blockfrost-compatible): `http://localhost:8080/api/v1/`
+   - Yaci Viewer (block explorer): `http://localhost:5173`
+   - CLI/Admin, wallet, MCP: `http://localhost:10000`
+   - cardano-cli against the node: `devkit cli`
 
 #### Configure for your needs
 
@@ -97,7 +98,7 @@ File: skills/infrastructure/setup-devnet/references/yaci-devkit-quickstart.md
 If the project is TypeScript-based, `@evolution-sdk/devnet` runs the same local Cardano network as a library — the devnet's genesis, lifecycle, and UTxO queries live in your code and test suite instead of a separate CLI tool. Reference the quickstart:
 
 ```
-File: skills/infrastructure/setup-devnet/references/evolution-sdk-devnet.md
+File: skills/setup-devnet/references/evolution-sdk-devnet.md
 ```
 
 #### Quick setup
@@ -123,31 +124,22 @@ Choose this over Yaci DevKit when you want the devnet managed from inside integr
 
 ### Step 4: Set up local chain indexers
 
-If your application needs to query UTxOs or chain state beyond what Yaci Store provides:
-
-#### Ogmios (local)
-
-```bash
-# Ogmios connects to the local node
-docker run --rm \
-  --network host \
-  cardanosolutions/ogmios:latest \
-  --node-socket /path/to/node.socket \
-  --node-config /path/to/config.json
-```
-
-#### Kupo (local)
+If your application needs Ogmios/Kupo (e.g. for Evolution SDK's `.withKupmios`),
+use the DevKit's built-in services instead of hand-run containers:
 
 ```bash
-# Kupo indexes UTxOs matching patterns
-docker run --rm \
-  --network host \
-  cardanosolutions/kupo:latest \
-  --ogmios-host localhost \
-  --ogmios-port 1337 \
-  --match "*" \
-  --since origin
+# Inside Yaci CLI
+yaci-cli:> enable-kupomios
+
+# Or in the DevKit's config/env
+ogmios_enabled=true
+kupo_enabled=true
 ```
+
+Ogmios serves `ws://localhost:1337`, Kupo `http://localhost:1442`. Since DevKit
+v0.12.0-beta5, Yaci Store evaluates scripts with `scalus` when Ogmios is not
+running — Ogmios is optional for transaction evaluation. For standalone (non-DevKit)
+setups, see `docs/sources/ogmios/` and `docs/sources/kupo/`.
 
 ### Step 5: Smart contract workflow
 
@@ -193,8 +185,8 @@ aiken check        # Run unit tests
 ```bash
 # Request test ADA from the faucet (web interface or API)
 # Provide your testnet address
-# Receives 1000 test ADA (Preview) or 10000 (Preprod)
-# Faucet has rate limits per address
+# Dispenses ~10,000 test ADA per request (same on Preview and Preprod)
+# Faucet is rate-limited per address/API key
 ```
 
 ### Step 7: CI integration
@@ -208,12 +200,6 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
-    services:
-      yaci-devkit:
-        image: bloxbean/yaci-devkit:latest
-        ports:
-          - 3001:3001
-          - 10000:10000
     steps:
       - uses: actions/checkout@v4
       - name: Install Aiken
@@ -222,15 +208,24 @@ jobs:
         run: aiken build
       - name: Run unit tests
         run: aiken check
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Yaci DevKit
+        run: npm install -g @bloxbean/yaci-devkit
+      - name: Start a devnet
+        run: |
+          nohup yaci-devkit up --enable-yaci-store &
+          # poll http://localhost:8080 until the Yaci Store API answers
       - name: Run integration tests
         run: |
-          # Wait for devnet to be ready
-          # Run off-chain integration tests against localhost
+          # Run off-chain integration tests against localhost:8080
 ```
 
 #### Key CI considerations
 
-- Use Docker services for the devnet
+- Install the Yaci DevKit npm package and start the devnet in a background step (`yaci-devkit up`)
 - Cache Aiken build artifacts
 - Run unit tests first (fast), then integration tests (slower)
 - Use deterministic wallet keys for reproducible tests
@@ -247,8 +242,8 @@ jobs:
 
 ## References
 
-- `skills/infrastructure/setup-devnet/references/yaci-devkit-quickstart.md` -- Yaci DevKit quickstart guide
-- `skills/infrastructure/setup-devnet/references/evolution-sdk-devnet.md` -- Evolution SDK devnet quickstart guide
+- `skills/setup-devnet/references/yaci-devkit-quickstart.md` -- Yaci DevKit quickstart guide
+- `skills/setup-devnet/references/evolution-sdk-devnet.md` -- Evolution SDK devnet quickstart guide
 - Yaci DevKit: https://github.com/bloxbean/yaci-devkit
 - Evolution SDK devnet: https://github.com/IntersectMBO/evolution-sdk
 - Cardano testnets: https://docs.cardano.org/cardano-testnets/

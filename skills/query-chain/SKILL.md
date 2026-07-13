@@ -61,7 +61,7 @@ Search the bundled documentation for relevant content:
 Search the reference file for detailed provider comparisons.
 
 ```
-File: skills/infrastructure/query-chain/references/provider-comparison.md
+File: skills/query-chain/references/provider-comparison.md
 ```
 
 #### Quick decision guide
@@ -184,7 +184,7 @@ Give the developer a working code snippet for their chosen provider and language
 
 ## References
 
-- `skills/infrastructure/query-chain/references/provider-comparison.md` -- Detailed comparison of all 7 providers with decision matrix
+- `skills/query-chain/references/provider-comparison.md` -- Detailed comparison of all 7 providers with decision matrix
 - Blockfrost docs: https://docs.blockfrost.io
 - Ogmios docs: https://ogmios.dev
 - Kupo docs: https://cardanosolutions.github.io/kupo

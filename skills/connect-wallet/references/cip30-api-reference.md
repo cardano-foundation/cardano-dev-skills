@@ -9,13 +9,15 @@ CIP-30 defines the standard interface for web-based dApps to interact with Carda
 The global injection point for Cardano wallets. Each wallet extension adds itself as a property:
 
 ```javascript
-window.cardano.nami     // Nami wallet
-window.cardano.eternl   // Eternl wallet
-window.cardano.lace     // Lace wallet
-window.cardano.flint    // Flint wallet
-window.cardano.vespr    // Vespr wallet
-window.cardano.typhon   // Typhon wallet
+window.cardano.eternl     // Eternl wallet
+window.cardano.lace       // Lace wallet
+window.cardano.vespr      // Vespr wallet
+window.cardano.typhon     // Typhon wallet
 window.cardano.gerowallet // GeroWallet
+window.cardano.nufi       // NuFi wallet
+// ... keys vary per wallet -- enumerate Object.keys(window.cardano) instead
+// of hardcoding a list, and check the live registry at cardano.org/apps.
+// (Nami is sunset -- migrated into Lace; Flint is discontinued.)
 ```
 
 ### Wallet Properties (before enabling)
@@ -218,25 +220,27 @@ const signature = await api.signData(addressCbor, payloadHex);
 - Does not create a transaction
 - Follows CIP-8 message signing standard
 
-### `api.getCollateral(params?)`
+### `api.getCollateral(params)` — DEPRECATED
 
 Returns UTxOs suitable for use as collateral (for Plutus script transactions).
 
+**Deprecated in CIP-30**: since CIP-40 (collateral return, Babbage era), any
+UTxO can serve as collateral with the excess returned via a collateral-return
+output, so this dedicated API is no longer needed. Modern SDKs (Mesh, Evolution,
+Blaze) handle collateral in the transaction builder instead.
+
 ```javascript
-const collateral = await api.getCollateral();
-// Or request specific amount
-const collateral = await api.getCollateral({ amount: "5000000" });
+const collateral = await api.getCollateral({ amount: cborCoin });
 ```
 
 **Parameters**:
-- `params` (optional): `{ amount: string }` -- minimum collateral in lovelace
+- `params`: `{ amount: cbor<Coin> }` -- CBOR-encoded Coin (not a decimal string)
 
-**Returns**: `Promise<string[] | null>` -- Array of CBOR hex-encoded UTxOs suitable for collateral
+**Returns**: `Promise<TransactionUnspentOutput[] | null>` -- CBOR hex-encoded UTxOs suitable for collateral
 
 **Notes**:
-- Collateral UTxOs must contain only ADA (no multi-assets)
-- Typically 5 ADA is sufficient
-- Not all wallets implement this; may need to select collateral manually
+- Prefer CIP-40 collateral return over this legacy call
+- Some wallets still implement it; do not rely on it for new code
 
 ## CIP-95 Extensions (Governance)
 

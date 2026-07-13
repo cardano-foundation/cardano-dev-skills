@@ -36,9 +36,10 @@ and covers both native script and Plutus script errors.
    but precise. They usually tell you exactly what is wrong. The error type
    name alone often identifies the problem.
 
-2. **Reproduce before fixing.** Ensure you can consistently reproduce the
-   error. Transaction failures are deterministic -- the same inputs and
-   parameters will always produce the same result.
+2. **Reproduce before fixing.** Ensure you can consistently reproduce the error
+   before attempting a fix; transaction failures are deterministic, so the same inputs
+   produce the same error. A root cause you have reproduced beats one reasoned from logs
+   alone.
 
 3. **Isolate the failure layer.** Determine if the error occurs during
    transaction building (SDK), during submission (node), or during script
@@ -80,7 +81,7 @@ Classify the error into one of these categories:
 | Value errors | `ValueNotConservedUTxO`, `OutputTooSmallUTxO` | Math error in inputs/outputs, min-UTxO not met |
 | Input errors | `BadInputsUTxO` | UTxO already spent or does not exist |
 | Fee errors | `FeeTooSmallUTxO` | Fee calculation incorrect or overridden |
-| Collateral errors | `InsufficientCollateral`, `CollateralHasNonAdaAssets` | Missing or wrong collateral for Plutus tx |
+| Collateral errors | `InsufficientCollateral`, `CollateralContainsNonADA` | Missing or wrong collateral for Plutus tx |
 | Script errors | `ScriptFailure`, `ExUnitsTooBigUTxO` | Plutus script fails or exceeds budget |
 | Datum errors | `NonOutputSupplimentaryDatums` | Datum provided but not referenced |
 | Signer errors | `MissingRequiredSigners` | Required signature not included |
@@ -200,7 +201,7 @@ Most SDKs support evaluating a transaction without submitting:
 - **Mesh SDK:** Use Ogmios `evaluateTx` endpoint
 - **Evolution SDK:** Use `client.newTx()...buildEither()` for non-throwing inspection (`result._tag === "Left"` carries a tagged error). On Plutus failure, `EvaluationError` exposes `failures[]` with per-script `purpose`, `label`, `validationError`, and `traces` for trace-message-level debugging
 - **PyCardano:** `context.evaluate_tx(tx)`
-- **cardano-cli:** `cardano-cli transaction evaluate`
+- **cardano-cli:** `cardano-cli latest transaction calculate-plutus-script-cost` (there is no `transaction evaluate` subcommand; `transaction build` also evaluates implicitly)
 
 ### Block Explorers
 
@@ -221,8 +222,10 @@ For inspecting raw transaction bytes:
 When `ExUnitsTooBigUTxO` occurs:
 
 1. Evaluate the transaction to get actual CPU and memory usage
-2. Compare against protocol limits (currently ~10B CPU, ~10M memory
-   per transaction)
+2. Compare against protocol limits (mainnet currently: 10,000,000,000 CPU
+   steps and 16,500,000 memory units per transaction — query
+   `max_tx_ex_steps`/`max_tx_ex_mem` from current protocol parameters rather
+   than trusting static numbers)
 3. If close to limits: optimize the validator (use `optimize-validator`)
 4. If far over limits: redesign the approach (fewer script inputs,
    simpler logic, batching)

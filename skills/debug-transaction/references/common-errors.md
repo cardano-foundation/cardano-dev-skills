@@ -65,9 +65,9 @@ be attached directly to the output, not in the witness set.
 **What it means:** The Plutus script execution units (CPU and/or memory)
 exceed the per-transaction protocol limits.
 
-**Protocol limits (as of Chang hard fork):**
-- CPU: ~10,000,000,000 units per transaction
-- Memory: ~10,000,000 units per transaction
+**Protocol limits (mainnet, current — verify against live protocol params):**
+- CPU: 10,000,000,000 steps per transaction (`max_tx_ex_steps`)
+- Memory: 16,500,000 units per transaction (`max_tx_ex_mem`)
 
 **Common causes:**
 - Script performs too much computation (large loops, complex math)
@@ -179,7 +179,9 @@ not exist in the current ledger state.
 
 ---
 
-## CollateralHasNonAdaAssets
+## CollateralContainsNonADA
+
+(Ledger constructor name; Ogmios reports it as `NonAdaCollateral`, code 3133.)
 
 **What it means:** The collateral input contains native tokens in addition
 to ADA. Collateral must be pure ADA.

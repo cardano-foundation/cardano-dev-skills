@@ -7,9 +7,9 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 | Name | Base Language | Status | Adoption | Best For |
 |---|---|---|---|---|
 | **Aiken** | Own (Rust-like) | Production | High | Most new smart contract projects. Fast compilation, great DX. |
-| **PlutusTx** | Haskell | Production | High | Haskell teams, complex on-chain logic, academic rigor. |
+| **Plinth (formerly Plutus Tx)** | Haskell | Production | High | Haskell teams, complex on-chain logic, academic rigor. |
 | **OpShin** | Python | Production | Medium | Python developers wanting to write validators in Python. |
-| **Plu-ts** | TypeScript | Production | Medium | TypeScript devs wanting on-chain + off-chain in one language. |
+| **Pebble** | TypeScript | Production | Medium | TypeScript devs wanting on-chain + off-chain in one language (`@harmoniclabs/pebble`, successor of Plu-ts). |
 | **Scalus** | Scala | Production | Low | JVM/Scala teams. |
 | **Helios** | Own (JS-like) | Production | Medium | Quick prototyping, simple validators. |
 | **Plutarch** | Haskell (eDSL) | Production | Medium | Performance-optimized Plutus, Haskell experts. |
@@ -36,7 +36,8 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 
 | Name | Status | Adoption | Best For |
 |---|---|---|---|
-| **Pallas** | Production | High | High-performance, custom node interaction, tooling. |
+| **whisky** | Production | Low | dApp transaction building (Mesh-like API; SIDAN Lab, young project). |
+| **Pallas** | Production | High | Low-level building blocks: network protocols, ledger primitives, indexers. Foundation of Dolos/Oura/Amaru; not an app-dev tx builder. |
 | **Cardano Serialization Lib** | Production | Medium | Serialization/deserialization, WASM targets. |
 
 ### Java / Kotlin

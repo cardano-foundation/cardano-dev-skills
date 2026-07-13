@@ -31,7 +31,7 @@ construction, signing, submission, and verification on a testnet.
   or `review-contract`
 - User is designing token metadata standards -- use `design-token`
 - User has a failing transaction and needs help debugging -- use `debug-transaction`
-- User wants to set up Cardano node infrastructure -- use `setup-node`
+- User wants to set up a local devnet or node infrastructure -- use `setup-devnet`
 
 ## Key Principles
 
@@ -122,7 +122,7 @@ pip install pycardano
 <dependency>
   <groupId>com.bloxbean.cardano</groupId>
   <artifactId>cardano-client-lib</artifactId>
-  <version>0.5.1</version>
+  <version>0.7.2</version>
 </dependency>
 ```
 
@@ -206,13 +206,16 @@ Warn about these frequent issues:
 - **Transaction size limit:** Max 16 KB. Large token bundles or many inputs
   can exceed this. Split into multiple transactions if needed.
 
-### Step 7: Test on Preview Testnet
+### Step 7: Test on a testnet before mainnet
+
+A transaction that type-checks can still fail at submission (min-UTxO, fees, collateral,
+script evaluation). Always run it on a testnet first — and for Plutus-script flows, a local
+Yaci DevKit devnet (`setup-devnet`) gives the fastest build→submit→confirm loop.
 
 1. Get test ADA from the Cardano faucet: https://docs.cardano.org/cardano-testnets/tools/faucet/
-2. Run the transaction code
-3. Verify on a block explorer:
-   - Preview: https://preview.cardanoscan.io
-   - Preprod: https://preprod.cardanoscan.io
+2. Run the transaction code against Preview or Preprod
+3. Verify on a block explorer (Preview: https://preview.cardanoscan.io ·
+   Preprod: https://preprod.cardanoscan.io)
 4. Check the transaction hash matches expected outputs
 5. For minting: verify the token appears in the wallet
 

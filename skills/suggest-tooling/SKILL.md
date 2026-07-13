@@ -62,7 +62,7 @@ Search the bundled documentation for relevant content:
 Reference the ecosystem map for the full landscape:
 
 ```
-File: skills/integration/suggest-tooling/references/ecosystem-map.md
+File: skills/suggest-tooling/references/ecosystem-map.md
 ```
 
 ### Step 4: Recommend by category
@@ -72,9 +72,9 @@ File: skills/integration/suggest-tooling/references/ecosystem-map.md
 | Language | Best for | Language base | Status |
 |---|---|---|---|
 | **Aiken** | Most new projects, performance-critical validators | Own syntax (Rust-like) | Production |
-| **Plutus (PlutusTx)** | Haskell teams, complex on-chain logic | Haskell | Production |
+| **Plinth (formerly Plutus Tx)** | Haskell teams, complex on-chain logic | Haskell | Production |
 | **OpShin** | Python developers writing validators | Python | Production |
-| **Plu-ts** | TypeScript developers wanting on-chain code in TS | TypeScript | Production |
+| **Pebble** | TypeScript developers wanting on-chain code in TS (`@harmoniclabs/pebble`, successor of Plu-ts) | TypeScript | Production |
 | **Scalus** | Scala/JVM teams | Scala | Production |
 | **Helios** | Simple validators, quick prototyping | Own syntax (JS-like) | Production |
 
@@ -91,7 +91,8 @@ File: skills/integration/suggest-tooling/references/ecosystem-map.md
 | **cardano-js-sdk** | TypeScript | Lace wallet ecosystem, full node interaction | Production |
 | **Blaze** | TypeScript | Lightweight, modular tx building | Production |
 | **Cardano Java Client Lib** | Java/Kotlin | JVM backends, Android | Production |
-| **Pallas** | Rust | High-performance, custom node interaction | Production |
+| **whisky** | Rust | Transaction building for dApps (Mesh-like API; young project by SIDAN Lab) | Production |
+| **Pallas** | Rust | Low-level building blocks: network protocols, ledger primitives, indexers (foundation of Dolos, Oura, Amaru) | Production |
 
 **Default recommendation by language**:
 - TypeScript/JavaScript: **Mesh SDK** (comprehensive, well-documented, great for beginners) or **Evolution SDK** (type-safe, Effect-based composable builder)
@@ -192,7 +193,7 @@ For each recommendation, briefly note:
 
 ## References
 
-- `skills/integration/suggest-tooling/references/ecosystem-map.md` -- Full ecosystem map with all tools
+- `skills/suggest-tooling/references/ecosystem-map.md` -- Full ecosystem map with all tools
 - Cardano developer portal: https://developers.cardano.org
 - Aiken: https://aiken-lang.org
 - Mesh SDK: https://meshjs.dev

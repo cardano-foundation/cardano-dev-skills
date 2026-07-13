@@ -59,7 +59,7 @@ Search the bundled documentation for relevant content:
 Reference the CIP-30 API reference for the full specification:
 
 ```
-File: skills/integration/connect-wallet/references/cip30-api-reference.md
+File: skills/connect-wallet/references/cip30-api-reference.md
 ```
 
 #### How CIP-30 works
@@ -279,6 +279,11 @@ const utxos = await wallet.getUtxos();           // Decoded UTxO objects
 const addresses = await wallet.getUsedAddresses(); // Bech32 addresses
 ```
 
+> Note: these Mesh examples target the released `@meshsdk/*` 1.9.x (npm
+> `latest`). Mesh 2.0 (currently beta-only) renames the wallet API
+> (`MeshCardanoBrowserWallet`, `getBalanceMesh()`, `getChangeAddressBech32()`,
+> …) — don't mix the two API generations.
+
 ### Step 6: Building, signing, and submitting transactions
 
 #### With Mesh SDK
@@ -360,7 +365,7 @@ const registeredPubStakeKeys = await api.cip95.getRegisteredPubStakeKeys();
 const unregisteredPubStakeKeys = await api.cip95.getUnregisteredPubStakeKeys();
 ```
 
-Not all wallets support CIP-95 yet. Check wallet compatibility before relying on it. Wallets supporting CIP-95: Eternl, Lace, Flint, Vespr, Typhon.
+Not all wallets support CIP-95 yet. Check wallet compatibility before relying on it. Wallets listed as CIP-95 implementors in the spec: Eternl, GeroWallet, Lace, NuFi, Typhon, Vespr, Yoroi — but verify against the spec's Implementors list (`docs/sources/cips/CIP-0095/README.md`) rather than trusting a static list.
 
 ### Step 9: Common issues and solutions
 
@@ -379,7 +384,7 @@ Not all wallets support CIP-95 yet. Check wallet compatibility before relying on
 
 ## References
 
-- `skills/integration/connect-wallet/references/cip30-api-reference.md` -- Full CIP-30 API reference
+- `skills/connect-wallet/references/cip30-api-reference.md` -- Full CIP-30 API reference
 - CIP-30 specification: https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030
 - CIP-95 specification: https://github.com/cardano-foundation/CIPs/tree/master/CIP-0095
 - Mesh SDK docs: https://meshjs.dev

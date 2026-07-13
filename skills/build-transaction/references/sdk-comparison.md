@@ -166,7 +166,7 @@ context.submit_tx(signed_tx)
 <dependency>
   <groupId>com.bloxbean.cardano</groupId>
   <artifactId>cardano-client-lib</artifactId>
-  <version>0.5.1</version>
+  <version>0.7.2</version>
 </dependency>
 ```
 

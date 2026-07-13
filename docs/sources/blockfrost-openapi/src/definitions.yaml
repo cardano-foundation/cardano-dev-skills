@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  version: 0.1.89
+  version: 0.1.90
   title: Blockfrost.io ~ API Documentation
   x-logo:
     url: https://staging.blockfrost.io/images/logo.svg
@@ -680,6 +680,9 @@ paths:
 
   /scripts/{script_hash}/redeemers:
     $ref: ./paths/api/scripts/{script_hash}/redeemers.yaml
+
+  /scripts/{script_hash}/utxos:
+    $ref: ./paths/api/scripts/{script_hash}/utxos.yaml
 
   /scripts/datum/{datum_hash}:
     $ref: ./paths/api/scripts/datum/{datum_hash}/index.yaml

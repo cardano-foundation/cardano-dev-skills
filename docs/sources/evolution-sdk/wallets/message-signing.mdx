@@ -74,7 +74,10 @@ Verification checks:
 2. Address in the signature matches the expected address
 3. Algorithm is EdDSA
 4. Public key hash matches the expected key hash
-5. Ed25519 signature is cryptographically valid
+5. Public key hashes to the address's credential — the payment credential for base/enterprise addresses, the stake credential for reward addresses (the signing key is bound to the claimed address)
+6. Ed25519 signature is cryptographically valid
+
+The address-binding check (5) is what ties the signature to the claimed address. The address's credential must be a key hash; script addresses cannot be proven by a single key and are rejected.
 
 ## Payload Utilities
 

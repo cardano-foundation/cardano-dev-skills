@@ -17,6 +17,7 @@
 * ✅ [ADR-15 JavaScript API for Cardano via WASM-compiled cardano-api](ADR-015-Cardano-API-WASM-library-for-browser)
 * 📜 [ADR-16 cardano-api new TxBodyContent](ADR-016-cardano-api-new-txbodycontent)
 * 📜 [ADR-18 gRPC Server for Cardano Node (cardano-rpc)](ADR-018-cardano-rpc-grpc-server)
+* 📜 [ADR-19 Node Kernel Access for cardano-rpc](ADR-019-node-kernel-access-for-cardano-rpc)
 
 ## Legend
 

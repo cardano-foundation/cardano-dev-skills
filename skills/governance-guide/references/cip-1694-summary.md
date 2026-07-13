@@ -65,7 +65,10 @@ Seven types of governance actions can be proposed and voted on:
 ### 5. Protocol Parameter Changes
 - **Purpose**: Modify protocol parameters (fees, block size, cost models, etc.)
 - **Required votes**: DReps + CC
-- **SPO vote**: Not required
+- **SPO vote**: Required additionally for **security-relevant parameters**
+  (`maxBlockBodySize`, `maxTxSize`, `maxBlockHeaderSize`, `maxValueSize`,
+  `maxBlockExecutionUnits`, `txFeePerByte`, `txFeeFixed`, `utxoCostPerByte`,
+  `govActionDeposit`, `minFeeRefScriptCostPerByte`) — separate threshold `Q5`
 - **Effect**: Parameters grouped into categories with different thresholds
 - **Categories**: Network, Economic, Technical, Governance
 
@@ -77,8 +80,9 @@ Seven types of governance actions can be proposed and voted on:
 
 ### 7. Info Action
 - **Purpose**: Non-binding poll or sentiment check
-- **Required votes**: DReps + SPOs (advisory only)
-- **CC vote**: Not required
+- **Required votes**: All three bodies — CC, DReps, and SPOs
+- **Thresholds**: DRep and SPO thresholds are both set to 100% (per CIP-1694,
+  so polls can only be read against the maximum bar, never "passed" cheaply)
 - **Effect**: No on-chain effect; records community sentiment
 
 ## Voting Thresholds
@@ -92,14 +96,20 @@ Each action type has specific thresholds that must be met for approval:
 | New CC (no-confidence state) | 60% | 51% | -- |
 | Update Constitution | 75% | -- | 2/3 quorum |
 | Hard fork | 60% | 51% | 2/3 quorum |
-| Protocol params (network) | 67% | -- | 2/3 quorum |
-| Protocol params (economic) | 67% | -- | 2/3 quorum |
-| Protocol params (technical) | 67% | -- | 2/3 quorum |
-| Protocol params (governance) | 75% | -- | 2/3 quorum |
+| Protocol params (network) | 67% | --* | 2/3 quorum |
+| Protocol params (economic) | 67% | --* | 2/3 quorum |
+| Protocol params (technical) | 67% | --* | 2/3 quorum |
+| Protocol params (governance) | 75% | --* | 2/3 quorum |
 | Treasury withdrawal | 67% | -- | 2/3 quorum |
-| Info action | 67% | 51% | -- |
+| Info action | 100% | 100% | 2/3 quorum |
 
-Thresholds are expressed as percentage of active voting stake (not total stake).
+\* Security-relevant parameter changes additionally require an SPO vote with
+its own threshold (`Q5`, ~51%), regardless of parameter group.
+
+Thresholds are expressed as percentage of active voting stake (not total
+stake). Exact values are themselves governance parameters
+(`dRepVotingThresholds` / `poolVotingThresholds`) — query the current ones
+rather than trusting a table.
 
 ## Proposal Lifecycle
 

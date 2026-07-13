@@ -107,13 +107,14 @@ Give the developer actionable next steps:
 
 ## Key CIPs for Developers
 
-### CIP-25: NFT Metadata Standard
+### CIP-25: Media Token Metadata Standard
 
 **Status:** Active
 
-**Summary:** Defines a standard for attaching metadata to NFTs (and fungible tokens) using
+**Summary:** Defines a standard for attaching metadata to media tokens/NFTs using
 transaction metadata (label 721). Metadata is included in the minting transaction and
-indexed by off-chain services.
+indexed by off-chain services. (For fungible-token metadata — ticker, decimals, logo —
+the standard path is CIP-26, the off-chain token registry, not CIP-25.)
 
 **Developer impact:**
 - Metadata is stored in the transaction, not on the UTxO itself
@@ -208,8 +209,8 @@ for use cases requiring mutable or on-chain metadata.
 
 **Architecture:**
 - **User token:** `<policy_id>.<label><name>` — held by the owner, represents ownership
-- **Reference token:** `<policy_id>.<ref_label><name>` — held at a script address, carries
-  metadata in its datum
+- **Reference token:** `<policy_id>.(100)<name>` — held at a script address, carries
+  metadata in its datum (label 100, hex prefix `000643b0`)
 - The minting policy enforces that both tokens are minted together
 
 **When to use CIP-68 vs CIP-25:**
@@ -238,22 +239,28 @@ governance actions.
 
 **Prerequisite:** CIP-30 wallet connection must be established first.
 
-### CIP-113: Programmable Token Standard
+### CIP-113: Programmable Tokens
 
-**Status:** Proposed
+**Status:** Proposed per the draft's own header — but the CIP is an **unmerged PR**
+([cardano-foundation/CIPs#444](https://github.com/cardano-foundation/CIPs/pull/444)),
+so it is not yet in the official CIPs repo or the bundled `cips/` mirror — though an
+adapted reference implementation is bundled under `docs/sources/cip-113-programmable-tokens/`.
 
-**Summary:** Defines a standard for tokens with programmable transfer logic — tokens that
-enforce rules on every transfer, not just minting. This is Cardano's approach to features
-like ERC-20 transfer hooks or restricted tokens.
+**Summary:** Defines a standard for tokens with programmable validation logic — rules
+enforced on every transfer, mint, and burn. Tokens are held at a shared script address
+with ownership tracked by stake credential; an on-chain registry links each token to its
+transfer/issuance logic, and substandards (freeze-and-seize, KYC) plug into the shared
+framework.
 
 **Developer impact:**
-- Enables "smart tokens" with enforced transfer rules
-- Uses spending validators at script addresses to control token movement
-- Relevant for regulated assets, royalty enforcement, and access-controlled tokens
-- Check current status — this CIP may still be evolving
+- Enables "smart tokens" with enforced transfer rules (regulated assets, stablecoins)
+- Shared-custody model: wallets/DEXes need stake-credential-aware integration
+- Relevant for compliance-bound assets; plain minting policies remain right for most tokens
 
-**Note:** Since this CIP is in Proposed status, the specification may change. Build with
-awareness that details could shift before it reaches Active status.
+**Note:** The specification may still change, and the Cardano Foundation reference
+implementation is not professionally audited, has only been briefly tested on the
+Preview testnet, and is not production-ready. Check the PR and
+`docs/sources/cip-113-programmable-tokens/` for current state.
 
 ### CIP-1694: Conway Era Governance (Voltaire)
 

@@ -28,7 +28,7 @@ transitioning from account-based chains like Ethereum or from web2 backgrounds.
 
 - The developer needs to **write** a validator or build a transaction — use `write-validator` or `build-transaction` instead
 - They are asking about a specific CIP standard — use `explain-cip`
-- They need to deploy or test a contract — use `deploy-validator` or the relevant infrastructure skill
+- They need to deploy or test a contract — use `setup-devnet` or `build-transaction`
 - They need wallet integration — use `connect-wallet`
 
 ## Key Principles

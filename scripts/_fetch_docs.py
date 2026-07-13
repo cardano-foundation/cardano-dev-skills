@@ -152,6 +152,8 @@ def clone_and_extract(source, tmp_dir, docs_dir):
     default_exts = ext_map.get(fmt, ['*.md'])
 
     dest_dir = os.path.join(docs_dir, slug)
+    # Clear previous snapshot so files removed upstream don't linger
+    shutil.rmtree(dest_dir, ignore_errors=True)
     os.makedirs(dest_dir, exist_ok=True)
 
     file_count = 0

@@ -4,19 +4,19 @@ Comparison of Cardano Improvement Proposals for native token metadata.
 
 ## Quick Comparison
 
-| Feature | CIP-25 | CIP-68 | CIP-113 |
+| Feature | CIP-25 | CIP-68 | CIP-113 (draft) |
 |---------|--------|--------|---------|
-| Metadata location | Transaction metadata (label 721) | Datum on reference UTxO | Datum on reference UTxO |
-| Updatable | No | Yes | Yes |
-| On-chain behavior | No | No | Yes (transfer rules) |
+| Metadata location | Transaction metadata (label 721) | Datum on reference UTxO | Orthogonal — standard native-asset naming; can pair with CIP-68 metadata |
+| Updatable | No | Yes | n/a (metadata is a separate concern) |
+| On-chain behavior | No | No | Yes (validation on every transfer/mint/burn) |
 | Complexity | Low | Medium | High |
-| Wallet support | Universal | Growing | Early |
-| Gas cost | Lower (no script) | Higher (Plutus) | Highest (Plutus + rules) |
-| Token types | NFT only | NFT, FT, RFT | NFT, FT, RFT + programmable |
+| Wallet support | Universal | Growing | Early (needs stake-credential-aware integration) |
+| Fee / script cost | Lowest (no script) | Higher (Plutus on update) | Highest (validators run on every movement) |
+| Token types | NFT only | NFT, FT, RFT | Programmable native assets |
 
 ---
 
-## CIP-25: NFT Metadata Standard
+## CIP-25: Media Token Metadata Standard
 
 **Purpose:** Define a standard way to attach metadata to NFTs at mint time.
 
@@ -128,69 +128,55 @@ Both the reference token (100) and user token (222/333/444) share the same
 
 ---
 
-## CIP-113: Programmable Token Standard
+## CIP-113: Programmable Tokens
 
-**Purpose:** Extend CIP-68 with programmable transfer rules enforced on-chain.
+**Status:** "Proposed" per the draft's own header, but the CIP is an unmerged
+PR ([cardano-foundation/CIPs#444](https://github.com/cardano-foundation/CIPs/pull/444))
+— not yet in the official CIPs repo. The Cardano Foundation reference
+implementation has not been professionally audited, has only been briefly
+tested on the Preview testnet, and is not production-ready.
 
-**How it works:**
-- Builds on CIP-68 reference token architecture
-- Adds a **programmable logic script** that governs token transfers
-- Every transfer of the token must satisfy the programmable logic validator
-- Enables enforced royalties, KYC requirements, transfer restrictions,
-  freezing, and other compliance features
+**Purpose:** Native tokens whose transfers, mints, and burns must satisfy
+on-chain validation logic — freeze/seize, allowlists, KYC gating, and other
+compliance rules an issuer must enforce after issuance.
+
+**How it works (shared-custody architecture):**
+- All programmable tokens are locked at a **shared spending validator**
+  (`programmableLogicBase`) — they never sit free in user wallets, so every
+  movement is a script spend and the validation logic always runs
+- **Ownership is tracked by stake credential**: a user's "smart wallet" is the
+  set of UTxOs at the shared script whose stake credential identifies them;
+  standard wallets keep a normal send/receive experience
+- An **on-chain registry** (a sorted linked list of UTxOs with NFT markers)
+  records each programmable token and points to its transfer, third-party, and
+  issuance logic scripts
+- Validation uses the **withdraw-zero pattern**: the base validator delegates to
+  a global stake validator that runs once per transaction and requires the
+  token-specific transfer-logic script to run alongside it
+- **Substandards** (e.g. freeze-and-seize, KYC) plug custom rules into the
+  shared framework instead of re-implementing the plumbing
+
+**Relationship to CIP-68 — it is NOT an extension:**
+- CIP-113 builds on native-asset infrastructure (its registry design descends
+  from CIP-143, now folded into it) and uses standard native-asset naming
+- A CIP-113 token can still carry CIP-68-style metadata, but the enforcement
+  model (shared custody + registry + stake validators) is orthogonal to CIP-68's
+  reference/user token pairing
 
 **When to use:**
-- Regulated/security tokens requiring transfer restrictions
-- Enforced royalty payments on every transfer
-- Tokens with KYC/AML compliance requirements
-- Freezable or pausable tokens
-- Tokens with transfer fees or caps
+- Regulated/security tokens and stablecoins requiring freeze, seize, or
+  allowlist controls
+- Real-world assets with compliance obligations (sanctions screening, KYC/AML)
+- Any asset whose issuer must enforce rules after issuance, not just at mint
 
-**How it differs from CIP-68:**
-- CIP-68 reference token + user token structure is preserved
-- An additional spending validator (programmable logic) must be satisfied
-  for every transfer of the user token
-- The programmable logic script can read the reference token datum to
-  make decisions (e.g., check a whitelist, enforce royalties)
+**Trade-off:** every movement runs scripts — higher fees, and wallets, DEXes,
+and explorers need stake-credential-aware integration to support these tokens.
+If control at mint/burn is enough, a plain minting policy is the right tool.
 
-**Architecture:**
-
-```
-Minting Policy
-  |
-  +-- Reference Token (label 100) at script address
-  |     datum: { metadata, version, programmable_logic_hash }
-  |
-  +-- User Token (label 222/333/444) held by owner
-        transfers governed by programmable_logic validator
-```
-
-**Example use cases:**
-
-1. **Enforced royalties:** Every transfer must include a payment to the
-   creator address. The programmable logic script checks for this output.
-
-2. **KYC whitelist:** The reference token datum contains a whitelist of
-   approved addresses. The programmable logic script verifies the
-   recipient is on the whitelist.
-
-3. **Freeze mechanism:** The reference token datum contains a `frozen`
-   flag. When set to `true`, the programmable logic script rejects
-   all transfers.
-
-**Metadata structure:** Same as CIP-68, with additional fields in the
-`extra` section for programmable logic configuration:
-
-```
-Constr(0, [
-  metadata_map,  ; same as CIP-68
-  version,       ; integer
-  Constr(0, [    ; extra
-    programmable_logic_hash,  ; script hash
-    transfer_rules            ; application-specific config
-  ])
-])
-```
+**Source of truth:** search `docs/sources/cip-113-programmable-tokens/` (core
+framework), `docs/sources/cip-113-programmable-tokens-platform/` (substandards),
+and `docs/sources/cip-113-sdk-typescript/` (off-chain SDK) — do not rely on
+memory for this standard; it is still evolving.
 
 ---
 
@@ -202,10 +188,12 @@ Constr(0, [
 - Or maintain both standards and let users swap
 
 **CIP-68 to CIP-113:**
-- If the minting policy and reference token architecture already follow
-  CIP-68, adding programmable logic is an extension
-- Requires a new minting policy (new policy ID = new token)
-- Plan for CIP-113 from the start if programmable features are likely
+- Not an in-place upgrade: CIP-113 is a different custody model, not a CIP-68
+  extension. Tokens must be re-issued through the CIP-113 issuance flow and
+  registered in the on-chain registry (new policy ID = new token)
+- Existing CIP-68 metadata practices can be reused for the new token's metadata
+- If compliance rules are likely, design for CIP-113 from the start — and note
+  it is still a draft standard (unmerged PR #444)
 
 ## Choosing the Right Standard
 
@@ -217,8 +205,11 @@ Do you need updatable metadata?
             Yes --> CIP-113
 ```
 
-For fungible tokens: CIP-68 (label 333 or 444) is always preferred over
-CIP-25, as CIP-25 was designed primarily for NFTs.
+For fungible tokens: register static metadata (ticker, decimals, logo) with
+**CIP-26** (the off-chain Cardano token registry) — free, widely supported, and
+the default path. Use CIP-68 (label 333 or 444) when metadata must live
+on-chain or be updatable by script. CIP-25 was designed for media tokens/NFTs,
+not FTs.
 
 For maximum compatibility today: CIP-25 has the widest wallet and
 marketplace support. CIP-68 support is growing rapidly. CIP-113 is

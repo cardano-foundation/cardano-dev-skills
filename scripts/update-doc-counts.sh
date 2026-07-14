@@ -4,7 +4,7 @@
 #                       from disk state. Run after adding/removing skills or sources.
 #
 # Sentinel format (inline HTML comments — invisible when rendered on GitHub):
-#   <!-- COUNT:skills -->14<!-- /COUNT:skills -->
+#   <!-- COUNT:skills -->15<!-- /COUNT:skills -->
 #   <!-- COUNT:sources -->55<!-- /COUNT:sources -->
 #
 # CI runs this in --check mode; drift fails the build.

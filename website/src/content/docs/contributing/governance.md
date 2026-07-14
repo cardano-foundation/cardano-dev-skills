@@ -11,14 +11,9 @@ body) don't trigger doc updates.
 
 ## Doc-update checklist
 
-| Change | Update these docs |
-|---|---|
-| New skill | README.md skills table; DESIGN.md if it changes the skill graph |
-| New source in `registry/sources.yaml` | Run `scripts/update-doc-counts.sh`; CONTRIBUTING.md only if introducing a new category or format |
-| New schema field | `registry/sources.yaml` header comment; CONTRIBUTING.md valid-values lists; DESIGN.md if architectural |
-| New script in `scripts/` | README.md if user-facing |
-| New hook in `hooks/` | README.md "How to set the Cardano context" section; CLAUDE.md repo structure |
-| Removed/renamed file | All docs that reference it — grep first |
+When you change something observable from outside the repo, update the docs that
+describe it in the same PR. The authoritative change→docs matrix lives in
+[`docs/CONTRIBUTING.md`](https://github.com/cardano-foundation/cardano-dev-skills/blob/main/docs/CONTRIBUTING.md#documentation-governance).
 
 ### When in doubt
 
@@ -41,19 +36,10 @@ Run the script locally before pushing:
 
 ## Source-vetting bar
 
-When adding to `registry/sources.yaml`, all must hold:
-
-1. Last commit < 6 months old
-2. ≥1 release tag OR active issue/PR activity in the last 3 months
-3. No archived / deprecated / sunset banner
-4. For forks: pick the maintained canonical (e.g. Evolution SDK is the live
-   fork of dead Lucid Evolution)
-5. **No branded dApps.** The repo teaches BUILDING on Cardano, not how
-   specific deployed products work. Generic primitives (SDKs, frameworks,
-   validator libraries, design patterns, infrastructure) are in scope.
-   Product docs for specific dApps are not.
-
-Full policy: see
+New sources must be actively maintained — recent commits, a release or activity
+signal, no archival banner, and (for forks) the maintained canonical. The repo also
+excludes branded dApps: it teaches building on Cardano, not how specific deployed
+products work. The full, authoritative bar and scope policy live in
 [`docs/CONTRIBUTING.md`](https://github.com/cardano-foundation/cardano-dev-skills/blob/main/docs/CONTRIBUTING.md).
 
 ## Refresh lifecycle

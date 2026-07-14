@@ -87,7 +87,7 @@ This document captures the architectural decisions behind `cardano-dev-skills`. 
 - **Manifest self-healing** — `scripts/_fetch_docs.py` derives `.manifest.yaml` from disk state after every fetch (partial or full), so the manifest can't drift.
 - **Doc-count auto-derivation** — `scripts/update-doc-counts.sh` rewrites sentinels in CLAUDE.md and README.md from disk state. CI runs `--check` to fail PRs on drift.
 
-**Planned (tracked, not built):**
+**Planned (tracked, not built)** — live status is on the [roadmap](../website/src/content/docs/about/roadmap.md); the design intent for each:
 - `UserPromptSubmit` hook that auto-injects "consult bundled docs first" guidance on Cardano-keyword-matched prompts, with local usage telemetry under `~/.cardano-dev-skills/usage.log`.
 - PR-time source-build check: when `registry/sources.yaml` changes, CI fetches the touched source(s) and verifies the clone + glob patterns produce files.
 - AI-powered governance review on PRs touching `registry/`, `skills/`, `hooks/`, or `scripts/` — Claude reads the diff and the rules from CONTRIBUTING.md, posts a verdict comment (advisory, not blocking).
@@ -102,8 +102,8 @@ These additions follow the principle: ship small, observe, iterate.
 
 **Mechanism (two layers):**
 
-1. **Auto-derived counts** for the most rot-prone numbers (skill count, source count). Inline HTML-comment sentinels (`<!-- COUNT:skills -->14<!-- /COUNT:skills -->`) are rewritten by `scripts/update-doc-counts.sh`. CI runs `--check` on every PR.
-2. **Per-change-type checklist** in `CLAUDE.md` mapping change types (new skill, new source, new schema field, new script, new hook) to the docs that must be updated. Enforced by reviewer judgement and (planned) AI governance review.
+1. **Auto-derived counts** for the most rot-prone numbers (skill count, source count). Inline HTML-comment sentinels (`<!-- COUNT:skills -->15<!-- /COUNT:skills -->`) are rewritten by `scripts/update-doc-counts.sh`. CI runs `--check` on every PR.
+2. **Per-change-type checklist** — canonical in `docs/CONTRIBUTING.md` (§Documentation governance), surfaced from `CLAUDE.md` — mapping change types (new skill, new source, new schema field, new script, new hook) to the docs that must be updated. Enforced by reviewer judgement and (planned) AI governance review.
 
 **Alternative considered:** Generate the entire README from a template + computed values. Rejected because narrative sections ("Why this exists", "How to set the Cardano context") need human prose, and a template-only approach makes those harder to evolve.
 

@@ -75,7 +75,7 @@ Search the validator code for known cost centers:
 
 **High CPU cost:**
 - Nested list traversals (O(n*m) comparisons)
-- Value comparisons (`assets.greater_or_equal`) -- Values are nested maps
+- Value comparisons (comparing two `Value`s traverses both nested maps) -- expensive for multi-asset values
 - Large datum deserialization
 - Cryptographic hashing (blake2b, sha256)
 - On-chain signature verification (extremely expensive -- use `extra_signatories` instead)
@@ -173,18 +173,18 @@ aiken build --trace-level silent
 when redeemer is {
   Claim -> {
     expect Some(out) = list.find(tx.outputs, fn(o) { o.address == addr })
-    value.lovelace_of(out.value) >= amount && list.has(tx.extra_signatories, owner)
+    assets.lovelace_of(out.value) >= amount && list.has(tx.extra_signatories, owner)
   }
   Update -> {
     expect Some(out) = list.find(tx.outputs, fn(o) { o.address == addr })
-    value.lovelace_of(out.value) >= amount && list.has(tx.extra_signatories, owner)
+    assets.lovelace_of(out.value) >= amount && list.has(tx.extra_signatories, owner)
   }
 }
 
 // GOOD: Shared function
 fn check_output_and_signer(tx, addr, amount, signer) {
   expect Some(out) = list.find(tx.outputs, fn(o) { o.address == addr })
-  value.lovelace_of(out.value) >= amount && list.has(tx.extra_signatories, signer)
+  assets.lovelace_of(out.value) >= amount && list.has(tx.extra_signatories, signer)
 }
 ```
 

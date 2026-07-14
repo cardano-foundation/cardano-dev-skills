@@ -38,14 +38,14 @@ Every byte of datum increases:
 type BadDatum {
   owner: VerificationKeyHash,
   owner_address: Address,         // Redundant -- derive from owner
-  creation_time: POSIXTime,       // Only needed once, not for validation
+  creation_time: Int,             // Only needed once, not for validation
   history: List<Transaction>,     // Unbounded, will grow forever
 }
 
 // GOOD: Minimal datum
 type GoodDatum {
   owner: VerificationKeyHash,
-  deadline: POSIXTime,
+  deadline: Int,
   state: State,
 }
 ```
@@ -92,7 +92,7 @@ type EscrowDatum {
   seller: VerificationKeyHash,
   buyer: VerificationKeyHash,
   price: Int,
-  deadline: POSIXTime,
+  deadline: Int,
   // Mutable (changes with state transitions)
   state: EscrowState,
   deposited: Int,
@@ -113,8 +113,8 @@ type Datum {
 
 // Option B: Versioned wrapper (migration-friendly)
 type Datum {
-  V1 { owner: VerificationKeyHash, deadline: POSIXTime }
-  V2 { owner: VerificationKeyHash, deadline: POSIXTime, min_amount: Int }
+  V1 { owner: VerificationKeyHash, deadline: Int }
+  V2 { owner: VerificationKeyHash, deadline: Int, min_amount: Int }
 }
 ```
 
@@ -169,7 +169,7 @@ when redeemer is {
     expect Some(output) = list.at(tx.outputs, output_index)
     // Must still check: correct address, correct value, correct datum
     output.address == expected_address &&
-    value.lovelace_of(output.value) >= expected_amount
+    assets.lovelace_of(output.value) >= expected_amount
   }
 }
 ```
@@ -201,7 +201,7 @@ All fields at the top level. Simple to access, easy to validate.
 type FlatDatum {
   owner: VerificationKeyHash,
   beneficiary: VerificationKeyHash,
-  deadline: POSIXTime,
+  deadline: Int,
   amount: Int,
   state: State,
 }
@@ -230,7 +230,7 @@ type NestedDatum {
   config: Config,
   parties: Parties,
   state: State,
-  deadline: POSIXTime,
+  deadline: Int,
 }
 ```
 

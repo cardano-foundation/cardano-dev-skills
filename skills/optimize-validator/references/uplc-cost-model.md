@@ -49,11 +49,11 @@ When multiple scripts execute in one transaction, they share the budget. If eith
 | Blake2b_256 hash | ~400,000 + O(len) | ~32 |
 | SHA-256 hash | ~500,000 + O(len) | ~32 |
 | SHA3-256 hash | ~500,000 + O(len) | ~32 |
-| Ed25519 signature verify | ~20,000,000 | ~1 |
-| ECDSA Secp256k1 verify | ~20,000,000 | ~1 |
-| Schnorr Secp256k1 verify | ~20,000,000 | ~1 |
+| Ed25519 signature verify | ~53,400,000 + ~14,000/byte | ~10 |
+| ECDSA Secp256k1 verify | ~35,000,000+ | ~10 |
+| Schnorr Secp256k1 verify | ~35,000,000+ | ~10 |
 
-Signature verification costs 2% of the entire CPU budget per call. Use `tx.extra_signatories` instead -- the ledger verifies signatures at no script cost.
+An Ed25519 verification costs roughly 0.5% of the 10B per-transaction CPU budget per call (exact figures come from the live Plutus cost model -- `verifyEd25519Signature` intercept ~53.4M). Still expensive: use `tx.extra_signatories` instead -- the ledger verifies signatures at no script cost.
 
 ## Why Certain Patterns Are Expensive
 
@@ -74,7 +74,7 @@ Each comparison involves bytestring comparison of addresses and value inspection
 
 `Value` is a nested map: `Map<PolicyId, Map<AssetName, Int>>`. Comparing two Values traverses both maps. Cost is O(n * m) where n and m are distinct asset counts.
 
-For multi-asset values with 5+ distinct assets, each `assets.greater_or_equal` call becomes significant. Minimize the number of value comparisons.
+For multi-asset values with 5+ distinct assets, each whole-`Value` comparison (traversing both nested maps, e.g. `output.value == expected_value`) becomes significant. Minimize the number of value comparisons.
 
 ### Large Datum Deserialization
 
@@ -157,16 +157,18 @@ Memory too high:
 
 ## Reading aiken bench Output
 
-```
-benchmark my_validator.spend.bench_claim ... ok
-  cpu:  1,234,567
-  mem:    123,456
-  size:     4,567 bytes
+`aiken bench` plots **memory units** and **cpu units** per benchmark across
+growing input sizes -- it does not report script size. Get script size from the
+build output instead:
+
+```bash
+aiken build
+cat plutus.json | jq '.validators[] | {title, size: (.compiledCode | length / 2)}'
 ```
 
-- **cpu**: Total ExCPU consumed by this benchmark case
-- **mem**: Peak ExMem consumed
-- **size**: Compiled script size in bytes (same for all benchmarks of one validator)
+- **cpu units**: ExCPU consumed as the sampled input grows
+- **memory units**: ExMem consumed as the sampled input grows
+- **script size**: from `plutus.json` (bytes = compiledCode hex length / 2)
 
 ## Protocol Parameter Dependencies
 

@@ -54,7 +54,9 @@ Questions to answer:
 - Are there time-based conditions? Store deadlines in the datum.
 - Does the protocol need a state machine? Define the state enum.
 
-See `references/datum-redeemer-design.md` for detailed guidance.
+See `references/datum-redeemer-design.md` for detailed guidance, and the **eUTxO
+Design Decisions** section of `references/aiken-patterns.md` for how to choose between
+parameter, datum, and redeemer — the central design axis.
 
 ### Step 2: Search Bundled Documentation
 
@@ -109,6 +111,11 @@ For each action handler:
 5. Check datum transitions (immutable fields unchanged, valid state change)
 6. Return True only if all checks pass
 
+See `references/aiken-patterns.md` for worked patterns (vesting, marketplace,
+multisig, one-shot minting, withdraw-zero, state machine) and
+`references/advanced-patterns.md` for when a straightforward validator won't fit
+(UTxO indexers, merkelized validators, linked lists).
+
 ### Step 5: Security checklist
 
 Before considering the validator complete, verify each item:
@@ -153,16 +160,24 @@ Define tests for each redeemer action:
 - Missing authentication token
 - Double satisfaction attempt (two script inputs, one output)
 
-Use Aiken's built-in test framework:
+Use Aiken's built-in test framework. Call the validator handler directly with a
+constructed transaction (`transaction.placeholder` + record-update overrides), and
+use the **boolean-toggle methodology**: one success test with all conditions valid,
+then one `test ... fail` per validation condition, each flipping exactly one
+condition — so every guard is individually proven to guard. See
+`references/testing-validators.md` for the full manual-vs-mocktail guidance, the
+mocktail builder API, and the `include: Bool` pass/fail-matrix idiom.
 ```aiken
-test action1_succeeds() {
-  let tx = mock_transaction(...)
-  handle_action1(mock_datum, tx)
+fn tx_with(signers, range) -> Transaction {
+  Transaction { ..transaction.placeholder, extra_signatories: signers, validity_range: range }
 }
 
-test action1_fails_wrong_signer() fail {
-  let tx = mock_transaction_wrong_signer(...)
-  handle_action1(mock_datum, tx)
+test claim_succeeds() {
+  vesting.spend(Some(datum), Claim, oref, tx_with([beneficiary], interval.entirely_after(deadline)))
+}
+
+test claim_before_deadline_fails() fail {
+  vesting.spend(Some(datum), Claim, oref, tx_with([beneficiary], interval.entirely_before(deadline)))
 }
 ```
 
@@ -178,8 +193,10 @@ test action1_fails_wrong_signer() fail {
 
 ## References
 
-- `references/aiken-patterns.md` -- Common validator patterns with code structure
-- `references/datum-redeemer-design.md` -- Guide for designing datums and redeemers
+- `references/aiken-patterns.md` -- Validator patterns with code structure, plus eUTxO design decisions
+- `references/advanced-patterns.md` -- Advanced/scaling patterns (UTxO indexers, merkelized validators, linked lists)
+- `references/datum-redeemer-design.md` -- Designing datums and redeemers
+- `references/testing-validators.md` -- How to test validators (manual placeholder vs mocktail)
 - Search `${CLAUDE_SKILL_DIR}/../../docs/sources/` for existing protocol specifications and design documents
 - Aiken language docs: https://aiken-lang.org
 - Plutus docs: https://plutus.cardano.intersectmbo.org

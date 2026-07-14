@@ -19,7 +19,7 @@ Help developers, DReps, SPOs, and ADA holders understand and participate in Card
 - Building governance-aware tools or dashboards
 - Submitting or voting on governance actions
 - Understanding the Constitutional Committee, DReps, and SPO roles
-- Working with SanchoNet (governance testnet)
+- Practicing governance on preprod/preview (or SanchoNet for bleeding-edge features)
 
 ## When NOT to use
 
@@ -49,7 +49,7 @@ Ask the developer (if not already clear):
 
 Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cips/` - CIP specifications (CIP-1694, CIP-95)
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/sancho-net/` - SanchoNet governance testnet docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/sanchonet/` - SanchoNet governance testnet docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/govtool/` - GovTool docs
 
 ### Step 3: Explain how governance works
@@ -57,7 +57,7 @@ Search the bundled documentation for relevant content:
 Reference the CIP-1694 summary for detailed structure:
 
 ```
-File: skills/governance/governance-guide/references/cip-1694-summary.md
+File: skills/governance-guide/references/cip-1694-summary.md
 ```
 
 #### Quick overview
@@ -65,7 +65,7 @@ File: skills/governance/governance-guide/references/cip-1694-summary.md
 Cardano governance has three pillars:
 
 1. **Delegated Representatives (DReps)**: ADA holders who vote on governance actions. Any ADA holder can become a DRep or delegate to one.
-2. **Stake Pool Operators (SPOs)**: Vote on specific technical governance actions (hard forks, protocol parameters).
+2. **Stake Pool Operators (SPOs)**: Vote on specific governance actions (hard forks, no-confidence, new committees, security-relevant protocol parameters).
 3. **Constitutional Committee (CC)**: A group that certifies governance actions are constitutional. Does not propose or select -- only approves/rejects constitutionality.
 
 #### Governance action types
@@ -76,9 +76,13 @@ Cardano governance has three pillars:
 | New Constitutional Committee | Yes | Yes | No |
 | Update Constitution | Yes | No | Yes |
 | Hard fork initiation | Yes | Yes | Yes |
-| Protocol parameter changes | Yes | No | Yes |
+| Protocol parameter changes | Yes | Security-relevant only* | Yes |
 | Treasury withdrawal | Yes | No | Yes |
 | Info action | Yes | Yes | Yes |
+
+\* Changes to security-relevant parameters (block/tx sizes, fees,
+`utxoCostPerByte`, `govActionDeposit`, and similar) require an **additional SPO
+vote** with its own threshold (`Q5`, ~0.51) — see CIP-1694.
 
 ### Step 4: Role-specific guidance
 
@@ -104,7 +108,7 @@ Cardano governance has three pillars:
 4. **SDK support**:
    - **Mesh SDK**: Governance transaction builders available
    - **Evolution SDK**: Conway-era governance — DRep registration via `.registerDRep({ drepCredential })`, voting via `.vote({ votingProcedures })`, DRep delegation, proposals, and committee operations
-   - **cardano-cli**: Full governance command set (`cardano-cli conway governance ...`)
+   - **cardano-cli**: Full governance command set (`cardano-cli latest governance ...`; the era-pinned `conway` group also still works, but prefer `latest`)
 
 #### For DReps
 
@@ -119,16 +123,17 @@ Cardano governance has three pillars:
 **Tools for DReps:**
 - **GovTool** (https://gov.tools): Web interface for DRep registration, voting, delegation
 - **cardano-cli**: Command-line governance operations
-- **SanchoNet**: Governance testnet for practice
+- **Preprod/Preview**: Practice governance flows with test ADA (SanchoNet only for bleeding-edge features)
 
 #### For stake pool operators
 
 **SPO governance participation:**
 
-1. SPOs vote automatically through their pool registration
-2. Vote on: hard fork initiation, motion of no-confidence, new CC members, info actions
-3. Voting weight proportional to delegated stake
-4. Use cardano-cli or SPO-specific tools to cast votes
+1. SPOs cast votes actively — a vote is a transaction signed with the pool cold key; pool registration alone casts nothing
+2. Optionally, delegate the pool's reward account to a pre-defined voting option (Abstain / No-Confidence) as a standing default — this does NOT apply to hard-fork actions, which always need an explicit vote
+3. Vote on: hard fork initiation, motion of no-confidence, new CC members, security-relevant parameter changes, info actions
+4. Voting weight proportional to delegated stake
+5. Use cardano-cli or SPO-specific tools to cast votes
 
 #### For ADA holders
 
@@ -149,24 +154,25 @@ Cardano governance has three pillars:
 - URL: https://gov.tools
 - Supports mainnet and testnets
 
-#### SanchoNet
+#### Test environments
 
-- Dedicated governance testnet
-- Practice DRep registration, voting, proposals without real ADA
-- Faster iteration on governance features
-- Faucet available for test ADA
+- Conway governance is live on **mainnet** (since 2024) and fully available on
+  **preprod** and **preview** — practice DRep registration, voting, and
+  proposals there with faucet test ADA
+- **SanchoNet** is the bleeding-edge governance testnet; use it only for
+  features not yet on the public testnets
 
 #### cardano-cli governance commands
 
 ```bash
 # Register as a DRep
-cardano-cli conway governance drep registration-certificate \
+cardano-cli latest governance drep registration-certificate \
   --drep-verification-key-file drep.vkey \
   --key-reg-deposit-amt 500000000 \
   --out-file drep-reg.cert
 
 # Create a vote
-cardano-cli conway governance vote create \
+cardano-cli latest governance vote create \
   --yes \
   --governance-action-tx-id <tx-id> \
   --governance-action-index 0 \
@@ -174,8 +180,8 @@ cardano-cli conway governance vote create \
   --out-file vote.json
 
 # Query governance state
-cardano-cli conway query gov-state
-cardano-cli conway query drep-state --all-dreps
+cardano-cli latest query gov-state
+cardano-cli latest query drep-state --all-dreps
 ```
 
 ### Step 6: SDK integration examples
@@ -218,7 +224,7 @@ tx.drepRegistrationCertificate(drepKeyHash, deposit);
 
 ## References
 
-- `skills/governance/governance-guide/references/cip-1694-summary.md` -- CIP-1694 structure and voting thresholds
+- `skills/governance-guide/references/cip-1694-summary.md` -- CIP-1694 structure and voting thresholds
 - CIP-1694: https://github.com/cardano-foundation/CIPs/tree/master/CIP-1694
 - CIP-95: https://github.com/cardano-foundation/CIPs/tree/master/CIP-0095
 - GovTool: https://gov.tools

@@ -507,9 +507,11 @@ item 9).
 
 ## Time handling: mutual exclusion via strict/non-strict bounds
 
-Deadlines are enforced against `tx.validity_range` (values are `Int` slots, not a
-`POSIXTime` type). The idiom for making a claim path and a refund path **mutually
-exclusive in every slot** is to pair a non-strict and a strict inequality:
+Deadlines are enforced against `tx.validity_range` (values are `Int` POSIX
+milliseconds since the Unix epoch — the ledger translates the transaction's slot
+bounds before the validator runs; there is no `POSIXTime` type in stdlib v3). The
+idiom for making a claim path and a refund path **mutually exclusive at every
+point in time** is to pair a non-strict and a strict inequality:
 `valid_before(deadline)` for the active phase vs `valid_after(deadline)` for
 settlement/refund (htlc, bet, auction, vault, crowdfund). When comparing bounds by
 hand, mind strictness: pricebet uses `tx_upper <= deadline` for Join/Win vs

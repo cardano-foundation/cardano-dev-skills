@@ -4,8 +4,8 @@ When a straightforward validator would blow the script-size limit, or would re-r
 expensive logic once per script input (worst case O(n²) work), reach for these. They
 are distilled from the Anastasia Labs **`aiken-design-patterns`** library (v1.7.0),
 readable under `docs/sources/aiken-design-patterns/lib/aiken-design-patterns/`. Note:
-several depend on the external `aiken_scott_utils` package (`foldl4`, `foldr2`) — a
-transitive dependency, not stdlib. Each entry gives *when to reach for it*, the
+several depend on the external `aiken_scott_utils` package (e.g. `foldl4`) — a
+transitive dependency, not stdlib (`foldr2` is plain stdlib `aiken/collection/list`). Each entry gives *when to reach for it*, the
 *mechanism*, and the *source file* to read. For the foundational validator patterns
 these build on, see `aiken-patterns.md`.
 

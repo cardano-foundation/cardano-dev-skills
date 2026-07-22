@@ -9,8 +9,6 @@ description: >-
 allowed-tools: Read Grep Glob
 ---
 
-<!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->
-
 # Masumi Agent Payments
 
 Help the developer connect an AI agent service to the Masumi protocol: an open-source,
@@ -18,6 +16,19 @@ self-hosted payment and registry layer on Cardano. Agents expose a standard HTTP
 (MIP-003), payments are held in a Cardano smart-contract escrow, delivered work is
 committed on-chain as hashes (decision logging), and agents are discoverable through
 an NFT-based on-chain registry.
+
+This skill is **agent-agnostic** (Claude Code, Cursor, Windsurf, Cline, Aider, Codex,
+and other assistants that load portable `SKILL.md` skills). It is intentionally
+**Cardano / Masumi-protocol scoped** — progressive disclosure, not the full
+Sokosumi marketplace + Kodosumi runtime surface. For the complete ecosystem skill
+(same packaging pattern as [masumi-skills](https://github.com/masumi-network/masumi-skills)):
+
+```bash
+npx skills add https://github.com/masumi-network/masumi-skills --skill masumi
+```
+
+Masumi product docs are **live URLs** (not a bundled docs corpus in this repo). Prefer
+those links and this skill's two local references over inventing API shapes.
 
 ## When to use
 
@@ -35,6 +46,7 @@ an NFT-based on-chain registry.
 - Sub-second payment confirmation required — on-chain settlement plus the node's confirmation polling takes tens of seconds to a few minutes, not instant; use a conventional payment processor
 - General Cardano payment or transaction building without an agent-service context (use `build-transaction`)
 - Querying chain data (use `query-chain`) or wallet integration in a dApp frontend (use `connect-wallet`)
+- Full marketplace listing (Sokosumi) or Ray-scale runtime (Kodosumi) — install the ecosystem skill via `npx skills add` above instead of expanding this Cardano-scoped skill
 
 ## Key principles
 
@@ -57,11 +69,16 @@ Ask (if not already clear):
 
 ### Step 2: Load skill references; use live docs URLs for the rest
 
-- `${CLAUDE_SKILL_DIR}/references/mip-003-agentic-service-api.md` — endpoint specs, hashing rules, framework integration patterns
-- `${CLAUDE_SKILL_DIR}/references/payment-service.md` — payment node setup, escrow flow, registry mint, refunds, troubleshooting
-- Masumi docs (not bundled here): https://www.masumi.network/dev/masumi/documentation
+Load only what the task needs (progressive disclosure):
+
+- `references/mip-003-agentic-service-api.md` — endpoint specs, hashing rules, framework integration patterns
+- `references/payment-service.md` — payment node setup, escrow flow, registry mint, refunds, troubleshooting
+- Masumi docs (live, not bundled): https://www.masumi.network/dev/masumi/documentation
 - Protocol / MIPs: https://github.com/masumi-network/masumi-improvement-proposals
-- CIP-30/CIP-68 background (if needed): `${CLAUDE_SKILL_DIR}/../../docs/sources/cips/`
+- Payment service repo: https://github.com/masumi-network/masumi-payment-service
+- Python SDK: https://github.com/masumi-network/pip-masumi
+- CIP-30 / CIP-68 background (if needed): this plugin's `docs/sources/cips/`
+- Sokosumi / Kodosumi / full ecosystem workflows: install via `npx skills add https://github.com/masumi-network/masumi-skills --skill masumi` — do not paste those refs into this skill
 
 ### Step 3: Stand up the payment node (Preprod)
 
@@ -116,8 +133,12 @@ Only after Preprod passes cleanly:
 
 - [mip-003-agentic-service-api.md](references/mip-003-agentic-service-api.md) — MIP-003 endpoint specifications, decision-log hashing (MIP-004), Python SDK fast path, framework patterns, testing
 - [payment-service.md](references/payment-service.md) — payment node install and configuration, endpoint index with verified request bodies, seller/buyer flows, payment units (USDCx / tUSDM), dispute and refund mechanics, fees, troubleshooting
-- Docs: https://www.masumi.network/dev/masumi/documentation
+- Docs (live): https://www.masumi.network/dev/masumi/documentation
 - Protocol specs: https://github.com/masumi-network/masumi-improvement-proposals
 - Payment service: https://github.com/masumi-network/masumi-payment-service
 - Python SDK: https://github.com/masumi-network/pip-masumi
-- Full ecosystem skill (Sokosumi/Kodosumi too): `npx skills add https://github.com/masumi-network/masumi-skills --skill masumi`
+- Full ecosystem skill (Sokosumi / Kodosumi too; agent-agnostic via skills.sh):
+
+```bash
+npx skills add https://github.com/masumi-network/masumi-skills --skill masumi
+```

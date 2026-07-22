@@ -33,6 +33,21 @@ If signals are ambiguous (e.g. low commit frequency but a stable mature library;
 
 The same bar applies to the candidate entries at the bottom of `registry/sources.yaml` — don't promote a candidate without re-vetting against this bar.
 
+## Automated PR policy checks
+
+PRs that touch `skills/`, `registry/`, or `docs/sources/` run `.github/workflows/pr-policy.yml`, which has two layers:
+
+1. **Mechanical checks** (`scripts/check-pr-policy.py`, hard-fails CI): new sources are vetted live against the GitHub API (archived flag, last-push age, release/activity signal, fork warning); new skills fail if named after a project/brand (they must be task-oriented) or if they reference a `docs/sources/<x>/` directory the PR doesn't provide; new bundled doc files that look like marketing pages or duplicate generic Cardano-101 content produce warnings.
+2. **AI scope review** (advisory, never fails CI): when a PR adds a source or skill, a model judges it against the scope policy above — including the borderline rule — and posts a review comment with a verdict and concrete requested changes. The rubric lives in `.github/scope-review-prompt.md`. It runs on GitHub Models with the built-in `GITHUB_TOKEN`; no API key or secret is configured. The comment is advisory: a maintainer always makes the final call.
+
+Run the mechanical layer locally before opening a PR:
+
+```bash
+python3 scripts/check-pr-policy.py            # compares HEAD against origin/main
+```
+
+If a check misfires (e.g. a legitimately-named skill trips the brand heuristic), say so in the PR description — the maintainer can merge over a failing policy check.
+
 ## Adding a new documentation source
 
 ### 1. Verify against the vetting policy above

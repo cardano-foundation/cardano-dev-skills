@@ -58,6 +58,9 @@ Instructions...
 
 - [ ] SKILL.md under 500 lines
 - [ ] Name is kebab-case, max 64 chars
+- [ ] Name is task-oriented, not a project/brand name — `monetize-agent`,
+      not `masumi`; `query-chain`, not `blockfrost` (CI fails brand-named
+      skills)
 - [ ] `name:` matches directory name
 - [ ] Description includes trigger phrases
 - [ ] Has "When to use", "When NOT to use", "Key principles", "Workflow"
@@ -74,9 +77,11 @@ Instructions...
 ```bash
 python3 scripts/validate.py
 ./scripts/update-doc-counts.sh    # refresh counts in README/CLAUDE
+python3 scripts/check-pr-policy.py  # PR policy checks (vs origin/main)
 ```
 
-Open a PR. CI runs validation + count-drift check.
+Open a PR. CI runs validation, the count-drift check, and the PR policy
+checks (mechanical vetting + an advisory AI scope review comment).
 
 ## Quality standards
 

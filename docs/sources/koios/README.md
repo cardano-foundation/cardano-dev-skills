@@ -13,7 +13,6 @@ Provisioning scripts to run an instance are part of [guild-operators repo](https
 ├── specs/              # Files used for creation of API Specs with examples
 ├── tests/              # Test suites for Koios nodes
 ├── topology/           # Topology files of public Koios nodes
-    ├── topology-guild.json
     ├── topology-mainnet.json
     └── topology-preprod.json
     └── topology-preview.json
@@ -33,7 +32,6 @@ The specs can be browsed for each network using below:
 | Network | Link                       |
 |:--------|:--------------------------:|
 | Mainnet | https://api.koios.rest     |
-| Guild   | https://guild.koios.rest   |
 | PreProd | https://preprod.koios.rest |
 | Preview | https://preview.koios.rest |
 

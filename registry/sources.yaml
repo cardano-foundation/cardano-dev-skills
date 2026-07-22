@@ -210,18 +210,6 @@
     - "docs/**/*.md"
   description: Modular Java indexer with Blockfrost-compatible APIs
 
-- name: Masumi
-  repo: https://github.com/masumi-network/masumi-docs.git
-  docs_path: content/docs
-  format: mdx
-  category: infrastructure
-  priority: medium
-  glob_patterns:
-    - "**/*.md"
-    - "**/*.mdx"
-  description: Decentralized payment, registry, and identity protocol for AI agent services on Cardano
-  website: https://docs.masumi.network
-
 # --- Smart Contract Languages ---
 
 - name: Aiken

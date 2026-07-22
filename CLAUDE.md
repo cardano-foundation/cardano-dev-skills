@@ -13,7 +13,7 @@ Community-curated knowledge base for building on Cardano. This repo is a Claude 
 
 ## Documentation Sources
 
-The `docs/sources/` directory contains documentation extracted from <!-- COUNT:sources -->56<!-- /COUNT:sources --> Cardano projects.
+The `docs/sources/` directory contains documentation extracted from <!-- COUNT:sources -->55<!-- /COUNT:sources --> Cardano projects.
 When a skill or user needs to look up SDK APIs, CIP specs, or tool docs, search here first:
 
 ```

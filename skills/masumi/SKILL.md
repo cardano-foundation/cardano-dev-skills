@@ -55,12 +55,13 @@ Ask (if not already clear):
 - **Selling, buying, or both?** Seller needs the MIP-003 API + registry entry. Buyer needs discovery + purchase flow. Both is common for agent networks.
 - **What stack is the agent in?** Python has an SDK (`pip-masumi`) that generates the MIP-003 endpoints; other languages implement four HTTP endpoints by hand.
 
-### Step 2: Search bundled documentation
+### Step 2: Load skill references; use live docs URLs for the rest
 
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/masumi/` — protocol documentation (payment service, registry, MIP specs)
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/cips/` — CIP-30/CIP-68 background for wallet and NFT metadata questions
 - `${CLAUDE_SKILL_DIR}/references/mip-003-agentic-service-api.md` — endpoint specs, hashing rules, framework integration patterns
 - `${CLAUDE_SKILL_DIR}/references/payment-service.md` — payment node setup, escrow flow, registry mint, refunds, troubleshooting
+- Masumi docs (not bundled here): https://www.masumi.network/dev/masumi/documentation
+- Protocol / MIPs: https://github.com/masumi-network/masumi-improvement-proposals
+- CIP-30/CIP-68 background (if needed): `${CLAUDE_SKILL_DIR}/../../docs/sources/cips/`
 
 ### Step 3: Stand up the payment node (Preprod)
 
@@ -87,6 +88,15 @@ Walk one job end-to-end on Preprod before anything else: payment request created
 
 Registration mints an NFT carrying the agent's metadata (name, description, API base URL, pricing, example outputs) into the selling wallet — this is what makes the service discoverable. Registration costs a small amount of ADA; querying the registry is free. Field names in the registry body are case-sensitive; the verified shape is in `references/payment-service.md`.
 
+**Payment unit (do not use legacy Mainnet USDM):**
+
+| Network | Token | Full asset ID (`policyId` + asset name hex) |
+|---|---|---|
+| **Mainnet** | **USDCx** (Circle xReserve on Cardano) | `1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378` |
+| **Preprod** | **tUSDM** (test only) | `16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde0014df10745553444d` |
+
+Amounts use **6 decimals** (1 token = `1000000` raw units). Legacy Mainnet USDM (`c48cbb3d…0014df105553444d`) is historical only — new Mainnet pricing and settlement use **USDCx**. Details: `references/payment-service.md`.
+
 ### Step 7: Buyer-side integration (if needed)
 
 Buyers search the registry service for agents, call the advertised `start_job`, lock funds via their own payment node's purchase endpoint, poll `status`, then **independently recompute the hashes** before accepting the result — refund on mismatch. A complete TypeScript buyer flow is in `references/payment-service.md`.
@@ -96,6 +106,8 @@ Buyers search the registry service for agents, call the advertised `start_job`, 
 Only after Preprod passes cleanly:
 
 - Separate mainnet API keys and wallets; hardware wallet as the collection target
+- Registry / job pricing `unit` set to **USDCx** (`1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378`) — not legacy USDM
+- Purchase wallet funded with ADA (fees) + USDCx (settlement); selling wallet has ADA for fees
 - Realistic `submitResultTime` / dispute-window values (an hour or more, with buffer)
 - Minimal float in node-managed hot wallets; auto-collection enabled
 - Monitoring on `/availability` — an unreachable service is delisted from discovery and loses disputes
@@ -103,7 +115,9 @@ Only after Preprod passes cleanly:
 ## References
 
 - [mip-003-agentic-service-api.md](references/mip-003-agentic-service-api.md) — MIP-003 endpoint specifications, decision-log hashing (MIP-004), Python SDK fast path, framework patterns, testing
-- [payment-service.md](references/payment-service.md) — payment node install and configuration, endpoint index with verified request bodies, seller/buyer flows, dispute and refund mechanics, fees, troubleshooting
+- [payment-service.md](references/payment-service.md) — payment node install and configuration, endpoint index with verified request bodies, seller/buyer flows, payment units (USDCx / tUSDM), dispute and refund mechanics, fees, troubleshooting
+- Docs: https://www.masumi.network/dev/masumi/documentation
 - Protocol specs: https://github.com/masumi-network/masumi-improvement-proposals
 - Payment service: https://github.com/masumi-network/masumi-payment-service
 - Python SDK: https://github.com/masumi-network/pip-masumi
+- Full ecosystem skill (Sokosumi/Kodosumi too): `npx skills add https://github.com/masumi-network/masumi-skills --skill masumi`

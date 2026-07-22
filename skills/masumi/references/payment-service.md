@@ -209,7 +209,8 @@ read API; the payment node's `/registry` endpoints handle the on-chain mint/burn
 }
 ```
 `unit:""` means ADA/lovelace. For a native-asset stablecoin: the full
-policyId+assetName concatenated.
+policyId+assetName concatenated — see **Payment units** below (Mainnet **USDCx**,
+not legacy USDM).
 
 Time fields (`payByTime`, `submitResultTime`, `unlockTime`, `externalDisputeUnlockTime`)
 are ISO 8601 date-time strings on the **`POST /payment` request** (e.g.
@@ -274,7 +275,7 @@ Required: `network`, `sellingWalletVkey`, `name`, `description`, `apiBaseUrl`,
   "Capability":{"name":"gpt-4","version":"2024-08"},
   "AgentPricing":{
     "pricingType":"Fixed",                       // Fixed | Free | Dynamic
-    "Pricing":[{"unit":"","amount":"10000000"}]  // 1 ADA = 1000000 lovelace
+    "Pricing":[{"unit":"","amount":"10000000"}]  // 1 ADA = 1000000 lovelace; or USDCx/tUSDM unit below
   },
   "Author":{"name":"You","contactEmail":"you@example.com"},
   "Legal":{"terms":"https://...","privacyPolicy":"https://...","other":""},
@@ -286,6 +287,30 @@ Field names are **case-sensitive**: `Tags`, `ExampleOutputs`, `Capability`,
 `AgentPricing`, `Author`, `Legal` (capitalized); `name`, `description`, `apiBaseUrl`,
 `sellingWalletVkey` (camelCase). Old snake_case forms (`api_endpoint`, `tags`,
 `pricing`) do not work.
+
+### Payment units (stablecoin)
+
+Masumi settles agent payments in a network-specific stablecoin (plus ADA for
+Cardano fees). Prefer these units in `AgentPricing.Pricing[].unit`,
+`RequestedFunds[].unit`, and related registry metadata:
+
+| Network | Token | Full asset ID |
+|---|---|---|
+| **Mainnet** | **USDCx** | `1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378` |
+| **Preprod** | **tUSDM** | `16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde0014df10745553444d` |
+
+- Policy ID (Mainnet USDCx): `1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e34`
+- Asset name hex (USDCx): `5553444378`
+- Decimals: **6** — `1` USDCx = `1000000` raw units (same for tUSDM on Preprod)
+
+**Do not use legacy Mainnet USDM** for new pricing or settlement:
+
+- Legacy (historical only): `c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad0014df105553444d`
+
+Older dashboard balances labeled USDM may still appear for history; new Mainnet
+flows use USDCx.
+
+`unit:""` remains ADA/lovelace when pricing in ADA instead of the stablecoin.
 
 ### `DELETE /registry` — delete a local registration record
 ```json
@@ -473,7 +498,7 @@ Manual alternative: admin dashboard → Payments → Collect.
 |---|---|
 | Payment status `null` >5 min | Exact amount + asset + address; wait ~20 blocks; Blockfrost key valid; check an explorer. |
 | Hash mismatch | Match the seller's MIP-004 pre-image exactly — it is `identifier_from_purchaser;<payload>`: RFC 8785 canonical JSON for the input, the JSON-escaped string for the output; UTF-8, no BOM; keep the `;` delimiter; coerce non-string results to their string form first. |
-| `POST /registry` fails | Selling wallet funded (registration fees come from the selling wallet); field names case-sensitive (`Tags` not `tags`, `apiBaseUrl` not `api_endpoint`); `Pricing.amount` as a string in the smallest unit. |
+| `POST /registry` fails | Selling wallet funded (registration fees come from the selling wallet); field names case-sensitive (`Tags` not `tags`, `apiBaseUrl` not `api_endpoint`); `Pricing.amount` as a string in the smallest unit; Mainnet `unit` must be **USDCx** not legacy USDM. |
 | Collection not happening | `AUTO_WITHDRAW_PAYMENTS=true`; `unlockTime` passed; selling wallet has ADA for fees; service running. |
 | Service won't start | PostgreSQL up; `prisma:migrate` + `prisma:seed` ran; port 3001 free; Blockfrost key valid. |
 

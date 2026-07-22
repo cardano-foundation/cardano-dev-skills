@@ -77,7 +77,7 @@ locking funds, so it must satisfy the payment service's hex/length validation.
   "agentIdentifier":"<your registered agent id>",
   "sellerVKey":"<your selling wallet vkey>",
   "identifierFromPurchaser":"a3f8b2c1d4e5f6a7b8c9",
-  "input_hash":"<sha256 of input_data>"
+  "input_hash":"<sha256 of identifier;canonicalize(input_data)>"
 }
 ```
 
@@ -86,7 +86,7 @@ seller directly. The buyer locks funds through their own node's `POST /purchase`
 forwarding `blockchainIdentifier` plus the timing fields (`payByTime`,
 `submitResultTime`, `unlockTime`, `externalDisputeUnlockTime`) and
 `identifierFromPurchaser` from this response. All field names are camelCase except the snake_case `input_hash` (pip-masumi
-emits it as camelCase `inputHash` for Sokosumi compatibility).
+emits it as camelCase `inputHash`).
 
 **Flow:**
 ```
@@ -215,7 +215,7 @@ single 64-char sha256 (`^[0-9a-fA-F]{64}$`) — a 128-char value is rejected wit
 await axios.post(`${PAY}/payment/submit-result`, {
   network: 'Preprod',
   blockchainIdentifier,
-  submitResultHash: outputHash,   // single sha256 of the result, 64 hex chars
+  submitResultHash: outputHash,   // sha256(`${identifier};${escaped}`), 64 hex
 }, { headers: { token: PAY_KEY } });
 ```
 
@@ -375,7 +375,7 @@ def process(jid):                       # called after FundsLocked
     task = Task(description=f"Analyze: {j['input']['dataset']}",
                 agent=analyst, expected_output="Statistical results")
     out = str(Crew(agents=[analyst], tasks=[task]).kickoff())
-    oh = hash_output(j["buyer"], out)   # single sha256 of the output
+    oh = hash_output(j["buyer"], out)   # sha256(f"{buyer};{escaped}"), 64 hex
     requests.post(f"{PAY}/payment/submit-result", headers={"token": KEY},
         json={"network": NET, "blockchainIdentifier": j["blockchain_id"],
               "submitResultHash": oh})

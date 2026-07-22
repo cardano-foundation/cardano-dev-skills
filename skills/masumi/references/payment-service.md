@@ -17,8 +17,8 @@ Running a payment node enables:
   time-locked auto-refunds. Contested cases are decided by the Masumi protocol's
   admin multisig (2/3), so the escrow is trust-minimized, not fully trustless.
 - Decision logging — an `inputHash` (sha256 of `identifier_from_purchaser;` + the
-  canonical input) is committed when funds lock, and a separate result hash
-  (sha256 of `identifier_from_purchaser;` + the output) when the seller submits
+  RFC-8785-canonical input) is committed when funds lock, and a separate result hash
+  (sha256 of `identifier_from_purchaser;` + the JSON-escaped output) when the seller submits
 - Dispute + refund (time-based unlock; admin-multisig arbitration for disputes)
 
 Each developer runs their own node — there is no shared centralized service, but
@@ -235,9 +235,11 @@ For exact lookup by blockchain identifier → `POST /payment/resolve-blockchain-
   "submitResultHash":"<sha256 hex>"     // required, exactly 64 hex chars: ^[0-9a-fA-F]{64}$
 }
 ```
-`submitResultHash` is a **single** sha256 of the result/output (64 hex chars) —
-not a concatenation of the input and result hashes. The input hash travels
-separately as `inputHash` on `POST /payment` (seller) and `POST /purchase` (buyer).
+`submitResultHash` is a **single** 64-hex sha256 of the MIP-004 pre-image
+`identifier_from_purchaser;` + the JSON-escaped output string (UTF-8, no BOM) —
+not a bare sha256 of the raw result, and not a concatenation of the input and
+result hashes. The input hash travels separately as `inputHash` on `POST /payment`
+(seller) and `POST /purchase` (buyer).
 Migration note: old docs said `{identifier, decisionHash}`. The live shape is
 `{network, blockchainIdentifier, submitResultHash}`.
 

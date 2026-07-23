@@ -6,19 +6,30 @@ This guide covers source vetting, adding sources, adding skills, refresh, docume
 
 This repo teaches **building on Cardano**. It is a generic knowledge base for AI coding agents and developers.
 
-**In scope:**
-- SDKs, frameworks, validator libraries, design patterns, language tooling
-- Infrastructure (nodes, indexers, chain providers)
-- Protocol and standard specs (CIPs, ledger specs)
-- Reference implementations of *patterns* (e.g. multisig oracle contracts as a pattern, not as a product manual)
-- Generic dApp categories: DEX, lending, NFT marketplace, oracle consumer, governance tool
+The repo has two layers with different rules:
 
-**Out of scope:**
-- Product docs for specific deployed dApps (SundaeSwap, Minswap, Liqwid, Indigo, JPG Store, etc.). These belong on each project's own site; users who need them can ask their agent to search the web.
-- Closed-source content
-- Marketing material
+- **Sources** (`registry/sources.yaml` → `docs/sources/`) are mirrored upstream documentation: the project's own words, vetted for relevance and maintenance, kept current by the weekly refresh.
+- **Skills** (`skills/`) are authored by this repo's maintainers: task-oriented behavioral guidance. Skills are never project-specific — projects are documented as sources and taught through task skills.
 
-Borderline rule: if the upstream repo's primary purpose is *"use OUR product"*, it's out. If it's *"here's how X pattern works, here's the reference code"*, it's in.
+### Source scope: the two-part test
+
+A source qualifies only if it passes **both** gates:
+
+1. **Cardano-native.** The project's on-chain footprint is on Cardano — contracts deployed there, or specs/standards targeting it. Multichain projects qualify only if Cardano is a first-class supported chain, and only the Cardano-relevant part of their docs is mirrored (use `glob_patterns`). We don't list AI platforms operating on other chains, or oracles that don't operate on Cardano — however established they are.
+2. **Developer-integration surface.** The docs must document something a developer building on Cardano integrates with or builds on: contracts, APIs, SDKs, protocol specs, a runnable node or service. An *integration-first* project (an oracle, a payment protocol, an indexer) qualifies even though it is a branded, for-profit product — its business only exists if developers integrate it, so its docs are developer material. An end-product user manual (how to swap on a DEX frontend, how to browse an NFT marketplace site) does not qualify; the same project's protocol or contract specs can qualify even when its end-product docs don't.
+
+Always out of scope regardless: closed-source content; marketing-only material.
+
+In-scope examples: SDKs, frameworks, validator libraries, design patterns, language tooling; infrastructure (nodes, indexers, chain providers); protocol and standard specs (CIPs, ledger specs); reference implementations of *patterns*; generic dApp categories (DEX, lending, NFT marketplace, oracle consumer, governance tool).
+
+### Skill scope
+
+Skills are this repo's editorial voice and are held to a **stricter bar than sources**:
+
+- **No project-specific or brand-named skills, ever.** Skills map to developer workflows (see DESIGN.md Decision 2) — `query-chain`, not the name of a chain provider. This is stricter than the source rules on purpose: a skill is behavioral instruction an agent follows (tool use, workflow steps, decision criteria), so a harmful or stale skill can do more damage than a harmful doc. Vendor-maintained skills copied here inevitably drift from their canonical home. Vendors who maintain their own installable skill should document it in their own docs — once those docs are a registered source, agents and users discover the skill there, always via the refreshed pointer.
+- **A skill that teaches integrating with a specific project requires that project to be a registered source.** Spec-level detail (endpoints, request bodies, datum schemas) belongs in `docs/sources/`, where the weekly refresh keeps it current; a skill's `references/` directory is for behavioral guidance, not pasted specs.
+
+If you're unsure whether something fits, open a discussion before writing code.
 
 ## Source-vetting policy
 
@@ -32,6 +43,21 @@ Before adding any new entry to `registry/sources.yaml`, verify the upstream repo
 If signals are ambiguous (e.g. low commit frequency but a stable mature library; deprecation notice with unclear successor), flag it in the PR rather than guess.
 
 The same bar applies to the candidate entries at the bottom of `registry/sources.yaml` — don't promote a candidate without re-vetting against this bar.
+
+## Automated PR policy checks
+
+PRs that touch `skills/`, `registry/`, or `docs/sources/` run `.github/workflows/pr-policy.yml`, which has two layers:
+
+1. **Mechanical checks** (`scripts/check-pr-policy.py`, hard-fails CI): new sources are vetted live against the GitHub API (archived flag, last-push age, release/activity signal, fork warning); new skills fail if named after a project/brand (they must be task-oriented) or if they reference a `docs/sources/<x>/` directory the PR doesn't provide; new bundled doc files that look like marketing pages or duplicate generic Cardano-101 content produce warnings.
+2. **AI scope review** (advisory, never fails CI): when a PR adds a source or skill, a model judges it against the scope policy above — the two-part source test and the skill bar — and posts a review comment with a verdict and concrete requested changes. The rubric lives in `.github/scope-review-prompt.md`; the model call is a single non-agentic Gemini request (`.github/scripts/scope-review.py`) authenticated by a `GEMINI_API_KEY` repository secret (Google AI Studio keys have a free tier). When the secret is not configured the job skips cleanly and only the mechanical layer runs. The comment is advisory: a maintainer always makes the final call.
+
+Run the mechanical layer locally before opening a PR:
+
+```bash
+python3 scripts/check-pr-policy.py            # compares HEAD against origin/main
+```
+
+If a check misfires (e.g. a legitimately-named skill trips the brand heuristic), say so in the PR description — the maintainer can merge over a failing policy check.
 
 ## Adding a new documentation source
 

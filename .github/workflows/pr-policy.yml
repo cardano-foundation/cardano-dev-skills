@@ -1,0 +1,176 @@
+# PR policy gate: mechanical vetting checks (hard fail) + advisory AI scope
+# review (comment only).
+#
+# SECURITY: this runs on pull_request_target so it has a write-capable token
+# and works for fork PRs. That is safe ONLY because every step checks out and
+# executes code from the BASE branch; PR content is read as data via
+# `git show` / `git ls-tree` against a fetched ref and is never executed.
+# Do not add a step that checks out or runs code from the PR head.
+#
+# The AI review is a single, non-agentic Gemini API call (Google AI Studio
+# keys have a free tier) driven by .github/scripts/scope-review.py. It needs
+# a GEMINI_API_KEY repository secret; when the secret is absent the job
+# skips cleanly and only the mechanical layer runs. To switch providers,
+# swap the "Run scope review" step (the context builder and the comment
+# poster are backend-agnostic) — but keep it non-agentic: no tool-running
+# agent belongs downstream of PR-controlled content in this workflow.
+
+name: PR Policy
+
+on:
+  pull_request_target:
+    paths:
+      - "skills/**"
+      - "registry/**"
+      - "docs/sources/**"
+
+concurrency:
+  group: pr-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  mechanical:
+    name: Mechanical policy checks
+    runs-on: ubuntu-latest
+    outputs:
+      new_sources: ${{ steps.check.outputs.new_sources }}
+      new_skills: ${{ steps.check.outputs.new_skills }}
+    steps:
+      - uses: actions/checkout@v5 # base branch — trusted scripts
+        with:
+          fetch-depth: 0
+
+      - name: Fetch PR head (data only, never executed)
+        run: git fetch origin "refs/pull/${{ github.event.pull_request.number }}/head:refs/remotes/pr/head"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Run policy checks
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/check-pr-policy.py \
+            --base "origin/${{ github.event.pull_request.base.ref }}" \
+            --head refs/remotes/pr/head \
+            --output-md policy-report.md \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Publish job summary
+        if: always()
+        run: cat policy-report.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
+  scope-review:
+    name: AI scope review (advisory)
+    runs-on: ubuntu-latest
+    needs: mechanical
+    # Run even when mechanical checks fail — those PRs need the explanation
+    # most — but only when the PR actually adds sources or skills.
+    if: >-
+      always() && needs.mechanical.result != 'cancelled' &&
+      (needs.mechanical.outputs.new_sources != '0' ||
+       needs.mechanical.outputs.new_skills != '0')
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: gemini-2.5-flash
+    steps:
+      - name: Check for API key
+        id: key
+        run: |
+          if [ -n "$GEMINI_API_KEY" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "AI scope review skipped: no \`GEMINI_API_KEY\` secret configured (mechanical checks still apply)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/checkout@v5 # base branch — trusted scripts
+        if: steps.key.outputs.present == 'true'
+        with:
+          fetch-depth: 0
+
+      - name: Fetch PR head (data only, never executed)
+        if: steps.key.outputs.present == 'true'
+        run: git fetch origin "refs/pull/${{ github.event.pull_request.number }}/head:refs/remotes/pr/head"
+
+      - uses: actions/setup-python@v5
+        if: steps.key.outputs.present == 'true'
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        if: steps.key.outputs.present == 'true'
+        run: pip install pyyaml
+
+      - name: Build review context
+        if: steps.key.outputs.present == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          python scripts/check-pr-policy.py \
+            --base "$BASE_REF" --head refs/remotes/pr/head \
+            --output-md policy-report.md || true
+
+          {
+            echo "# PR under review: ${PR_TITLE}"
+            echo
+            echo "## Mechanical check report"
+            cat policy-report.md
+            echo
+            echo "## Changed files"
+            git diff --name-status "$BASE_REF" refs/remotes/pr/head | head -200
+            echo
+            echo "## registry/sources.yaml diff"
+            git diff "$BASE_REF" refs/remotes/pr/head -- registry/sources.yaml | head -c 8000
+            echo
+            echo "## New/changed SKILL.md files"
+            for f in $(git diff --name-only "$BASE_REF" refs/remotes/pr/head -- 'skills/*/SKILL.md'); do
+              echo "### $f"
+              git show "refs/remotes/pr/head:$f" 2>/dev/null | head -c 12000
+              echo
+            done
+          } > review-context.md
+
+      - name: Run scope review (Gemini, non-agentic)
+        if: steps.key.outputs.present == 'true'
+        env:
+          SYSTEM_PROMPT_FILE: .github/scope-review-prompt.md
+          PROMPT_FILE: review-context.md
+          RESPONSE_FILE: review-response.md
+        run: python3 .github/scripts/scope-review.py
+
+      - name: Post sticky review comment
+        if: steps.key.outputs.present == 'true'
+        uses: actions/github-script@v7
+        env:
+          RESPONSE_FILE: review-response.md
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- pr-policy-scope-review -->';
+            const body = marker + '\n' +
+              fs.readFileSync(process.env.RESPONSE_FILE, 'utf8') +
+              '\n\n*Automated advisory review — a maintainer makes the final call.*';
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(
+              github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find(c => c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment(
+                { owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment(
+                { owner, repo, issue_number, body });
+            }

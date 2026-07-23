@@ -58,9 +58,13 @@ Instructions...
 
 - [ ] SKILL.md under 500 lines
 - [ ] Name is kebab-case, max 64 chars
-- [ ] Name is task-oriented, not a project/brand name — `monetize-agent`,
-      not `masumi`; `query-chain`, not `blockfrost` (CI fails brand-named
-      skills)
+- [ ] Name describes a developer workflow, never a project or brand —
+      `query-chain`, not `blockfrost` (see DESIGN.md Decision 2; CI fails
+      brand-named skills)
+- [ ] If the skill teaches integrating with a specific project, that
+      project is a [registered source](/contributing/add-a-source/) —
+      spec-level detail lives in `docs/sources/`, `references/` holds
+      behavioral guidance
 - [ ] `name:` matches directory name
 - [ ] Description includes trigger phrases
 - [ ] Has "When to use", "When NOT to use", "Key principles", "Workflow"

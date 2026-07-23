@@ -64,12 +64,11 @@ TASK_VERBS = {
     "plan", "estimate", "monitor", "govern", "governance", "stake",
 }
 
-# Filename patterns that smell like product/marketing pages rather than
-# developer documentation (see CONTRIBUTING.md scope: no branded dApps,
-# no marketing material).
+# Filename patterns that smell like marketing-only pages rather than
+# developer documentation (CONTRIBUTING.md scope: marketing-only material is
+# always out; operational pages of an integration-first project are fine).
 SMELL_PATTERN = re.compile(
-    r"(marketing|pricing|press|brand-assets|tokenomics|roadmap"
-    r"|list-[a-z0-9-]+-on-)", re.IGNORECASE)
+    r"(marketing|press|brand-assets|tokenomics|roadmap)", re.IGNORECASE)
 
 # Basenames that duplicate generic Cardano-101 content already bundled from
 # canonical sources (Cardano Docs, Developer Portal, CIPs).
@@ -272,9 +271,9 @@ def check_skill_content(skill: str, head_ref: str,
 def check_new_doc_file(path: str) -> None:
     basename = Path(path).name
     if SMELL_PATTERN.search(basename):
-        warn(f"`{path}`: filename suggests a product/marketing page — "
-             "CONTRIBUTING.md scope excludes marketing material and branded "
-             "dApp product docs; consider excluding it via `glob_patterns`")
+        warn(f"`{path}`: filename suggests marketing-only content — "
+             "CONTRIBUTING.md scope always excludes marketing material; "
+             "consider excluding it via `glob_patterns`")
     elif GENERIC_101_PATTERN.match(basename):
         warn(f"`{path}`: looks like generic Cardano-101 content already "
              "covered by canonical sources (Cardano Docs, Developer Portal, "

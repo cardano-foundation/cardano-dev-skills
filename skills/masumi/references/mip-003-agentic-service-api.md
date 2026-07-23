@@ -9,6 +9,19 @@ endpoints and the payment lifecycle (see "Python SDK" below).
 
 Payment node setup, escrow flow, and registry mint → [payment-service.md](payment-service.md).
 
+## Contents
+
+- What is an agentic service?
+- Endpoints
+- Endpoint specs (`POST /start_job`, `GET /status`, `GET /availability`, `GET /input_schema`, `POST /provide_input`, `GET /demo`)
+- Decision logging (MIP-004)
+- Python SDK (`pip-masumi`) — fast path
+- Framework integration patterns (CrewAI, LangGraph, AutoGen)
+- Best practices
+- Troubleshooting
+- Testing
+- Resources
+
 ---
 
 ## What is an agentic service?
@@ -62,18 +75,20 @@ Optional (declare in the registry entry if implemented):
 
 `input_data` is a **plain object keyed by field id** (matching `/input_schema`) — not
 an array of `{key,value}` pairs. `identifier_from_purchaser` is a random hex nonce,
-14–26 chars (e.g. `crypto.randomBytes(10).toString('hex')`); the buyer reuses it when
-locking funds, so it must satisfy the payment service's hex/length validation.
+14–26 chars and always an even number of characters (e.g. `crypto.randomBytes(7).toString('hex')`
+through `crypto.randomBytes(13).toString('hex')` — byte-to-hex encoding always doubles the byte
+count, so it's naturally even); the buyer reuses it when locking funds, and the payment service
+rejects odd-length or non-hex values with `400 Purchaser identifier is not a valid hex string`.
 
 **Response (immediate):**
 ```json
 {
   "id":"job-456",
   "blockchainIdentifier":"<id from Payment Service>",
-  "payByTime":1721480200,
-  "submitResultTime":1721480500,
-  "unlockTime":1721481700,
-  "externalDisputeUnlockTime":1721482700,
+  "payByTime":1721480200000,
+  "submitResultTime":1721487400000,
+  "unlockTime":1721494600000,
+  "externalDisputeUnlockTime":1721501800000,
   "agentIdentifier":"<your registered agent id>",
   "sellerVKey":"<your selling wallet vkey>",
   "identifierFromPurchaser":"a3f8b2c1d4e5f6a7b8c9",
@@ -88,6 +103,17 @@ forwarding `blockchainIdentifier` plus the timing fields (`payByTime`,
 `identifierFromPurchaser` from this response. All field names are camelCase except the snake_case `input_hash` (pip-masumi
 emits it as camelCase `inputHash`).
 
+**Timestamp units — the one thing to get right.** All four timing fields are **unix
+milliseconds** (13 digits), exactly as your payment node returned them from
+`POST /payment` — never seconds. MIP-003 types them `int` and pip-masumi's
+`StartJobResponse` emits JSON numbers (`int(payment_request["data"]["payByTime"])`),
+while a pass-through seller (like the Flask example below) emits the node's decimal
+strings — both shapes occur in the wild, so the buyer must coerce. Never rescale the
+value: `POST /purchase` types all four as required `z.string()` and parses them with
+`BigInt()` against `Date.now()`. A seconds-scale value fails the node's first ordering
+guard with the misleading error `Pay by time must be before submit result time (min. 5
+minutes)`.
+
 **Flow:**
 ```
 1. Receive request
@@ -97,17 +123,25 @@ emits it as camelCase `inputHash`).
 5. POST $PAYMENT_SERVICE_URL/payment (carrying inputHash) → blockchainIdentifier + timing fields
 6. Store {id → status:awaiting_payment, blockchainIdentifier}
 7. Return the MIP-003 response above (buyer locks funds via THEIR node's POST /purchase)
-8. Background: poll GET $PAYMENT_SERVICE_URL/payment for FundsLocked → run job
+8. Background: poll POST $PAYMENT_SERVICE_URL/payment/resolve-blockchain-identifier
+   {network, blockchainIdentifier} (header token) → data.onChainState == "FundsLocked" → run job
 ```
 
-**Errors:**
-- `400 INVALID_INPUT` — body fails schema.
-- `500 JOB_CREATION_FAILED` — internal.
+**Errors** (MIP-003 defines only the HTTP status; the code strings below are a convention, not spec):
+- `400` — `input_data` or `identifier_from_purchaser` missing, invalid, or fails schema.
+- `500` — job initiation failed on the service's side.
 
 ### `GET /status?job_id=...`
 
-The `/status` response does **not** echo an `id` — the caller identifies the job via the
-`job_id` query parameter.
+MIP-003's `/status` response body defines only `status` (required) plus optional
+`input_schema` and `result` — there is no `id`; the caller identifies the job via the
+`job_id` query parameter. (`id` was in the spec table until MIP repo commit `281ee30`,
+2026-03-03, which removed it.) `pip-masumi` has not followed: its `StatusResponse` model
+still declares `id` as **required** and fills it with a fresh `uuid4()` on every poll —
+that value is *not* the job id and is not stable across polls. So if you register a custom
+status handler with `pip-masumi`, you must still return an `id` or FastAPI response
+validation fails with a 500. A hand-rolled server should follow the spec and omit it; an
+extra `id` on the wire is harmless for spec-conformant clients.
 
 **Responses by status:**
 ```json
@@ -126,6 +160,10 @@ The `/status` response does **not** echo an `id` — the caller identifies the j
 
 // failed
 {"status":"failed","error":"PROCESSING_ERROR","message":"..."}
+// MIP-003 gives no example for `failed` and its /status field table lists only
+// `status`, `input_schema`, `result` — `error`/`message` are this skill's
+// convention, not part of the spec (a strict implementation could return
+// just {"status":"failed"}).
 ```
 
 **Status set:** `awaiting_payment | awaiting_input | running | completed | failed`.
@@ -135,7 +173,7 @@ human-in-the-loop state — the job pauses until the buyer answers via `/provide
 Marketplace platforms built on the registry may track richer internal states — map
 appropriately.
 
-Errors: `404 JOB_NOT_FOUND`.
+Errors: `404` — `job_id` does not exist (MIP-003 prose only; `JOB_NOT_FOUND` is this skill's convention, not a spec-defined code).
 
 ### `GET /availability`
 
@@ -170,21 +208,63 @@ keyed by these `id`s.
 }
 ```
 
-Field `type` is one of `string | number | boolean | option | none`. An `option` lists
-its choices under `data.values`. See MIP-003 Attachment 01 for the full validation
-reference.
+The MIP-003 main body only *illustrates* `type` with `"string" | "number" | "boolean" |
+"option" | "none"` — those sit in the **Example** column of its Input Field Structure
+table, not in an enum. The normative list is MIP-003 Attachment 01, which defines 22
+HTML-input-aligned types: `text`, `textarea`, `number`, `boolean`, `option`, `none`,
+`email`, `password`, `tel`, `url`, `date`, `datetime-local`, `time`, `month`, `week`,
+`color`, `range`, `file`, `hidden`, `search`, `checkbox`, `radio`. `string` is absent
+from Attachment 01 but is still accepted in practice — Masumi's own CrewAI quickstart
+emits it and the Sokosumi API accepts it (plus `multiselect`) — so treat `string` as a
+legacy alias and prefer `text` in new schemas.
+
+Type-specific requirements: `option` and `radio` require `data.values`; `hidden`
+requires `data.value`; `file` requires `data.outputFormat` (only `"url"` is supported
+today) plus an `{"validation":"accept","value":"image/*,.pdf"}` rule. Common `data`
+keys across types: `description`, `placeholder`, `default`.
+
+**Every field is required by default.** The only way to relax that is an explicit
+validation entry: `{"validation":"optional","value":"true"}`. Do not try to express
+"not required" with `min` — Attachment 01 states `min` "has to be at least `>=1` if
+set, not required fields use `optional`".
+
+See MIP-003 Attachment 01 for the full per-type `data` / `validations` matrix.
 
 ### `POST /provide_input` (optional)
 
-Body: `{job_id, input_schema_hash, input_data:{...}}`, where `input_data` is a plain
+**Request:** `{job_id, input_schema_hash, input_data:{...}}`, where `input_data` is a plain
 object keyed by field id. Use when a job is `awaiting_input` mid-execution.
 `input_schema_hash` is the SHA256 (64-char lowercase hex) of the canonical JSON of the
-`input_schema` returned by `/status`; the service recomputes it to confirm the client
-is answering the current schema version, returning `400` on a mismatch.
+`input_schema` returned by `/status`, computed client-side. MIP-003 requires the client
+to send it but does not specify server-side verification — its only documented `400` for
+this endpoint is an invalid `job_id` or missing `input_data`. Recomputing the hash and
+rejecting mismatches with `400` is hardening you can add yourself, not a guarantee MIP-003
+or pip-masumi provide out of the box (pip-masumi's `/provide_input` handler only computes
+an `input_hash` over the submitted `input_data` for the response — it never compares
+against a schema hash).
+
+**Response:**
+```json
+{
+  "input_hash":"<sha256 of identifier;canonicalize(the input_data just provided)>",
+  "signature":"<Ed25519 signature over the response, CIP-08 style>"
+}
+```
+
+MIP-003 marks **both** response fields required — never answer with a bare `200` and an
+empty body. The spec does not pin the `input_hash` algorithm; pip-masumi reuses the
+MIP-004 input-hash formula over the newly supplied `input_data`
+(`sha256("${identifierFromPurchaser};${canonicalize(input_data)}")`). Signing is not
+implemented in pip-masumi yet — it returns `signature: ""`, the pragmatic fallback for
+agents that hold no Ed25519 key.
+
+Errors: `400` (invalid `job_id`, missing `input_data`), `404 JOB_NOT_FOUND`, `500`.
 
 ### `GET /demo` (optional)
 
 Return canned sample input + output so registry consumers can preview the service.
+
+**Response** (required if you implement this endpoint at all): `{"input": {<a realistic /start_job input_data object>}, "output": {"result": "<a realistic, full sample result string>"}}` — MIP-003 marks `input`, `output`, and the nested `output.result` all Required=Yes. `output` is always an object wrapping `result`; it is never a bare string.
 
 ---
 
@@ -202,12 +282,51 @@ Two **separate** single-digest hashes — never concatenated:
 - **Input hash** = `sha256("${identifierFromPurchaser};${canonicalize(input_data)}", utf-8)` → 64-char lowercase hex. Sent as `inputHash` on `POST /payment` (seller) and `POST /purchase` (buyer).
 - **Output hash** = `sha256("${identifierFromPurchaser};${escaped_output}", utf-8)` → 64-char lowercase hex, where `escaped_output` is the result JSON-escaped (see below). Submitted as `submitResultHash` to unlock payment.
 
-Canonicalize the input JSON per RFC 8785; the output is a plain string, JSON-escaped —
-`JSON.stringify(result).slice(1, -1)` in JS, `json.dumps(result, ensure_ascii=False)[1:-1]`
-in Python (this is exactly what pip-masumi's `create_masumi_output_hash` does) — not
-JSON-canonicalized. Both sides must escape identically or the buyer's hash won't match. UTF-8
+Canonicalize the input JSON with the *same library the counterparty runs* — this is not a
+free choice (`pip-masumi` ships matrix-org `canonicaljson`, which is **not** RFC 8785; see
+the canonicalizer warning below). The output is a plain string, never JSON-canonicalized —
+but **the spec and the SDK disagree on how it is prepared:**
+
+| Source | Output payload |
+|---|---|
+| MIP-004 §2.1–2.2 (Draft; `main`, last touched 2025-09-10) | the **raw** UTF-8 output string — `string_to_hash = identifier_from_purchaser + ";" + output`. Its reference `create_masumi_output_hash` hashes the raw string. |
+| `pip-masumi` ≥ 0.1.41 (2025-10-11, commit `7cc2d48`) through 1.2.0 | the **JSON-escaped** string: `json.dumps(output, ensure_ascii=False)[1:-1]` in Python, `JSON.stringify(result).slice(1, -1)` in JS |
+| `pip-masumi` ≤ 0.1.40 | raw (matches the spec) |
+
+Escaped is the de-facto convention because most live sellers run `pip-masumi`, so default
+to it — but confirm the counterparty's variant before disputing a hash. The two forms are
+byte-identical unless the output contains `"`, `\`, a newline, a tab, or another control
+character, so the mismatch surfaces only on real multi-line or quoted results. Open MIP-004
+PR #14 does not resolve this: it keeps the result raw and additionally prepends the input
+hashes (`h0;h1;…;identifier_from_purchaser;result`). Both sides must prepare the string
+identically or the buyer's hash won't match. UTF-8
 only, no BOM. The semicolon delimiter prevents concatenation ambiguity. The live payment service enforces `submitResultHash` as a
 single 64-char sha256 (`^[0-9a-fA-F]{64}$`) — a 128-char value is rejected with `400`.
+
+> **Canonicalizer warning — `canonicaljson` is not RFC 8785.** MIP-004 §Step 1.1 says input
+> serialization "must conform to the JSON Canonicalization Scheme (JCS) as specified in RFC 8785",
+> but MIP-004's own reference implementation and the shipped `pip-masumi`
+> (`masumi/helper_functions.py::create_masumi_input_hash`, dependency `canonicaljson>=1.6.3`) call
+> `canonicaljson.encode_canonical_json`. That is matrix-org/python-canonicaljson, which documents
+> itself as RFC 7159 and is **not** JCS. A real JCS library (npm `canonicalize` / `canonical-json`,
+> PyPI `jcs`) disagrees with it whenever the input contains:
+>
+> | input | `canonicaljson` | RFC 8785 (JCS) |
+> |---|---|---|
+> | `{"temperature":1.0}` | `{"temperature":1.0}` | `{"temperature":1}` |
+> | `{"threshold":1e2}` | `{"threshold":100.0}` | `{"threshold":100}` |
+> | `{"x":-0.0}` | `{"x":-0.0}` | `{"x":0}` |
+> | `{"ts":12345678901234567890}` | exact | `12345678901234567000` |
+> | `{"😀":1,"￭":2}` | `{"￭":2,"😀":1}` (code point) | `{"😀":1,"￭":2}` (UTF-16 code unit, §3.2.3) |
+>
+> **Interop rule: match whatever the counterparty runs, not the RFC.** Against a `pip-masumi`
+> seller, use `canonicaljson` on both sides. Against a TypeScript seller using `canonicalize`,
+> use a real JCS library on both sides (Python: `pip install jcs`, `jcs.canonicalize(data)`).
+> A mismatch is not a soft failure: `POST /purchase` rebuilds the seller-signed
+> `blockchainIdentifier` payload from the buyer's `inputHash` and rejects the purchase with
+> `400 Invalid blockchain identifier, signature invalid`, so funds never lock. The durable
+> defence is schema design — declare numeric fields as integers or strings and keep object keys
+> inside the BMP, which removes every divergence class above.
 
 ### Submit to the payment service
 
@@ -266,9 +385,14 @@ async def process_job(identifier_from_purchaser: str, input_data: dict):
 run(process_job, INPUT_SCHEMA)        # → FastAPI on :8080
 ```
 
-`process_job` must return a **string**. The SDK wraps it into the `{id, status, result}`
-response and hashes the same string for `submitResultHash` — returning a dict
-double-wraps the result and produces the wrong output shape for buyers.
+`process_job` must return a **string**. The SDK wraps it into its own `{id, status,
+result}` `/status` shape — that `id` is a `pip-masumi` addition, not a MIP-003 field (see
+`GET /status?job_id=...` above) — and hashes the same string for `submitResultHash`.
+Returning a dict is not an error: the SDK silently coerces it via
+`json.dumps(result, ensure_ascii=False)` (pip-masumi `masumi/server.py`) before hashing
+and storing it, so the job still completes. The buyer just receives a JSON-stringified
+blob instead of your intended text — return the string yourself to keep control of
+exactly what gets hashed and delivered.
 
 What `run()` gives you:
 - All six MIP-003 endpoints
@@ -300,7 +424,8 @@ Full SDK guide in the `masumi-network/pip-masumi` repository.
 ```python
 from crewai import Agent, Task, Crew
 from flask import Flask, request, jsonify
-import hashlib, uuid
+import hashlib, json, uuid, threading, time
+from datetime import datetime, timedelta, timezone
 from canonicaljson import encode_canonical_json
 import os, requests
 
@@ -318,7 +443,11 @@ def hash_input(buyer, data):
     return hashlib.sha256(f"{buyer};{canon}".encode("utf-8")).hexdigest().lower()
 
 def hash_output(buyer, out):
-    return hashlib.sha256(f"{buyer};{out}".encode("utf-8")).hexdigest().lower()
+    escaped = json.dumps(out, ensure_ascii=False)[1:-1]   # same as pip-masumi create_masumi_output_hash
+    return hashlib.sha256(f"{buyer};{escaped}".encode("utf-8")).hexdigest().lower()
+
+def iso(dt):
+    return dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 @app.post("/start_job")
 def start_job():
@@ -328,17 +457,23 @@ def start_job():
     jid = f"job-{uuid.uuid4()}"
     ih = hash_input(buyer, inp)
 
-    # 1. Create the payment request on your node (carries the input hash)
+    # 1. Create the payment request on your node (carries the input hash).
+    #    payByTime / submitResultTime are schema-optional but their 1970 defaults are
+    #    rejected by the handler — always send them, or you get a 400 and no payment.
+    now = datetime.now(timezone.utc)
     pay = requests.post(f"{PAY}/payment",
         headers={"token": KEY},
         json={"network": NET, "agentIdentifier": os.environ["AGENT_IDENTIFIER"],
               "inputHash": ih,
+              "payByTime": iso(now + timedelta(minutes=10)),
+              "submitResultTime": iso(now + timedelta(minutes=45)),
               "identifierFromPurchaser": buyer}).json()
     pd = pay["data"]
 
     jobs[jid] = {"status":"awaiting_payment","input":inp,"buyer":buyer,
-                 "blockchain_id": pd["blockchainIdentifier"], "ih": ih}
-    start_payment_polling(jid)         # background thread polling the payment service
+                 "blockchain_id": pd["blockchainIdentifier"], "ih": ih,
+                 "pay_by_time": pd["payByTime"]}
+    start_payment_polling(jid)         # background thread; defined below
 
     # 2. Return the MIP-003 shape. The buyer locks funds via THEIR node's
     #    POST /purchase, forwarding blockchainIdentifier + these timing fields.
@@ -370,7 +505,48 @@ def schema(): return jsonify({"input_data":[
     {"id":"analysisType","type":"option","name":"Analysis Type","data":{"values":["descriptive","predictive","diagnostic"]}}
 ]})
 
-def process(jid):                       # called after FundsLocked
+POLL_INTERVAL = 10   # seconds — pip-masumi's own default (masumi/payment.py, start_status_monitoring)
+
+def start_payment_polling(jid):
+    """Ask YOUR node whether the buyer's funds are locked, then run the job.
+
+    You poll your node's DB, not the chain: the node scans the chain on its own
+    cron (CHECK_TX_INTERVAL, 180s default), so a short client interval is correct
+    and adds no chain load. Never run the job before FundsLocked.
+    """
+    def loop():
+        j = jobs[jid]
+        # payByTime is a unix-time string; the live payment schema documents these
+        # timestamps as MILLISECONDS, so normalise, then allow the node two scan
+        # cycles of slack before declaring the buyer a no-show.
+        pbt = int(j["pay_by_time"])
+        deadline = (pbt / 1000 if pbt > 1e12 else pbt) + 2 * 180
+        while time.time() < deadline:
+            r = requests.post(f"{PAY}/payment/resolve-blockchain-identifier",
+                headers={"token": KEY},
+                json={"network": NET,
+                      "blockchainIdentifier": j["blockchain_id"],
+                      "includeHistory": "false"})
+            if r.status_code == 200:
+                d = r.json()["data"]           # envelope is {"status", "data"}
+                state = d.get("onChainState")  # null until the node sees it on-chain
+                if state == "FundsLocked":
+                    process(jid)               # run the job ONLY now
+                    return
+                # FundsOrDatumInvalid is a real error for a paid agent (it is only a
+                # valid start signal for free / 0-price agents).
+                if state in ("FundsOrDatumInvalid", "RefundRequested", "Disputed",
+                             "RefundWithdrawn", "DisputedWithdrawn"):
+                    j.update(status="failed", error=state)
+                    return
+            elif r.status_code != 404:         # 404 = row not visible yet, keep waiting
+                j.update(status="failed", error=f"payment service {r.status_code}")
+                return
+            time.sleep(POLL_INTERVAL)
+        j.update(status="failed", error="buyer did not lock funds before payByTime")
+    threading.Thread(target=loop, daemon=True).start()
+
+def process(jid):                       # called by start_payment_polling on FundsLocked
     j = jobs[jid]; j["status"]="running"
     task = Task(description=f"Analyze: {j['input']['dataset']}",
                 agent=analyst, expected_output="Statistical results")
@@ -392,7 +568,7 @@ const graph = new StateGraph<S>({ channels: { ... } })
 
 const result = await graph.invoke({ dataset, analysisType });
 ```
-Hash + `POST /payment/submit-result` identical to the CrewAI example.
+Hash + `POST /payment/submit-result` identical to the CrewAI example — escape the result before hashing (`JSON.stringify(result).slice(1, -1)` in TS, `json.dumps(result, ensure_ascii=False)[1:-1]` in Python), never hash the raw string.
 
 ### AutoGen (Python)
 
@@ -408,7 +584,7 @@ payment node handle payment.
 ### Input schema
 - Be **specific** — narrow types, enums, max lengths.
 - Reject early in `/start_job`. Don't create a payment request for invalid input.
-- Use `examples` and `description` fields for buyers.
+- Use `data.description` and `data.placeholder` for buyers — there is no `examples` field in MIP-003.
 - Avoid free-form prompts for publicly-listed agents — buyers can't predict cost.
 
 ### Example outputs
@@ -440,7 +616,8 @@ payment node handle payment.
 | Issue | Likely cause |
 |---|---|
 | `/start_job` returns but payment never confirms | Wrong `network`; wrong `agentIdentifier`; payment service unreachable; Blockfrost key invalid. |
-| Hash validation fails (buyer reports mismatch) | Non-canonical JSON; wrong `identifier_from_purchaser` used; UTF-8/BOM; missing `;` delimiter. |
+| Hash validation fails (buyer reports mismatch) | Input canonicalizer mismatch — `canonicaljson` (what pip-masumi runs) vs a true RFC 8785 library differ on `1.0`/`1e2`, `-0.0`, ints above 2^53, and non-BMP keys; **or** output raw-vs-escaped — appears only when the result has a newline, `"`, `\` or tab, meaning one side JSON-escaped and the other hashed raw (MIP-004 §2.1 raw; `pip-masumi` ≥ 0.1.41 escaped); wrong `identifier_from_purchaser`; UTF-8/BOM; missing `;` delimiter. |
+| `POST /purchase` returns `400 Invalid blockchain identifier, signature invalid` | Your `inputHash` differs from the seller's — the payment service rebuilds the seller-signed payload from your `inputHash`. Almost always the canonicalizer mismatch above. |
 | Service marked offline in registry | `/availability` not 200; SSL issue; firewall; DNS — the registry checks periodically. |
 | `submit-result` returns 400 | Field names wrong (must be `network`, `blockchainIdentifier`, `submitResultHash`); or `submitResultHash` is not a single 64-char hex sha256. |
 | `submit-result` returns 401 | Wrong `token` header value or wrong environment (Preprod key vs Mainnet). |

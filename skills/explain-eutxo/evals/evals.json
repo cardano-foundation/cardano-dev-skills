@@ -1,0 +1,19 @@
+{
+  "skill": "explain-eutxo",
+  "evals": [
+    {
+      "prompt": "How does Cardano's eUTxO model differ from Ethereum's account model? Keep your answer brief.",
+      "expect": "trigger",
+      "note": "Baseline 2026-07-27: routed correctly (collision zone: explain-cip)"
+    },
+    {
+      "prompt": "What is a redeemer and how does it relate to a datum? Keep your answer brief.",
+      "expect": "trigger"
+    },
+    {
+      "prompt": "What is CIP-68 and how do its reference tokens work? Keep your answer brief.",
+      "expect": "no-trigger",
+      "expected_instead": "explain-cip"
+    }
+  ]
+}

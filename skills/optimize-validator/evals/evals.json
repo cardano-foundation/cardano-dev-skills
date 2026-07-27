@@ -1,0 +1,15 @@
+{
+  "skill": "optimize-validator",
+  "evals": [
+    {
+      "prompt": "My Cardano validator exceeds the execution budget. How do I reduce its CPU and memory usage? Keep your answer brief.",
+      "expect": "trigger",
+      "note": "Baseline 2026-07-27: routed correctly (validator triple)"
+    },
+    {
+      "prompt": "Check my validator for security vulnerabilities before mainnet. Keep your answer brief.",
+      "expect": "no-trigger",
+      "expected_instead": "review-contract"
+    }
+  ]
+}

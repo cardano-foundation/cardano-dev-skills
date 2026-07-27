@@ -189,6 +189,21 @@ verify it by running it, not just by cross-referencing docs. Note the bundled `d
 mirror each project's upstream default branch, so check version-sensitive claims against
 released packages (npm dist-tags, Maven metadata, GitHub releases), not the mirrored docs.
 
+## Routing evals
+
+Skill descriptions are the router: editing one can silently re-route prompts. Before and
+after changing any `description:` field, run the routing evals:
+
+```bash
+python3 scripts/run-evals.py --list                # see what will run (one live session per eval)
+python3 scripts/run-evals.py                       # all evals; exit 1 on any FAIL
+python3 scripts/run-evals.py --skill design-token  # just the skill you touched + its collision partners
+```
+
+Evals live in `skills/<name>/evals/evals.json`. When adding a skill whose triggers could
+collide with an existing skill, add a trigger eval for the new skill and a no-trigger eval
+on each side of the collision. Not run in CI (live API cost) — see DESIGN.md Decision 13.
+
 ## Documentation governance
 
 Docs (`CLAUDE.md`, `README.md`, `docs/DESIGN.md`, `docs/CONTRIBUTING.md`) must reflect current state. When you change something **observable from outside the repo**, update related docs in the same PR.

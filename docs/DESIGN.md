@@ -140,3 +140,11 @@ These additions follow the principle: ship small, observe, iterate.
 **Alternative considered:** A `UserPromptSubmit` hook that keyword-matches Cardano terms and injects a consultation reminder. Rejected because (a) regex on user prompts has no context — false positives ("compare Hydra vs Lightning") and false negatives (paraphrased Cardano questions) are both common, (b) injected `additionalContext` reminders get dropped by compaction; `CLAUDE.md` content is re-injected every turn, (c) hidden hook behavior is hard to debug or override per-project; `CLAUDE.md` is inspectable and editable, (d) the skill approach distributes via git, so teammates inherit the directive on clone without configuring their plugin install.
 
 **Future meta-skills:** Likely candidates if the pattern stays useful — a deprecation/anti-pattern cheatsheet, project-level Cardano coding conventions. All would follow the same shape: produce a delimited versioned block, write to a project file, idempotent on re-run.
+
+## Decision 13: Routing evals are a manual harness, not CI
+
+**Decision:** Ship per-skill routing evals (`skills/<name>/evals/evals.json`) plus a manual runner (`scripts/run-evals.py`). Each eval asserts that a natural user prompt does (or does not) auto-trigger the owning skill. Not wired into CI: every eval is a live model session with real API cost, and routing depends on the model — a red X on a PR would conflate description quality with model variance.
+
+**Why now:** A live baseline (2026-07-27, claude-fable-5) showed 8/8 correct routing across the known collision zones — mint-NFT (design-token vs build-transaction), sign-transaction (connect-wallet vs build-transaction), the write/review/optimize validator triple, explain-eutxo vs explain-cip. That makes description edits a regression risk: the evals exist so a description change is checked against the baseline instead of eyeballed.
+
+**Empirical harness constraints** (found by dogfooding, 2026-07-27): headless `--permission-mode acceptEdits` denies Skill tool execution outright, so the runner uses default permissions; tool discovery consumes turns, so sessions get a `--max-turns` cushion; each eval runs from an empty temp cwd so no project `CLAUDE.md` biases routing.

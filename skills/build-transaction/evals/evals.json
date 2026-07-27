@@ -1,0 +1,24 @@
+{
+  "skill": "build-transaction",
+  "evals": [
+    {
+      "prompt": "Write the code to build and submit an NFT minting transaction with Mesh SDK. Keep it minimal.",
+      "expect": "trigger"
+    },
+    {
+      "prompt": "Send 50 ADA from my wallet to another address using PyCardano. Keep it minimal.",
+      "expect": "trigger"
+    },
+    {
+      "prompt": "I want to mint an NFT collection on Cardano. Where do I start? Keep your answer brief.",
+      "expect": "no-trigger",
+      "expected_instead": "design-token",
+      "note": "Baseline 2026-07-27: design-token won this prompt (correct: architecture question, not tx construction)"
+    },
+    {
+      "prompt": "How do I let users sign and submit a transaction from my React app on Cardano? Keep your answer brief.",
+      "expect": "no-trigger",
+      "expected_instead": "connect-wallet"
+    }
+  ]
+}

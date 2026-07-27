@@ -1,0 +1,19 @@
+{
+  "skill": "design-token",
+  "evals": [
+    {
+      "prompt": "I want to mint an NFT collection on Cardano. Where do I start? Keep your answer brief.",
+      "expect": "trigger",
+      "note": "Baseline 2026-07-27: routed correctly (collision zone: build-transaction)"
+    },
+    {
+      "prompt": "Should I use CIP-25 or CIP-68 metadata for my NFT collection? Keep your answer brief.",
+      "expect": "trigger"
+    },
+    {
+      "prompt": "Write the code to build and submit an NFT minting transaction with Mesh SDK. Keep it minimal.",
+      "expect": "no-trigger",
+      "expected_instead": "build-transaction"
+    }
+  ]
+}

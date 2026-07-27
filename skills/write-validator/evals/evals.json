@@ -1,0 +1,20 @@
+{
+  "skill": "write-validator",
+  "evals": [
+    {
+      "prompt": "Write an Aiken validator that locks funds until a deadline passes. Keep it minimal.",
+      "expect": "trigger",
+      "note": "Baseline 2026-07-27: routed correctly (validator triple)"
+    },
+    {
+      "prompt": "What should I check when reviewing my Aiken validator for security vulnerabilities? Keep your answer brief.",
+      "expect": "no-trigger",
+      "expected_instead": "review-contract"
+    },
+    {
+      "prompt": "My Cardano validator exceeds the execution budget. How do I reduce its CPU and memory usage? Keep your answer brief.",
+      "expect": "no-trigger",
+      "expected_instead": "optimize-validator"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "skill": "explain-cip",
+  "evals": [
+    {
+      "prompt": "What is CIP-68 and how do its reference tokens work? Keep your answer brief.",
+      "expect": "trigger",
+      "note": "Baseline 2026-07-27: routed correctly despite design-token also listing CIP-68"
+    },
+    {
+      "prompt": "Explain how datums and redeemers work in Cardano's eUTxO model. Keep your answer brief.",
+      "expect": "no-trigger",
+      "expected_instead": "explain-eutxo"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "skill": "connect-wallet",
+  "evals": [
+    {
+      "prompt": "How do I let users sign and submit a transaction from my React app on Cardano? Keep your answer brief.",
+      "expect": "trigger",
+      "note": "Baseline 2026-07-27: routed correctly (collision zone: build-transaction)"
+    },
+    {
+      "prompt": "Integrate Eternl and Lace wallets into my dApp with CIP-30. Keep your answer brief.",
+      "expect": "trigger"
+    },
+    {
+      "prompt": "Build a transaction that sends ADA programmatically from a backend script. Keep it minimal.",
+      "expect": "no-trigger",
+      "expected_instead": "build-transaction"
+    }
+  ]
+}

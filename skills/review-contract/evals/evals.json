@@ -1,0 +1,19 @@
+{
+  "skill": "review-contract",
+  "evals": [
+    {
+      "prompt": "What should I check when reviewing my Aiken validator for security vulnerabilities? Keep your answer brief.",
+      "expect": "trigger",
+      "note": "Baseline 2026-07-27: routed correctly (validator triple)"
+    },
+    {
+      "prompt": "Audit this smart contract for double-satisfaction exploits. Keep your answer brief.",
+      "expect": "trigger"
+    },
+    {
+      "prompt": "Write an Aiken validator that locks funds until a deadline passes. Keep it minimal.",
+      "expect": "no-trigger",
+      "expected_instead": "write-validator"
+    }
+  ]
+}

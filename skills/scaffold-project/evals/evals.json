@@ -1,0 +1,10 @@
+{
+  "skill": "scaffold-project",
+  "evals": [
+    {
+      "prompt": "Set up a new Cardano dApp project for me. Keep it minimal.",
+      "expect": "trigger",
+      "note": "Baseline 2026-07-27: routed correctly"
+    }
+  ]
+}

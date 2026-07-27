@@ -140,3 +140,19 @@ These additions follow the principle: ship small, observe, iterate.
 **Alternative considered:** A `UserPromptSubmit` hook that keyword-matches Cardano terms and injects a consultation reminder. Rejected because (a) regex on user prompts has no context — false positives ("compare Hydra vs Lightning") and false negatives (paraphrased Cardano questions) are both common, (b) injected `additionalContext` reminders get dropped by compaction; `CLAUDE.md` content is re-injected every turn, (c) hidden hook behavior is hard to debug or override per-project; `CLAUDE.md` is inspectable and editable, (d) the skill approach distributes via git, so teammates inherit the directive on clone without configuring their plugin install.
 
 **Future meta-skills:** Likely candidates if the pattern stays useful — a deprecation/anti-pattern cheatsheet, project-level Cardano coding conventions. All would follow the same shape: produce a delimited versioned block, write to a project file, idempotent on re-run.
+
+## Decision 13: Supply-chain guardrails for bundled third-party content
+
+**Decision:** Content entering `docs/sources/` and skill tool grants are screened in layers, because bundled docs are read by AI agents on every consumer's machine and the plugin now updates on every commit (marketplace installs track HEAD since the version pins were dropped). Full rationale and threat model: `docs/proposals/supply-chain-guardrails.md`.
+
+**The layers:**
+
+0. **Tool-grant policy** (`scripts/validate.py`): `allowed-tools` is a one-turn pre-approval in Claude Code, not a restriction, so the base grant is `Read Grep Glob`, anything wider needs a reviewed exception entry, and every skill must disallow `WebFetch`/`WebSearch` (skills are self-contained). Advisory-only skills additionally disallow `Bash`/`Edit`/`Write`, containing injection blast radius during the turn untrusted docs are read.
+1. **Fetch-time sanitization** (`scripts/_fetch_docs.py`): strips zero-width/bidi characters everywhere and HTML comments + `<script>` from markup — deletes the hidden-text injection class instead of trying to detect it.
+2. **Mechanical delta scanner** (`scripts/scan-docs-delta.py`, blocking check in the PR Policy workflow): pattern-level screening of changed lines only — injection phrasing, pipe-to-shell, swapped bech32 addresses, changed install commands, new domains per source.
+3. **Advisory AI docs-delta review** (PR Policy workflow): reuses the non-agentic scope-review harness with a supply-chain rubric (`.github/docs-delta-review-prompt.md`) to catch what patterns can't — plausible address swaps, typosquats, injection phrased as documentation. Advisory per this repo's discipline: only mechanical checks go red.
+4. **Commit pinning** (`registry/pins.yaml` + per-source refresh commits): normal fetches check out the last-vetted upstream commit, not the branch tip; the weekly refresh proposes pin bumps as one commit per changed source, so a bad delta reverts with one `git revert`. Mirrors Anthropic's community-marketplace model of pinning plugins to SHAs.
+
+**Trust boundary stated plainly:** the screening narrows the window between "upstream compromised" and "detected", it does not close it. A maintainer merges every refresh PR; the layers exist to make that human's review tractable (a per-source verdict table instead of an unreviewable 300-file diff), not to replace it.
+
+**Rejected:** full manual review of refresh diffs (doesn't scale — the pre-guardrail rubber stamp was the evidence); per-source refresh PRs (10× PR noise for isolation that per-source commits already provide); blanket `context: fork`/tool restriction on all skills (breaks builder skills whose job is writing code in the same turn).

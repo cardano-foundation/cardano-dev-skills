@@ -156,6 +156,7 @@ Quick validation:
 ```bash
 python3 scripts/validate.py        # schema + format checks
 python3 scripts/check-pr-policy.py # PR policy checks vs origin/main (CI runs these + an AI scope review)
+python3 scripts/scan-docs-delta.py # security scan of docs/sources/ changes (CI runs it as a blocking check)
 ./scripts/update-doc-counts.sh     # refresh count placeholders in docs (CI runs --check)
 ```
 
@@ -175,7 +176,7 @@ cardano-dev-skills/
 ├── skills/                      ← developer skills (flat layout)
 ├── docs/sources/                ← extracted upstream docs (auto-refreshed)
 ├── hooks/                       ← session and prompt hooks
-├── scripts/                     ← fetch, validate, policy-check, update-counts
+├── scripts/                     ← fetch (pinned + sanitized), validate, policy-check, delta-scan, update-counts
 └── .github/                     ← workflows, issue templates
 ```
 

@@ -5,11 +5,13 @@ on:
     paths:
       - "skills/**"
       - "registry/**"
+      - "scripts/**"
   push:
     branches: [main]
     paths:
       - "skills/**"
       - "registry/**"
+      - "scripts/**"
 
 jobs:
   validate:

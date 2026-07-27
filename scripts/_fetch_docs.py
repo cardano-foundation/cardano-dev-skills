@@ -19,30 +19,47 @@ SKIP_FILES = {'CHANGELOG.md', 'CONTRIBUTING.md', 'LICENSE.md', 'LICENSE',
               'CODE_OF_CONDUCT.md', 'SECURITY.md'}
 
 # Supply-chain sanitization: bundled docs are read by AI agents, so strip the
-# places where instructions can hide invisibly. Invisible characters (zero-
-# width, bidi controls) are removed from every text file; HTML comments and
-# <script> blocks are removed from markup formats where they don't render.
+# places where instructions hide from a human reviewer while staying visible
+# to a model. Invisible/format-control characters (zero-width, bidi controls,
+# and the U+E0000 tag-character block used for ASCII smuggling) are removed
+# from every text file; HTML comments — which render invisibly but are read
+# verbatim by an agent — are stripped from markup. `<script>` is intentionally
+# NOT stripped: a bundled doc is read as inert text (never executed), so
+# stripping it only mangles legitimate web-dev tutorials.
 INVISIBLE_CHARS_RE = re.compile(
-    '[​‌‍⁠﻿'      # zero-width space/joiners, word-joiner, BOM
-    '‪-‮⁦-⁩؜]')   # bidi embedding/override/isolate controls
+    '[​-‏'      # zero-width space/joiners, LRM/RLM
+    '‪-‮'       # bidi embedding/override
+    '⁠-⁤'       # word-joiner, invisible math operators
+    '⁦-⁩'       # bidi isolates
+    '﻿'             # zero-width no-break space / BOM
+    '؜]'            # arabic letter mark
+    '|[\U000e0000-\U000e007f]')  # unicode tag chars (ASCII smuggling)
 HTML_COMMENT_RE = re.compile(r'<!--.*?-->', re.DOTALL)
-SCRIPT_TAG_RE = re.compile(r'<script\b.*?</script\s*>', re.DOTALL | re.IGNORECASE)
 MARKUP_EXTS = {'.md', '.mdx', '.html', '.htm'}
 
 
 def copy_sanitized(src, dest):
-    """Copy a doc file, sanitizing text content; binary files copy as-is."""
+    """Copy a doc file, sanitizing text content; binary files copy as-is.
+
+    Decodes with errors='replace' rather than bailing out to a verbatim copy,
+    so a single non-UTF-8 byte can't smuggle an un-sanitized payload past the
+    filter. A file that is genuinely binary (contains a NUL byte) is copied
+    unchanged — sanitizing it would corrupt it and it isn't agent-read text.
+    """
     ext = os.path.splitext(src)[1].lower()
     try:
-        with open(src, encoding='utf-8') as f:
-            text = f.read()
-    except (UnicodeDecodeError, OSError):
+        with open(src, 'rb') as f:
+            data = f.read()
+    except OSError:
         shutil.copy2(src, dest)
         return
+    if b'\x00' in data:  # binary asset — copy verbatim
+        shutil.copy2(src, dest)
+        return
+    text = data.decode('utf-8', 'replace')
     text = INVISIBLE_CHARS_RE.sub('', text)
     if ext in MARKUP_EXTS:
         text = HTML_COMMENT_RE.sub('', text)
-        text = SCRIPT_TAG_RE.sub('', text)
     with open(dest, 'w', encoding='utf-8') as f:
         f.write(text)
 

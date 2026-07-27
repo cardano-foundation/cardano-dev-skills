@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Fetch documentation from all sources in registry/sources.yaml."""
 
+import argparse
+import json
 import sys
 import os
 import subprocess
@@ -43,6 +45,43 @@ def copy_sanitized(src, dest):
         text = SCRIPT_TAG_RE.sub('', text)
     with open(dest, 'w', encoding='utf-8') as f:
         f.write(text)
+
+
+PINS_HEADER = """\
+# Upstream commit pins for documentation sources — auto-generated, do not
+# edit by hand.
+#
+# Records the upstream commit each source in sources.yaml was last vetted
+# at. `scripts/fetch-docs.sh` checks out the pinned commit instead of the
+# branch tip, so what ships in docs/sources/ is exactly what passed the
+# refresh PR's security screening (delta scanner + AI review). The weekly
+# refresh runs `fetch-docs.sh --update-pins`, which fetches branch tips and
+# proposes new pins — one commit per source in the refresh PR, so a bad
+# upstream delta can be reverted per source.
+#
+# A source with no entry here (e.g. newly added) fetches its branch tip;
+# the next refresh records its first pin.
+"""
+
+
+def load_pins(path):
+    """Parse pins.yaml into {source name: commit sha}."""
+    pins = {}
+    if not os.path.exists(path):
+        return pins
+    with open(path, encoding='utf-8') as f:
+        for line in f:
+            m = re.match(r'^"(.+)":\s*([0-9a-f]{7,40})\s*$', line)
+            if m:
+                pins[m.group(1)] = m.group(2)
+    return pins
+
+
+def write_pins(path, pins):
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(PINS_HEADER)
+        for name in sorted(pins):
+            f.write(f'"{name}": {pins[name]}\n')
 
 
 def parse_sources_yaml(path):
@@ -127,8 +166,9 @@ def should_skip(filepath):
     return False
 
 
-def clone_and_extract(source, tmp_dir, docs_dir):
-    """Clone a repo and extract only documentation files."""
+def clone_and_extract(source, tmp_dir, docs_dir, pin=None):
+    """Clone a repo (at the pinned commit if given) and extract only
+    documentation files. Returns (file_count, head_sha)."""
     name = source['name']
     slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
     repo = source.get('repo', '')
@@ -139,7 +179,7 @@ def clone_and_extract(source, tmp_dir, docs_dir):
 
     if not repo:
         print(f"  SKIP {name}: no repo URL")
-        return 0
+        return 0, ''
 
     print(f"  Fetching {name}...")
 
@@ -153,10 +193,29 @@ def clone_and_extract(source, tmp_dir, docs_dir):
         subprocess.run(cmd, capture_output=True, text=True, timeout=120, check=True)
     except subprocess.CalledProcessError as e:
         print(f"  ERROR cloning {name}: {e.stderr.strip()[:200]}")
-        return 0
+        return 0, ''
     except subprocess.TimeoutExpired:
         print(f"  ERROR cloning {name}: timeout")
-        return 0
+        return 0, ''
+
+    if pin:
+        # Check out the vetted commit instead of the branch tip. GitHub
+        # allows fetching reachable commits by sha; if the pin is gone
+        # (force-push upstream), fall back to the tip and say so loudly.
+        fetched = subprocess.run(
+            ['git', '-C', clone_dir, 'fetch', '--depth', '1', 'origin', pin],
+            capture_output=True, text=True, timeout=120)
+        if fetched.returncode == 0:
+            subprocess.run(
+                ['git', '-C', clone_dir, 'checkout', '--quiet', 'FETCH_HEAD'],
+                capture_output=True, text=True)
+        else:
+            print(f"  WARN {name}: pinned commit {pin[:12]} not fetchable "
+                  f"(rewritten upstream?), using branch tip")
+
+    head = subprocess.run(['git', '-C', clone_dir, 'rev-parse', 'HEAD'],
+                          capture_output=True, text=True)
+    head_sha = head.stdout.strip() if head.returncode == 0 else ''
 
     # Determine source directory
     if docs_path == '.':
@@ -211,9 +270,9 @@ def clone_and_extract(source, tmp_dir, docs_dir):
         shutil.rmtree(dest_dir, ignore_errors=True)
         print(f"  WARN {name}: no documentation files found")
     else:
-        print(f"  OK   {name}: {file_count} files")
+        print(f"  OK   {name}: {file_count} files @ {head_sha[:12]}")
 
-    return file_count
+    return file_count, head_sha
 
 
 def write_manifest_from_disk(all_sources, docs_dir):
@@ -249,17 +308,34 @@ def write_manifest_from_disk(all_sources, docs_dir):
 
 
 def main():
-    if len(sys.argv) < 4:
-        print("Usage: _fetch_docs.py <sources.yaml> <docs_dir> <tmp_dir> [source_filter]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Fetch documentation from sources in registry/sources.yaml")
+    parser.add_argument('sources_yaml')
+    parser.add_argument('docs_dir')
+    parser.add_argument('tmp_dir')
+    parser.add_argument('source_filter', nargs='?', default='')
+    parser.add_argument('--update-pins', action='store_true',
+                        help="fetch branch tips and rewrite pins.yaml with "
+                             "the new upstream commits (weekly refresh mode)")
+    parser.add_argument('--pins-file', default=None,
+                        help="pins file path (default: pins.yaml next to "
+                             "sources.yaml)")
+    parser.add_argument('--manifest-out', default=None,
+                        help="write a JSON manifest of per-source old/new "
+                             "commit shas (for per-source refresh commits)")
+    args = parser.parse_args()
 
-    sources_yaml = sys.argv[1]
-    docs_dir = sys.argv[2]
-    tmp_dir = sys.argv[3]
-    filter_source = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else None
+    sources_yaml = args.sources_yaml
+    docs_dir = args.docs_dir
+    tmp_dir = args.tmp_dir
+    filter_source = args.source_filter or None
+    pins_file = args.pins_file or os.path.join(
+        os.path.dirname(os.path.abspath(sources_yaml)), 'pins.yaml')
 
     all_sources = parse_sources_yaml(sources_yaml)
-    print(f"Parsed {len(all_sources)} sources from registry")
+    pins = load_pins(pins_file)
+    print(f"Parsed {len(all_sources)} sources from registry "
+          f"({len(pins)} pinned)")
 
     if filter_source:
         sources = [s for s in all_sources if s['name'].lower() == filter_source.lower()]
@@ -276,12 +352,36 @@ def main():
 
     run_files = 0
     run_fetched = []
+    records = []
 
     for source in sources:
-        count = clone_and_extract(source, tmp_dir, docs_dir)
+        name = source['name']
+        pin = None if args.update_pins else pins.get(name)
+        count, head_sha = clone_and_extract(source, tmp_dir, docs_dir, pin=pin)
         run_files += count
         if count > 0:
-            run_fetched.append(source['name'])
+            run_fetched.append(name)
+        if head_sha:
+            records.append({
+                'name': name,
+                'slug': re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-'),
+                'old_sha': pins.get(name, ''),
+                'new_sha': head_sha,
+                'files': count,
+            })
+
+    if args.update_pins:
+        new_pins = dict(pins)
+        for rec in records:
+            new_pins[rec['name']] = rec['new_sha']
+        write_pins(pins_file, new_pins)
+        bumped = sum(1 for r in records if r['old_sha'] != r['new_sha'])
+        print(f"Pins updated: {bumped} of {len(records)} fetched sources "
+              f"moved ({pins_file})")
+
+    if args.manifest_out:
+        with open(args.manifest_out, 'w', encoding='utf-8') as f:
+            json.dump(records, f, indent=2)
 
     total_sources, total_files = write_manifest_from_disk(all_sources, docs_dir)
 

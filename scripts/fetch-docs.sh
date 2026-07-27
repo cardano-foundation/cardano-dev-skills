@@ -6,8 +6,11 @@
 # only the documentation files into docs/sources/<source-name>/.
 #
 # Usage:
-#   ./scripts/fetch-docs.sh                    # fetch all sources
+#   ./scripts/fetch-docs.sh                    # fetch all sources at pinned commits
 #   ./scripts/fetch-docs.sh --source Aiken     # fetch a single source
+#   ./scripts/fetch-docs.sh --update-pins --manifest-out /tmp/manifest.json
+#                                              # weekly refresh: fetch branch
+#                                              # tips, rewrite registry/pins.yaml
 #
 # Requires: python3, git
 #
@@ -21,11 +24,21 @@ DOCS_DIR="$REPO_ROOT/docs/sources"
 TMP_DIR=$(mktemp -d)
 FILTER_SOURCE=""
 
+EXTRA_ARGS=()
+
 # Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --source)
       FILTER_SOURCE="$2"
+      shift 2
+      ;;
+    --update-pins)
+      EXTRA_ARGS+=("--update-pins")
+      shift
+      ;;
+    --manifest-out)
+      EXTRA_ARGS+=("--manifest-out" "$2")
       shift 2
       ;;
     --update)
@@ -49,7 +62,7 @@ echo "  Registry: $SOURCES_YAML"
 echo "  Output:   $DOCS_DIR"
 echo ""
 
-python3 "$SCRIPT_DIR/_fetch_docs.py" "$SOURCES_YAML" "$DOCS_DIR" "$TMP_DIR" "$FILTER_SOURCE"
+python3 "$SCRIPT_DIR/_fetch_docs.py" "$SOURCES_YAML" "$DOCS_DIR" "$TMP_DIR" "$FILTER_SOURCE" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
 
 echo ""
 du -sh "$DOCS_DIR" 2>/dev/null || true

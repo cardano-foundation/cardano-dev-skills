@@ -234,7 +234,11 @@ jobs:
             const issue_number = parseInt(process.env.PR_NUMBER, 10);
             const comments = await github.paginate(
               github.rest.issues.listComments, { owner, repo, issue_number });
-            const existing = comments.find(c => c.body.includes(marker));
+            // Require the bot's own authorship: the marker is a public HTML
+            // comment a PR author could pre-seed to capture the review slot.
+            const existing = comments.find(c =>
+              c.body.includes(marker) &&
+              c.user && c.user.login === 'github-actions[bot]');
             if (existing) {
               await github.rest.issues.updateComment(
                 { owner, repo, comment_id: existing.id, body });
@@ -358,7 +362,11 @@ jobs:
             const issue_number = parseInt(process.env.PR_NUMBER, 10);
             const comments = await github.paginate(
               github.rest.issues.listComments, { owner, repo, issue_number });
-            const existing = comments.find(c => c.body.includes(marker));
+            // Require the bot's own authorship: the marker is a public HTML
+            // comment a PR author could pre-seed to capture the review slot.
+            const existing = comments.find(c =>
+              c.body.includes(marker) &&
+              c.user && c.user.login === 'github-actions[bot]');
             if (existing) {
               await github.rest.issues.updateComment(
                 { owner, repo, comment_id: existing.id, body });

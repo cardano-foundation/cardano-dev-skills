@@ -40,20 +40,32 @@ def dirty(path: str) -> bool:
     return bool(git("status", "--porcelain", "--", path).strip())
 
 
+def _pin_name(line: str) -> str | None:
+    m = re.match(r'^"(.+)":\s*[0-9a-f]+\s*$', line)
+    return m.group(1) if m else None
+
+
 def set_pin(pins_path: Path, name: str, sha: str) -> None:
-    """Update (or append) one source's pin line, leaving the rest alone."""
-    lines = pins_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    """Update (or insert) one source's pin line, leaving the rest alone.
+
+    Insert position is chosen by comparing bare source *names*, matching the
+    name-sorted order write_pins() produces — comparing whole lines instead
+    put prefix pairs (e.g. "Aiken" vs "Aiken Stdlib") out of order and left
+    the file perpetually dirty."""
+    text = pins_path.read_text(encoding="utf-8") if pins_path.exists() else ""
+    lines = text.splitlines(keepends=True)
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
     entry = f'"{name}": {sha}\n'
-    pattern = re.compile(r'^"' + re.escape(name) + r'":\s*[0-9a-f]+\s*$')
     for i, line in enumerate(lines):
-        if pattern.match(line):
+        if _pin_name(line) == name:
             lines[i] = entry
             break
     else:
-        # keep entries sorted after the header comment block
         insert_at = len(lines)
         for i, line in enumerate(lines):
-            if line.startswith('"') and line > entry:
+            other = _pin_name(line)
+            if other is not None and other > name:
                 insert_at = i
                 break
         lines.insert(insert_at, entry)
@@ -74,9 +86,14 @@ def main() -> int:
     git("reset", "-q")
 
     # fetch wrote the fully-updated pins file; rebuild it incrementally so
-    # each per-source commit carries exactly its own pin bump.
-    new_pins = pins_path.read_text(encoding="utf-8")
-    git("checkout", "--", args.pins_file)
+    # each per-source commit carries exactly its own pin bump. Tolerate a
+    # missing or previously-untracked pins file (first refresh / bootstrap).
+    new_pins = pins_path.read_text(encoding="utf-8") if pins_path.exists() else ""
+    tracked = bool(git("ls-files", "--", args.pins_file).strip())
+    if tracked:
+        git("checkout", "--", args.pins_file)
+    elif pins_path.exists():
+        pins_path.unlink()  # untracked: reset to "absent", rebuilt per source
 
     summary_rows = []
     pin_only = []

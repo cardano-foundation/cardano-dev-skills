@@ -27,10 +27,13 @@ VALID_PRIORITIES = {"high", "medium", "low"}
 # set require an explicit entry in ALLOWED_TOOLS_EXCEPTIONS, reviewed in the
 # same PR that adds it.
 BASE_ALLOWED_TOOLS = {"Read", "Grep", "Glob"}
+# Exceptions list only the EXTRA tools a skill needs beyond the base set;
+# they are unioned with BASE_ALLOWED_TOOLS, so a skill never has to re-declare
+# the read-only tools to gain one more.
 ALLOWED_TOOLS_EXCEPTIONS = {
     # cardano-context writes the context block into the user's CLAUDE.md;
     # Bash is scoped to `pwd` (used to resolve the project root).
-    "cardano-context": {"Read", "Edit", "Write", "Glob", "Bash(pwd)"},
+    "cardano-context": {"Edit", "Write", "Bash(pwd)"},
 }
 # Skills are self-contained (Read/Grep/Glob over bundled docs), so no skill
 # turn ever needs network access. Requiring these keeps a poisoned doc read
@@ -107,9 +110,12 @@ def validate_skill(skill_dir: Path) -> None:
             return []
         if isinstance(value, list):
             return [str(t).strip() for t in value]
-        return [t for t in re.split(r"[,\s]+", str(value)) if t]
+        # Split on whitespace/commas but NOT inside parentheses, so a scoped
+        # grant like `Bash(git status)` stays one token.
+        return re.findall(r"[^\s,()]+(?:\([^)]*\))?", str(value))
 
-    permitted = ALLOWED_TOOLS_EXCEPTIONS.get(skill_dir.name, BASE_ALLOWED_TOOLS)
+    permitted = BASE_ALLOWED_TOOLS | ALLOWED_TOOLS_EXCEPTIONS.get(
+        skill_dir.name, set())
     allowed = parse_tools(fm.get("allowed-tools"))
     if not allowed:
         error(f"{skill_md}: frontmatter missing 'allowed-tools'")

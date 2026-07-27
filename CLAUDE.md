@@ -46,6 +46,7 @@ name: skill-name
 description: >-
   What this skill does. Include trigger phrases.
 allowed-tools: Read Grep Glob
+disallowed-tools: WebFetch WebSearch
 ---
 ```
 

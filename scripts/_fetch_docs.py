@@ -185,7 +185,13 @@ def should_skip(filepath):
 
 def clone_and_extract(source, tmp_dir, docs_dir, pin=None):
     """Clone a repo (at the pinned commit if given) and extract only
-    documentation files. Returns (file_count, head_sha)."""
+    documentation files. Returns (file_count, head_sha, pin_ok).
+
+    pin_ok is False only when a pin was requested but could not be honored
+    (fetch or checkout failed) — the caller treats that as a hard error in
+    consumer mode so unvetted branch-tip content is never shipped silently.
+    Extraction stages into a temp dir and only replaces the existing snapshot
+    when it yields files, so a failed/empty fetch never deletes good docs."""
     name = source['name']
     slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
     repo = source.get('repo', '')
@@ -196,7 +202,7 @@ def clone_and_extract(source, tmp_dir, docs_dir, pin=None):
 
     if not repo:
         print(f"  SKIP {name}: no repo URL")
-        return 0, ''
+        return 0, '', True
 
     print(f"  Fetching {name}...")
 
@@ -210,25 +216,28 @@ def clone_and_extract(source, tmp_dir, docs_dir, pin=None):
         subprocess.run(cmd, capture_output=True, text=True, timeout=120, check=True)
     except subprocess.CalledProcessError as e:
         print(f"  ERROR cloning {name}: {e.stderr.strip()[:200]}")
-        return 0, ''
+        return 0, '', True
     except subprocess.TimeoutExpired:
         print(f"  ERROR cloning {name}: timeout")
-        return 0, ''
+        return 0, '', True
 
+    pin_ok = True
     if pin:
-        # Check out the vetted commit instead of the branch tip. GitHub
-        # allows fetching reachable commits by sha; if the pin is gone
-        # (force-push upstream), fall back to the tip and say so loudly.
+        # Check out the vetted commit instead of the branch tip. GitHub allows
+        # fetching reachable commits by sha; if the pin is gone (force-push
+        # upstream) or the checkout fails, that is a hard failure — do NOT
+        # silently ship the unvetted tip.
         fetched = subprocess.run(
             ['git', '-C', clone_dir, 'fetch', '--depth', '1', 'origin', pin],
             capture_output=True, text=True, timeout=120)
-        if fetched.returncode == 0:
-            subprocess.run(
-                ['git', '-C', clone_dir, 'checkout', '--quiet', 'FETCH_HEAD'],
-                capture_output=True, text=True)
-        else:
-            print(f"  WARN {name}: pinned commit {pin[:12]} not fetchable "
-                  f"(rewritten upstream?), using branch tip")
+        checked_out = fetched.returncode == 0 and subprocess.run(
+            ['git', '-C', clone_dir, 'checkout', '--quiet', 'FETCH_HEAD'],
+            capture_output=True, text=True).returncode == 0
+        if not checked_out:
+            print(f"  ERROR {name}: pinned commit {pin[:12]} not fetchable/"
+                  f"checkout failed (rewritten upstream?) — refusing to ship "
+                  f"the unvetted branch tip")
+            return 0, '', False
 
     head = subprocess.run(['git', '-C', clone_dir, 'rev-parse', 'HEAD'],
                           capture_output=True, text=True)
@@ -256,40 +265,37 @@ def clone_and_extract(source, tmp_dir, docs_dir, pin=None):
     default_exts = ext_map.get(fmt, ['*.md'])
 
     dest_dir = os.path.join(docs_dir, slug)
-    # Clear previous snapshot so files removed upstream don't linger
-    shutil.rmtree(dest_dir, ignore_errors=True)
-    os.makedirs(dest_dir, exist_ok=True)
+    # Stage into a sibling temp dir; only swap into place if extraction yields
+    # files, so an empty/failed extraction can't delete the existing snapshot.
+    stage_dir = os.path.join(tmp_dir, f"{slug}.stage")
+    shutil.rmtree(stage_dir, ignore_errors=True)
+    os.makedirs(stage_dir, exist_ok=True)
 
+    patterns = glob_patterns or default_exts
     file_count = 0
-
-    if glob_patterns:
-        for pattern in glob_patterns:
+    for pattern in patterns:
+        if glob_patterns:
             full_pattern = os.path.join(src_dir, pattern)
-            for filepath in globmod.glob(full_pattern, recursive=True):
-                if os.path.isfile(filepath) and not should_skip(filepath):
-                    rel = os.path.relpath(filepath, src_dir)
-                    dest = os.path.join(dest_dir, rel)
-                    os.makedirs(os.path.dirname(dest), exist_ok=True)
-                    copy_sanitized(filepath, dest)
-                    file_count += 1
-    else:
-        for ext_pattern in default_exts:
-            full_pattern = os.path.join(src_dir, '**', ext_pattern)
-            for filepath in globmod.glob(full_pattern, recursive=True):
-                if os.path.isfile(filepath) and not should_skip(filepath):
-                    rel = os.path.relpath(filepath, src_dir)
-                    dest = os.path.join(dest_dir, rel)
-                    os.makedirs(os.path.dirname(dest), exist_ok=True)
-                    copy_sanitized(filepath, dest)
-                    file_count += 1
+        else:
+            full_pattern = os.path.join(src_dir, '**', pattern)
+        for filepath in globmod.glob(full_pattern, recursive=True):
+            if os.path.isfile(filepath) and not should_skip(filepath):
+                rel = os.path.relpath(filepath, src_dir)
+                dest = os.path.join(stage_dir, rel)
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                copy_sanitized(filepath, dest)
+                file_count += 1
 
     if file_count == 0:
-        shutil.rmtree(dest_dir, ignore_errors=True)
-        print(f"  WARN {name}: no documentation files found")
-    else:
-        print(f"  OK   {name}: {file_count} files @ {head_sha[:12]}")
+        shutil.rmtree(stage_dir, ignore_errors=True)
+        print(f"  WARN {name}: no documentation files found — keeping "
+              f"existing snapshot")
+        return 0, head_sha, pin_ok
 
-    return file_count, head_sha
+    shutil.rmtree(dest_dir, ignore_errors=True)
+    shutil.move(stage_dir, dest_dir)
+    print(f"  OK   {name}: {file_count} files @ {head_sha[:12]}")
+    return file_count, head_sha, pin_ok
 
 
 def write_manifest_from_disk(all_sources, docs_dir):
@@ -360,9 +366,6 @@ def main():
             print(f"Error: source '{filter_source}' not found")
             sys.exit(1)
     else:
-        # Full refresh: clear existing docs
-        if os.path.exists(docs_dir):
-            shutil.rmtree(docs_dir)
         sources = all_sources
 
     os.makedirs(docs_dir, exist_ok=True)
@@ -370,15 +373,22 @@ def main():
     run_files = 0
     run_fetched = []
     records = []
+    pin_failures = []
 
     for source in sources:
         name = source['name']
         pin = None if args.update_pins else pins.get(name)
-        count, head_sha = clone_and_extract(source, tmp_dir, docs_dir, pin=pin)
+        count, head_sha, pin_ok = clone_and_extract(
+            source, tmp_dir, docs_dir, pin=pin)
+        if not pin_ok:
+            pin_failures.append(name)
         run_files += count
         if count > 0:
             run_fetched.append(name)
-        if head_sha:
+        # Only sources that actually produced files are eligible for a pin
+        # bump / manifest record — a failed or empty fetch must never be
+        # ratified as "vetted at new_sha".
+        if count > 0 and head_sha:
             records.append({
                 'name': name,
                 'slug': re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-'),
@@ -387,8 +397,22 @@ def main():
                 'files': count,
             })
 
+    # Prune snapshots for sources no longer in the registry (replaces a blunt
+    # up-front rmtree of everything, which destroyed good docs whenever a
+    # single fetch failed). Only on a full run, never a single-source fetch.
+    if not filter_source:
+        registry_slugs = {re.sub(r'[^a-z0-9]+', '-', s['name'].lower()).strip('-')
+                          for s in all_sources}
+        for entry in os.listdir(docs_dir):
+            full = os.path.join(docs_dir, entry)
+            if (os.path.isdir(full) and entry not in registry_slugs):
+                shutil.rmtree(full, ignore_errors=True)
+                print(f"  PRUNED {entry}: no longer in registry")
+
     if args.update_pins:
-        new_pins = dict(pins)
+        registry_names = {s['name'] for s in all_sources}
+        # Drop pins for sources removed from the registry; bump the rest.
+        new_pins = {n: sha for n, sha in pins.items() if n in registry_names}
         for rec in records:
             new_pins[rec['name']] = rec['new_sha']
         write_pins(pins_file, new_pins)
@@ -405,6 +429,14 @@ def main():
     print(f"\nDone: {run_files} files from {len(run_fetched)} sources this run")
     print(f"Manifest: {total_sources} sources, {total_files} files on disk")
     print(f"Output: {docs_dir}")
+
+    # In consumer/pinned mode a pin that couldn't be honored is a hard error:
+    # exit non-zero so a force-pushed-away pin surfaces instead of silently
+    # shipping the unvetted tip. (--update-pins intentionally ignores pins.)
+    if pin_failures and not args.update_pins:
+        print(f"\nERROR: {len(pin_failures)} source(s) could not be fetched at "
+              f"their pinned commit: {', '.join(pin_failures)}")
+        sys.exit(2)
 
 
 if __name__ == '__main__':

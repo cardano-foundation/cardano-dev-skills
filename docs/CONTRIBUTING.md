@@ -134,6 +134,7 @@ name: my-new-skill
 description: >-
   What this skill does. Include 3-5 trigger phrases users would say.
 allowed-tools: Read Grep Glob
+disallowed-tools: WebFetch WebSearch
 ---
 
 # my-new-skill

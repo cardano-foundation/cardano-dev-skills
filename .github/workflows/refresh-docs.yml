@@ -49,20 +49,20 @@ jobs:
 
       - name: Security scan of the delta (report for the PR body)
         if: steps.changes.outputs.changed == 'true'
-        # Report only — the PR Policy workflow re-runs this scan on the PR
-        # as the blocking check.
+        # Report only — the PR Policy workflow re-runs this scan on the PR as
+        # the blocking check. Never let a scan error abort the refresh: the
+        # report is best-effort context, always leaving a file behind.
         run: |
           python3 scripts/scan-docs-delta.py \
             --base "${{ steps.commits.outputs.base_sha }}" --head HEAD \
-            --output-md /tmp/scan-report.md || true
+            --output-md /tmp/scan-report.md \
+            || echo "_(scan report unavailable — the PR Policy check is authoritative)_" > /tmp/scan-report.md
 
-      - name: Create pull request
+      - name: Assemble PR body
         if: steps.changes.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Build the body BEFORE pushing, so a missing input fails here (no
+        # branch pushed yet) rather than after the push leaves an orphan.
         run: |
-          git push origin "${{ steps.commits.outputs.branch }}"
-
           {
             echo "## Automated Documentation Refresh"
             echo
@@ -71,16 +71,24 @@ jobs:
             echo
             echo "### Sources updated"
             echo
-            cat /tmp/refresh-summary.md
+            cat /tmp/refresh-summary.md 2>/dev/null || echo "(summary unavailable)"
             echo
-            cat /tmp/scan-report.md
+            cat /tmp/scan-report.md 2>/dev/null || echo "(scan report unavailable)"
             echo
             echo "**Review:** the PR Policy workflow re-runs the security scan"
             echo "as a blocking check and posts an advisory AI docs-delta"
-            echo "review comment. Merge when the scan is green and the review"
-            echo "raises nothing that needs a human look."
+            echo "review comment. The AI review is advisory and reads"
+            echo "attacker-influenced content — treat it as a hint, not a"
+            echo "verdict. Merge only after inspecting any source the scan or"
+            echo "review flags."
           } > /tmp/pr-body.md
 
+      - name: Create pull request
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push origin "${{ steps.commits.outputs.branch }}"
           gh pr create \
             --title "docs: weekly documentation refresh ($(date +%Y-%m-%d))" \
             --body-file /tmp/pr-body.md \

@@ -3,6 +3,7 @@ name: query-chain
 description: >-
   Guides finding the best way to query Cardano blockchain data. Triggers: "query chain", "read UTxOs", "fetch blockchain data", "Blockfrost vs Ogmios", "chain indexer", "query Cardano", "get transaction data", "read on-chain state".
 allowed-tools: Read Grep Glob
+disallowed-tools: Bash Edit Write WebFetch WebSearch
 ---
 
 <!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->

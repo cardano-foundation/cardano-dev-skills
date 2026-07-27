@@ -5,6 +5,7 @@ description: >-
   "explain CIP", "what is CIP-30", "CIP-68 metadata", "what CIP covers",
   "which CIP for wallets", "governance CIP", "token metadata standard".
 allowed-tools: Read Grep Glob
+disallowed-tools: Bash Edit Write WebFetch WebSearch
 ---
 
 <!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->

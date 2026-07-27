@@ -3,6 +3,7 @@ name: setup-devnet
 description: >-
   Guides setting up a local Cardano development environment. Triggers: "setup devnet", "local testnet", "Yaci DevKit", "development environment", "local Cardano node", "devnet", "preview testnet", "preprod testnet".
 allowed-tools: Read Grep Glob
+disallowed-tools: WebFetch WebSearch
 ---
 
 <!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->

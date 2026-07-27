@@ -5,6 +5,7 @@ description: >-
   ValueNotConservedUTxO, InsufficientCollateral, script failure, budget
   exceeded, datum mismatch, missing signer, min-UTxO error.
 allowed-tools: Read Grep Glob
+disallowed-tools: WebFetch WebSearch
 ---
 
 <!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->

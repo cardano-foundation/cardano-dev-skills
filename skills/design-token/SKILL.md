@@ -5,6 +5,7 @@ description: >-
   metadata, CIP-68 reference tokens, CIP-113 programmable tokens, minting
   policy, token architecture.
 allowed-tools: Read Grep Glob
+disallowed-tools: Bash Edit Write WebFetch WebSearch
 ---
 
 <!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->

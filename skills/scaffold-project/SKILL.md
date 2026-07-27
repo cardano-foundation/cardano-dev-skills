@@ -11,6 +11,7 @@ description: >-
   "init Cardano", "starter template", "project layout", "bootstrap dApp",
   "set up Cardano monorepo", "Cardano project skeleton", "scaffold dApp".
 allowed-tools: Read Grep Glob
+disallowed-tools: WebFetch WebSearch
 ---
 
 <!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->

@@ -3,6 +3,7 @@ name: governance-guide
 description: >-
   Guides Cardano on-chain governance under CIP-1694 and the Conway era. Triggers: "governance", "DRep", "CIP-1694", "Conway era", "governance action", "vote on proposal", "constitutional committee", "treasury withdrawal", "GovTool".
 allowed-tools: Read Grep Glob
+disallowed-tools: Bash Edit Write WebFetch WebSearch
 ---
 
 <!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->

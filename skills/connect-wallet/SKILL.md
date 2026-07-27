@@ -3,6 +3,7 @@ name: connect-wallet
 description: >-
   Guides integrating a Cardano wallet into a web dApp using CIP-30. Triggers: "connect wallet", "CIP-30", "wallet integration", "browser wallet", "sign transaction", "wallet connector", "dApp wallet", "Nami", "Eternl", "Lace".
 allowed-tools: Read Grep Glob
+disallowed-tools: WebFetch WebSearch
 ---
 
 <!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->

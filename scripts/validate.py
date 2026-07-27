@@ -21,6 +21,22 @@ VALID_CATEGORIES = {
 VALID_FORMATS = {"markdown", "mdx", "rst", "openapi", "aiken", "python", "toml"}
 VALID_PRIORITIES = {"high", "medium", "low"}
 
+# Tool-grant policy. `allowed-tools` entries are PRE-APPROVED (they skip the
+# user's permission prompt for one turn), so widening this set is a security
+# decision, not a convenience. Skills needing more than the read-only base
+# set require an explicit entry in ALLOWED_TOOLS_EXCEPTIONS, reviewed in the
+# same PR that adds it.
+BASE_ALLOWED_TOOLS = {"Read", "Grep", "Glob"}
+ALLOWED_TOOLS_EXCEPTIONS = {
+    # cardano-context writes the context block into the user's CLAUDE.md;
+    # Bash is scoped to `pwd` (used to resolve the project root).
+    "cardano-context": {"Read", "Edit", "Write", "Glob", "Bash(pwd)"},
+}
+# Skills are self-contained (Read/Grep/Glob over bundled docs), so no skill
+# turn ever needs network access. Requiring these keeps a poisoned doc read
+# during a skill turn from reaching out.
+REQUIRED_DISALLOWED_TOOLS = {"WebFetch", "WebSearch"}
+
 errors: list[str] = []
 warnings: list[str] = []
 
@@ -84,6 +100,34 @@ def validate_skill(skill_dir: Path) -> None:
         error(f"{skill_md}: frontmatter missing 'description'")
     elif len(desc) > 1024:
         warn(f"{skill_md}: description is {len(desc)} chars (recommend < 1024)")
+
+    # Tool-grant validation (see policy comment above BASE_ALLOWED_TOOLS)
+    def parse_tools(value) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [str(t).strip() for t in value]
+        return [t for t in re.split(r"[,\s]+", str(value)) if t]
+
+    permitted = ALLOWED_TOOLS_EXCEPTIONS.get(skill_dir.name, BASE_ALLOWED_TOOLS)
+    allowed = parse_tools(fm.get("allowed-tools"))
+    if not allowed:
+        error(f"{skill_md}: frontmatter missing 'allowed-tools'")
+    for tool in allowed:
+        if tool not in permitted:
+            error(
+                f"{skill_md}: allowed-tools grants '{tool}', not permitted for "
+                f"this skill (permitted: {sorted(permitted)}). Widening a grant "
+                f"requires an ALLOWED_TOOLS_EXCEPTIONS entry in validate.py."
+            )
+
+    disallowed = set(parse_tools(fm.get("disallowed-tools")))
+    missing = REQUIRED_DISALLOWED_TOOLS - disallowed
+    if missing:
+        error(
+            f"{skill_md}: disallowed-tools must include {sorted(missing)} "
+            f"(skills are self-contained; no network during skill turns)"
+        )
 
     # Check required sections
     text = skill_md.read_text(encoding="utf-8").lower()

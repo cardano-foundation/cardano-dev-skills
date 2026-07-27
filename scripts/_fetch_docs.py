@@ -16,6 +16,34 @@ SKIP_DIRS = {'.git', 'node_modules', 'dist', 'build', '.next', '__pycache__',
 SKIP_FILES = {'CHANGELOG.md', 'CONTRIBUTING.md', 'LICENSE.md', 'LICENSE',
               'CODE_OF_CONDUCT.md', 'SECURITY.md'}
 
+# Supply-chain sanitization: bundled docs are read by AI agents, so strip the
+# places where instructions can hide invisibly. Invisible characters (zero-
+# width, bidi controls) are removed from every text file; HTML comments and
+# <script> blocks are removed from markup formats where they don't render.
+INVISIBLE_CHARS_RE = re.compile(
+    '[​‌‍⁠﻿'      # zero-width space/joiners, word-joiner, BOM
+    '‪-‮⁦-⁩؜]')   # bidi embedding/override/isolate controls
+HTML_COMMENT_RE = re.compile(r'<!--.*?-->', re.DOTALL)
+SCRIPT_TAG_RE = re.compile(r'<script\b.*?</script\s*>', re.DOTALL | re.IGNORECASE)
+MARKUP_EXTS = {'.md', '.mdx', '.html', '.htm'}
+
+
+def copy_sanitized(src, dest):
+    """Copy a doc file, sanitizing text content; binary files copy as-is."""
+    ext = os.path.splitext(src)[1].lower()
+    try:
+        with open(src, encoding='utf-8') as f:
+            text = f.read()
+    except (UnicodeDecodeError, OSError):
+        shutil.copy2(src, dest)
+        return
+    text = INVISIBLE_CHARS_RE.sub('', text)
+    if ext in MARKUP_EXTS:
+        text = HTML_COMMENT_RE.sub('', text)
+        text = SCRIPT_TAG_RE.sub('', text)
+    with open(dest, 'w', encoding='utf-8') as f:
+        f.write(text)
+
 
 def parse_sources_yaml(path):
     """Parse sources.yaml without pyyaml - handles our specific format."""
@@ -166,7 +194,7 @@ def clone_and_extract(source, tmp_dir, docs_dir):
                     rel = os.path.relpath(filepath, src_dir)
                     dest = os.path.join(dest_dir, rel)
                     os.makedirs(os.path.dirname(dest), exist_ok=True)
-                    shutil.copy2(filepath, dest)
+                    copy_sanitized(filepath, dest)
                     file_count += 1
     else:
         for ext_pattern in default_exts:
@@ -176,7 +204,7 @@ def clone_and_extract(source, tmp_dir, docs_dir):
                     rel = os.path.relpath(filepath, src_dir)
                     dest = os.path.join(dest_dir, rel)
                     os.makedirs(os.path.dirname(dest), exist_ok=True)
-                    shutil.copy2(filepath, dest)
+                    copy_sanitized(filepath, dest)
                     file_count += 1
 
     if file_count == 0:

@@ -273,7 +273,7 @@ This option only applies when connected to a Cardano chain. In [offline mode](#o
 
 ### Deposit period
 
-While not a protocol parameter, the deposit period (DP) can be set by any `hydra-node` to configure incremental commits to a head:
+The deposit period (DP) is a **protocol parameter** that must be agreed upon by all participants before opening a head. It is embedded in the on-chain head state when the head is initialized, and each `hydra-node` validates that its configured `--deposit-period` matches the on-chain value when it observes an `Init` transaction. A node with a mismatching value will ignore the head entirely.
 
 ```
 hydra-node --deposit-period 7200s
@@ -519,3 +519,28 @@ You can override this by setting the relevant `etcd` [environment variables](htt
 ETCD_AUTO_COMPACTION_MODE=periodic
 ETCD_AUTO_COMPACTION_RETENTION=168h
 ```
+
+### Network protocol version and upgrades
+
+Nodes of the same head must run the same network protocol version to exchange
+messages. The wire format changed in protocol version 2 (messages are batched
+into single etcd values), so a node running an older version silently drops
+values written by a newer one. A mismatch is reported to API clients as a
+`NetworkVersionMismatch` server output, but the node keeps running, so watch
+for it after upgrades. Upgrade all members of a head together before resuming
+operation; there is no support for mixed-version heads.
+
+### Snapshot signing thread pool
+
+Computing the snapshot accumulator commitment runs through a Rust library
+(`rust-accumulator`) which parallelizes with a [rayon](https://github.com/rayon-rs/rayon)
+thread pool sized to all visible cores by default. On hosts where hydra-node
+shares cores with other latency-sensitive processes (such as cardano-node), the
+pool size can be bounded via the environment:
+
+```
+RAYON_NUM_THREADS=2
+```
+
+This trades some per-snapshot signing latency on large UTxO sets for less
+scheduler interference; with small UTxO sets the effect is negligible.

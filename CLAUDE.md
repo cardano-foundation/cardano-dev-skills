@@ -76,7 +76,8 @@ to see which docs to update in the same PR.
 
 Before adding to `registry/sources.yaml`, meet the maintenance bar in `docs/CONTRIBUTING.md`
 (commit recency, release/activity signal, no archival banner, fork canonicality) and the
-scope rule (no branded dApps). That doc is canonical — don't restate the bar here.
+two-part scope test (Cardano-native + developer-integration surface). That doc is
+canonical — don't restate the bar here.
 
 ### When in doubt
 

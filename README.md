@@ -148,14 +148,15 @@ The hook is fail-open: any failure exits 0 silently and never blocks the session
 
 See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for:
 
-- Source-vetting policy (maintenance bar, what's in scope, what isn't)
-- How to add a skill (format, quality bar, no-branded-dApps rule)
+- Source-vetting policy (maintenance bar, the two-part scope test)
+- How to add a skill (format, quality bar, task-oriented naming — no project-named skills)
 - Documentation governance (when to update what)
 
 Quick validation:
 
 ```bash
 python3 scripts/validate.py        # schema + format checks
+python3 scripts/check-pr-policy.py # PR policy checks vs origin/main (CI runs these + an AI scope review)
 ./scripts/update-doc-counts.sh     # refresh count placeholders in docs (CI runs --check)
 ```
 
@@ -175,7 +176,7 @@ cardano-dev-skills/
 ├── skills/                      ← developer skills (flat layout)
 ├── docs/sources/                ← extracted upstream docs (auto-refreshed)
 ├── hooks/                       ← session and prompt hooks
-├── scripts/                     ← fetch, validate, update-counts
+├── scripts/                     ← fetch, validate, policy-check, update-counts
 └── .github/                     ← workflows, issue templates
 ```
 

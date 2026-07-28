@@ -26,6 +26,13 @@ rather than guess.
 The same bar applies to the candidate entries at the bottom of
 `registry/sources.yaml` — don't promote a candidate without re-vetting.
 
+CI enforces this bar automatically: `scripts/check-pr-policy.py` vets every
+new source entry live against the GitHub API (archived flag, last-push age,
+release/activity signal) and fails the PR on a violation. An advisory AI
+scope review also comments on PRs that add sources or skills, judging them
+against the [scope policy](/contributing/scope/) — a maintainer always makes
+the final call.
+
 ## 2. Edit `registry/sources.yaml`
 
 ```yaml

@@ -86,11 +86,11 @@ This document captures the architectural decisions behind `cardano-dev-skills`. 
 - **Schema validation** (`.github/workflows/validate.yml`) — runs on every PR touching `skills/**` or `registry/**`.
 - **Manifest self-healing** — `scripts/_fetch_docs.py` derives `.manifest.yaml` from disk state after every fetch (partial or full), so the manifest can't drift.
 - **Doc-count auto-derivation** — `scripts/update-doc-counts.sh` rewrites sentinels in CLAUDE.md and README.md from disk state. CI runs `--check` to fail PRs on drift.
+- **PR policy gate** (`.github/workflows/pr-policy.yml`) — on PRs touching `skills/`, `registry/`, or `docs/sources/`: mechanical checks (`scripts/check-pr-policy.py`, hard-fail — live source vetting, brand-named-skill detection, self-containment) plus an advisory AI scope review (a single non-agentic Gemini call posting a sticky verdict comment; skips cleanly when no `GEMINI_API_KEY` secret is configured). Humans still merge.
 
 **Planned (tracked, not built)** — live status is on the [roadmap](../website/src/content/docs/about/roadmap.md); the design intent for each:
 - `UserPromptSubmit` hook that auto-injects "consult bundled docs first" guidance on Cardano-keyword-matched prompts, with local usage telemetry under `~/.cardano-dev-skills/usage.log`.
 - PR-time source-build check: when `registry/sources.yaml` changes, CI fetches the touched source(s) and verifies the clone + glob patterns produce files.
-- AI-powered governance review on PRs touching `registry/`, `skills/`, `hooks/`, or `scripts/` — Claude reads the diff and the rules from CONTRIBUTING.md, posts a verdict comment (advisory, not blocking).
 
 These additions follow the principle: ship small, observe, iterate.
 

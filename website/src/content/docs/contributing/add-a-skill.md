@@ -58,6 +58,13 @@ Instructions...
 
 - [ ] SKILL.md under 500 lines
 - [ ] Name is kebab-case, max 64 chars
+- [ ] Name describes a developer workflow, never a project or brand —
+      `query-chain`, not `blockfrost` (see DESIGN.md Decision 2; CI fails
+      brand-named skills)
+- [ ] If the skill teaches integrating with a specific project, that
+      project is a [registered source](/contributing/add-a-source/) —
+      spec-level detail lives in `docs/sources/`, `references/` holds
+      behavioral guidance
 - [ ] `name:` matches directory name
 - [ ] Description includes trigger phrases
 - [ ] Has "When to use", "When NOT to use", "Key principles", "Workflow"
@@ -74,9 +81,11 @@ Instructions...
 ```bash
 python3 scripts/validate.py
 ./scripts/update-doc-counts.sh    # refresh counts in README/CLAUDE
+python3 scripts/check-pr-policy.py  # PR policy checks (vs origin/main)
 ```
 
-Open a PR. CI runs validation + count-drift check.
+Open a PR. CI runs validation, the count-drift check, and the PR policy
+checks (mechanical vetting + an advisory AI scope review comment).
 
 ## Quality standards
 

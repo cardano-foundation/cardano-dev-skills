@@ -47,16 +47,27 @@ jobs:
             --manifest /tmp/refresh-manifest.json \
             --summary-out /tmp/refresh-summary.md
 
-      - name: Security scan of the delta (report for the PR body)
+      - name: Security scan of the delta (BLOCKING gate)
+        id: scan
         if: steps.changes.outputs.changed == 'true'
-        # Report only — the PR Policy workflow re-runs this scan on the PR as
-        # the blocking check. Never let a scan error abort the refresh: the
-        # report is best-effort context, always leaving a file behind.
+        # This IS the blocking gate for the refresh PR. A PR opened with the
+        # default GITHUB_TOKEN does NOT trigger pull_request/pull_request_target
+        # workflows (GitHub's recursion guard), so the pr-policy scan would
+        # never auto-run here — the very PR the system exists to police. So the
+        # scan runs INLINE: the PR is still opened (for quarantine review), but
+        # a BLOCK finding fails this workflow red, so it can't be a green
+        # rubber-stamp. (For belt-and-suspenders, a maintainer can also give
+        # the workflow a PAT so pr-policy fires; see docs/DESIGN.md Decision 13.)
         run: |
-          python3 scripts/scan-docs-delta.py \
-            --base "${{ steps.commits.outputs.base_sha }}" --head HEAD \
-            --output-md /tmp/scan-report.md \
-            || echo "_(scan report unavailable — the PR Policy check is authoritative)_" > /tmp/scan-report.md
+          if python3 scripts/scan-docs-delta.py \
+               --base "${{ steps.commits.outputs.base_sha }}" --head HEAD \
+               --output-md /tmp/scan-report.md; then
+            echo "blocked=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "blocked=true" >> "$GITHUB_OUTPUT"
+          fi
+          test -f /tmp/scan-report.md || \
+            echo "_(scan crashed — do not merge without a manual scan)_" > /tmp/scan-report.md
 
       - name: Assemble PR body
         if: steps.changes.outputs.changed == 'true'
@@ -66,6 +77,12 @@ jobs:
           {
             echo "## Automated Documentation Refresh"
             echo
+            if [ "${{ steps.scan.outputs.blocked }}" = "true" ]; then
+              echo "> ⛔ **The security scan found BLOCKING findings.** This"
+              echo "> workflow run is marked failed. Do NOT merge until a"
+              echo "> maintainer has reviewed each flagged source below."
+              echo
+            fi
             echo "One commit per changed source — a bad upstream delta can be"
             echo "reverted per source with \`git revert <commit>\`."
             echo
@@ -75,12 +92,11 @@ jobs:
             echo
             cat /tmp/scan-report.md 2>/dev/null || echo "(scan report unavailable)"
             echo
-            echo "**Review:** the PR Policy workflow re-runs the security scan"
-            echo "as a blocking check and posts an advisory AI docs-delta"
-            echo "review comment. The AI review is advisory and reads"
-            echo "attacker-influenced content — treat it as a hint, not a"
-            echo "verdict. Merge only after inspecting any source the scan or"
-            echo "review flags."
+            echo "**Review:** the inline scan above is the blocking gate. An"
+            echo "advisory AI docs-delta review also runs if pr-policy is"
+            echo "triggered (needs a PAT); it reads attacker-influenced content"
+            echo "— a hint, not a verdict. Merge only after inspecting any"
+            echo "source the scan flags."
           } > /tmp/pr-body.md
 
       - name: Create pull request
@@ -89,7 +105,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git push origin "${{ steps.commits.outputs.branch }}"
+          LABELS="documentation,automated"
+          if [ "${{ steps.scan.outputs.blocked }}" = "true" ]; then
+            LABELS="$LABELS,security-review-required"
+          fi
           gh pr create \
             --title "docs: weekly documentation refresh ($(date +%Y-%m-%d))" \
             --body-file /tmp/pr-body.md \
-            --label "documentation,automated"
+            --label "$LABELS"
+
+      - name: Fail the run on blocking findings
+        if: steps.changes.outputs.changed == 'true' && steps.scan.outputs.blocked == 'true'
+        # PR is created (for quarantine review) but the run goes red so the
+        # refresh is never a silent green merge.
+        run: |
+          echo "::error::Docs-delta security scan found blocking findings — see the PR."
+          exit 1

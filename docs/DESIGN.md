@@ -49,7 +49,7 @@ This document captures the architectural decisions behind `cardano-dev-skills`. 
 
 ## Decision 6: Agent Skills standard compliance
 
-**Decision:** Follow the Agent Skills open standard for SKILL.md format — YAML frontmatter with `name`, `description`, `allowed-tools`, and structured markdown body.
+**Decision:** Follow the Agent Skills open standard for SKILL.md format — YAML frontmatter with `name`, `description`, `allowed-tools`, `disallowed-tools`, and structured markdown body.
 
 **Why:**
 - Compatible with Claude Code plugins (`.claude-plugin/` + `skills/`)
@@ -153,6 +153,8 @@ These additions follow the principle: ship small, observe, iterate.
 3. **Advisory AI docs-delta review** (PR Policy workflow): reuses the non-agentic scope-review harness with a supply-chain rubric (`.github/docs-delta-review-prompt.md`) to catch what patterns can't — plausible address swaps, typosquats, injection phrased as documentation. Advisory per this repo's discipline: only mechanical checks go red.
 4. **Commit pinning** (`registry/pins.yaml` + per-source refresh commits): normal fetches check out the last-vetted upstream commit, not the branch tip; the weekly refresh proposes pin bumps as one commit per changed source, so a bad delta reverts with one `git revert`. Mirrors Anthropic's community-marketplace model of pinning plugins to SHAs.
 
-**Trust boundary stated plainly:** the screening narrows the window between "upstream compromised" and "detected", it does not close it. A maintainer merges every refresh PR; the layers exist to make that human's review tractable (a per-source verdict table instead of an unreviewable 300-file diff), not to replace it.
+**Where the blocking scan runs.** A PR opened by the weekly workflow with the default `GITHUB_TOKEN` does not trigger `pull_request`/`pull_request_target` workflows (GitHub's recursion guard), so `pr-policy` would never auto-run on the refresh PR it is meant to police. The blocking scan therefore runs **inline** in `refresh-docs.yml`: the PR is still opened (for quarantine review, labelled `security-review-required` on a block), but a BLOCK finding fails the workflow run red so the refresh can never be a silent green merge. Giving the workflow a PAT/App token so `pr-policy` also fires is an optional belt-and-suspenders, not a requirement.
+
+**Trust boundary stated plainly:** the screening narrows the window between "upstream compromised" and "detected", it does not close it. A maintainer merges every refresh PR; the layers exist to make that human's review tractable (a per-source verdict table instead of an unreviewable 300-file diff), not to replace it. The mechanical scanner is the blocking gate; the AI docs-delta review is advisory only, because it reads attacker-influenced content and can be steered.
 
 **Rejected:** full manual review of refresh diffs (doesn't scale — the pre-guardrail rubber stamp was the evidence); per-source refresh PRs (10× PR noise for isolation that per-source commits already provide); blanket `context: fork`/tool restriction on all skills (breaks builder skills whose job is writing code in the same turn).

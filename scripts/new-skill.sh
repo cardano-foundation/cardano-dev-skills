@@ -53,6 +53,7 @@ description: >-
   TODO: Describe what this skill does. Include 3-5 trigger phrases
   that users would naturally say to invoke this skill.
 allowed-tools: Read Grep Glob
+disallowed-tools: WebFetch WebSearch
 ---
 
 # SKILL_NAME_PLACEHOLDER

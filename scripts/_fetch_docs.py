@@ -108,15 +108,27 @@ PINS_HEADER = """\
 
 
 def load_pins(path):
-    """Parse pins.yaml into {source name: commit sha}."""
+    """Parse pins.yaml into {source name: commit sha}.
+
+    A line that LOOKS like a pin (`"name": value`) but doesn't parse as a
+    canonical hex sha is a hard error, not a silent skip — otherwise a
+    corrupted/hand-edited pin silently unpins its source and consumer mode
+    ships the unvetted branch tip with no signal."""
     pins = {}
     if not os.path.exists(path):
         return pins
     with open(path, encoding='utf-8') as f:
-        for line in f:
+        for lineno, line in enumerate(f, 1):
+            stripped = line.strip()
+            if not stripped or stripped.startswith('#'):
+                continue
             m = re.match(r'^"(.+)":\s*([0-9a-f]{7,40})\s*$', line)
             if m:
                 pins[m.group(1)] = m.group(2)
+            elif stripped.startswith('"'):
+                raise SystemExit(
+                    f"{path}:{lineno}: malformed pin line (expected "
+                    f'\'"name": <hex-sha>\'): {stripped[:80]}')
     return pins
 
 
@@ -189,11 +201,6 @@ def parse_sources_yaml(path):
         sources.append(current)
 
     return sources
-
-
-def slugify(name):
-    """Convert source name to directory-safe slug."""
-    return re.sub(r'[^a-z0-9]+', name.lower(), '-').strip('-')
 
 
 def should_skip(filepath):
@@ -276,8 +283,14 @@ def clone_and_extract(source, tmp_dir, docs_dir, pin=None):
         src_dir = os.path.join(clone_dir, docs_path)
 
     if not os.path.exists(src_dir):
-        print(f"  WARN {name}: docs_path '{docs_path}' not found, using repo root")
-        src_dir = clone_dir
+        # An explicitly-configured docs_path that vanished upstream must NOT
+        # fall back to the repo root — that would swap curated docs for root
+        # junk (e.g. a bare README) and, since it produces files, ratify the
+        # wrong content via a pin bump. Treat it as empty and keep the
+        # existing snapshot.
+        print(f"  WARN {name}: docs_path '{docs_path}' not found upstream — "
+              f"keeping existing snapshot (not falling back to repo root)")
+        return 0, head_sha, pin_ok
 
     # File extensions by format
     ext_map = {
@@ -291,9 +304,11 @@ def clone_and_extract(source, tmp_dir, docs_dir, pin=None):
     default_exts = ext_map.get(fmt, ['*.md'])
 
     dest_dir = os.path.join(docs_dir, slug)
-    # Stage into a sibling temp dir; only swap into place if extraction yields
-    # files, so an empty/failed extraction can't delete the existing snapshot.
-    stage_dir = os.path.join(tmp_dir, f"{slug}.stage")
+    # Stage into a sibling dir UNDER docs_dir (same filesystem as dest), so the
+    # final swap is an atomic rename — never a cross-device copy that could
+    # fail partway and destroy the old snapshot. Only swap if extraction
+    # yields files, so an empty/failed extraction preserves the snapshot.
+    stage_dir = os.path.join(docs_dir, f".{slug}.stage")
     shutil.rmtree(stage_dir, ignore_errors=True)
     os.makedirs(stage_dir, exist_ok=True)
 
@@ -431,7 +446,11 @@ def main():
                           for s in all_sources}
         for entry in os.listdir(docs_dir):
             full = os.path.join(docs_dir, entry)
-            if (os.path.isdir(full) and entry not in registry_slugs):
+            # Skip dot-prefixed entries (.manifest.yaml, transient .*.stage
+            # dirs) — only prune real source slug dirs.
+            if entry.startswith('.'):
+                continue
+            if os.path.isdir(full) and entry not in registry_slugs:
                 shutil.rmtree(full, ignore_errors=True)
                 print(f"  PRUNED {entry}: no longer in registry")
 

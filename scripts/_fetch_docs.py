@@ -9,6 +9,7 @@ import subprocess
 import shutil
 import glob as globmod
 import re
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -20,44 +21,69 @@ SKIP_FILES = {'CHANGELOG.md', 'CONTRIBUTING.md', 'LICENSE.md', 'LICENSE',
 
 # Supply-chain sanitization: bundled docs are read by AI agents, so strip the
 # places where instructions hide from a human reviewer while staying visible
-# to a model. Invisible/format-control characters (zero-width, bidi controls,
-# and the U+E0000 tag-character block used for ASCII smuggling) are removed
-# from every text file; HTML comments — which render invisibly but are read
-# verbatim by an agent — are stripped from markup. `<script>` is intentionally
-# NOT stripped: a bundled doc is read as inert text (never executed), so
-# stripping it only mangles legitimate web-dev tutorials.
-INVISIBLE_CHARS_RE = re.compile(
-    '[​-‏'      # zero-width space/joiners, LRM/RLM
-    '‪-‮'       # bidi embedding/override
-    '⁠-⁤'       # word-joiner, invisible math operators
-    '⁦-⁩'       # bidi isolates
-    '﻿'             # zero-width no-break space / BOM
-    '؜]'            # arabic letter mark
-    '|[\U000e0000-\U000e007f]')  # unicode tag chars (ASCII smuggling)
-HTML_COMMENT_RE = re.compile(r'<!--.*?-->', re.DOTALL)
+# to a model. `<script>` is intentionally NOT stripped: a bundled doc is read
+# as inert text (never executed), so stripping it only mangles legitimate
+# web-dev tutorials.
+
+# Binary assets are copied verbatim (sanitizing would corrupt them); this is
+# keyed on EXTENSION, not on a NUL byte — a text file that happens to contain
+# a NUL must still be sanitized, or one NUL smuggles a payload past the filter.
+BINARY_EXTS = {
+    '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.bmp', '.tiff',
+    '.pdf', '.zip', '.gz', '.tar', '.tgz', '.bz2', '.xz', '.7z', '.rar',
+    '.woff', '.woff2', '.ttf', '.otf', '.eot', '.mp4', '.webm', '.mov',
+    '.mp3', '.wav', '.ogg', '.wasm', '.so', '.dylib', '.dll', '.exe',
+    '.bin', '.pyc', '.class', '.jar', '.node',
+}
+
+# Non-Cf invisible/smuggling codepoints (variation-selector supplement,
+# combining grapheme joiner, blank fillers, invisible math operators). The
+# category-based pass below handles Cf/Cc/Cn/Co generically.
+_EXPLICIT_INVISIBLE = (
+    set(range(0xE0100, 0xE01F0))
+    | {0x034F, 0x115F, 0x1160, 0x3164, 0xFFA0, 0x2800,
+       0x2062, 0x2063, 0x2064}
+)
+
+# HTML comments render invisibly but are read verbatim by an agent. Match the
+# well-formed closer (incl. the HTML5 `--!>` variant) AND an unterminated
+# `<!--` running to end-of-file (GitHub hides that too).
+HTML_COMMENT_RE = re.compile(r'<!--.*?(?:--!?>|\Z)', re.DOTALL)
 MARKUP_EXTS = {'.md', '.mdx', '.html', '.htm'}
 
 
-def copy_sanitized(src, dest):
-    """Copy a doc file, sanitizing text content; binary files copy as-is.
+def _strip_invisible(text):
+    """Remove invisible/format-control codepoints, keeping tab/newline/CR."""
+    out = []
+    for ch in text:
+        if ch in '\t\n\r':
+            out.append(ch)
+            continue
+        if ord(ch) in _EXPLICIT_INVISIBLE:
+            continue
+        if unicodedata.category(ch) in ('Cf', 'Cc', 'Cn', 'Co'):
+            continue
+        out.append(ch)
+    return ''.join(out)
 
-    Decodes with errors='replace' rather than bailing out to a verbatim copy,
-    so a single non-UTF-8 byte can't smuggle an un-sanitized payload past the
-    filter. A file that is genuinely binary (contains a NUL byte) is copied
-    unchanged — sanitizing it would corrupt it and it isn't agent-read text.
-    """
+
+def copy_sanitized(src, dest):
+    """Copy a doc file, sanitizing text; binary assets (by extension) as-is.
+
+    Decodes with errors='replace' (never bails to a verbatim copy on a bad
+    byte) and strips invisible/control codepoints — including NUL — so no
+    single byte can smuggle an un-sanitized payload past the filter."""
     ext = os.path.splitext(src)[1].lower()
+    if ext in BINARY_EXTS:
+        shutil.copy2(src, dest)
+        return
     try:
         with open(src, 'rb') as f:
             data = f.read()
     except OSError:
         shutil.copy2(src, dest)
         return
-    if b'\x00' in data:  # binary asset — copy verbatim
-        shutil.copy2(src, dest)
-        return
-    text = data.decode('utf-8', 'replace')
-    text = INVISIBLE_CHARS_RE.sub('', text)
+    text = _strip_invisible(data.decode('utf-8', 'replace'))
     if ext in MARKUP_EXTS:
         text = HTML_COMMENT_RE.sub('', text)
     with open(dest, 'w', encoding='utf-8') as f:

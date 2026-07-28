@@ -39,7 +39,7 @@ End result: the agent answers from current, project-authoritative sources instea
 | `query-chain` | Pick the right query strategy (Blockfrost / Ogmios / indexer) |
 | `setup-devnet` | Local devnet with Yaci DevKit or testnet setup |
 | `connect-wallet` | CIP-30 wallet integration for dApps |
-| `masumi` | Decentralized payments for AI agent services — MIP-003 API, escrow, on-chain registry |
+| `agentic-payments` | Charge for an AI agent's work on Cardano — escrow, delivery proof, identity, discovery |
 | `governance-guide` | CIP-1694 governance, DRep, voting, treasury |
 | `explain-eutxo` | Cardano's UTxO model for newcomers |
 | `explain-cip` | Walk through a specific CIP |

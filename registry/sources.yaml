@@ -217,15 +217,28 @@
   category: infrastructure
   priority: medium
   glob_patterns:
-    # Whole tree except documentation/how-to-guides/hosting-guide.mdx, which
-    # documents a VPS install by piping deb.nodesource.com to a shell — a
-    # blocking finding for scan-docs-delta.py. glob_patterns is include-only,
-    # so that directory is enumerated per file; new pages added there upstream
-    # need a line here.
+    # glob_patterns is include-only, so the two directories holding excluded
+    # files are enumerated per file; new pages added to either one upstream
+    # need a line here. Excluded:
+    #   core-concepts/{blockchain,tokens,transaction-fees,utxo,wallets}.mdx
+    #     — generic Cardano-101 already covered by Cardano Docs, the
+    #       Developer Portal and the CIPs
+    #   documentation/how-to-guides/hosting-guide.mdx
+    #     — VPS install that pipes deb.nodesource.com to a shell
     - "api-reference/**/*.mdx"
-    - "core-concepts/**/*.mdx"
     - "mips/**/*.mdx"
     - "n8n-node/**/*.mdx"
+    - "core-concepts/index.mdx"
+    - "core-concepts/agent-to-agent-payments.mdx"
+    - "core-concepts/agentic-service.mdx"
+    - "core-concepts/decision-logging.mdx"
+    - "core-concepts/environments.mdx"
+    - "core-concepts/identity.mdx"
+    - "core-concepts/payments.mdx"
+    - "core-concepts/refunds-and-disputes.mdx"
+    - "core-concepts/registry.mdx"
+    - "core-concepts/regulatory-compliance.mdx"
+    - "core-concepts/smart-contracts.mdx"
     - "documentation/*.mdx"
     - "documentation/get-started/**/*.mdx"
     - "documentation/integrations/**/*.mdx"

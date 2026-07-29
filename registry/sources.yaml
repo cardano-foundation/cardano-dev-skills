@@ -217,7 +217,25 @@
   category: infrastructure
   priority: medium
   glob_patterns:
-    - "**/*.mdx"
+    # Whole tree except documentation/how-to-guides/hosting-guide.mdx, which
+    # documents a VPS install by piping deb.nodesource.com to a shell — a
+    # blocking finding for scan-docs-delta.py. glob_patterns is include-only,
+    # so that directory is enumerated per file; new pages added there upstream
+    # need a line here.
+    - "api-reference/**/*.mdx"
+    - "core-concepts/**/*.mdx"
+    - "mips/**/*.mdx"
+    - "n8n-node/**/*.mdx"
+    - "documentation/*.mdx"
+    - "documentation/get-started/**/*.mdx"
+    - "documentation/integrations/**/*.mdx"
+    - "documentation/technical-documentation/**/*.mdx"
+    - "documentation/how-to-guides/configure-agent-pricing.mdx"
+    - "documentation/how-to-guides/how-to-enable-agent-collaboration.mdx"
+    - "documentation/how-to-guides/human-in-the-loop.mdx"
+    - "documentation/how-to-guides/list-agent-on-sokosumi.mdx"
+    - "documentation/how-to-guides/top-up-your-wallets.mdx"
+    - "documentation/how-to-guides/troubleshoot-blockchain-errors.mdx"
   description: Self-hosted payment and registry node for AI agent services — escrowed agent-to-agent payments, on-chain identity, agent registry, and the MIP-003 agentic service API
   website: https://www.masumi.network/dev
 

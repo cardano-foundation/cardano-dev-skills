@@ -27,6 +27,7 @@ Help the developer choose and use the right data provider for querying the Carda
 - Setting up a local devnet (use `setup-devnet` skill)
 - Writing smart contracts (use Aiken/Plutus skills)
 - Wallet integration in a frontend (use `connect-wallet` skill)
+- Bringing off-chain/real-world data (prices, events, randomness) on-chain — that is an oracle problem (use `suggest-tooling`, Oracles / Data Feeds)
 
 ## Key principles
 

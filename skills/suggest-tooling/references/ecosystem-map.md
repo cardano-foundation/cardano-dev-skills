@@ -84,6 +84,54 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 | **Amaru** | Experimental | Alternative node implementation in Rust. |
 | **Mithril** | Production | Fast bootstrapping via snapshot certificates. Sync in minutes, not days. |
 
+## Oracles & Data Feeds
+
+Landscape facts below are **as of 2026-07** and change faster than most of this map —
+verify a feed is currently publishing (recent on-chain updates of the feed UTxO)
+before building against it. Directory listings and provider marketing are not
+liveness signals.
+
+| Provider | Trust primitive | Delivery | Cardano-native token pairs | Commercial model | Docs |
+|---|---|---|---|---|---|
+| **Pyth Pro (Lazer)** | Signed updates from 125+ institutional publishers, Wormhole VAA verification | Pull: consumer carries the signed update as a redeemer in its own tx; verified via the provider's zero-withdrawal script (`pyth.get_updates`) | None announced — cross-chain pairs only (ADA/USD, BTC/USD, ...) | Access-gated, terms undisclosed ("request access") | Bundled: `docs/sources/pyth-lazer-cardano/` (design doc + Aiken contracts + consumer guide), dev-portal oracles curriculum |
+| **Charli3** | k-of-n multisig with on-chain IQR outlier consensus | Pull: consumer requests a feed, builds an aggregation tx, collects signatures | Yes (Cardano-native network) | Token-metered | Bundled: `docs/sources/charli3-pull-oracle-{contracts,sdk,client}/` |
+| **Orcfax** | Fact-statement model with audit archives (COOP datum standard) | Push: publishes feed UTxOs | Yes (Cardano-native network) | Token-metered | External: docs.orcfax.io |
+| **Butane oracle network** | FROST-Ed25519 threshold signature (one group key; on-chain check is a single `verify_ed25519_signature`) | Off-chain HTTP: `GET /payload` returns signed Plutus-encoded feed; consumer carries it as a redeemer | Yes — ~17 CNTs priced from Cardano DEX liquidity (see `config.base.yaml` in the repo) | MIT open source; run by a 5-node 3-of-5 operator set | External, see below |
+
+Status notes (as of 2026-07, primary sources inline):
+
+- **Pyth Pro launched on Cardano 2026-05-06** with Indigo as first user
+  ([announcement](https://www.pyth.network/blog/pyth-pro-is-live-on-cardano-the-pricing-layer-cardano-defi-has-been-waiting-for)).
+  The launch post names no individual feeds and no Cardano-native token coverage.
+  Consequence for aggregators: a protocol consuming Indigo's oracle state is
+  indirectly consuming Pyth.
+- **Charli3 and Orcfax are reference architectures more than live feeds right now** —
+  their code and documentation remain open source and are the most complete
+  Cardano-native oracle designs available to study or fork, but verify current feed
+  publication before depending on either.
+- **Butane open-sourced its oracle node in Feb 2025** (MIT; the Rust nodes were built
+  largely by Sundae Labs on the Butane team's design). Architecture: Raft leader
+  election for liveness, FROST threshold signing for trust, TVL-weighted aggregation
+  across CEXes (Binance, Coinbase, Bybit, OKX, Kucoin, Crypto.com), FX rates, and
+  Cardano DEXes (Minswap, SundaeSwap, WingRiders, Splash, VyFi), with GEMA smoothing
+  (rises phased in, drops immediate) in 10-second rounds. The oracle itself submits
+  nothing on-chain — consumers fetch the signed payload and carry it in their own
+  transaction. Caveats: the standalone generic feed surface is currently ADA-only
+  (other pairs are shaped as Butane-synthetic collateral vectors), and the on-chain
+  verification example lives in a separate, stale and unlicensed repo
+  (`butaneprotocol/butane-contracts`). Links: [node + README](https://github.com/butaneprotocol/oracles),
+  [feed registry `config.base.yaml`](https://github.com/butaneprotocol/oracles/blob/main/config.base.yaml),
+  [consumer API `src/api.rs`](https://github.com/butaneprotocol/oracles/blob/main/src/api.rs),
+  [verify example](https://github.com/butaneprotocol/butane-contracts/blob/main/validators/price_feed.ak),
+  [GEMA spec](https://files.butane.dev/gema.pdf).
+- **For Cardano-native token prices there is no live general-purpose third-party
+  feed** — production protocols read authenticated AMM pools, aggregate other
+  protocols' feeds, use Butane, or run their own publisher (Charli3's and Butane's
+  stacks are the documented starting points). Decision path: `suggest-tooling`
+  SKILL.md (Oracles / Data Feeds). Validator-side consumption patterns:
+  `write-validator` references. Attack surfaces: `review-contract` vulnerability
+  checklist.
+
 ## Testing
 
 | Name | Type | Status | Best For |

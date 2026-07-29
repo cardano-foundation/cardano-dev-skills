@@ -550,6 +550,43 @@ logic via **withdraw-zero**: the stable script requires a withdrawal from a poin
 logic script, whose `withdraw` handler carries the real rules — swap the pointer to
 upgrade behind a fixed address (`upgradable-proxy`). See `advanced-patterns.md`.
 
+## Consuming an oracle feed: two models
+
+A validator that needs an external value (a price, an event outcome) consumes it in
+one of two shapes. Which one you get is decided by the feed's publisher, so identify
+the model first — the security obligations differ.
+
+**UTxO-datum model** — the feed lives on-chain as a UTxO datum; your validator reads
+it as a reference input (pricebet's oracle read; also what you are building when you
+read an AMM pool's reserves or another protocol's published state as a price source).
+Invariants:
+
+- Authenticate the feed UTxO by its **NFT/policy ID, never by address** — anyone can
+  place a UTxO at a known address.
+- Enforce a **freshness window**: compare the datum's timestamp against your tx
+  validity range. A feed that stopped updating still parses.
+- Decide explicitly what happens when the feed is absent or stale — fail closed for
+  value-moving paths.
+
+**Redeemer-carried model** — the feed is a signed payload fetched off-chain and
+carried in *your own transaction*; the validator verifies the signature and uses the
+value (Pyth: verification delegated to the provider's withdraw-zero script via
+`pyth.get_updates`; Butane: one `verify_ed25519_signature` against a threshold group
+key). Invariants:
+
+- The **verification key or verifier script hash is a compile-time parameter**, never
+  data read from the transaction.
+- A signature proves **integrity, not liveness** — checking the payload's validity
+  interval / timestamp against the tx validity range is mandatory, or a valid old
+  price replays forever.
+- The payload's Plutus encoding is the provider's contract with you; parse it fully
+  rather than trusting fields you didn't check.
+
+Choosing a feed and the current provider landscape: `suggest-tooling` skill
+(Oracles / Data Feeds). Attack patterns against both models — fake reference inputs,
+AMM spot manipulation, aggregation trust — are in the `review-contract` skill's
+vulnerability checklist.
+
 ## Reading the templates critically (what NOT to copy)
 
 Not everything in the corpus is exemplary — a few are stubs or teaching toys. Do not

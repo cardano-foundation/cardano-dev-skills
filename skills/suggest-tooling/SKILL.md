@@ -150,15 +150,12 @@ feed covers these. The patterns production protocols actually use:
    consensus; Aiken + Python, bundled) and Butane's stack (Raft leader election +
    FROST threshold signing; Rust).
 
-**Selection criteria**: publication model fit (push vs pull), who signs and how you
-verify it on-chain, feed coverage, update cadence vs your freshness window, cost, and
-operational liveness. Before building against any feed, verify it is currently
-publishing — check for recent on-chain updates of the feed UTxO, not directory
-listings or marketing pages. Current provider landscape with dated facts and primary
-sources: `references/ecosystem-map.md` (Oracles & Data Feeds). Read pattern and
-concepts: the dev-portal oracles curriculum (bundled). The dev-portal curriculum
-recommends Pyth for most applications — treat that as the portal's editorial position;
-the capability facts above are what should drive the choice.
+**Selection criteria**: publication model (push vs pull), who signs and how you verify
+it on-chain, feed coverage, update cadence vs your freshness window, cost. Before
+building against any feed, verify it is currently publishing — recent on-chain updates
+of the feed UTxO, not directory listings. Provider comparison:
+`references/ecosystem-map.md` (Oracles & Data Feeds). Concepts and read pattern: the
+bundled dev-portal oracles curriculum.
 
 #### Testing
 

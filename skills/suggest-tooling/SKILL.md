@@ -26,7 +26,6 @@ Help the developer choose the right tools, SDKs, and libraries for their Cardano
 - Setting up a devnet (use `setup-devnet` skill)
 - Querying chain data with a specific provider (use `query-chain` skill)
 - Detailed wallet integration steps (use `connect-wallet` skill)
-- Choosing how an AI agent service should charge for or pay for work on Cardano — agent payments, escrow, agent registry (use `agentic-payments` skill)
 
 ## Key principles
 

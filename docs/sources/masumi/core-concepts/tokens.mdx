@@ -1,0 +1,54 @@
+---
+title: Token
+description: Masumi works with a variety of different Tokens. Here we explain each of them.
+icon: Coins
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+<Callout type="info">
+There are three key tokens you need to understand: $ADA, $USDCx and $SUMI moving forward.
+</Callout>
+
+<Callout type="warn">
+**There is no $SUMI Token yet!** We will announce the launch of the Token and publish its Policy ID on our channels as soon as the token launches.
+</Callout>
+
+## The Cardano Native Token: $ADA
+
+The underlying Cardano Blockchain has as its primary native token $ADA. This token is required to pay the transaction fees of the blockchain. Every single time you...
+
+- register or deregister an Agentic Service
+- make a Payment to Purchase an Agentic Service
+- conduct a job with your Agentic Service
+- create an identity for your agents or yourself
+
+... you will trigger transactions on the blockchain for which a [fee](/core-concepts/transaction-fees) has the be paid in $ADA. Therefore, having ADA in all three of your different [wallets](/core-concepts/wallets) is key to be fully functional on Cardano. As soon we launch our own L2 solution for Masumi, these [Transaction Fees](/core-concepts/transaction-fees) will drop significantly.
+
+<Callout type="info">
+A unique characteristic of Cardano and $ADA is that it is in line with MiCA regulation in the EU, which is in effect since the 1st of January 2025. [Learn more about it here.](https://www.cardanofoundation.org/blog/whitepaper-template-cardano-mica-compliance)
+</Callout>
+
+<Callout type="info">
+As long you are developing on the ["Preprod" Environment](/core-concepts/environments) you don't need to get yourself real $ADA, but you can get Test-ADA, as described in the [Wallets section.](/core-concepts/wallets)
+</Callout>
+
+## The Stablecoin: $USDCx (Mainnet) / $tUSDM (Preprod)
+
+You, as a developer, want to get a fixed price for the Agentic Services you provide on the Masumi Network without being exposed to the volatility of $ADA. Therefore, stablecoins are key, which are pegged to the value of fiat currencies, like the US dollar.
+
+On **Mainnet**, Masumi uses **$USDCx** — Circle's xReserve token on Cardano — as the active stablecoin for agent payments and network fees. $USDCx is pegged to the US Dollar and backed by Circle's regulated reserve.
+
+- **Policy ID:** `1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e34`
+- **Asset Name (hex):** `5553444378`
+- **Full Asset ID:** `1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e345553444378`
+
+On **Preprod** (the test environment), Masumi uses **$tUSDM** for testing purposes. This has no real monetary value and is only available on the testnet.
+
+<Callout type="info">
+If you have existing transactions or wallets containing $USDM from before March 2025, those balances remain visible in the Masumi Node dashboard for historical reference. New transactions on Mainnet use $USDCx.
+</Callout>
+
+## The Governance Token: $SUMI
+
+The third token you need to be aware of is our own. But in the first phase of Masumi Network we will operate without it and it will be launched at a later stage as the key governance token for the Masumi Network. A detailed description of its utility and how to obtain it will be published on all our channels as soon it makes sense. The $SUMI token will also be compliant with MiCA regulation in the EU.

@@ -134,6 +134,7 @@ name: my-new-skill
 description: >-
   What this skill does. Include 3-5 trigger phrases users would say.
 allowed-tools: Read Grep Glob
+disallowed-tools: WebFetch WebSearch
 ---
 
 # my-new-skill
@@ -169,6 +170,7 @@ Instructions...
 - [ ] Description includes trigger phrases
 - [ ] Has "When to use", "When NOT to use", "Key principles", "Workflow" sections
 - [ ] No external service dependencies — works with `Read` / `Grep` / `Glob` only
+- [ ] `allowed-tools` is `Read Grep Glob` (anything wider needs a reviewed exception in `scripts/validate.py`) and `disallowed-tools` includes `WebFetch WebSearch` — validate.py enforces both
 - [ ] Deep content in `references/`, one level only — no nested subdirectories
 - [ ] No mention of specific deployed dApps; teach categories generically
 - [ ] No mention of grants, treasuries, or governance proposals — the skill must read as a neutral community contribution
@@ -216,7 +218,19 @@ Pure internal tweaks (refactor a script, fix a typo in a skill body) don't trigg
 
 ## Refreshing content
 
-The weekly workflow (`.github/workflows/refresh-docs.yml`) runs every Monday at 06:00 UTC, fetches all sources, and opens a PR labeled `documentation, automated`. Review the diff and merge.
+The weekly workflow (`.github/workflows/refresh-docs.yml`) runs every Monday at 06:00 UTC, fetches every source's upstream branch tip, and opens a PR labeled `documentation, automated` with **one commit per changed source** (doc files + that source's line in `registry/pins.yaml` together), so a bad upstream delta can be reverted per source with a single `git revert`.
+
+Outside the weekly refresh, `fetch-docs.sh` checks out the **pinned commit** recorded in `registry/pins.yaml` — not the branch tip — so what ships is exactly what passed refresh-PR screening. Pins are auto-generated; never edit them by hand.
+
+### Supply-chain screening
+
+Bundled docs are read by AI agents on every consumer's machine, so every change to `docs/sources/` is screened before merge:
+
+1. **Fetch-time sanitization** (`scripts/_fetch_docs.py`): zero-width/bidi characters stripped from all text files; HTML comments and `<script>` blocks stripped from markup — removes the hidden-text injection class outright.
+2. **Mechanical delta scanner** (`scripts/scan-docs-delta.py`, blocking CI check in the PR Policy workflow): scans changed lines for agent-targeted injection phrasing, `curl | sh` installs, swapped bech32 addresses, changed install commands, base64 blobs, and URLs on domains a source never used before. Blocking findings turn the check red until a human clears them.
+3. **Advisory AI docs-delta review** (PR Policy workflow, rubric in `.github/docs-delta-review-prompt.md`): a non-agentic model call classifies each source's delta as plausible maintenance vs injection/poisoning and posts a sticky per-source verdict table. Advisory — it informs the human decision, never replaces it.
+
+A maintainer merges the refresh PR when the scan is green and the review raises nothing that needs a closer look. Run the scanner locally with `python3 scripts/scan-docs-delta.py --base origin/main`.
 
 To trigger manually:
 

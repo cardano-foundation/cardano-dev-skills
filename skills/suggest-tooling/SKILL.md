@@ -3,6 +3,7 @@ name: suggest-tooling
 description: >-
   Recommends Cardano developer tools and SDKs for a specific project. Triggers: "which SDK", "recommend tools", "best library for", "Cardano SDK", "Mesh vs Evolution SDK", "Aiken vs Plutus", "what tools should I use", "Cardano ecosystem".
 allowed-tools: Read Grep Glob
+disallowed-tools: Bash Edit Write WebFetch WebSearch
 ---
 
 <!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->

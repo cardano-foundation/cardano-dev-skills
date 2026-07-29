@@ -5,6 +5,7 @@ description: >-
   Trigger: "review contract", "audit validator", "check security", "find vulnerabilities",
   "security review", "smart contract audit", "check for exploits".
 allowed-tools: Read Grep Glob
+disallowed-tools: Bash Edit Write WebFetch WebSearch
 ---
 
 <!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->

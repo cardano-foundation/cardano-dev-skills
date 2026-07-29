@@ -6,6 +6,7 @@ description: >-
   Trigger: "optimize validator", "reduce script size", "lower execution cost",
   "reduce CPU", "reduce memory", "script too large", "transaction too expensive".
 allowed-tools: Read Grep Glob
+disallowed-tools: WebFetch WebSearch
 ---
 
 <!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->

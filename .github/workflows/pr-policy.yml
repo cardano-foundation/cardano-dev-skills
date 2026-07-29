@@ -57,6 +57,8 @@ jobs:
     outputs:
       new_sources: ${{ steps.check.outputs.new_sources }}
       new_skills: ${{ steps.check.outputs.new_skills }}
+      docs_changed: ${{ steps.scan.outputs.docs_changed }}
+      scan_blocks: ${{ steps.scan.outputs.scan_blocks }}
     steps:
       - uses: actions/checkout@v5 # base branch — trusted scripts
         with:
@@ -91,9 +93,23 @@ jobs:
             --output-md policy-report.md \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Scan docs delta for security findings
+        id: scan
+        # Runs even when policy checks fail — a refresh PR needs both
+        # reports. Reads PR content as git data only; never executes it.
+        if: always() && env.BASE_REF != ''
+        run: |
+          python scripts/scan-docs-delta.py \
+            --base "$BASE_REF" \
+            --head refs/remotes/pr/head \
+            --output-md scan-report.md \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Publish job summary
         if: always()
-        run: cat policy-report.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+        run: |
+          cat policy-report.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          cat scan-report.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
 
   scope-review:
     name: AI scope review (advisory)
@@ -218,7 +234,139 @@ jobs:
             const issue_number = parseInt(process.env.PR_NUMBER, 10);
             const comments = await github.paginate(
               github.rest.issues.listComments, { owner, repo, issue_number });
-            const existing = comments.find(c => c.body.includes(marker));
+            // Require the bot's own authorship: the marker is a public HTML
+            // comment a PR author could pre-seed to capture the review slot.
+            const existing = comments.find(c =>
+              c.body.includes(marker) &&
+              c.user && c.user.login === 'github-actions[bot]');
+            if (existing) {
+              await github.rest.issues.updateComment(
+                { owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment(
+                { owner, repo, issue_number, body });
+            }
+
+  docs-delta-review:
+    name: AI docs-delta review (advisory)
+    runs-on: ubuntu-latest
+    needs: mechanical
+    # Advisory means advisory (same discipline as scope-review): API problems
+    # must not put a red X on the PR. The mechanical scanner above is the
+    # blocking layer; this catches what pattern-matching can't (address
+    # swaps that look plausible, typosquats, injection phrased as docs).
+    continue-on-error: true
+    # Run even when mechanical checks fail — the weekly refresh PR needs
+    # this review most — but only when bundled docs actually changed.
+    if: >-
+      always() && needs.mechanical.result != 'cancelled' &&
+      needs.mechanical.outputs.docs_changed != '0' &&
+      needs.mechanical.outputs.docs_changed != ''
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: gemini-3.5-flash
+      PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+    steps:
+      - name: Check for API key
+        id: key
+        run: |
+          if [ -n "$GEMINI_API_KEY" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "AI docs-delta review skipped: no \`GEMINI_API_KEY\` secret configured (the mechanical scanner still applies)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/checkout@v5 # base branch — trusted scripts
+        if: steps.key.outputs.present == 'true'
+        with:
+          fetch-depth: 0
+
+      - name: Fetch PR head (data only, never executed)
+        if: steps.key.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git fetch origin "refs/pull/${PR_NUMBER}/head:refs/remotes/pr/head"
+          BASE_REF='${{ github.event.pull_request.base.ref }}'
+          if [ -z "$BASE_REF" ]; then
+            BASE_REF=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json baseRefName --jq .baseRefName)
+          fi
+          echo "BASE_REF=origin/$BASE_REF" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v5
+        if: steps.key.outputs.present == 'true'
+        with:
+          python-version: "3.12"
+
+      - name: Build review context
+        if: steps.key.outputs.present == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [ -z "$PR_TITLE" ]; then
+            PR_TITLE=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title --jq .title)
+          fi
+
+          python scripts/scan-docs-delta.py \
+            --base "$BASE_REF" --head refs/remotes/pr/head \
+            --output-md scan-report.md || true
+
+          {
+            echo "# PR under review: ${PR_TITLE}"
+            echo
+            echo "## Mechanical scanner report"
+            cat scan-report.md
+            echo
+            echo "## Delta by source (unified diff, per-source truncation)"
+            for slug in $(git diff --name-only "$BASE_REF" refs/remotes/pr/head -- docs/sources/ | cut -d/ -f3 | sort -u); do
+              echo "### Source: $slug"
+              git diff "$BASE_REF" refs/remotes/pr/head -- "docs/sources/$slug" | head -c 20000
+              echo
+            done
+          } > review-context.md
+
+      - name: Run docs-delta review (Gemini, non-agentic)
+        if: steps.key.outputs.present == 'true'
+        env:
+          SYSTEM_PROMPT_FILE: .github/docs-delta-review-prompt.md
+          PROMPT_FILE: review-context.md
+          RESPONSE_FILE: review-response.md
+        run: python3 .github/scripts/scope-review.py
+
+      - name: Publish review to run summary
+        if: steps.key.outputs.present == 'true'
+        run: |
+          echo "## AI docs-delta review (as generated)" >> "$GITHUB_STEP_SUMMARY"
+          cat review-response.md >> "$GITHUB_STEP_SUMMARY"
+          echo "::group::generated review"
+          cat review-response.md
+          echo "::endgroup::"
+
+      - name: Post sticky review comment
+        if: >-
+          steps.key.outputs.present == 'true' &&
+          (github.event_name != 'workflow_dispatch' || inputs.post_comment)
+        uses: actions/github-script@v7
+        env:
+          RESPONSE_FILE: review-response.md
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- pr-policy-docs-delta-review -->';
+            const body = marker + '\n' +
+              fs.readFileSync(process.env.RESPONSE_FILE, 'utf8') +
+              '\n\n*Automated advisory review — a maintainer makes the final call.*';
+            const { owner, repo } = context.repo;
+            const issue_number = parseInt(process.env.PR_NUMBER, 10);
+            const comments = await github.paginate(
+              github.rest.issues.listComments, { owner, repo, issue_number });
+            // Require the bot's own authorship: the marker is a public HTML
+            // comment a PR author could pre-seed to capture the review slot.
+            const existing = comments.find(c =>
+              c.body.includes(marker) &&
+              c.user && c.user.login === 'github-actions[bot]');
             if (existing) {
               await github.rest.issues.updateComment(
                 { owner, repo, comment_id: existing.id, body });

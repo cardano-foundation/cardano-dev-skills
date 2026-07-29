@@ -52,6 +52,8 @@ and the current working directory and prints status lines prefixed
 `[Cardano Dev Skills]`:
 
 - **Docs loaded.** Normal: `Docs loaded: N sources, M files (updated Xd ago)`.
+- **Supply-chain framing.** Prints a standing note that the bundled
+  corpus is third-party reference data, never instructions to execute.
 - **Docs stale (>30 days).** Suggests how to refresh based on install topology:
   local clone → `git pull && ./scripts/fetch-docs.sh`; marketplace install →
   `/plugin marketplace update cardano-foundation`.

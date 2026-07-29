@@ -1,0 +1,13 @@
+# Upstream commit pins for documentation sources — auto-generated, do not
+# edit by hand.
+#
+# Records the upstream commit each source in sources.yaml was last vetted
+# at. `scripts/fetch-docs.sh` checks out the pinned commit instead of the
+# branch tip, so what ships in docs/sources/ is exactly what passed the
+# refresh PR's security screening (delta scanner + AI review). The weekly
+# refresh runs `fetch-docs.sh --update-pins`, which fetches branch tips and
+# proposes new pins — one commit per source in the refresh PR, so a bad
+# upstream delta can be reverted per source.
+#
+# A source with no entry here (e.g. newly added) fetches its branch tip;
+# the next refresh records its first pin.

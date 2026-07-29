@@ -5,6 +5,7 @@ Community-curated knowledge base for building on Cardano. This repo is a Claude 
 ## Repo Structure
 
 - `registry/sources.yaml` — canonical list of Cardano projects and their documentation sources
+- `registry/pins.yaml` — auto-generated upstream commit pins (each source fetches its last-vetted commit, not the branch tip)
 - `skills/` — <!-- COUNT:skills -->15<!-- /COUNT:skills --> developer skills (flat layout — each skill is `skills/<name>/SKILL.md`)
 - `scripts/` — validation, fetch, sync, and scaffolding tooling
 - `hooks/` — session-level hooks (freshness check; prompt-time context injection planned)
@@ -45,6 +46,7 @@ name: skill-name
 description: >-
   What this skill does. Include trigger phrases.
 allowed-tools: Read Grep Glob
+disallowed-tools: WebFetch WebSearch
 ---
 ```
 

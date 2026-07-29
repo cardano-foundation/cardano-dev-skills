@@ -6,6 +6,7 @@ description: >-
   "how do validators work", "what is a script context", "UTxO model",
   "how does Cardano differ from Ethereum".
 allowed-tools: Read Grep Glob
+disallowed-tools: Bash Edit Write WebFetch WebSearch
 ---
 
 <!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->

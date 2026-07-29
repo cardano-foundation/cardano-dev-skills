@@ -6,6 +6,7 @@ description: >-
   Trigger: "write validator", "create contract", "build smart contract", "new validator",
   "implement spending validator", "write minting policy".
 allowed-tools: Read Grep Glob
+disallowed-tools: WebFetch WebSearch
 ---
 
 <!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->

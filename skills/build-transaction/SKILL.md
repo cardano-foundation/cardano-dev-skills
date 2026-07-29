@@ -5,6 +5,7 @@ description: >-
   smart contract, delegate stake, register DRep, vote on-chain using Mesh SDK,
   Evolution SDK, PyCardano, or cardano-client-lib.
 allowed-tools: Read Grep Glob
+disallowed-tools: WebFetch WebSearch
 ---
 
 <!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->

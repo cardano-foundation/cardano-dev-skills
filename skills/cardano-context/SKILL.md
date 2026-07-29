@@ -7,7 +7,8 @@ description: >-
   data. Trigger phrases: "enable cardano context", "set up cardano for this
   project", "tell claude this is a cardano project", "mark this as a cardano
   project", "/cardano-context".
-allowed-tools: Read Edit Write Glob Bash
+allowed-tools: Read Edit Write Glob Bash(pwd)
+disallowed-tools: WebFetch WebSearch
 ---
 
 # Cardano Context

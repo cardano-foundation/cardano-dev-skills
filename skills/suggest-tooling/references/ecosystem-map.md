@@ -84,6 +84,26 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 | **Amaru** | Experimental | Alternative node implementation in Rust. |
 | **Mithril** | Production | Fast bootstrapping via snapshot certificates. Sync in minutes, not days. |
 
+## Oracles & Data Feeds
+
+Feed availability changes faster than the rest of this map (last checked 2026-07).
+Before building against any feed, verify it is currently publishing — recent
+on-chain updates of the feed UTxO, not directory listings.
+
+| Provider | Trust primitive | Delivery | CNT pairs | Model | Docs |
+|---|---|---|---|---|---|
+| **Pyth Pro (Lazer)** | Signed publisher updates, Wormhole VAA verification | Pull: consumer carries the signed update as a redeemer, verified via zero-withdrawal script | No — cross-chain pairs only (ADA/USD, ...) | Commercial, access-gated | Bundled: `docs/sources/pyth-lazer-cardano/` + dev-portal curriculum |
+| **Charli3** | k-of-n multisig, on-chain IQR consensus | Pull: consumer builds an aggregation tx | Yes | Token-metered | Bundled: `docs/sources/charli3-pull-oracle-{contracts,sdk,client}/` |
+| **Orcfax** | Fact statements with audit archives (COOP) | Push: publishes feed UTxOs | Yes | Token-metered | docs.orcfax.io |
+| **Butane oracle network** | FROST threshold signature — one on-chain Ed25519 check | Signed HTTP payload; consumer carries it as a redeemer | Yes (~17 CNTs from DEX liquidity) | MIT open source, 5-node operator set | [node](https://github.com/butaneprotocol/oracles), [feed list](https://github.com/butaneprotocol/oracles/blob/main/config.base.yaml), [verify example](https://github.com/butaneprotocol/butane-contracts/blob/main/validators/price_feed.ak) (stale) |
+
+- A protocol consuming another protocol's oracle state inherits its provenance —
+  Indigo's feed is Pyth-backed, so aggregating it consumes Pyth indirectly.
+- Charli3 and Orcfax are the most complete Cardano-native oracle designs to study or
+  fork; verify current feed publication before depending on either.
+- Butane's standalone generic feed is currently ADA-only (other pairs are shaped as
+  Butane-synthetic collateral vectors) and its on-chain verify example is unmaintained.
+
 ## Testing
 
 | Name | Type | Status | Best For |

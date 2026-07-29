@@ -1,7 +1,7 @@
 ---
 name: suggest-tooling
 description: >-
-  Recommends Cardano developer tools and SDKs for a specific project. Triggers: "which SDK", "recommend tools", "best library for", "Cardano SDK", "Mesh vs Evolution SDK", "Aiken vs Plutus", "what tools should I use", "Cardano ecosystem".
+  Recommends Cardano developer tools and SDKs for a specific project. Triggers: "which SDK", "recommend tools", "best library for", "Cardano SDK", "Mesh vs Evolution SDK", "Aiken vs Plutus", "what tools should I use", "Cardano ecosystem", "oracle", "price feed", "price oracle", "external data on-chain", "real-world data on-chain".
 allowed-tools: Read Grep Glob
 disallowed-tools: Bash Edit Write WebFetch WebSearch
 ---
@@ -18,6 +18,7 @@ Help the developer choose the right tools, SDKs, and libraries for their Cardano
 - Comparing SDKs (Mesh vs Evolution SDK vs PyCardano vs others)
 - Choosing a smart contract language (Aiken vs Plutus vs others)
 - Selecting infrastructure components (indexers, APIs, testing tools)
+- Choosing how to get external data on-chain (oracles, price feeds)
 - Evaluating wallet integration options
 - Understanding which CIPs are relevant to their project
 
@@ -57,6 +58,9 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken/` - Aiken language docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/ogmios/` - Ogmios WebSocket bridge docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/blockfrost-openapi/` - Blockfrost API docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/developer-portal/developers/curriculum/dapps/oracles/` - oracle concepts, integration, randomness
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/pyth-lazer-cardano/` - Pyth oracle design doc, Aiken contracts, consumer guide
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/charli3-pull-oracle-contracts/` - Charli3 oracle architecture and validators
 
 ### Step 3: Search the ecosystem map
 
@@ -115,6 +119,44 @@ File: skills/suggest-tooling/references/ecosystem-map.md
 
 **Default recommendation**: Blockfrost for getting started (easy, hosted). Ogmios + Kupo for production self-hosted.
 
+#### Oracles / Data Feeds
+
+First check the data is actually off-chain — UTxOs, balances, tx history, and protocol
+parameters are on-chain reads (use the `query-chain` skill), not an oracle problem.
+Then route by the pair you need, not by vendor list:
+
+**Cross-chain pair (ADA/USD, BTC/USD, ...):**
+
+| Option | Model | Notes |
+|---|---|---|
+| **Pyth Pro (Lazer)** | Pull: signed update carried in your own tx, verified via zero-withdrawal script | Access-gated commercial product — "request access" is part of the integration cost. Bundled docs: `docs/sources/pyth-lazer-cardano/` + dev-portal guide |
+
+**Cardano-native token pair (MIN/ADA, SNEK/USD, ...):** no general-purpose third-party
+feed covers these. The patterns production protocols actually use:
+
+1. **Authenticated AMM pool read** — derive price from a DEX pool's reserves via
+   reference input. Manipulable by design; the security pattern is in the
+   `review-contract` skill's vulnerability checklist.
+2. **Aggregate existing feeds** — other protocols publish oracle state for their own
+   use; aggregate several plus DEX pools with median/deviation logic. Each source has
+   no SLA to you, can change datum shape or stop at its publisher's discretion; know
+   each feed's provenance (some in-house feeds are themselves backed by a third-party
+   oracle); authenticate every source by NFT/policy, never by address.
+3. **Butane's oracle network** — MIT open-source node stack whose feed is a signed
+   HTTP payload verified in your validator with one Ed25519 check. Consumer
+   integration surface is thin; see the ecosystem map for the architecture and links.
+4. **Run your own publisher** — two documented open-source starting points with
+   different architectures: Charli3's stack (pull-based multisig + IQR outlier
+   consensus; Aiken + Python, bundled) and Butane's stack (Raft leader election +
+   FROST threshold signing; Rust).
+
+**Selection criteria**: publication model (push vs pull), who signs and how you verify
+it on-chain, feed coverage, update cadence vs your freshness window, cost. Before
+building against any feed, verify it is currently publishing — recent on-chain updates
+of the feed UTxO, not directory listings. Provider comparison:
+`references/ecosystem-map.md` (Oracles & Data Feeds). Concepts and read pattern: the
+bundled dev-portal oracles curriculum.
+
 #### Testing
 
 | Tool | Purpose |
@@ -149,6 +191,7 @@ Based on the project requirements, recommend a concrete stack. Example stacks:
 - Smart contracts: **Aiken**
 - Off-chain: **Evolution SDK** or **Blaze**
 - Infrastructure: **Ogmios + Kupo** (self-hosted)
+- Data feeds: see **Oracles / Data Feeds** above — the answer differs for cross-chain vs Cardano-native pairs
 - Testing: Aiken property tests + Preview testnet
 - Wallet: CIP-30 direct integration
 

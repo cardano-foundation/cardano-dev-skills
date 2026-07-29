@@ -39,7 +39,7 @@ For each: source code at `docs/sources/cardano-use-case-templates/<name>/`. Vest
 | 9 | vault | Holds funds under a single beneficiary key with an optional admin override. | aiken | Read the validator. |
 | 10 | storage | On-chain key-value storage with simple ownership rules. | aiken | Blaze is the recommended off-chain extra for storage-style flows where many small UTxOs need indexing; otherwise use any of the four stacks. |
 | 11 | simple-wallet | Multi-signature wallet pattern under a single script. | aiken | Datum encodes the signer set. |
-| 12 | pricebet | Bet against an oracle-reported price. | aiken | Requires an oracle UTxO; combine with `query-chain` skill for the oracle read path. |
+| 12 | pricebet | Bet against an oracle-reported price. | aiken | Requires an oracle feed; see `suggest-tooling` (Oracles / Data Feeds) for choosing one and `docs/sources/developer-portal/developers/curriculum/dapps/oracles/` for the read pattern. |
 | 13 | payment-splitter | Distributes incoming payments across multiple recipients by share. | aiken, scalus | Useful pattern when one address receives funds destined for several parties. |
 | 14 | lottery | Pick a winner from a pot via a verifiable mechanism (commit-reveal or oracle randomness). | aiken | Randomness on-chain is the tricky part; treat the upstream impl as a starting point only. |
 | 15 | constant-product-amm | x*y=k AMM pool (README only upstream, no full implementation). | aiken | Treat as a learning target; implementing safely is a multi-skill exercise. |

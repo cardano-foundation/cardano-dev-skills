@@ -12,7 +12,7 @@ Training data on Cardano drifts fast. Conway era changed governance, Aiken synta
 
 This plugin solves that by shipping:
 
-- **Authoritative bundled docs** from <!-- COUNT:sources -->55<!-- /COUNT:sources --> active Cardano projects (auto-refreshed weekly from upstream).
+- **Authoritative bundled docs** from <!-- COUNT:sources -->56<!-- /COUNT:sources --> active Cardano projects (auto-refreshed weekly from upstream).
 - **Behavioral skills** that encode common workflows: scaffolding, writing validators, building transactions, governance, optimization, debugging.
 - **Hooks that auto-consult bundled context** before the agent reaches for training data or the web.
 
@@ -21,7 +21,7 @@ End result: the agent answers from current, project-authoritative sources instea
 ## What's inside
 
 - **<!-- COUNT:skills -->15<!-- /COUNT:skills --> developer skills** — each a focused workflow
-- **<!-- COUNT:sources -->55<!-- /COUNT:sources --> documentation sources** — bundled locally under `docs/sources/`, auto-refreshed weekly via GitHub Actions
+- **<!-- COUNT:sources -->56<!-- /COUNT:sources --> documentation sources** — bundled locally under `docs/sources/`, auto-refreshed weekly via GitHub Actions
 - **Hooks** — `SessionStart` reports doc freshness; a `UserPromptSubmit` auto-consultation hook is in development
 
 ### Skills
@@ -102,7 +102,7 @@ What it does:
 
 The plugin also tries to set the context automatically. In a Claude Code session:
 
-1. **Session start.** A `SessionStart` hook reports doc freshness — you'll see `[Cardano Dev Skills] Docs loaded: 55 sources, ...` at the top of every session in any directory.
+1. **Session start.** A `SessionStart` hook reports doc freshness — you'll see `[Cardano Dev Skills] Docs loaded: 56 sources, ...` at the top of every session in any directory.
 2. **Skill matching.** When you ask a question that matches a skill's trigger phrases (e.g. *"review my validator"*, *"scaffold a Cardano project"*), the agent auto-invokes that skill.
 3. **Doc consultation** *(in development).* A `UserPromptSubmit` hook scans your prompt for Cardano-specific keywords (`aiken`, `plutus`, `cip-XXXX`, `ogmios`, `drep`, …) and reminds the agent to consult bundled docs before training data or the web.
 
@@ -118,7 +118,7 @@ We're tracking which prompts fail to auto-consult so the keyword set + skill tri
 
 ## Bundled documentation
 
-<!-- COUNT:sources -->55<!-- /COUNT:sources --> Cardano projects mirrored locally. Auto-refreshed every Monday at 06:00 UTC via GitHub Actions — the workflow opens a PR; maintainers review and merge.
+<!-- COUNT:sources -->56<!-- /COUNT:sources --> Cardano projects mirrored locally. Auto-refreshed every Monday at 06:00 UTC via GitHub Actions — the workflow opens a PR; maintainers review and merge.
 
 Manual refresh:
 

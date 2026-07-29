@@ -647,6 +647,25 @@
     - "charli3_odv_client/**/*.py"
   description: Python consumer SDK for Charli3 pull oracle - request feeds, build aggregation transactions, collect multisig signatures
 
+- name: Pyth Lazer Cardano
+  repo: https://github.com/pyth-network/pyth-crosschain.git
+  docs_path: "."
+  format: aiken
+  format_overrides:
+    "**/*.md": markdown
+    "**/*.mdx": mdx
+  category: oracles
+  priority: medium
+  glob_patterns:
+    - "lazer/contracts/cardano/*.md"
+    - "lazer/contracts/cardano/validators/**/*.ak"
+    - "lazer/contracts/cardano/lib/**/*.ak"
+    # Enumerated page: if upstream moves/renames it, this matches nothing and the
+    # guide silently drops from the bundle - watch refresh PR diffs for its deletion.
+    - "apps/developer-hub/content/docs/price-feeds/pro/integrate-as-consumer/cardano.mdx"
+  description: Pyth Pro (Lazer) pull oracle on Cardano - first-principles eUTxO design doc (state NFT, zero-withdrawal verification), Aiken contracts, consumer integration guide
+  website: https://docs.pyth.network/price-feeds/pro
+
 # --- Standards & Portals ---
 
 - name: CIPs

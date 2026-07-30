@@ -42,7 +42,7 @@ The **release artifacts** and their places of **publication** are:
 | Self-contained executables on all platforms | Compressed archive containing  cardano-wallet cardano-node shared library dependencies (static linking preferred) Platforms Linux, macOS, Windows Testing includes E2E tests with all components | [Github Releases (link)](https://github.com/cardano-foundation/cardano-wallet/releases/latest)  |
 | Documentation | Command-line interface help OpenAPI specification of HTTP API | [Github Pages (link)](https://cardano-foundation.github.io/cardano-wallet/) |
 | Docker image |  | [Docker Hub (link)](https://hub.docker.com/r/cardanofoundation/cardano-wallet) |
-| Haskell packages |  | [CHaP](https://github.com/input-output-hk/cardano-haskell-packages)[Hackage](https://hackage.haskell.org/) |
+| Haskell packages |  | [CHaP](https://github.com/input-output-hk/cardano-haskell-packages)[Hackage](https://hackage.haskell.org/) |
 
 We use [Github Releases](https://github.com/cardano-foundation/cardano-wallet/releases/latest) as the **source of truth** for publication: A release is considered to be published once it has been published there.
 

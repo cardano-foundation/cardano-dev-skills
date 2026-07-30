@@ -17,7 +17,7 @@ Documentation available at [Documentation][Docs]
 - Other projects by the [Cardano Foundation][CF]
 - About [Cardano][Cardano]
 
-<!-- MARKDOWN LINKS & IMAGES -->
+
 
 [Docs]: https://cardano-foundation.github.io/cardano-node-antithesis
 [Moog]: https://cardano-foundation.github.io/moog

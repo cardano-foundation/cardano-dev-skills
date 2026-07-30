@@ -277,7 +277,7 @@ the daemon's home repo: [`cardano-node-clients` PR #122][pr-122].
 - Other projects by the [Cardano Foundation][CF]
 - About [Cardano][Cardano]
 
-<!-- MARKDOWN LINKS & IMAGES -->
+
 
 [adv-comp]: https://github.com/cardano-foundation/cardano-node-antithesis/tree/main/components/adversary
 [driver]: https://github.com/cardano-foundation/cardano-node-antithesis/blob/main/components/adversary/composer/chain-sync-client/parallel_driver_flap.sh

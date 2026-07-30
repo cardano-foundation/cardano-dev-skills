@@ -262,7 +262,7 @@ The key stages to get this proposal to active, and the motivation for why each s
 - Implementation
   - The effectiveness of this standard is greatly amplified if tools and SDKs are built which allow parsing arbitrary data according to this standard
   - Sundae Labs has offered to build Rust and Golang libraries that capture the types outlined above, and implementations in other languages are welcome
-  <!-- In particular, I would love to find someone to own the Haskell implementation for easy integration into the cardano-cli -->
+  
 - Adoption
   - This standard is most effective if it receives widespread adoption
   - Therefore, a path to active includes engaging prominent members of the ecosystem, such as wallets and explorers, to begin producing and consuming documents in accordance with the standard.

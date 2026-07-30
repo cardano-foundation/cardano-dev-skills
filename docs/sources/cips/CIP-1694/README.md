@@ -192,7 +192,7 @@ At a later stage, we can imagine the Constitution perhaps evolving into a smart-
 For now, however, the Constitution will remain an off-chain document whose hash digest value will be recorded on-chain.
 As discussed above, the Constitution is not yet defined and its content is out of scope for this CIP.
 
-<!--------------------------- Constitutional committee ------------------------>
+
 
 ### The constitutional committee
 
@@ -286,7 +286,7 @@ these rules can be voted in as the guardrails script.
 The guardrails script applies only to protocol parameter update and
 treasury withdrawal proposals.
 
-<!---------------------------           DReps          ------------------------>
+
 
 ### Delegated representatives (DReps)
 
@@ -400,7 +400,7 @@ Vote delegation certificates include:
 
 The authorization scheme (i.e. which signatures are required for registration, retirement or delegation) mimics the existing stake delegation certificate authorization scheme.
 
-<!-- TODO: Provide CBOR specification in the annexe for those new certificates. -->
+
 
 
 #### New stake distribution for DReps
@@ -446,8 +446,8 @@ mechanism that is being constructed.
 Alternatively, DReps could pay themselves through instances of the "Treasury withdrawal" governance action.
 Such an action would be auditable on-chain, and should reflect an off-chain agreement between DReps and delegators.
 
-<!---------------------------           DReps          ------------------------>
-<!---------------------------    Governance Actions    ------------------------>
+
+
 
 ### Governance actions
 
@@ -624,7 +624,7 @@ Every governance action will include the following:
 * an anchor for any metadata that is needed to justify the action
 * a hash digest value to prevent collisions with competing actions of the same type (as described earlier)
 
-<!-- TODO: Provide a CBOR specification in the annexe for these new on-chain entities -->
+
 
 In addition, each action will include some elements that are specific to its type:
 
@@ -697,16 +697,11 @@ The **governance group** consists of all the new protocol parameters that are in
 * minimal constitutional committee size (`committeeMinSize`)
 * maximum term length (in epochs) for the constitutional committee members (`committeeMaxTermLength`)
 
-<!-- TODO:
-  - Decide on the initial values for the new governance parameters
 
-  - Decide on coherence conditions on the voting thresholds.
-    For example, the threshold for a motion of no-confidence should arguably be higher than that of a minor treasury withdrawal.
--->
 
-<!---------------------------    Governance Actions    ------------------------>
 
-<!---------------------------          Votes           ------------------------>
+
+
 
 ### Votes
 

@@ -170,7 +170,7 @@ et agit pour assurer sa viabilité à long terme.
 Pour l’instant, cependant, la Constitution restera un document hors chaîne dont la valeur de condensation de hachage sera enregistrée sur la chaîne.
 Comme nous l’avons vu plus haut, la Constitution n’est pas encore définie et son contenu n’entre pas dans le champ d’application de ce CIP.
 
-<!--------------------------- Comité constitutionnel ------------------------>
+
 
 ### Le comité constitutionnel
 
@@ -264,7 +264,7 @@ ces règles peut être voté en tant que script de rambardes.
 Le script de rambardes s'applique uniquement aux propositions de mise à jour des paramètres du protocole et 
 de retrait de trésorerie.
 
-<!---------------------------           DReps          -------------------------->
+
 
 ### Représentants délégués (DReps)
 
@@ -378,7 +378,7 @@ Les certificats de délégation de vote comprennent :
 
 Le système d’autorisation (c’est-à-dire quelles signatures sont requises pour l’enregistrement, le retrait ou la délégation) imite le système existant d’autorisation de délégation de mise.
 
-<!-- TODO: Fournir la spécification CBOR dans l’annexe pour ces nouveaux certificats. -->
+
 
 
 #### Nouvelle distribution de la mise pour DReps
@@ -424,8 +424,8 @@ en cours d’élaboration.
 Alternativement, les DReps pourraient se payer par le biais d’instances de l’action de gouvernance « retrait du Trésor ».
 Une telle action serait vérifiable sur la chaîne et devrait refléter un accord hors chaîne entre DReps et les délégants.
 
-<!---------------------------           DReps          ------------------------>
-<!--------------------------- Mesures de gouvernance -------------------------->
+
+
 
 ### Actions de gouvernance
 
@@ -602,7 +602,7 @@ Chaque mesure de gouvernance comprendra les éléments suivants :
 * une ancre pour toutes les métadonnées nécessaires pour justifier l’action
 * une valeur de condensé de hachage pour éviter les collisions avec des actions concurrentes du même type (comme décrit précédemment)
 
-<!-- TODO: Fournir une spécification CBOR dans l’annexe pour ces nouvelles entités sur la chaîne -->
+
 
 De plus, chaque action comprendra certains éléments spécifiques à son type :
 
@@ -675,16 +675,11 @@ Le **groupe de gouvernance** comprend tous les nouveaux paramètres de protocole
 * taille minimale du comité constitutionnel (`committeeMinSize`)
 * durée maximale du mandat (en époques) des membres du comité constitutionnel (`committeeMaxTermLength`)
 
-<!-- À faire :
- - Décider des valeurs initiales des nouveaux paramètres de gouvernance
- 
- - Décider des conditions de cohérence des seuils de vote.
- Par exemple, le seuil d’une motion de censure devrait sans doute être plus élevé que celui d’un retrait mineur du Trésor.
--->
 
-<!--------------------------- Actions de Gouvernance -------------------------->
 
-<!---------------------------          Votes           ------------------------>
+
+
+
 
 ### Votes
 

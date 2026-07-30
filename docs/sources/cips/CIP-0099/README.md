@@ -61,7 +61,7 @@ ecosystem.
 
 Examples:
 ```html
-<!-- Token Claim URIs -->
+
 <a href="web+cardano://claim/v1?faucet_url=https%3A%2F%2Fclaim.hosky.io&code=consensus2023">Claim $HOSKY</a>
 <a href="web+cardano://claim/v1?faucet_url=https%3A%2F%2Fclaim.hosky.io%2Fconsensus23&code=ABC123">Claim $HOSKY</a>
 <a href="web+cardano://claim/v1?faucet_url=https%3A%2F%2Fclaim.nftxlv.com&code=ABC123&invoice=123456">Claim NFTxLV Commermorative NFT!</a>
@@ -174,13 +174,13 @@ Version 1 URIs may include additional query parameters that should be passed thr
 _Version 1 Examples:_
 
 ```html
-<!-- A Cardano Claim URI with campaign identifier code -->
+
 <a href="web+cardano://claim/v1?faucet_url=https%3A%2F%2Fclaim.hosky.io&code=consensus2023">Thanks for attending Consensus 2023!</a>
 
-<!-- A Cardano Claim URI with unique, one-time use code -->
+
 <a href="web+cardano://claim/v1?faucet_url=https%3A%2F%2Fclaim.hosky.io&code=dff6508d8dfb4e128fd67e9ff54af147">Claim your $HOSKY now!</a>
 
-<!-- A Cardano Claim URI with a campaign-specific code and optional user_id argument -->
+
 <a href="web+cardano://claim/v1?faucet_url=https%3A%2F%2Fclaim.hosky.io&code=NFTxLV2023&user_id=Idjiot1337">Get your $HOSKY!</a>
 ```
 

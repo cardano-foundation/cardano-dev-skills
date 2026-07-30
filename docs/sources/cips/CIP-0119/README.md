@@ -232,7 +232,7 @@ This CIP has not included these features, the decision not to include these feat
 - Adoption by at least one community tool
 
 ### Implementation Plan
-<!-- How I plan to meet the acceptance criteria -->
+
 
 ## Acknowledgements
 There have been 3 lively public workshops on this subject, and I would like to thank the following people

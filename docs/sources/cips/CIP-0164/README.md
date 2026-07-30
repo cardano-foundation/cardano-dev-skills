@@ -2905,10 +2905,10 @@ usual mechanisms of governing a hard-fork will be employed.
 - **SPO hardware requirements** — [Minimum hardware requirements to run a stake
   pool][spohw]
 
-<!-- Reference Index - DO NOT REMOVE -->
-<!-- The following reference definitions enable consistent linking throughout the document -->
 
-<!-- Primary references -->
+
+
+
 
 [cps-18]:
   https://github.com/cardano-foundation/CIPs/blob/master/CPS-0018/README.md
@@ -2926,7 +2926,7 @@ usual mechanisms of governing a hard-fork will be employed.
   https://github.com/input-output-hk/ouroboros-leios/blob/41cefc99a/docs/arc-voting-crypto-review.pdf
   "ARC voting crypto review: All-vote, Truncation, and wFA^LS comparison"
 
-<!-- Project resources -->
+
 
 [leios-website]: https://leios.cardano-scaling.org/ "Leios R&D web site"
 [leios-discord]:
@@ -2945,7 +2945,7 @@ usual mechanisms of governing a hard-fork will be employed.
   https://github.com/input-output-hk/ouroboros-leios-formal-spec/blob/c7f8d61865360cd16e04c7c3f0fd481c8081deff/formal-spec/Leios/Linear.lagda.md#L135
   "Formal specification requirement: EndorserBlockOSig.txs eb ≢ []"
 
-<!-- Technical specifications and benchmarks -->
+
 
 [bls-spec]:
   https://github.com/input-output-hk/ouroboros-leios/blob/d5f1a9bc940e69f406c3e25c0d7d9aa58cf701f8/crypto-benchmarks.rs/Specification.md
@@ -2954,7 +2954,7 @@ usual mechanisms of governing a hard-fork will be employed.
   https://github.com/input-output-hk/ouroboros-leios/blob/d5f1a9bc940e69f406c3e25c0d7d9aa58cf701f8/crypto-benchmarks.rs/Specification.md#benchmarks-in-rust
   "BLS certificates benchmarks"
 
-<!-- Technical reports and documentation -->
+
 
 [committee-size-analysis]:
   https://github.com/input-output-hk/ouroboros-leios/blob/d5f1a9bc940e69f406c3e25c0d7d9aa58cf701f8/docs/technical-report-1.md#committee-size-and-quorum-requirement
@@ -2969,7 +2969,7 @@ usual mechanisms of governing a hard-fork will be employed.
   https://github.com/input-output-hk/ouroboros-leios/blob/4603cfd0b545cccf3d7c8fddc75e6e0f182f132a/docs/ImpactAnalysis.md
   "Impact Analysis"
 
-<!-- Other protocol references -->
+
 
 [cps-17]:
   https://github.com/cardano-foundation/CIPs/blob/master/CPS-0017/README.md
@@ -2978,7 +2978,7 @@ usual mechanisms of governing a hard-fork will be employed.
   https://github.com/IntersectMBO/cardano-formal-specifications/blob/6d4e5cfc224a24972162e39a6017c273cea45321/src/performance/README.md
   "Praos performance model"
 
-<!-- Simulation topology -->
+
 
 [mainnet-topology]:
   https://github.com/input-output-hk/ouroboros-leios/blob/6d8619c53cc619a25b52eac184e7f1ff3c31b597/data/simulation/pseudo-mainnet/ReadMe.md
@@ -3004,7 +3004,7 @@ usual mechanisms of governing a hard-fork will be employed.
   https://github.com/input-output-hk/ouroboros-leios/tree/main/analysis/sims/2026w18
   "Multiple committee selection methods across mini-mainnet (750 nodes) and midi-mainnet (1500 nodes)"
 
-<!-- External resources -->
+
 
 [ripe-atlas]: https://atlas.ripe.net/ "RIPE Atlas"
 [spohw]:
@@ -3020,11 +3020,11 @@ usual mechanisms of governing a hard-fork will be employed.
   https://github.com/IntersectMBO/cardano-formal-specifications/tree/main?tab=readme-ov-file#performance-model
   "Praos performance model"
 
-<!-- License -->
+
 
 [apache-2.0]: http://www.apache.org/licenses/LICENSE-2.0 "Apache License 2.0"
 
-<!-- Footnotes -->
+
 
 [^2]: Leios: Dynamic Availability for Blockchain Sharding (2025)
 

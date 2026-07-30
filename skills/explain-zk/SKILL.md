@@ -124,7 +124,7 @@ commitment — the "hello world" of ZK, and a faithful copy of a compiled, test-
 ```aiken
 use aiken/crypto/bls12_381/scalar
 use cardano/transaction.{OutputReference, Transaction}
-use zk_password/groth16.{Proof, VerificationKey, groth16_verify}
+use groth16.{Proof, VerificationKey, groth16_verify}
 
 // Locked on-chain when the UTxO is created.
 pub type Datum {
@@ -152,10 +152,11 @@ validator password_lock {
 }
 ```
 
-`groth16_verify` / `Proof` / `VerificationKey` come from a **standard Groth16 verifier**: plain Aiken
-code that runs the pairing equation on the BLS builtins. It is the same for every circuit (around a
-hundred lines, so you add it as a project dependency rather than inline it — see the ZK/BLS ecosystem
-map via `suggest-tooling` for implementations). It checks `e(A, B) == e(alpha, beta) · e(vk_x, gamma) ·
+`groth16_verify` / `Proof` / `VerificationKey` come from a **standard Groth16 verifier** — the `groth16`
+module above: plain Aiken code that runs the pairing equation on the BLS builtins. It is the same for
+every circuit (around a hundred lines, so you add it as a project dependency rather than inline it — see
+the ZK/BLS ecosystem map via `suggest-tooling` for implementations, e.g. `cardano-foundation/bls`). It
+checks `e(A, B) == e(alpha, beta) · e(vk_x, gamma) ·
 e(C, delta)`; circuit size does not change its cost (measured around a fifth of a script's CPU budget,
 ~2.1 billion units in one run). Deriving a public key is even simpler — one scalar multiplication of
 the generator:

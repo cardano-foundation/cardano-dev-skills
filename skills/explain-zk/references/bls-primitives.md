@@ -27,6 +27,29 @@ signature can never collide with one computed for a VRF or any other protocol, e
 input. Keep public keys in G1 (48 bytes, long-lived, stored in datums) and signatures in G2 (96
 bytes, transient) — the minimal-public-key-size convention.
 
+Verifying a signature is the **pairing check** — the operation the whole curve exists for. It is a
+Miller loop per point-pair, then one `final_verify`:
+
+```aiken
+use aiken/builtin.{
+  bls12_381_final_verify, bls12_381_g2_hash_to_group, bls12_381_miller_loop,
+}
+use aiken/crypto/bls12_381/g1
+use aiken/crypto/bls12_381/g2
+
+// e(pk, H(m)) == e(G1 generator, sig).
+fn verify(pk: ByteArray, message: ByteArray, dst: ByteArray, sig: ByteArray) -> Bool {
+  let hm = bls12_381_g2_hash_to_group(message, dst)
+  bls12_381_final_verify(
+    bls12_381_miller_loop(g1.decompress(pk), hm),
+    bls12_381_miller_loop(g1.generator, g2.decompress(sig)),
+  )
+}
+```
+
+That is stdlib only — no external library. Everything below is an ergonomic wrapper over exactly this
+pairing check.
+
 ## BLS signatures and aggregation
 
 Because signatures are points, they **add together**. A hundred signatures aggregate into one 96-byte
@@ -34,8 +57,8 @@ value, and verification stays cheap. This is what makes large committees, vote t
 schemes with big n practical in one script budget. (For a small fixed signer set, native-script
 multisig is simpler and needs no Plutus.)
 
-A BLS signature library implements the IETF signature draft on top of the builtins, with a small API:
-`sk_to_pk`, `sign`, `verify`, `aggregate`, `aggregate_verify`.
+A BLS signature library (`ilap/bls`) implements the IETF signature draft on top of the builtins, with a
+small API: `sk_to_pk`, `sign`, `verify`, `aggregate`, `aggregate_verify`.
 
 **Two aggregation patterns:**
 
@@ -52,6 +75,8 @@ A BLS signature library implements the IETF signature draft on top of the builti
   basic_bls.aggregate_verify([pk1, pk2, pk3], [msg1, msg2, msg3], sig_aggr)
   ```
 
+  *Source: `ilap/bls` (Aiken dependency) — see the ecosystem map.*
+
 - **Public-key aggregation, same message.** When everyone signs the *same* message, the public keys
   aggregate too (point addition in G1, 48 bytes total). Verification is then **two pairings, no matter
   how many signers** — the committee case. Aggregate the keys and the signatures, then verify:
@@ -67,6 +92,8 @@ A BLS signature library implements the IETF signature draft on top of the builti
   // On-chain: two pairings, constant cost no matter how many signers.
   bls_extra_core.aggregate_publickey_verify(pk_aggr, [message], sig_aggr, api.Basic)
   ```
+
+  *Source: `bls_extra/core` from `cardano-foundation/bls`, with `ilap/bls` for signing — see the ecosystem map.*
 
   This holds **only in Basic mode with an identical message** (see the modes below).
 
@@ -108,6 +135,8 @@ let Some(beta) = vrf.proof_to_hash(pi)
 vrf.verify(pk, round_input, pi, "ECVRF_", False) == Some(beta)
 ```
 
+*Source: the `vrf` example in `cardano-foundation/bls` — see the ecosystem map.*
+
 What it buys you on-chain:
 
 - **A randomness beacon a validator can enforce.** The input is public and fixed, so the operator gets
@@ -134,6 +163,8 @@ from builtins:
 use kdf/keys
 let (sk, pk) = keys.gen_keys_hkdf(salt: "my_salt", ikm: "high_entropy_secret")
 ```
+
+*Source: the `kdf` example in `cardano-foundation/bls` — see the ecosystem map.*
 
 **Critical caveat.** A password or salt passed through a datum or redeemer is published on-chain
 permanently; anyone can extract it and rerun the KDF off-chain. On-chain KDFs are therefore **not** a
@@ -172,6 +203,8 @@ validator bbs_credential {
   }
 }
 ```
+
+*Source: `lambdasistemi/cardano-bbs` — see the ecosystem map.*
 
 Proof size is constant regardless of how many attributes the credential carries, and the dominant cost
 is a few pairings — which is what makes membership, compliance, and identity checks with selective

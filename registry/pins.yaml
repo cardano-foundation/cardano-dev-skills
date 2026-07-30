@@ -11,3 +11,4 @@
 #
 # A source with no entry here (e.g. newly added) fetches its branch tip;
 # the next refresh records its first pin.
+"Aiken": 20b105bcdf4842f31f24e36a2b9b8013670765ff

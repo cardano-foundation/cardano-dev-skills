@@ -54,7 +54,7 @@ curl -L -O https://github.com/IntersectMBO/cardano-node/releases/download/${card
 tar xf cardano-node-${cardano_node_version}-linux-amd64.tar.gz ./bin/cardano-node ./bin/cardano-cli
 tar xf cardano-node-${cardano_node_version}-linux-amd64.tar.gz ./share/preprod --strip-components=3
 
-curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/input-output-hk/mithril/refs/heads/main/mithril-install.sh | sh -s -- -c mithril-client -d latest -p bin
+curl --proto '=https' --tlsv1.2 -sSfL https://raw.githubusercontent.com/IntersectMBO/mithril/refs/heads/main/mithril-install.sh | sh -s -- -c mithril-client -d latest -p bin
 
 etcd_version=v3.5.21
 curl -L https://github.com/etcd-io/etcd/releases/download/${etcd_version}/etcd-${etcd_version}-linux-amd64.tar.gz \
@@ -80,7 +80,7 @@ curl -L -O https://github.com/IntersectMBO/cardano-node/releases/download/${card
 tar xf cardano-node-${cardano_node_version}-macos.tar.gz ./bin/cardano-node ./bin/cardano-cli './bin/*.dylib'
 tar xf cardano-node-${cardano_node_version}-macos.tar.gz --strip-components=3 ./share/preprod/
 
-curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/input-output-hk/mithril/refs/heads/main/mithril-install.sh | sh -s -- -c mithril-client -d latest -p bin
+curl --proto '=https' --tlsv1.2 -sSfL https://raw.githubusercontent.com/IntersectMBO/mithril/refs/heads/main/mithril-install.sh | sh -s -- -c mithril-client -d latest -p bin
 
 etcd_version=v3.5.21
 curl -L -O https://github.com/etcd-io/etcd/releases/download/${etcd_version}/etcd-${etcd_version}-darwin-arm64.zip
@@ -110,8 +110,8 @@ Next, set various environment variables to simplify command execution. Ensure ea
 
 ```shell
 export PATH=$(pwd)/bin:$PATH
-export GENESIS_VERIFICATION_KEY=$(curl https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/release-preprod/genesis.vkey 2> /dev/null)
-export ANCILLARY_VERIFICATION_KEY=$(curl https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/release-preprod/ancillary.vkey 2> /dev/null)
+export GENESIS_VERIFICATION_KEY=$(curl -L https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/release-preprod/genesis.vkey 2> /dev/null)
+export ANCILLARY_VERIFICATION_KEY=$(curl -L https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/release-preprod/ancillary.vkey 2> /dev/null)
 export AGGREGATOR_ENDPOINT=https://aggregator.release-preprod.api.mithril.network/aggregator
 export CARDANO_NODE_SOCKET_PATH=$(pwd)/node.socket
 export CARDANO_NODE_NETWORK_ID=1
@@ -122,8 +122,8 @@ export CARDANO_NODE_NETWORK_ID=1
 
 ```shell
 export PATH=$(pwd)/bin:$PATH
-export GENESIS_VERIFICATION_KEY=$(curl https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/release-preprod/genesis.vkey 2> /dev/null)
-export ANCILLARY_VERIFICATION_KEY=$(curl https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/release-preprod/ancillary.vkey 2> /dev/null)
+export GENESIS_VERIFICATION_KEY=$(curl -L https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/release-preprod/genesis.vkey 2> /dev/null)
+export ANCILLARY_VERIFICATION_KEY=$(curl -L https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/release-preprod/ancillary.vkey 2> /dev/null)
 export AGGREGATOR_ENDPOINT=https://aggregator.release-preprod.api.mithril.network/aggregator
 export CARDANO_NODE_SOCKET_PATH=$(pwd)/node.socket
 export CARDANO_NODE_NETWORK_ID=1
@@ -382,7 +382,7 @@ If you are collaborating with another individual, exchange the verification (pub
 
 Before launching the `hydra-node`, it's crucial to establish and communicate each participant's network connectivity details. This includes the IP addresses and ports where `Alice` and `Bob's` nodes will be reachable for layer 2 network interactions. For this tutorial, we're using placeholder IP addresses and ports, which should be replaced with your actual network details:
 
-<!-- TODO: can we make peers configurable via some text input? -->
+
 
 Alice: <code>127.0.0.1:5001</code>
 
@@ -512,7 +512,7 @@ hydra-tui -k credentials/alice-funds.sk
 
 Using the `jq` enhanced `websocat` session, we can now communicate with the `hydra-node` through its WebSocket API on the terminal. This is a duplex connection and we can just insert commands directly.
 
-<!-- TODO: ideally we would have a ping-pong or hello command (eg, re-sending greetings) -->
+
 
 Send this command to initialize a head through the WebSocket connection:
 
@@ -588,7 +588,7 @@ curl -s 127.0.0.1:4001/snapshot/utxo | jq
 From the response, we would need to select a UTXO that is owned by `alice` to
 spend:
 
-<!-- TODO: make this for both parties -->
+
 
 ```shell
 curl -s 127.0.0.1:4001/snapshot/utxo \
@@ -678,6 +678,28 @@ You can do this through the WebSocket API one last time:
 ```
 
 This will submit a transaction to layer 1. Once successful, it will be indicated by a `HeadIsFinalized` message that includes the distributed `utxo`.
+
+:::tip Selective fanout
+
+Instead of fanning out the whole head at once, you can choose exactly which UTxOs to
+distribute and in which order, paying the on-chain cost only for what you care about:
+
+```json title="Websocket API"
+{ "tag": "PartialFanout", "utxoToFanout": { /* a subset of the head's UTxO */ } }
+```
+
+Each `PartialFanout` distributes the selected subset (chunked across transactions
+automatically if it is too large for one) and replies with a `HeadPartiallyFannedOut`
+message reporting the `distributedUTxO` and the `remainingUTxO`. Keep issuing
+`PartialFanout` — selecting the entire remaining set when you want to finish — until the
+head is drained, at which point the node automatically submits the final transaction that
+burns the head tokens and emits `HeadIsFinalized`.
+
+Note that selective fanout is sticky: once you send the first `PartialFanout`, the plain
+`Fanout` command is no longer accepted for that head — you continue with `PartialFanout`
+commands until the head is empty.
+
+:::
 
 To confirm, you can query the funds of both `alice` and `bob` on layer 1:
 

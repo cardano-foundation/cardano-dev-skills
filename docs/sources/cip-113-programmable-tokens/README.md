@@ -1,8 +1,8 @@
 # CIP-113 Programmable Tokens — Aiken Implementation
 
-![Aiken](https://img.shields.io/badge/Aiken-v1.1.21-blue)
-![CIP-113](https://img.shields.io/badge/CIP--113-Adapted-green)
-![Status](https://img.shields.io/badge/Status-R&D-yellow)
+![Aiken](https://img.shields.io/badge/Aiken-v1.1.22-blue)
+![CIP-113](https://img.shields.io/badge/CIP--113-Last%20Check-green)
+![Status](https://img.shields.io/badge/Status-Audit%20in%20progress-yellow)
 
 **Smart contracts for CIP-113 programmable tokens on Cardano, written in Aiken.**
 
@@ -29,7 +29,7 @@ We are deeply grateful for the significant effort and expertise invested in the 
 
 This codebase has been adapted to align with the requirements of **CIP-113**, which supersedes CIP-143 as a more comprehensive standard for programmable tokens on Cardano.
 
-**Note:** CIP-113 is currently under active development ([PR #444](https://github.com/cardano-foundation/CIPs/pull/444)) and has not been finalized. The specification may change as the standard evolves. This implementation reflects our current understanding and may require updates as CIP-113 matures.
+**Note:** CIP-113 ([PR #444](https://github.com/cardano-foundation/CIPs/pull/444)) has reached the CIP editors' **Last Check** stage — the final review window before the proposal is merged. Late changes are still possible until the merge, so this implementation reflects our current understanding and may require updates if the specification shifts during that window.
 
 ---
 
@@ -51,7 +51,7 @@ Programmable tokens are **native Cardano assets** with an additional layer of va
 - 🚫 **Freeze & Seize** — Optional issuer controls for regulatory compliance
 - ⚡ **Constant-Time Lookups** — Sorted linked list registry enables O(1) token verification
 - 🔗 **Native Asset Based** — Built on Cardano's native token infrastructure with no hard fork required
-- 🛡️ **Multi-Layer Security** — NFT authenticity, ownership proofs, and authorization checks
+- 🧹 **Unfracking** — Holder-driven UTxO restructuring that isolates each policy in its own UTxO, containing freeze collateral damage
 - 🧩 **Extensible** — Support for denylists, allowlists, time-locks, and custom policies
 
 ## Use Cases
@@ -66,7 +66,7 @@ Programmable tokens are **native Cardano assets** with an additional layer of va
 
 ### Prerequisites
 
-- [Aiken](https://aiken-lang.org/installation-instructions) v1.1.21 (pinned in `aiken.toml`)
+- [Aiken](https://aiken-lang.org/installation-instructions) v1.1.22 (pinned in `aiken.toml`)
 - [Cardano CLI](https://github.com/IntersectMBO/cardano-cli) (optional, for deployment)
 
 ### Build
@@ -81,7 +81,7 @@ aiken build
 aiken check
 ```
 
-All tests should pass (202 checks at the time of writing).
+All tests should pass (280+ unit tests and benchmarks at the time of writing).
 
 ## Project Structure
 
@@ -95,7 +95,9 @@ All tests should pass (202 checks at the time of writing).
 │   ├── registry_spend.ak                   # Registry node UTxO guard
 │   ├── issuance_mint.ak                    # Token minting/burning policy
 │   ├── issuance_cbor_hex_mint.ak           # Issuance script template reference NFT
-│   └── protocol_params_mint.ak             # Protocol parameters NFT (one-shot)
+│   ├── protocol_params_mint.ak             # Protocol parameters NFT (one-shot)
+│   ├── unfracking.ak                       # Holder-driven UTxO restructuring (withdraw-0)
+│   └── always_fail.ak                      # Permanent lock for reference NFTs
 ├── lib/                                    # Shared library modules
 │   ├── types.ak                            # Core data types
 │   ├── utils.ak                            # Utility functions
@@ -104,7 +106,7 @@ All tests should pass (202 checks at the time of writing).
 ├── env/                                    # Aiken environments
 ├── documentation/                          # Architecture + integration guides
 ├── aiken.toml                              # Aiken project manifest
-└── build.sh                                # Build helper
+└── plutus.json                             # Generated blueprint (committed per release)
 ```
 
 ## Documentation
@@ -113,6 +115,7 @@ All tests should pass (202 checks at the time of writing).
 
 - **[Introduction](./documentation/01-INTRODUCTION.md)** — Problem statement, concepts, and benefits
 - **[Architecture](./documentation/02-ARCHITECTURE.md)** — System design, validator coordination, on-chain data structures, and validation flows
+- **[Control Scope & Admin Authority](./documentation/03-CONTROL-SCOPE-AND-ADMIN-AUTHORITY.md)** — What issuers can and cannot do: third-party action scope, protected prefixes, registry lifecycle authority
 - **[Developing Substandards](./documentation/09-DEVELOPING-SUBSTANDARDS.md)** — Guide for implementing new substandards (issuance, transfer, and third-party logic)
 - **[Integration Guides](./documentation/08-INTEGRATION-GUIDES.md)** — For wallet developers, indexers, and dApp developers
 
@@ -126,7 +129,7 @@ These components form the shared infrastructure that all programmable tokens use
 
 #### 1. Token Registry (On-Chain Directory)
 
-A sorted linked list of registered programmable tokens, implemented as on-chain UTxOs with NFT markers. Each registry entry contains the token policy ID, transfer validation script reference, issuer control script reference, and optional global state reference. The sorted structure enables O(1) membership and non-membership proofs via covering nodes.
+A sorted linked list of registered programmable tokens, implemented as on-chain UTxOs with NFT markers. Each registry entry contains the token policy ID, the substandard's issuance (minting-logic), transfer, and third-party (issuer control) script credentials, an optional global state reference, and a list of protected asset-name prefixes that third-party actions may never seize or burn. The sorted structure enables O(1) membership and non-membership proofs via covering nodes. Entries are live configuration: the governance fields can be updated in place by the token's lifecycle authority (its issuance credential), while the policy ID and that authority itself are immutable.
 
 #### 2. Programmable Logic Base + Global Validator
 
@@ -134,7 +137,7 @@ A shared spending validator (`programmable_logic_base`) holds all programmable t
 
 #### 3. Minting Policies
 
-- **Issuance Policy** (`issuance_mint`) — Parameterized per token type, handles minting/burning
+- **Issuance Policy** (`issuance_mint`) — Parameterized per token type, handles minting/burning. The substandard issuance credential it is parameterized by is also the token's **registry-lifecycle authority**: the same credential authorizes registration and in-place registry-node updates
 - **Registry Policy** (`registry_mint`) — Manages the sorted linked list of registered tokens
 - **Protocol Params Policy** (`protocol_params_mint`) — One-shot mint for global protocol parameters
 
@@ -158,8 +161,10 @@ Substandard implementations live in the platform repository:
 | `protocol_params_mint` | Mint | One-shot mint of protocol parameters NFT |
 | `registry_mint` | Mint | Sorted linked list management for registered token policies |
 | `registry_spend` | Spend | Guards registry node UTxOs |
-| `issuance_mint` | Mint | Mints/burns programmable tokens (parameterized per token type) |
+| `issuance_mint` | Mint | Mints/burns programmable tokens (parameterized per token type); its issuance credential doubles as the registry-lifecycle authority |
 | `issuance_cbor_hex_mint` | Mint | One-shot mint of issuance script template reference NFT |
+| `unfracking` | Stake (withdraw) | Holder-driven restructuring of PLB UTxOs into single-policy UTxOs (no transfer logic involved) |
+| `always_fail` | Spend | Permanently locks reference NFTs (e.g. `IssuanceCborHex`) so they can never be spent |
 
 See the [Architecture doc](./documentation/02-ARCHITECTURE.md) for detailed validator interactions and validation flows. For substandard validators, see the [platform repository](https://github.com/cardano-foundation/cip113-programmable-tokens-platform/tree/main/src/substandards).
 
@@ -229,35 +234,33 @@ This implementation is based on the foundational [CIP-143 (Interoperable Program
 
 ## Development Status
 
-**Current Status:** Research & Development
+**Current Status:** Security audit in progress
 
-This is high-quality research and development code with the following characteristics:
-
-- ✅ All core validators implemented with strong code quality
-- ✅ Registry (directory) operations complete
-- ✅ Token issuance and transfer flows working
+- ✅ All core validators implemented
+- ✅ Registry (directory) operations complete, including in-place node updates
+- ✅ Token issuance, transfer, third-party action, and unfracking flows working
 - ✅ Freeze & seize functionality complete (in the [platform repo](https://github.com/cardano-foundation/cip113-programmable-tokens-platform))
 - ✅ Denylist system operational
-- ✅ Good test coverage (202 checks passing)
+- ✅ Good test coverage (280+ checks passing)
 - ✅ Tested on Preview testnet (limited scope)
-- ⏳ Comprehensive testing required
-- ⏳ Professional security audit pending
+- ✅ Professional security audit performed — all fixes from the initial audit and the follow-up re-audit round are merged
+- ⏳ Final audit report pending publication
 
 **Security features implemented:**
-- ✅ NFT-based registry authenticity
+- ✅ NFT-based registry authenticity with cryptographic policy-id ↔ credential binding
 - ✅ Ownership verification via stake credentials
-- ✅ Multi-layer authorization checks
 - ✅ One-shot minting policies for protocol components
-- ✅ Immutable validation rules post-registration
-- ✅ DDOS prevention mechanisms
+- ✅ Custody no-escape guarantee — minted programmable tokens cannot bypass the shared custody address
+- ✅ Registry entries mutable only by the token's lifecycle authority; policy ID and that authority itself immutable
+- ✅ Protected asset-name prefixes exempt from third-party seizure/burn
 
 ## Security Considerations
 
-⚠️ **Important:** This code has **not been professionally audited** and has only been briefly tested on Preview testnet. While code quality is high, it is **not production-ready**. Do not use with real assets or in production environments without:
+⚠️ **Important:** This code is undergoing a professional security audit. Findings from the initial audit and a follow-up re-audit round have been remediated on `main`, but the **final audit report has not yet been published**, and testing on Preview testnet has been limited in scope. Until the report lands, treat this as **not production-ready**: do not use with real assets or in production environments without
 
-- Comprehensive security audit by qualified professionals
-- Extensive testing across multiple scenarios
-- Thorough review by domain experts
+- the published audit report,
+- extensive testing across multiple scenarios, and
+- thorough review by domain experts.
 
 ## Related Components
 
@@ -302,7 +305,7 @@ aiken check --watch
 
 This project is licensed under the Apache License 2.0 — see the [LICENSE](./LICENSE) file for details.
 
-Copyright 2024 Cardano Foundation
+Copyright 2024-2026 Cardano Foundation
 
 ## Acknowledgments
 

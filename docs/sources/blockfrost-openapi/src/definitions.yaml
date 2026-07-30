@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  version: 0.1.90
+  version: 0.1.91
   title: Blockfrost.io ~ API Documentation
   x-logo:
     url: https://staging.blockfrost.io/images/logo.svg
@@ -661,8 +661,16 @@ paths:
   /assets/{asset}/addresses:
     $ref: ./paths/api/assets/{asset}/addresses.yaml
 
+  /assets/{asset}/utxos:
+    $ref: ./paths/api/assets/{asset}/utxos.yaml
+
   /assets/policy/{policy_id}:
     $ref: ./paths/api/assets/policy/{policy_id}/index.yaml
+
+  # swaps
+
+  # /swaps/{asset}:
+  #   $ref: ./paths/api/swaps/{asset}/index.yaml
 
   # scripts
 

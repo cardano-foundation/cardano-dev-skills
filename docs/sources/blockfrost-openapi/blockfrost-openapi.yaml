@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  version: 0.1.90
+  version: 0.1.91
   title: Blockfrost.io ~ API Documentation
   x-logo:
     url: https://staging.blockfrost.io/images/logo.svg
@@ -5284,6 +5284,24 @@ paths:
           description: |
             The ordering of items from the point of view of the blockchain,
             not the page listing itself. By default, we return oldest first, newest last.
+        - in: query
+          name: from
+          required: false
+          schema:
+            type: string
+          description: |
+            The block number and optionally also index from which (inclusive) to start search for results, concatenated using colon.
+            Has to be lower than or equal to `to` parameter.
+          example: '8929261'
+        - in: query
+          name: to
+          required: false
+          schema:
+            type: string
+          description: |
+            The block number and optionally also index where (inclusive) to end the search for results, concatenated using colon.
+            Has to be higher than or equal to `from` parameter.
+          example: '9999269:10'
       responses:
         '200':
           description: Return the information about the history of a specific asset
@@ -5354,6 +5372,87 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/asset_addresses'
+        '400':
+          $ref: '#/components/responses/400'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '418':
+          $ref: '#/components/responses/418'
+        '429':
+          $ref: '#/components/responses/429'
+        '500':
+          $ref: '#/components/responses/500'
+  /assets/{asset}/utxos:
+    get:
+      tags:
+        - Cardano » Assets
+      summary: Asset UTXOs
+      description: List of unspent UTxOs containing the specified native asset.
+      parameters:
+        - in: path
+          name: asset
+          required: true
+          schema:
+            type: string
+          description: Concatenation of the policy_id and hex-encoded asset_name
+          example: 750900e4999ebe0d58f19b634768ba25e525aaf12403bfe8fe130501424f4f4b
+        - in: query
+          name: count
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+          description: The number of results displayed on one page.
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 21474836
+            default: 1
+          description: The page number for listing the results.
+        - in: query
+          name: order
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: asc
+          description: |
+            The ordering of items from the point of view of the blockchain,
+            not the page listing itself. By default, we return oldest first, newest last.
+        - in: query
+          name: from
+          required: false
+          schema:
+            type: string
+          description: |
+            The block height from which (inclusive) to start search for results.
+            Has to be lower than or equal to `to` parameter.
+          example: '8929261'
+        - in: query
+          name: to
+          required: false
+          schema:
+            type: string
+          description: |
+            The block height where (inclusive) to end the search for results.
+            Has to be higher than or equal to `from` parameter.
+          example: '9999269'
+      responses:
+        '200':
+          description: Return the UTXOs containing the specified asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/asset_utxo_content'
         '400':
           $ref: '#/components/responses/400'
         '403':
@@ -11567,6 +11666,94 @@ components:
           quantity: '100000'
         - address: addr1q8zup8m9ue3p98kxlxl9q8rnyan8hw3ul282tsl9s326dfj088lvedv4zckcj24arcpasr0gua4c5gq4zw2rpcpjk2lq8cmd9l
           quantity: '18605647'
+    asset_utxo_content:
+      type: array
+      items:
+        type: object
+        properties:
+          address:
+            type: string
+            description: Bech32 encoded address holding the UTxO
+            example: addr1qxfdlum57a0083mnth9y583jvdcv5a9nwj5lzv9v34t9tl7wmz90ahznykuhr4ykwvfrge8yc63c6lpf7345yd5h59nq885d05
+          tx_hash:
+            type: string
+            description: Transaction hash of the UTXO
+          output_index:
+            type: integer
+            description: UTXO index in the transaction
+          amount:
+            type: array
+            items:
+              type: object
+              description: The sum of all the UTXO per asset
+              properties:
+                unit:
+                  type: string
+                  format: Lovelace or concatenation of asset policy_id and hex-encoded asset_name
+                  description: The unit of the value
+                quantity:
+                  type: string
+                  description: The quantity of the unit
+              required:
+                - unit
+                - quantity
+          block:
+            type: string
+            description: Block hash of the UTXO
+          block_height:
+            type: integer
+            description: Block number of the UTXO
+            example: 5804427
+          block_time:
+            type: integer
+            description: UNIX time of the block
+            example: 1622754311
+          data_hash:
+            type: string
+            nullable: true
+            description: The hash of the transaction output datum
+          inline_datum:
+            type: string
+            nullable: true
+            description: CBOR encoded inline datum
+            example: 19a6aa
+          inline_datum_json:
+            type: object
+            nullable: true
+            description: JSON representation of the inline datum
+          reference_script_hash:
+            type: string
+            nullable: true
+            description: The hash of the reference script of the output
+            example: 13a3efd825703a352a8f71f4e2758d08c28c564e8dfcce9f77776ad1
+        required:
+          - address
+          - tx_hash
+          - output_index
+          - amount
+          - block
+          - block_height
+          - block_time
+          - data_hash
+          - inline_datum
+          - inline_datum_json
+          - reference_script_hash
+      example:
+        - address: addr1qxfdlum57a0083mnth9y583jvdcv5a9nwj5lzv9v34t9tl7wmz90ahznykuhr4ykwvfrge8yc63c6lpf7345yd5h59nq885d05
+          tx_hash: 47abf925faa462fe7ddbf906e65b4f8a27da52c3638ec4ee4fffb2298096aced
+          output_index: 0
+          amount:
+            - unit: lovelace
+              quantity: '1444443'
+            - unit: 750900e4999ebe0d58f19b634768ba25e525aaf12403bfe8fe130501424f4f4b
+              quantity: '1000'
+          block: 8dadf03917c51b36c7580a49162224f71845a5492976e0449319da6e8eea243e
+          block_height: 5804427
+          block_time: 1622754311
+          data_hash: null
+          inline_datum: null
+          inline_datum_json: null
+          reference_script_hash: null
     asset_policy:
       type: array
       items:

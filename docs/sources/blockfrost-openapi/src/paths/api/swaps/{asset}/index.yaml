@@ -1,8 +1,8 @@
 get:
   tags:
     - Cardano » Assets
-  summary: Asset transactions
-  description: List of a specific asset transactions
+  summary: Asset swap UTXOs
+  description: List of unspent UTxOs containing the specified native asset, sorted by swap price.
   parameters:
     - in: path
       name: asset
@@ -10,7 +10,7 @@ get:
       schema:
         type: string
       description: Concatenation of the policy_id and hex-encoded asset_name
-      example: "b0d07d45fe9514f80213f4020e5a61241458be626841cde717cb38a76e7574636f696e"
+      example: "750900e4999ebe0d58f19b634768ba25e525aaf12403bfe8fe130501424f4f4b"
     - in: query
       name: count
       required: false
@@ -40,30 +40,20 @@ get:
         The ordering of items from the point of view of the blockchain,
         not the page listing itself. By default, we return oldest first, newest last.
     - in: query
-      name: from
+      name: order_by
       required: false
       schema:
         type: string
+        enum: [price]
       description: |
-        The block number and optionally also index from which (inclusive) to start search for results, concatenated using colon.
-        Has to be lower than or equal to `to` parameter.
-      example: "8929261"
-    - in: query
-      name: to
-      required: false
-      schema:
-        type: string
-      description: |
-        The block number and optionally also index where (inclusive) to end the search for results, concatenated using colon.
-        Has to be higher than or equal to `from` parameter.
-      example: "9999269:10"
+        Order the results by swap price instead of the default blockchain ordering.
   responses:
     "200":
-      description: Return the information about the history of a specific asset
+      description: Return the swap UTXOs containing the specified asset
       content:
         application/json:
           schema:
-            $ref: ../../../../schemas/assets/asset_transactions.yaml
+            $ref: ../../../../schemas/assets/asset_utxo_content.yaml
     "400":
       $ref: ../../../../responses/errors/400.yaml
     "403":

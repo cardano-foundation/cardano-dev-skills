@@ -12,3 +12,4 @@
 # A source with no entry here (e.g. newly added) fetches its branch tip;
 # the next refresh records its first pin.
 "Aiken": 20b105bcdf4842f31f24e36a2b9b8013670765ff
+"Aiken Design Patterns": 8d05b2901689d10ec5128d4b64b18dc96ff9ba98

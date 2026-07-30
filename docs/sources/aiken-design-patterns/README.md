@@ -1,6 +1,6 @@
 # Table of Contents
 
-<!-- vim-markdown-toc GFM -->
+
 
 * [Aiken Library for Common Design Patterns in Cardano Smart Contracts](#aiken-library-for-common-design-patterns-in-cardano-smart-contracts)
     * [How to Use](#how-to-use)
@@ -15,7 +15,7 @@
         * [Linked List](#linked-list)
     * [License](#license)
 
-<!-- vim-markdown-toc -->
+
 
 # Aiken Library for Common Design Patterns in Cardano Smart Contracts
 

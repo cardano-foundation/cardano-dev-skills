@@ -273,7 +273,7 @@ When contributing blog posts, please follow these guidelines:
 
 **Truncation markers:**
 
-- Most blog posts should include `<!-- truncate -->` markers for better previews
+- Most blog posts should include `` markers for better previews
 - **Exception:** Posts tagged with `media` (short video content) should NOT include truncation markers to preserve video visibility in blog listings
 
 ### Review Pull Requests

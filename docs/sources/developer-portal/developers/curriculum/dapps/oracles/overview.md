@@ -36,15 +36,15 @@ Blockchains are deterministic systems where they can only see data within their 
 
 Smart contracts execute conditional logic: when event X happens, trigger action Y. Their code runs on a decentralized network, producing the same result every time. This "trustless" quality comes from cryptographic proofs and distributed consensus and no need for a trusted third party.
 
-But here's the catch: smart contracts need real-world data as inputs. A DeFi protocol needs current prices. An insurance contract needs weather data. A prediction market needs event outcomes. This data must be trustworthy because smart contract execution has real economic consequences, and blockchain transactions can't be reversed.
+But smart contracts need real-world data as inputs. A DeFi protocol needs current prices. An insurance contract needs weather data. A prediction market needs event outcomes. This data must be trustworthy because smart contract execution has real economic consequences, and blockchain transactions can't be reversed.
 
 Common oracle use cases:
 
-- **Price Feeds**: Exchange rate changes trigger trades, liquidations, or limit orders in DeFi protocols
-- **Real-World Events**: Weather data triggers crop insurance payouts; flight delays trigger travel insurance claims
-- **Sports & Betting**: Game scores trigger payouts in prediction markets
-- **Cross-Chain Data**: Bridge contracts need information from other blockchains
-- **Supply Chain & IoT**: Tracking requires sensor data, GPS coordinates, shipment verification
+- **Price feeds**: exchange-rate changes trigger trades, liquidations, or limit orders in DeFi protocols.
+- **Real-world events**: weather data triggers crop-insurance payouts; flight delays trigger travel-insurance claims.
+- **Sports and betting**: game scores trigger payouts in prediction markets.
+- **Cross-chain data**: bridge contracts need information from other blockchains.
+- **Supply chain and IoT**: tracking requires sensor data, GPS coordinates, shipment verification.
 - **Randomness**: Raffles, lotteries, and games need a verifiable random draw, which a validator cannot generate itself. See [On-chain randomness](/docs/developers/curriculum/dapps/oracles/randomness)
 
 ## The oracle problem
@@ -55,13 +55,10 @@ DeFi alone is critically dependent on oracle-provided data. But there are many o
 
 ### Key challenges
 
-**Single Point of Failure**: An oracle that pulls from just one data source creates a critical vulnerability. If that source is hacked or malfunctions, every smart contract using that oracle is affected.
-
-**Man-in-the-Middle Attacks**: Data can be intercepted and modified between the source and the blockchain. Preventing this remains challenging.
-
-**Lack of Transparency**: Some oracles don't show how they collect and validate data. You see a price appear on-chain, but have no way to verify where it came from or how it was validated.
-
-**Consensus vs. Authenticity**: Decentralized oracle pools might achieve consensus, all nodes agree on the data but that doesn't guarantee the underlying data source is authentic or accurate. Agreement on bad data is still bad data.
+- **Single point of failure**: an oracle that pulls from just one data source is a critical vulnerability. If that source is hacked or malfunctions, every smart contract using the oracle is affected.
+- **Man-in-the-middle attacks**: data can be intercepted and modified between the source and the blockchain, and preventing this is hard.
+- **Lack of transparency**: some oracles don't show how they collect and validate data. You see a price appear on-chain with no way to verify where it came from.
+- **Consensus vs. authenticity**: a decentralized oracle pool can agree on a value without that value being authentic. Agreement on bad data is still bad data.
 
 ## Oracles on Cardano's eUTXO model
 
@@ -152,7 +149,7 @@ The push/pull split is also a **trust choice**, not just a question of timing.
 
 In a **push** design, the oracle network writes the price on-chain itself, into a UTXO your contract reads as a reference input. The value is produced and published independently of the protocol that consumes it, so a protocol cannot quietly substitute a different number: it never touches the publication step.
 
-In a **pull** design, the oracle signs the price off-chain and whoever builds the transaction submits it on-chain, where a validator checks that signature before accepting the value. This is the model Cardano's recommended oracle, [Pyth](/docs/developers/curriculum/dapps/oracles/pyth), uses, and it is a standard, sound pattern: the signature is what makes it trustless. Verifying several oracle signatures instead of one raises the bar further, but the shape is the same.
+In a **pull** design, the oracle signs the price off-chain and whoever builds the transaction submits it on-chain, where a validator checks that signature before accepting the value. This is the model Cardano's recommended oracle, [Pyth](/docs/developers/curriculum/dapps/oracles/pyth), uses, and it is a standard, sound pattern: the signature is what makes it trustless. Verifying several oracle signatures instead of one raises the bar further, but the shape is the same. A common on-chain shape for pull feeds: the signed price rides in the redeemer of a [withdrawal validator](/docs/developers/curriculum/smart-contracts/write-a-validator#withdrawal-validator) that runs once for the whole transaction, while an oracle NFT read as a reference input only *authenticates* the feed's identity, so every consumer in the transaction shares one verification and the value stays per-transaction fresh without ever being written into a UTXO first.
 
 Be precise, though, about what that signature does and does not cover:
 
@@ -161,9 +158,27 @@ Be precise, though, about what that signature does and does not cover:
 
 This is also why the [multi-oracle reconciliation](#multi-oracle-validation) above is worth the effort: reading and cross-checking more than one feed on-chain protects you when any single feed is stale, withheld, or wrong.
 
+## Designing with a price feed
+
+Once your contract can read a verified price, the design question becomes: *when* does it read, and *which parts* of the update does it use? Most oracle-consuming designs reduce to one of two shapes.
+
+**Settlement at a deadline.** The contract stores a question at creation (which feed, what threshold, by when) and reads the oracle exactly once, at resolution. Prediction markets, options expiry, and parametric insurance all work this way. The timing belongs in the transaction validity interval, not just in application code: interactions that must happen before the deadline require the validity upper bound at or below it, and the resolving transaction requires the lower bound at or above it. That turns the freshness rule from the previous section into something the ledger enforces structurally rather than something your off-chain code promises.
+
+**Live parameter.** Every interaction reads the current update and feeds it into the contract's logic as an input: lending protocols checking collateral ratios, liquidation triggers, dynamic pricing, in-game economies. Here the freshness window matters on every transaction, because each one acts on the value it carries.
+
+The update itself carries more signal than the headline number, and each field maps to a mechanic:
+
+- **Price and exponent** are the headline value.
+- **Confidence and the bid-ask spread** measure how certain the market is. A contract can widen its safety margins, scale position limits, or refuse to act at all when the spread blows out. That is volatility protection with no extra infrastructure.
+- **The EMA against the spot price** is a momentum signal: spot above the moving average means the asset is trending up. This gives trend-aware logic without storing any price history on-chain.
+- **Two feeds combined** yield a cross-asset ratio, so anything can be priced in anything: an ADA-denominated contract can settle a EUR obligation by dividing two USD feeds.
+- **The update timestamp** can be an input, not only an accept/reject check: behavior can degrade gracefully as data ages instead of failing outright.
+
+Two architecture patterns are worth knowing. A market or game lifecycle can live in a single UTXO identified by a [state-thread token](https://aiken-lang.org/fundamentals/common-design-patterns#state-thread-tokens-aka-stt), with position tokens minted against user actions and burned to claim; the oracle read then happens exactly once, at the state transition that settles the outcome. And keeping oracle verification in a swappable provider validator, separate from a pure logic validator that consumes normalized price data, lets you test the logic against a mock provider on a local devnet and swap in the real oracle for production. The [Pyth guide](/docs/developers/curriculum/dapps/oracles/pyth#validator-patterns) shows the settlement shape in working Aiken, and its [complete example](/docs/developers/curriculum/dapps/oracles/pyth#a-complete-example-a-price-settled-prediction-market) composes both patterns into a full prediction market.
+
 ## Security considerations
 
-Oracle security matters because smart contracts depend on accurate external data. Here's how oracles protect against bad data:
+Oracle security matters because smart contracts depend on accurate external data. Oracles defend against bad data in several ways:
 
 ```mermaid
 graph TD

@@ -19,7 +19,7 @@ https://github.com/IntersectMBO/cardano-node/releases/tag/8.0.0
 
 ## CIP-0094 - Poll participation
 ### Pre-requisites
-​For this guide, you require a Cardano-cli that has the `governance poll` subcommands. You can use anything from the Cardano-node [release v8.0.0](https://github.com/IntersectMBO/cardano-node/releases) or a specially [backported 1.35.7 version](https://github.com/CardanoSolutions/cardano-node/releases/tag/1.35.7%2Bcip-0094). Once a Genesis Delegate Key holder has signed and posted a new poll question on the chain, it will appear in this Cardano Foundation [CIP-0094-polls repository](https://github.com/cardano-foundation/CIP-0094-polls).
+For this guide, you require a Cardano-cli that has the `governance poll` subcommands. You can use anything from the Cardano-node [release v8.0.0](https://github.com/IntersectMBO/cardano-node/releases) or a specially [backported 1.35.7 version](https://github.com/CardanoSolutions/cardano-node/releases/tag/1.35.7%2Bcip-0094). Once a Genesis Delegate Key holder has signed and posted a new poll question on the chain, it will appear in this Cardano Foundation [CIP-0094-polls repository](https://github.com/cardano-foundation/CIP-0094-polls).
 
 You can find the JSON file containing the poll question in CBOR format by navigating into the specific subfolder.
 
@@ -41,23 +41,23 @@ The signature from the genesis delegate key isn't included in this metadata but 
 Download this file to your node.
 
 ## Creating answer
-​
+
 From that point, you can generate a metadata entry to respond to the poll using the `governance answer-poll` command in the following way:
-​
+
 ```bash
 $ cardano-cli governance answer-poll --poll-file poll.json
 ```
-​
+
 This command will invite an interactive response from you. If you prefer not to respond interactively, you can employ `--answer` along with the index of the answer.
 
 Executing this command will present the survey in a format easy to comprehend and will ask for your answer, as demonstrated below:
-​
+
 ```
 How satisfied are you with the current rewards and incentives scheme?
 [0] dissatisfied
 [1] no opinion
 [2] satisfied
-​
+
 Please indicate an answer (by index): _
 ```
 
@@ -84,7 +84,7 @@ Here is a sample of metadata where the answer `2` is selected:
 }
 ```
 ## Publishing answer
-​
+
 From this point, you can utilize the `transaction build` command to generate a transaction for posting on-chain. You will require a signing key linked to a UTxO possessing sufficient funds to facilitate the transaction (approximately 0.2 Ada if you're making a basic transaction to yourself).
 
 Assuming you have stored the metadata generated from the previous step in a file named `answer.json`, the command to construct the transaction would appear as follows:
@@ -109,7 +109,7 @@ Please be aware that adding `--required-signer-hash` is crucial for the response
 :::
 
 You can produce the `$POOL_ID` hash from the Bech32 formatted pool ID using the Bech32 command:
-​
+
 ```
 $ bech32 <<< pool1....
 ```
@@ -121,31 +121,31 @@ From this point, you can sign `answer.tx` using your stake pool's cold key and a
 SPO-Poll Dashboards where your transaction should now be visible:
 
 - Cardanoscan.io  [[PreProd](https://preprod.cardanoscan.io/spo-polls/)]   [[Mainnet](https://cardanoscan.io/spo-polls/)]
-​
+
 ## Verifying Answers
-​
+
 Lastly, you can validate answers observed on-chain using the `governance verify-poll` command. The term 'verify' here has a dual meaning:
 
 - It verifies that an answer is valid in the context of a specific survey
 - It provides a list of the signatory key hashes found in the transaction; in the case of a valid submission, one key hash will correspond to a recognized stake pool id.
 
 Assuming you still have the original `poll.json` file, and a signed transaction carrying a survey answer as `answer.signed`, you can confirm its validity using:
-​
+
 ```
 $ cardano-cli governance verify-poll \
   --poll-file poll.json \
   --tx-file answer.signed
 ```
-​
+
 Upon successful execution, this should produce something like:
-​
+
 ```
 Found valid poll answer, signed by:
 [
     "f8db28823f8ebd01a2d9e24efb2f0d18e387665770274513e370b5d5"
 ]
 ```
-​
+
 Alternatively, the command will identify a problem with the answer and/or poll.
 
 ## References

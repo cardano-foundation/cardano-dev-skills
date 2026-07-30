@@ -6,7 +6,7 @@ Community-curated knowledge base for building on Cardano. This repo is a Claude 
 
 - `registry/sources.yaml` — canonical list of Cardano projects and their documentation sources
 - `registry/pins.yaml` — auto-generated upstream commit pins (each source fetches its last-vetted commit, not the branch tip)
-- `skills/` — <!-- COUNT:skills -->15<!-- /COUNT:skills --> developer skills (flat layout — each skill is `skills/<name>/SKILL.md`)
+- `skills/` — <!-- COUNT:skills -->16<!-- /COUNT:skills --> developer skills (flat layout — each skill is `skills/<name>/SKILL.md`)
 - `scripts/` — validation, fetch, sync, and scaffolding tooling
 - `hooks/` — session-level hooks (freshness check; prompt-time context injection planned)
 - `docs/DESIGN.md` — architectural decisions
@@ -72,7 +72,7 @@ to see which docs to update in the same PR.
 
 ### Auto-derived counts
 
-`scripts/update-doc-counts.sh` rewrites count sentinels in CLAUDE.md and README.md from disk state. Sentinels look like `<!-- COUNT:skills -->15<!-- /COUNT:skills -->` and are invisible in rendered output. CI runs the script in `--check` mode on every PR — drift fails the build. Run the script locally before pushing.
+`scripts/update-doc-counts.sh` rewrites count sentinels in CLAUDE.md and README.md from disk state. Sentinels look like `<!-- COUNT:skills -->16<!-- /COUNT:skills -->` and are invisible in rendered output. CI runs the script in `--check` mode on every PR — drift fails the build. Run the script locally before pushing.
 
 ### Source-vetting bar
 

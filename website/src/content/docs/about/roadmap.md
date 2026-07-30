@@ -10,11 +10,11 @@ for) and **governance** (the lifecycle that keeps that content current).
 
 ### Shipped
 
-- 15 developer skills covering the common Cardano workflows: scaffolding,
+- 16 developer skills covering the common Cardano workflows: scaffolding,
   writing validators, security review, optimisation, building transactions,
   designing tokens, debugging, querying chain data, devnet setup, wallet
   integration, governance, and the conceptual primers (eUTxO, CIPs,
-  tooling).
+  zero-knowledge, tooling).
 - The `cardano-context` skill, which writes a durable per-project directive
   into `CLAUDE.md` so agents reliably consult bundled context.
 - 55 documentation sources mirrored locally — SDKs, languages, infra, CIPs,

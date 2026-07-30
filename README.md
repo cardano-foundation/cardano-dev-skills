@@ -20,7 +20,7 @@ End result: the agent answers from current, project-authoritative sources instea
 
 ## What's inside
 
-- **<!-- COUNT:skills -->15<!-- /COUNT:skills --> developer skills** — each a focused workflow
+- **<!-- COUNT:skills -->16<!-- /COUNT:skills --> developer skills** — each a focused workflow
 - **<!-- COUNT:sources -->55<!-- /COUNT:sources --> documentation sources** — bundled locally under `docs/sources/`, auto-refreshed weekly via GitHub Actions
 - **Hooks** — `SessionStart` reports doc freshness; a `UserPromptSubmit` auto-consultation hook is in development
 
@@ -42,6 +42,7 @@ End result: the agent answers from current, project-authoritative sources instea
 | `governance-guide` | CIP-1694 governance, DRep, voting, treasury |
 | `explain-eutxo` | Cardano's UTxO model for newcomers |
 | `explain-cip` | Walk through a specific CIP |
+| `explain-zk` | Zero-knowledge and the BLS12-381 primitive family (proofs, signatures, VRF, KDF, BBS+) |
 | `suggest-tooling` | Recommend an SDK / framework given the use case |
 
 ## What we add (and don't)

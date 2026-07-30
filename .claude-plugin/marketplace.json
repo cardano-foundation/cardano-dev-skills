@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "cardano-dev-skills",
-      "description": "Cardano developer knowledge base with 15 skills for smart contracts, transactions, governance, and tooling",
+      "description": "Cardano developer knowledge base with 16 skills for smart contracts, transactions, governance, and tooling",
       "source": "./"
     }
   ]

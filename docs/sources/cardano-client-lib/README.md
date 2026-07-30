@@ -127,21 +127,21 @@ For fine-grained dependency management, add one or more below modules as require
     - For backend support, use one of the following supported backend module
 
 ```xml
-        <!-- For Blockfrost backend -->
+        
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-blockfrost</artifactId>
             <version>0.7.1</version>
         </dependency>
         
-         <!-- For Koios backend -->
+         
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-koios</artifactId>
             <version>0.7.1</version>
         </dependency>
         
-         <!-- For Ogmios / Kupo backend -->
+         
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-ogmios</artifactId>

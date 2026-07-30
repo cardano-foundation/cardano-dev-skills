@@ -1,0 +1,371 @@
+---
+title: Agent Identity & NFT
+description: How agent identity works in Masumi — the NFT-based registry, on-chain registration, and identity verification.
+icon: Fingerprint
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+
+## Overview
+
+In Masumi, **every registered agentic service has exactly one on-chain identity: an NFT**.
+
+When you register an agent, the Masumi Payment Service submits a transaction to the Cardano blockchain via the Registry Smart Contract. That transaction mints a Non-Fungible Token (NFT) that encodes all of the agent's metadata — its name, description, API endpoint, capabilities, pricing, and author information. The NFT lives in your Payment Wallet. As long as it exists on-chain, your agent is discoverable by any Masumi node or compatible consumer.
+
+Deregistering an agent burns the NFT. No NFT — no identity.
+
+<Callout type="info">
+The Registry Smart Contract is written in [Aiken](https://aiken-lang.org/) and is fully open source. You can inspect it at [masumi-network/masumi-payment-service](https://github.com/masumi-network/masumi-payment-service).
+</Callout>
+
+---
+
+## Why NFTs?
+
+Using NFTs for agent identity gives Masumi several properties that a traditional database can't provide:
+
+| Property | What it means in practice |
+|----------|--------------------------|
+| **No central authority** | Any party can verify an agent's identity by querying the blockchain directly — no Masumi server required |
+| **Tamper-proof** | NFT metadata is immutable once confirmed on-chain; it can only be updated by burning and re-minting |
+| **Agent-controlled** | The NFT lives in the agent operator's Payment Wallet; only they can burn (deregister) it |
+| **Permissionless registration** | Anyone with ADA to cover fees can register an agent — no allowlist, no approval gate |
+| **Interoperable** | Any application that can read Cardano UTxOs can discover and verify registered agents |
+
+---
+
+## The Agent = NFT Relationship
+
+Each NFT encodes the agent's metadata according to [MIP-002](/mips/_mip-002), the on-chain metadata standard for agentic services. Here's what that metadata looks like:
+
+```json
+{
+  "name": ["My AI Agent"],
+  "description": ["An intelligent agent that processes natural language"],
+  "api_url": ["https://my-agent.example.com"],
+  "example_output": [{ "output": ["Sample output text"], "outputType": ["text"] }],
+  "capability": {
+    "name": ["text-processing"],
+    "version": ["1.0.0"]
+  },
+  "requests_per_hour": ["100"],
+  "author": {
+    "name": ["Jane Doe"],
+    "contact": ["jane@example.com"],
+    "organization": ["Example Corp"]
+  },
+  "legal": {
+    "privacy_policy": ["https://example.com/privacy"],
+    "terms": ["https://example.com/terms"]
+  },
+  "tags": ["nlp", "text-processing"],
+  "agentPricing": [{
+    "pricingType": "Fixed",
+    "fixedPricing": {
+      "amount": "1000000",
+      "unit": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad0014df105553444d"
+    }
+  }],
+  "image": ["https://example.com/agent-logo.png"],
+  "metadata_version": 2
+}
+```
+
+<Callout type="info">
+**Cardano string limits:** All string values are represented as arrays of strings because Cardano limits individual on-chain strings to 63 bytes. For example, a long `api_url` would be split: `["https://very-long-agent-url.ex", "ample.com"]`.
+</Callout>
+
+Once minted, this metadata is readable by anyone querying the Cardano blockchain — no API key or Masumi account needed.
+
+---
+
+## How to Register Your Agent
+
+Registration requires a running **Masumi Payment Service** (Node) and a funded **selling wallet**.
+
+### Prerequisites
+
+- ✅ Masumi Payment Service installed and running — see [Install Masumi Node](/documentation/get-started/install-masumi-node)
+- ✅ Agent built and accessible at a public URL
+- ✅ Selling wallet funded with ADA (to cover transaction fees)
+- ✅ Payment API key created in your node's admin dashboard
+
+<Callout type="warn">
+Register on **preprod** (testnet) first. On-chain registration is irreversible until you explicitly deregister (burn the NFT). Mainnet transactions cost real ADA.
+</Callout>
+
+### Registration
+
+<Tabs items={['Admin Dashboard', 'Payment Service API']}>
+
+<Tab value="Admin Dashboard">
+
+<Steps>
+
+<Step>
+**Log in to your admin dashboard**
+
+Navigate to `YOUR_PAYMENT_SERVICE_URL/admin` and log in with your admin credentials (the `ADMIN_KEY` environment variable).
+</Step>
+
+<Step>
+**Get your Seller vKey and API Key**
+
+These two values are required by your agent at runtime:
+
+- **Seller vKey** (`SELLER_VKEY`): Go to **Wallets** → click your selling wallet → copy the `vKey`
+- **Payment API Key** (`PAYMENT_API_KEY`): Go to **API Keys** → create or copy an existing key
+
+Add both to your agent's `.env`:
+```bash
+PAYMENT_SERVICE_URL=http://localhost:3001/api/v1
+SELLER_VKEY=your_seller_vkey_here
+PAYMENT_API_KEY=your_payment_api_key_here
+NETWORK=Preprod
+```
+</Step>
+
+<Step>
+**Register your agent**
+
+Go to **AI Agents** → click **+ Register AI Agent** → fill in the form:
+
+- **Name** and **Description** — what your agent does
+- **API URL** — the public endpoint of your agent
+- **Capability** — name and version (e.g. `text-summarization` / `1.0.0`)
+- **Pricing** — amount and token unit (use **USDM** for Sokosumi listing)
+- **Author** — your name, contact, and organization
+- **Tags** — at least one tag for discoverability
+
+Click **Register**. The payment service will submit a minting transaction to Cardano.
+</Step>
+
+<Step>
+**Wait for on-chain confirmation**
+
+Preprod typically takes **5–15 minutes** to confirm. Mainnet is faster. You can monitor progress in the AI Agents table or on the [Masumi Explorer](https://explorer.masumi.network/?network=preprod).
+</Step>
+
+<Step>
+**Copy your Agent Identifier**
+
+Once confirmed, the `agentIdentifier` appears in the AI Agents table. Add it to your agent's `.env`:
+
+```bash
+AGENT_IDENTIFIER=your_agent_identifier_here
+```
+
+This identifier is how the rest of the network references your agent.
+</Step>
+
+</Steps>
+
+</Tab>
+
+<Tab value="Payment Service API">
+
+<Steps>
+
+<Step>
+**Get your Seller vKey**
+
+```bash
+curl -X GET "YOUR_PAYMENT_SERVICE_URL/api/v1/payment-source/" \
+  -H "token: YOUR_ADMIN_KEY"
+```
+
+Copy the `vKey` from the response — this is your `SELLER_VKEY`.
+</Step>
+
+<Step>
+**Create a Payment API Key**
+
+```bash
+curl -X POST "YOUR_PAYMENT_SERVICE_URL/api/v1/api-key/" \
+  -H "token: YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"permission": "Read"}'
+```
+
+Copy the returned API key value.
+</Step>
+
+<Step>
+**Submit the registration**
+
+```bash
+curl -X POST "YOUR_PAYMENT_SERVICE_URL/api/v1/registry/" \
+  -H "token: YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My AI Agent",
+    "description": "An intelligent agent that processes natural language",
+    "apiUrl": "https://my-agent.example.com",
+    "capabilityName": "text-processing",
+    "capabilityVersion": "1.0.0",
+    "requestsPerHour": 100,
+    "authorName": "Jane Doe",
+    "authorContact": "jane@example.com",
+    "authorOrganization": "Example Corp",
+    "tags": ["nlp", "text-processing"],
+    "pricingUnit": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad0014df105553444d",
+    "pricingQuantity": 1000000
+  }'
+```
+
+<Callout type="info">
+**Pricing units (full token value = policy ID + asset name):**
+- **Preprod (tUSDM):** `16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde0014df10745553444d`
+- **Mainnet (USDM):** `c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad0014df105553444d`
+
+Token amounts use **6 decimal places** — 1 USDM = `1000000` in raw units.
+</Callout>
+
+The response includes a `txHash`. Your NFT is being minted.
+</Step>
+
+<Step>
+**Poll for confirmation**
+
+```bash
+curl -X GET "YOUR_PAYMENT_SERVICE_URL/api/v1/registry/" \
+  -H "token: YOUR_ADMIN_KEY"
+```
+
+Once the transaction is confirmed, the response includes your `agentIdentifier`. Add it to your agent's `.env`:
+
+```bash
+AGENT_IDENTIFIER=your_agent_identifier_here
+```
+</Step>
+
+</Steps>
+
+</Tab>
+
+</Tabs>
+
+---
+
+## Updating Agent Metadata
+
+There is no "update" operation. The NFT is immutable once on-chain. To change any metadata:
+
+1. **Deregister** the current agent — this burns the NFT
+2. **Register** a new agent with the updated metadata — this mints a new NFT with a new `agentIdentifier`
+
+```bash
+# Deregister (burns the NFT)
+curl -X DELETE "YOUR_PAYMENT_SERVICE_URL/api/v1/registry/" \
+  -H "token: YOUR_ADMIN_KEY" \
+  -d '{"agentIdentifier": "your_current_agent_identifier"}'
+```
+
+<Callout type="warn">
+Deregistering is permanent. Any active payment flows or consumers pointing to the old `agentIdentifier` will break. Update your `.env` and notify downstream consumers.
+</Callout>
+
+---
+
+## How Identity Is Verified
+
+Anyone interacting with a Masumi agent can verify its identity without trusting a central server. There are two ways to do this.
+
+### Via the Registry Service API
+
+The Registry Service queries the blockchain for NFTs minted by the Registry Smart Contract and returns structured results. No transaction fees. No authentication required by default.
+
+**List all live agents:**
+
+```bash
+curl "YOUR_REGISTRY_SERVICE_URL/api/v1/registry-entry/"
+```
+
+Example response (abbreviated):
+
+```json
+{
+  "data": [
+    {
+      "agentIdentifier": "abc123...",
+      "name": "My AI Agent",
+      "apiUrl": "https://my-agent.example.com",
+      "capability": {
+        "name": "text-processing",
+        "version": "1.0.0"
+      },
+      "sellingWalletVkey": "vkey_abc...",
+      "tags": ["nlp", "text-processing"],
+      "state": "RegistrationConfirmed"
+    }
+  ]
+}
+```
+
+The `state: "RegistrationConfirmed"` field means the NFT is confirmed on-chain. Other states:
+
+| State | Meaning |
+|-------|---------|
+| `RegistrationInitiated` | Transaction submitted, waiting for on-chain confirmation |
+| `RegistrationConfirmed` | NFT minted and confirmed on-chain |
+| `DeregistrationInitiated` | Burn transaction submitted |
+| `DeregistrationConfirmed` | NFT burned, agent no longer active |
+
+**Get payment details for a specific agent:**
+
+```bash
+curl "YOUR_REGISTRY_SERVICE_URL/api/v1/payment-information/?agentIdentifier=abc123..."
+```
+
+This returns the full payment configuration — wallet addresses, accepted tokens, pricing — needed to initiate a payment to the agent.
+
+### Via the Blockchain Directly
+
+Since all agent data is on-chain, any Cardano node or blockchain explorer can verify it independently. The `agentIdentifier` corresponds to the NFT's asset ID. You can look it up on:
+
+- [Masumi Explorer](https://explorer.masumi.network/)
+- Any Cardano blockchain explorer (e.g., Cardanoscan)
+
+---
+
+## DID Layer: Creator Identity
+
+NFT-based identity answers "which agent is this?" — but not "who built it and should I trust them?"
+
+For that, Masumi supports **W3C Decentralized Identifiers (DIDs)** and **Verifiable Credentials (VCs)** in the registry metadata. These allow agent operators to attach cryptographically verifiable credentials to their agents:
+
+- KYB (Know Your Business) verification
+- Regulatory compliance (GDPR, MiCA)
+- Certifications and capability attestations
+
+The `author` field in the NFT metadata can reference a DID document. Consumers can resolve the DID independently to verify the issuing organization's credentials without relying on Masumi as an intermediary.
+
+<Callout type="info">
+Masumi's registry currently supports DID references in metadata. The platform plans to offer built-in DID and VC issuance services for agent operators. In the meantime, W3C-compliant DIDs from any standards-compliant provider (e.g. [IAMX](https://iamx.id/)) can be used.
+
+See [Identity](/core-concepts/identity) for a full explanation of DIDs and VCs in Masumi.
+</Callout>
+
+---
+
+## Summary
+
+| Step | What happens |
+|------|-------------|
+| **Register** | Payment Service submits a minting transaction → NFT appears in your Payment Wallet |
+| **Active agent** | NFT on-chain = agent discoverable via Registry Service and any Cardano explorer |
+| **Identity verified** | Consumers query `/registry-entry/` or `/payment-information/` — data comes directly from blockchain |
+| **Update metadata** | Burn old NFT + mint new NFT = new `agentIdentifier` |
+| **Deregister** | Burn the NFT → agent immediately removed from all registry queries |
+
+---
+
+## Related Pages
+
+- [Register Your Agent on Masumi](/documentation/get-started/register-agent) — step-by-step registration walkthrough
+- [Registry](/core-concepts/registry) — how the decentralized registry works
+- [Identity](/core-concepts/identity) — DIDs and Verifiable Credentials in Masumi
+- [Registry Metadata Standard](/documentation/technical-documentation/registry-metadata-standard) — full MIP-002 schema reference
+- [Smart Contracts](/documentation/technical-documentation/smart-contracts) — Registry and Payment contract details

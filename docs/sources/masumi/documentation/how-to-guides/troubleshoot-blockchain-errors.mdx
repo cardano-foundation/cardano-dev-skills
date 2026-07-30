@@ -1,0 +1,305 @@
+---
+title: "Troubleshoot Blockchain Errors"
+description: "Understand and resolve blockchain errors reported by the Masumi Payment Service"
+icon: TriangleAlert
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+## Overview
+
+When the Masumi Payment Service encounters a blockchain problem — a failed registration,
+a stalled payment collection, a refused transaction — it records a human-readable error
+with an actionable **Hint** attached.
+
+You will see these messages in two places:
+
+- **`errorNote`** — on payment and purchase entries that move to `WaitingForManualAction` status
+- **`error`** — on registry entries that reach `RegistrationFailed` or `DeregistrationFailed` state
+
+The format is always:
+
+```
+<original blockchain message>. Hint: <what to do>
+```
+
+The sections below map every recognised error category to its cause and fix.
+
+---
+
+## Wallet & UTxO Errors
+
+### UTxO Fully Depleted
+
+**Trigger:** `UTxO Fully Depleted` (Cardano node / Blockfrost)
+
+**Cause:** The wallet has no unspent transaction outputs left to fund the transaction.
+This often happens when many transactions are submitted in quick succession and the
+wallet hasn't had time to receive change from earlier ones.
+
+**Fix:** Wait for pending transactions to confirm, then retry. If the wallet is
+genuinely empty, top it up with ADA — see [Top Up Your Wallets](/documentation/how-to-guides/top-up-your-wallets).
+
+---
+
+### Insufficient Balance / Not Enough ADA
+
+**Trigger:** `Insufficient balance`, `Not enough ADA`, `Not enough lovelace`
+
+**Cause:** The wallet balance is below what is needed to cover the transaction amount
+plus fees.
+
+**Fix:** Add ADA to the wallet. For testnet, use the
+[Cardano Faucet](https://docs.cardano.org/cardano-testnets/tools/faucet) or the
+[Masumi Dispenser](https://dispenser.masumi.network/).
+
+---
+
+### Empty Wallet / No UTxOs Found
+
+**Trigger:** `No UTXOs found in the wallet`, `wallet is empty`
+
+**Cause:** The wallet was never funded, or all UTxOs have been spent.
+
+**Fix:** Fund the wallet with ADA before the Payment Service can submit transactions.
+The Selling Wallet must hold ADA to register an agent; the Purchase Wallet must hold
+ADA to initiate payments.
+
+---
+
+### Collateral UTxO Not Found
+
+**Trigger:** `Collateral UTXO not found`
+
+**Cause:** Cardano smart-contract transactions require a separate, pure-ADA UTxO as
+collateral. The wallet doesn't have one.
+
+**Fix:** Send at least **5 ADA** as a single, separate UTxO to the wallet. Do not
+mix it with token-holding UTxOs.
+
+---
+
+### UTxO Not Found
+
+**Trigger:** `UTXO not found`
+
+**Cause:** The Payment Service tried to spend a specific UTxO that is no longer on
+chain — it was already spent, or the node hasn't synced yet.
+
+**Fix:** Wait 30–60 seconds for chain synchronisation and retry. If it persists,
+the service will retry automatically on the next interval.
+
+---
+
+### No Datum Found
+
+**Trigger:** `No datum found`
+
+**Cause:** The UTxO at the smart contract address does not have the expected inline
+datum. The contract state may have been altered by another transaction.
+
+**Fix:** This usually resolves itself on the next retry cycle. If it recurs, contact
+support — it may indicate a corrupted contract state.
+
+---
+
+## Transaction Construction Errors
+
+### Bad Inputs / Already Spent
+
+**Trigger:** `BadInputsUTxO`, `bad inputs`
+
+**Cause:** A UTxO referenced in the transaction has already been spent by another
+transaction (double-spend prevention).
+
+**Fix:** The service retries automatically. No manual action needed unless the error
+persists across multiple cycles.
+
+---
+
+### Value Not Conserved
+
+**Trigger:** `ValueNotConserved`
+
+**Cause:** Transaction inputs and outputs don't balance — typically a fee or change
+calculation issue in the transaction builder.
+
+**Fix:** Retry. If it happens repeatedly, open an issue on the
+[masumi-payment-service](https://github.com/masumi-network/masumi-payment-service/issues)
+repository with the full error.
+
+---
+
+### Fee Too Small
+
+**Trigger:** `FeeTooSmall`, `fee … too small`
+
+**Cause:** The calculated transaction fee is below the network minimum, usually
+because the fee estimation ran against a slightly different transaction size than
+what was submitted.
+
+**Fix:** Retry. The fee estimator recalculates on each attempt.
+
+---
+
+### Output Too Small / Minimum ADA
+
+**Trigger:** `OutputTooSmall`, `minimum ADA`, `min ADA`
+
+**Cause:** One of the transaction outputs doesn't meet Cardano's minimum ADA
+requirement (the exact amount depends on the output's size and any tokens it holds).
+
+**Fix:** The Payment Service should handle this automatically. If the error persists,
+ensure the Selling Wallet holds sufficient ADA.
+
+---
+
+### Execution Units Exceeded
+
+**Trigger:** `ExBudget`, `ExceededMemoryLimit`, `ExceededStepLimit`
+
+**Cause:** The Plutus script exceeded its execution budget (CPU steps or memory units).
+This is usually caused by an unexpectedly complex contract state.
+
+**Fix:** Retry once. If the error recurs, contact support — this may indicate a
+contract or node configuration issue that requires investigation.
+
+---
+
+### Already In Ledger
+
+**Trigger:** `AlreadyInLedger`, `already submitted`
+
+**Cause:** The exact same transaction was submitted twice. This is harmless — the
+transaction is already confirmed on chain.
+
+**Fix:** No action needed. The Payment Service will detect the confirmation and
+advance the payment state.
+
+---
+
+## Blockfrost API Errors
+
+<Callout type="info">
+The Masumi Payment Service uses [Blockfrost](https://blockfrost.io/) as its Cardano
+node provider. The errors below originate from the Blockfrost API.
+</Callout>
+
+### 402 — Plan Limit Exceeded
+
+**Trigger:** `status 402`, `project plan limit`
+
+**Cause:** Your Blockfrost project has hit its daily or monthly request quota.
+
+**Fix:** Log in to [blockfrost.io](https://blockfrost.io/) and upgrade your plan, or
+wait for the quota to reset.
+
+---
+
+### 403 — Forbidden
+
+**Trigger:** `status 403`, `not authorized`
+
+**Cause:** The Blockfrost API key is invalid, expired, or configured for the wrong
+network (e.g. a Preprod key used against Mainnet).
+
+**Fix:** Verify `BLOCKFROST_API_KEY_PREPROD` / `BLOCKFROST_API_KEY_MAINNET` in your
+`.env` file — see [Environment Variables](/documentation/technical-documentation/environment-variables).
+Make sure the key matches the `NETWORK` you have configured.
+
+---
+
+### 404 — Not Found
+
+**Trigger:** `status 404`
+
+**Cause:** The requested resource (UTxO, transaction, block) does not exist on chain
+yet, or was already spent. Can also appear during chain synchronisation lag.
+
+**Fix:** Wait for chain sync and retry. If the UTxO was spent elsewhere, the service
+will detect this and update its state.
+
+---
+
+### 418 — IP Banned
+
+**Trigger:** `status 418`
+
+**Cause:** Blockfrost has banned your IP address, usually due to repeated abusive
+requests.
+
+**Fix:** Contact [Blockfrost support](https://blockfrost.io/) to request removal of
+the ban.
+
+---
+
+### 429 — Rate Limited
+
+**Trigger:** `status 429`, `too many requests`, `rate limit`
+
+**Cause:** Your Blockfrost project is sending too many requests per second.
+
+**Fix:** Increase the background-job interval variables in your `.env` to reduce
+request frequency, or upgrade your Blockfrost plan. See
+[Environment Variables](/documentation/technical-documentation/environment-variables)
+for the relevant interval settings (`BATCH_PAYMENT_INTERVAL`, `CHECK_TX_INTERVAL`, etc.).
+
+---
+
+### 500 — Blockfrost Server Error
+
+**Trigger:** `status 500`, `server error`
+
+**Cause:** A temporary error on Blockfrost's infrastructure.
+
+**Fix:** Retry after a short delay. Check the
+[Blockfrost status page](https://status.blockfrost.io/) for ongoing incidents.
+
+---
+
+## Network & Concurrency Errors
+
+### Timeout
+
+**Trigger:** `timeout` (not mutex-related)
+
+**Cause:** A blockchain request took too long — commonly during network congestion or
+a slow Blockfrost response.
+
+**Fix:** The service retries automatically. If congestion is persistent, consider
+increasing `CHECK_TX_INTERVAL` or similar interval variables.
+
+---
+
+### Concurrency Lock (Mutex Timeout)
+
+**Trigger:** `mutex`, `tryAcquire`
+
+**Cause:** The Payment Service uses internal locks to prevent double-spending across
+concurrent operations. A lock timeout means another operation is still in progress
+for the same wallet.
+
+**Fix:** No manual action needed. The service will retry on the next scheduled
+interval once the lock is released.
+
+---
+
+## General Guidance
+
+| Symptom | First step |
+|---|---|
+| Error recurs across many cycles | Check Blockfrost key and wallet balance |
+| `WaitingForManualAction` on a payment | Inspect `errorNote` in the admin dashboard or API |
+| `RegistrationFailed` on an agent | Inspect `error` on the registry entry; top up Selling Wallet if balance-related |
+| Blockfrost 4xx errors | Verify API key, plan limits, and network match |
+| Intermittent failures only | Usually chain sync lag — the service retries automatically |
+
+<Callout type="info">
+Most transient errors resolve on the next retry cycle without manual intervention.
+The Payment Service logs all errors — check the service logs (`pm2 logs masumi-node`
+or `docker compose logs -f`) for the raw messages if the hint is insufficient.
+</Callout>
+
+If an error persists and none of the fixes above resolve it, open an issue on
+[masumi-payment-service](https://github.com/masumi-network/masumi-payment-service/issues)
+and include the full `errorNote` or `error` field value.

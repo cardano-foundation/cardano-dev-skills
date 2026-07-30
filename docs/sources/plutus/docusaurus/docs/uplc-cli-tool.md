@@ -11,8 +11,176 @@ You can also build `uplc` from source by cloning the Plutus repository, running 
 
 `uplc` supports a variety of subcommands.
 Run `uplc --help` to see the available subcommands, and `uplc <subcommand> --help` to see the options of a particular subcommand.
+Both `uplc --help` and the `--help` of the most commonly used subcommands end with a short, worked **Examples** section, so the fastest way to remember how a command is invoked is usually to ask it.
 
-# Script optimization
+## Subcommands at a glance
+
+| Subcommand | What it does |
+| --- | --- |
+| `evaluate` | Run a UPLC program on the CEK machine and print the result. |
+| `time` | Time the evaluation of a UPLC program on the CEK machine. |
+| `debug` | Step through a UPLC program interactively on the CEK machine. |
+| `apply` | Apply one script to others, producing `(... ((f g1) g2) ... gn)`. |
+| `apply-to-flat-data` / `apply-to-cbor-data` | Apply a script to flat- or CBOR-encoded `Data` arguments. |
+| `convert` | Convert a program between formats (textual, flat, hex, blueprint, …). |
+| `print` | Parse a program and pretty-print it. |
+| `optimise` / `optimize` | Run the UPLC optimisation pipeline. |
+| `benchmark` | Benchmark evaluation with [Criterion](https://hackage.haskell.org/package/criterion). |
+| `example` | Show built-in example programs (`uplc example -a` lists them). |
+| `dump-cost-model` | Dump the cost model parameters. |
+| `print-builtin-signatures` | Print the signatures of the built-in functions. |
+
+#### Other tools
+
+There are two related (but less commonly used) tools called `pir` and `plc` for
+dealing with PIR (Plutus Intermediate Representation) and Typed Plutus Core
+respectively.  This document doesn't describe these tools in detail, but like
+`uplc` they have built-in help for both the main command and for subcommands,
+accessed via the `--help` option .
+
+### Input and output formats
+
+Most of the subcommands take an input file specified with the `-i` option (or can read from the
+standard input stream using `--stdin`). The input can be provided in a number of formats, specified
+using the `--if` or `--input-format` option.  Similarly, the `-o`/`--stdout` and `--of`/`--output-format`
+options can be used to specify an output stream and its format.
+
+The `uplc` executable understands the following file formats:
+
+- `textual` — human-readable UPLC syntax
+- `flat` / `flat-deBruijn` — flat-encoded with de Bruijn indices
+- `flat-named` — flat-encoded with textual names
+- `flat-namedDeBruijn` — flat-encoded with named de Bruijn indices
+- `serialised` — CBOR-wrapped flat with de Bruijn indices
+- `hex` — `serialised` plus textual hex encoding (what blueprints and most tools use)
+- `blueprint` — blueprint JSON
+
+#### Deducing formats from file extensions
+
+You often don't need to provide `--if`/`--of` explicitly: if `-i`/`-o` names a file with one of the extensions below, `uplc` deduces the format from the extension automatically.
+
+| Extension | Deduced format |
+| --- | --- |
+| `.uplc` | `textual` |
+| `.flat` | `flat` |
+| `.hex` | `hex` |
+| `.cbor` | `serialised` |
+
+An explicit `--if`/`--of` always takes precedence over the extension. Any other extension (including `.json`, used for blueprints) isn't recognised, so the tool falls back to `textual`, meaning blueprint input/output still needs `--if blueprint`/`--of blueprint` given explicitly. Reading from stdin or writing to stdout (when `-i`/`-o` is omitted) also defaults to `textual`.
+
+The same per-file deduction applies to `apply`, `apply-to-flat-data`, and `apply-to-cbor-data`: each input file's format is deduced independently from its own extension, unless `--if` is given, in which case it forces that one format for every file.
+
+
+Similarly the `plc` tool recognises its own textual extension, `.plc`, and also `.flat` (it doesn't support `serialised`, `hex`, or `blueprint`); `pir` recognises `.pir` for `textual` and `.flat` for `flat-named` (PIR doesn't have de Bruijn name variants, and doesn't support `serialised`, `hex`, or `blueprint` either).
+
+In all three tools a mismatched or unrecognised extension (e.g. a `.plc` file passed to `uplc`) is treated as `textual`; however `--if` and `--of` can always be used to specify a format explicitly.  
+
+
+## Shell completion
+
+`uplc` can generate a completion script for `bash`, `zsh`, or `fish`.
+Completion covers subcommand names, option flags, file paths (for `-i`, `-o`, `--eval-apply`, …), and the allowed values of enumerated options such as `--if`/`--of`, `--print-mode`, `--trace-mode`, and `-S`/`--builtin-semantics-variant`.
+
+To enable completion in the **current** shell:
+
+```bash
+# bash
+source <(uplc --bash-completion-script "$(command -v uplc)")
+```
+
+```bash
+# zsh — the generated script is a completion function body, so it cannot be
+# sourced directly; install it as `_uplc` on your $fpath instead:
+mkdir -p ~/.zsh/completions
+uplc --zsh-completion-script "$(command -v uplc)" > ~/.zsh/completions/_uplc
+fpath+=(~/.zsh/completions)
+autoload -U compinit && compinit
+```
+
+```bash
+# fish
+uplc --fish-completion-script (command -v uplc) | source
+```
+
+To install completion **permanently**, write the generated script to the location your shell loads completions from, for example:
+
+```bash
+# bash (system-wide; use a user directory if you prefer)
+uplc --bash-completion-script "$(command -v uplc)" | sudo tee /etc/bash_completion.d/uplc > /dev/null
+
+# zsh (a directory on your $fpath; add the fpath+= and compinit lines above to your .zshrc)
+uplc --zsh-completion-script "$(command -v uplc)" > ~/.zsh/completions/_uplc
+
+# fish
+uplc --fish-completion-script (command -v uplc) > ~/.config/fish/completions/uplc.fish
+```
+
+The same flags work for the `plc` and `pir` tools; just substitute the program name.
+
+
+## Evaluating scripts
+
+`uplc evaluate` runs a UPLC program on the CEK machine.
+As with every subcommand, if `-i` is omitted the program is read from stdin, which makes it easy to use in a pipeline:
+
+```bash
+uplc evaluate -i program.uplc
+echo '(program 1.1.0 (con integer 42))' | uplc evaluate
+```
+
+Scripts as they appear on-chain (in blueprints, wallets, or block explorers) are usually hex-encoded, so pass `--if hex`:
+
+```bash
+uplc evaluate --if hex -i script.hex
+```
+
+`uplc` can usually deduce the input format from the file's extension, so if the file is actually named with a `.hex` extension the `--if hex` above is optional:
+
+```bash
+uplc evaluate -i script.hex
+```
+
+See [Input and output formats](#input-and-output-formats) above for the full list of extensions `uplc` recognises.
+
+By default evaluation is silent about resource usage. To see how much CPU and memory a program consumes, pick a budget mode:
+
+- `--counting` (`-c`) — run to completion and report the total budget spent.
+- `--tallying` (`-t`) — like `--counting`, but also break the cost down per builtin and per AST-node type.
+- `--restricting ExCPU:ExMemory` (`-R`) — run within the given budget and fail if it is exceeded, e.g. `--restricting 1000000:5000`.
+- `--restricting-enormous` (`-r`) — run within a very large (effectively unlimited) budget and print the budget **remaining** afterwards. Evaluation already uses this enormous budget by default; `-r` only adds the report. To see what a run *consumed*, use `--counting` or `--tallying`.
+
+```bash
+uplc evaluate -i program.uplc --tallying
+```
+
+To capture `trace` output emitted by the program, use `--trace-mode`, e.g. `--trace-mode Logs`.
+
+## Applying a script to arguments
+
+A validator becomes a runnable program only once its arguments (datum, redeemer, script context, …) have been supplied.
+`uplc apply` builds the required application for you.
+Use `apply` when the arguments are themselves UPLC scripts, and `apply-to-flat-data` / `apply-to-cbor-data` when they are encoded `Data` values (the common case for on-chain arguments):
+
+```bash
+# arguments are UPLC scripts
+uplc apply --if flat Validator.flat Datum.flat Redeemer.flat Context.flat --of flat -o Script.flat
+
+# arguments are CBOR-encoded Data
+uplc apply-to-cbor-data --if flat Validator.flat Datum.cbor Redeemer.cbor Context.cbor --of flat -o Script.flat
+```
+
+Since the file extensions here already indicate the formats, `--if` and `--of` aren't actually needed in these examples.
+For `apply` and its `apply-to-*-data` variants, each input file's format is deduced independently from its own extension, so formats can even be mixed:
+
+```bash
+uplc apply Validator.flat Datum.uplc Redeemer.flat Context.flat -o Script.flat
+```
+
+Passing `--if` explicitly overrides deduction and forces that one format for every input file instead.
+
+You can then evaluate the fully-applied script with `uplc evaluate`.
+
+## Script optimization
 
 For most users, the most immediately useful subcommand is `optimize` (or `optimise`), which optimizes UPLC programs.
 It runs the same UPLC optimization pipeline that the Plinth compiler uses internally: case-of-known-constructor, inlining, common subexpression elimination (CSE), and more.
@@ -26,16 +194,17 @@ uplc optimize -i MyValidator.uplc -o MyValidator-opt.uplc
 By default, both input and output files use the textual format.
 If `-i` or `-o` is omitted, `uplc` reads from stdin and writes to stdout, so it fits naturally into shell pipelines.
 
-## The optimization report
+### The optimization report
 
 Running `uplc optimize` prints an _optimization report_ to stderr.
 The report lists each pass that ran, in order, and shows the AST size before and after every pass, along with the size delta.
 When evaluation is enabled (see below), each row additionally shows the CPU and memory cost at that stage and the deltas against the previous stage.
 When `--certify --certifier-report` is used, the same per-pass numbers are also included in the certifier report file.
 
-## Input and output formats
+### Hex-encoded and blueprint inputs
 
-`uplc` has always supported textual and flat-encoded scripts, but two recent additions make it much easier to plug into existing toolchains:
+The `uplc` executable has always supported textual and flat-encoded scripts, but
+two recent additions make it much easier to plug into existing toolchains:
 
 __Hex-encoded scripts__.
 This is the format most off-chain tools, wallets, and block explorers use.
@@ -53,17 +222,7 @@ You can feed a blueprint straight into `uplc` and get an optimized blueprint bac
 uplc optimize --if blueprint --of blueprint -i MyBlueprint.json -o MyBlueprint.opt.json
 ```
 
-The full list of supported formats is:
-
-- `textual` — human-readable UPLC syntax
-- `flat` / `flat-deBruijn` — flat-encoded with de Bruijn indices
-- `flat-named` — flat-encoded with textual names
-- `flat-namedDeBruijn` — flat-encoded with named de Bruijn indices
-- `serialised` — CBOR-wrapped flat with de Bruijn indices
-- `hex` — `serialised` plus hex encoding (what blueprints and most tools use)
-- `blueprint` — blueprint JSON
-
-## Configuring the optimization pipeline
+### Configuring the optimization pipeline
 
 The `opt-*` flags let you configure the optimization pipeline.
 Run `uplc optimize --help` to see the full list.
@@ -77,7 +236,7 @@ Higher values mean more aggressive inlining, and more inlining usually reduces c
 `--opt-cse-which-subterms` controls how aggressive common subexpression elimination is: `all` is more aggressive than the default `exclude-work-free`.
 Aggressive CSE typically reduces size (more duplicates get factored out) but can raise cost (each factored subterm adds a small evaluation overhead).
 
-## Certifying optimizations
+### Certifying optimizations
 
 `uplc` includes certifiers for optimization passes.
 Each pass is formalized in Agda as a translation relation between pre- and post-terms together with a procedure that decides whether the relation holds.
@@ -110,7 +269,7 @@ The certifier has three output modes:
 For blueprints, the certifier runs once per validator.
 Report filenames and project directories have the validator's title appended automatically.
 
-## Evaluating before and after each optimization
+### Evaluating before and after each optimization
 
 The `--eval*` flags supply arguments to the script and run it on the CEK machine at every stage of the optimization pipeline, recording the execution cost at each step.
 The CPU and memory cost at every stage are then shown alongside AST sizes in the optimization report.
@@ -153,3 +312,5 @@ uplc optimize --if blueprint --of blueprint -i MyBlueprint.json -o MyBlueprint-o
 
 Each validator is evaluated with the arguments under the corresponding subdirectory.
 The result is an optimized blueprint, and a per-validator report showing how the execution budget changed at each optimization step.
+
+

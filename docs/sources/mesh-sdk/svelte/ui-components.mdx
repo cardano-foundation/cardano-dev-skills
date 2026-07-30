@@ -277,7 +277,7 @@ A full implementation showing conditional rendering based on wallet state.
 Verify that you imported the Mesh CSS in your root layout file.
 
 ```svelte
-<!-- +layout.svelte -->
+
 <script lang="ts">
   import '@meshsdk/svelte/styles.css';
   let { children } = $props();
@@ -291,10 +291,10 @@ Verify that you imported the Mesh CSS in your root layout file.
 Ensure you access `BrowserWalletState` properties directly, not through destructuring. Svelte 5 runes require direct property access for reactivity.
 
 ```svelte
-<!-- Correct -->
+
 {#if BrowserWalletState.connected}
 
-<!-- Incorrect - loses reactivity -->
+
 <script>
   const { connected } = BrowserWalletState; // Don't do this
 </script>

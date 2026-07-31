@@ -39,6 +39,24 @@ get:
       description: |
         The ordering of items from the point of view of the blockchain,
         not the page listing itself. By default, we return oldest first, newest last.
+    - in: query
+      name: from
+      required: false
+      schema:
+        type: string
+      description: |
+        The block number and optionally also index from which (inclusive) to start search for results, concatenated using colon.
+        Has to be lower than or equal to `to` parameter.
+      example: "8929261"
+    - in: query
+      name: to
+      required: false
+      schema:
+        type: string
+      description: |
+        The block number and optionally also index where (inclusive) to end the search for results, concatenated using colon.
+        Has to be higher than or equal to `from` parameter.
+      example: "9999269:10"
   responses:
     "200":
       description: Return the information about the history of a specific asset

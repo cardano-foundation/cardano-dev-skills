@@ -202,7 +202,7 @@ Images from any folder can be used by providing path to file. Path should be rel
    1. Ordered sub-list
 1. And another item.
 
-<!-- -->
+
 
 * Unordered list can use asterisks
 
@@ -210,7 +210,7 @@ Images from any folder can be used by providing path to file. Path should be rel
 
 + Or pluses
 
-<!-- -->
+
   </TabItem>
 
 </Tabs>
@@ -315,12 +315,12 @@ top
     But let's throw in a <b>tag</b>.
     ```
 
-<!-- markdownlint-disable MD040-->
+
 ```
 No language indicated, so no syntax highlighting.
 But let's throw in a <b>tag</b>.
 ```
-<!-- markdownlint-enable MD040-->
+
 
 </TabItem>
 <TabItem value="extras">

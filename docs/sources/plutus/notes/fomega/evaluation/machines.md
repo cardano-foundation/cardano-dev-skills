@@ -95,7 +95,7 @@ This studies a number of other variants of the Krivine machine and gives a good 
 With the exception of the paper by Sestoft, all of the above papers can be found in
 a [special issue of Higher-Order and Symbolic Computation](https://dl.acm.org/citation.cfm?id=1325146&picked=prox) 
 which contains other papers that may be worth looking at.
-<!---HOSC,  Volume 20 Issue 3, September 2007 --->
+
 
 ----
 

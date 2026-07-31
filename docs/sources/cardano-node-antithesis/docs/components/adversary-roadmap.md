@@ -182,7 +182,7 @@ Filed in [`lambdasistemi/cardano-node-clients`][cnc]:
 - ✅ [#104][cli-104] — `chain_sync_flap` daemon endpoint (closed by
   PR #106, source removed by PR #122).
 
-<!-- MARKDOWN LINKS & IMAGES -->
+
 
 [adversary-doc]: adversary.md
 [cnc]: https://github.com/lambdasistemi/cardano-node-clients

@@ -26,7 +26,7 @@ License: CC-BY-4.0
 The Cardano Foundation proposes a mechanism for polling Cardano stake pool operators on specific topics. Polls are done on-chain through transaction metadata and authenticated through stake pool credentials (Ed25519 cold key). The goal is to gather opinions on governance matters such as protocol parameter updates. This standard is an inclusive interim solution while the work on a larger governance framework such as [CIP-1694][] continues.
 
 ## Motivation: Why is this CIP necessary?
-<!-- A clear explanation that introduces the reason for a proposal, its use cases and stakeholders. If the CIP changes an established design, then it must outline design issues that motivate a rework. For complex proposals, authors must write a Cardano Problem Statement (CPS) as defined in CIP-9999 and link to it as the `Motivation`. -->
+
 
 Governance is difficult. Discussions on CIP-1694 can attest to that quite clearly. There are constant debates within the Cardano community about changing protocol parameters, and the decision ultimately falls -- at this stage still -- onto the three genesis entities: Input Output, The Cardano Foundation and Emurgo. Yet, at this stage, few governance tools are at their disposal to make educated decisions. Besides Twitter polls, newsletter surveys, and SPO town halls on Discord, we have identified a gap and an opportunity to engage with the Cardano community through means currently at our disposal.
 

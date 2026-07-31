@@ -268,14 +268,14 @@ The wallet account's public DRep Key.
 
 ##### Errors
 
-<!-- prettier-ignore-start -->
+
 | Error Type   | Error Code       | Return Condition                                                                          |
 | ------------ | ---------------- | ----------------------------------------------------------------------------------------- |
 | `APIError`   | `InvalidRequest` | Returned if a input parameter is passed.                                                  |
 | `APIError`   | `InternalError`  | Returned if there is a generic internal error occurred during execution of this API call. |
 | `APIError`   | `Refused`        | Returned if there is a refusal, could be wallet disconnection or extension is revoked.    |
 | `APIError`   | `AccountChange`  | Returned if wallet has changed account, meaning connection should be reestablished.       |
-<!-- prettier-ignore-stop -->
+
 
 #### `api.getRegisteredPubStakeKeys(): Promise<PubStakeKey[]>`
 
@@ -292,14 +292,14 @@ An array of the connected user's registered public stake keys.
 
 ##### Errors
 
-<!-- prettier-ignore-start -->
+
 | Error Type   | Error Code       | Return Condition                                                                          |
 | ------------ | ---------------- | ----------------------------------------------------------------------------------------- |
 | `APIError`   | `InvalidRequest` | Returned if a input parameter is passed.                                                  |
 | `APIError`   | `InternalError`  | Returned if there is a generic internal error occurred during execution of this API call. |
 | `APIError`   | `Refused`        | Returned if there is a refusal, could be wallet disconnection or extension is revoked.    |
 | `APIError`   | `AccountChange`  | Returned if wallet has changed account, meaning connection should be reestablished.       |
-<!-- prettier-ignore-stop -->
+
 
 #### `api.cip95.getUnregisteredPubStakeKeys(): Promise<PubStakeKey[]>`
 
@@ -316,14 +316,14 @@ An array of the connected user's unregistered stake keys.
 
 ##### Errors
 
-<!-- prettier-ignore-start -->
+
 | Error Type   | Error Code       | Return Condition                                                                          |
 | ------------ | ---------------- | ----------------------------------------------------------------------------------------- |
 | `APIError`   | `InvalidRequest` | Returned if a input parameter is passed.                                                  |
 | `APIError`   | `InternalError`  | Returned if there is a generic internal error occurred during execution of this API call. |
 | `APIError`   | `Refused`        | Returned if there is a refusal, could be wallet disconnection or extension is revoked.    |
 | `APIError`   | `AccountChange`  | Returned if wallet has changed account, meaning connection should be reestablished.       |
-<!-- prettier-ignore-stop -->
+
 
 #### `api.signTx(tx: cbor<transaction>, partialSign: bool = false): Promise<cbor<transaction_witness_set>>`
 
@@ -402,7 +402,7 @@ endpoint before building the final transaction.
 
 ##### Errors
 
-<!-- prettier-ignore-start -->
+
 | Error Type    | Error Code               | `partialSign`     | Return Condition                                                                                                                  |
 | ------------- | ------------------------ | ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `APIError`    | `InvalidRequest`         | `true` or `false` | Returned if an erroneous parameter is passed, wrong type or too many etc.                                                         |
@@ -412,7 +412,7 @@ endpoint before building the final transaction.
 | `TxSignError` | `ProofGeneration`        | `false`           | Returned if user has accepted transaction to sign, but the wallet is unable to sign because it does not have the required key(s). |
 | `TxSignError` | `UserDeclined`           | `true` or `false` | Returned if user has declined to sign the transaction.                                                                            |
 | `TxSignError` | `DeprecatedCertificate` | `true` or `false` | Returned regardless of user consent if the transaction contains a deprecated certificate.                                        |
-<!-- prettier-ignore-stop -->
+
 
 If `partialSign` is `true`, the wallet only tries to sign what it can. If
 `partialSign` is `false` and the wallet could not sign the entire transaction,
@@ -448,13 +448,13 @@ Using an appropriate
 [Network Tag](https://github.com/cardano-foundation/CIPs/blob/master/CIP-0019/CIP-0019-cardano-addresses.abnf#L13)
 and a hash of a public DRep Key.
 
-<!-- prettier-ignore-start -->
+
 | Key         | Identifying `addr` |
 | ----------- | ------------------ |
 | Payment Key | Address types: [0](https://github.com/cardano-foundation/CIPs/blob/master/CIP-0019/CIP-0019-cardano-addresses.abnf#L1), [2](https://github.com/cardano-foundation/CIPs/blob/master/CIP-0019/CIP-0019-cardano-addresses.abnf#L3), [4](https://github.com/cardano-foundation/CIPs/blob/master/CIP-0019/CIP-0019-cardano-addresses.abnf#L5), [6](https://github.com/cardano-foundation/CIPs/blob/master/CIP-0019/CIP-0019-cardano-addresses.abnf#L7C27-L7C72). |
 | Stake Key   | Address type: [14](https://github.com/cardano-foundation/CIPs/blob/master/CIP-0019/CIP-0019-cardano-addresses.abnf#L10). |
 | DRep Key | [`DRepID`](#drepid) |
-<!-- prettier-ignore-end -->
+
 
 These keys will be used to sign the `COSE_Sign1`'s `Sig_structure` with the
 following headers set:
@@ -484,7 +484,7 @@ hex-encoded CBOR bytes of a `COSE_Key` structure with the following headers set:
 
 ##### Errors
 
-<!-- prettier-ignore-start -->
+
 
 | Error Type      | Error Code        | Return Condition                                                                                                               |
 | --------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------ |
@@ -496,7 +496,7 @@ hex-encoded CBOR bytes of a `COSE_Key` structure with the following headers set:
 | `DataSignError` | `AddressNotPK`    | Returned if Address was not a P2PK address and thus had no SK associated with it.                                              |
 | `DataSignError` | `UserDeclined`    | Returned if the user declined to sign the data.                                                                                |
 
-<!-- prettier-ignore-stop -->
+
 
 ### Versioning
 

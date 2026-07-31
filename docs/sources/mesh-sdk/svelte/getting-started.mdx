@@ -23,7 +23,7 @@ npm install @meshsdk/svelte
 ```
 
 ```svelte
-<!-- +layout.svelte -->
+
 <script lang="ts">
   import '@meshsdk/svelte/styles.css';
   let { children } = $props();
@@ -33,7 +33,7 @@ npm install @meshsdk/svelte
 ```
 
 ```svelte
-<!-- +page.svelte -->
+
 <script lang="ts">
   import { CardanoWallet } from "@meshsdk/svelte";
 </script>
@@ -105,13 +105,13 @@ A button component that opens a wallet selection modal and handles the connectio
 **Examples:**
 
 ```svelte
-<!-- Dark mode -->
+
 <CardanoWallet isDark={true} />
 
-<!-- Custom label -->
+
 <CardanoWallet label="Connect a Wallet" />
 
-<!-- With callback -->
+
 <script lang="ts">
   import { CardanoWallet } from "@meshsdk/svelte";
 
@@ -214,7 +214,7 @@ A full example showing wallet connection with address display.
 Ensure you import the CSS file in your root layout, not in individual components.
 
 ```svelte
-<!-- +layout.svelte (correct) -->
+
 <script lang="ts">
   import '@meshsdk/svelte/styles.css';
 </script>

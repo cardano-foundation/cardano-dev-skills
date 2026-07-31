@@ -22,7 +22,7 @@ flowchart TD
     end
 ```
 
-These four layers are the architecture. They are defined in formal specifications independently of any implementation, so every Cardano node has the same four. [`cardano-node`](https://github.com/IntersectMBO/cardano-node) (Haskell) is the reference implementation almost everyone runs: it bundles the layers into one process that keeps a copy of the chain, validates blocks and transactions, takes part in consensus, and talks to other nodes. Relays, block producers, and full-node wallets all run it. You don't drive these layers directly; you reach the chain through CLIs, SDKs, and APIs (see [Production infrastructure](/docs/developers/curriculum/production/infrastructure) for the developer stack).
+[`cardano-node`](https://github.com/IntersectMBO/cardano-node) (Haskell) bundles the four layers into one process: it keeps a copy of the chain, validates blocks and transactions, takes part in consensus, and talks to other nodes. Relays, block producers, and full-node wallets all run it. You don't drive these layers directly; you reach the chain through CLIs, SDKs, and APIs (see [Production infrastructure](/docs/developers/curriculum/production/infrastructure) for the developer stack).
 
 Each layer is specified and implemented as its own package:
 
@@ -100,6 +100,7 @@ What distinguishes Cardano's engineering approach is that each layer is specifie
 The formal specs are public:
 - [Cardano Ledger Specifications](https://github.com/IntersectMBO/cardano-ledger#cardano-ledger)
 - [Ouroboros papers](https://cardano.org/research/), the academic papers underpinning the consensus protocol
+- [Cardano Blueprint](https://cardano-scaling.github.io/cardano-blueprint/), implementation-independent descriptions of each layer, written so alternative nodes can be built from them; the readable companion to the formal specs
 
 ## Further reading
 

@@ -850,7 +850,7 @@ async function submitTokenName(e: Event) {
 </script>
 
 <div>
-  <!-- {#if lucid} -->
+  
   {#if lucid && parameterizedContracts}
     <h3 class="mt-4 mb-2">New Gift Card</h3>
     <pre class="bg-gray-200 p-2 rounded overflow-x-scroll">
@@ -958,9 +958,9 @@ async function createGiftCard(e: Event) {
 </script>
 
 <div>
-  <!-- {#if !lucid} -->
+  
   {#if lucid && parameterizedContracts}
-    <!-- ... show applied contracts ... -->
+    
     <div class="mt-10 grid grid-cols-1 gap-y-8">
       <form onsubmit={createGiftCard}>
         <Input type="text" name="giftADA" id="giftADA" bind:value={giftADA}>
@@ -1068,11 +1068,11 @@ have it link to cardano scan like the previous section.
 </script>
 
 <div>
-  <!-- {#if !lucid} -->
+  
   {#if lucid && parameterizedContracts}
-    <!-- ... show applied contracts ... -->
+    
     <div class="mt-10 grid grid-cols-1 gap-y-8">
-      <!-- ... Create gift card ... -->
+      
       {#if lockTxHash}
         <h3 class="mb-2 mt-4">ADA Locked</h3>
 

@@ -1756,7 +1756,7 @@ None of the methods, GNFS or VDFs, are proprietary, and there are open-source im
 
 ##### 3.2.2 ECC solutions
 
-Elliptic Curve Cryptography (ECC) is a form of public-key cryptography based on the mathematical structure of elliptic curves over finite fields. More particularly, ECC relies on a safe subgroup of elliptic curves, usually defined on a prime field for security and efficiency. It provides strong security with smaller key sizes compared to traditional methods like RSA, needing 256 to 388 bit long prime only [[3]](https://csrc.nist.gov/pubs/sp/800/78/5/final),  making it ideal for constrained environments. To break ECC, one has to compute the discrete logarithm of the group (ECDLP), which can be done most efficiently with Pollard's Rho algorithm that solves the discrete logarithm in $\mathcal{O}(n​^{1/2})$ time and $\mathcal{O}(1)$ space. 
+Elliptic Curve Cryptography (ECC) is a form of public-key cryptography based on the mathematical structure of elliptic curves over finite fields. More particularly, ECC relies on a safe subgroup of elliptic curves, usually defined on a prime field for security and efficiency. It provides strong security with smaller key sizes compared to traditional methods like RSA, needing 256 to 388 bit long prime only [[3]](https://csrc.nist.gov/pubs/sp/800/78/5/final),  making it ideal for constrained environments. To break ECC, one has to compute the discrete logarithm of the group (ECDLP), which can be done most efficiently with Pollard's Rho algorithm that solves the discrete logarithm in $\mathcal{O}(n^{1/2})$ time and $\mathcal{O}(1)$ space. 
 
 ###### 3.2.2.1 Designs
 

@@ -111,7 +111,7 @@ We strongly encourage the community to actively engage in addressing this challe
 
 The *Coin-Flipping Problem* 🎲 within the **Ouroboros protocol** ⚙️ poses critical uncertainties that challenge Cardano’s **security** 🔒, **fairness** ⚖️, and **decentralization** 🌐. These open questions, rooted in the [**CPD**](./CPD/README.md) 📑 analysis, call for exploration by the **Cardano community** 🌍 to strengthen the protocol’s resilience:
 
-- **Is randomness manipulation currently occurring, and how detectable is it?** 🕵️‍♂️  
+- **Is randomness manipulation currently occurring, and how detectable is it?** 🕵️♂️  
   Are grinding attacks already subtly affecting Cardano undetected? What tools, metrics, or on-chain signals could reveal adversarial manipulation in real-time, given the protocol’s design?
 
 - **How will Peras influence grinding attack capabilities?** 🔄  

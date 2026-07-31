@@ -202,7 +202,7 @@ docker compose -f testnets/cardano_node_master/docker-compose.yaml \
 - Other projects by the [Cardano Foundation][CF]
 - About [Cardano][Cardano]
 
-<!-- MARKDOWN LINKS & IMAGES -->
+
 
 [asteria]: https://github.com/txpipe/asteria
 [asteria-onchain]: https://github.com/txpipe/asteria/tree/main/onchain

@@ -63,9 +63,9 @@ Starting just after a new release has been made:
 
 ### Hotfix Release
 
-​
+
 In case of a blocking issue (following a distribution release) on the release environment that requires an immediate fix:
-​
+
 
 1. Create a branch on the last release tag with the following scheme: `hotfix/{last_distribution-version}.{last_patch_number + 1}`.
 1. Development of the fix is done on this branch.

@@ -56,18 +56,18 @@ The entry point - what the operator sees in the browser.
 
 <body>
 
-    <!-- New Payment Request Button -->
+    
     <button id="openPaymentModal"
             class="btn-primary">New Payment Request</button>
 
-    <!-- Transactions Section -->
+    
     <section id="transactionsSection"
              class="transactions-section">
         <h2>Transactions</h2>
         <div id="transactionsContainer"></div>
     </section>
 
-    <!-- Payment Modal -->
+    
     <dialog id="paymentModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -99,7 +99,7 @@ The entry point - what the operator sees in the browser.
         </div>
     </dialog>
 
-    <!-- JavaScript files -->
+    
     <script src="requestPayment.js"></script>
     <script src="transactionList.js"></script>
 </body>

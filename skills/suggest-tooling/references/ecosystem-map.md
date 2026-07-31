@@ -125,7 +125,7 @@ below carry only facts (language, license) and a project's own stated caveats.
 
 | Name | Language | Notes |
 |---|---|---|
-| **cardano-foundation/bls** | Aiken | Apache-2.0. Generic Groth16 verifier plus BLS signature / VRF / KDF examples; proving steps cross-checked against an independent SageMath implementation. |
+| **cardano-foundation/bls** | Aiken | Apache-2.0. Generic Groth16 verifier plus BLS signature / VRF / KDF examples; proving steps cross-checked against an independent SageMath implementation. Bundled as a source: `docs/sources/bls12-381-examples-and-standards/`, including the IETF drafts and RFCs under `standards/`. |
 | **gnark-cardano** | Go | gnark circuit to a tested Aiken Groth16 verifier; the most automated path. |
 | **snarkjs-cardano** | TS/JS | Circom (Groth16 / PLONK) adapted to BLS12-381 output for Plutus verifiers. |
 | **plutus-halo2-verifier-gen** | Rust to Plinth/Aiken | Generates Halo2 / KZG verifiers; the path for verifying Midnight proofs. |

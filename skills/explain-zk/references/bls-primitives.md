@@ -140,10 +140,16 @@ primitives and confirm the current landscape before depending on it.
 
 ## Where to go deeper
 
-- Bundled: `docs/sources/aiken-bls-signatures/lib/bls/` — a real Aiken implementation of the IETF
-  draft, with `g1/basic.ak`, `g1/aug.ak`, and `g1/pop.ak` as the three modes. Read these for the
-  actual semantics rather than relying on any summary, including this one.
-- Bundled: `docs/sources/aiken-stdlib/aiken/crypto/bls12_381/` for the current `g1` / `g2` / `scalar` APIs.
+Everything below is bundled, so check the source rather than relying on any summary, including this one.
+
+- **The normative spec**: `docs/sources/bls12-381-examples-and-standards/standards/draft-irtf-cfrg-bls-signature-06.txt`
+  — the definitive statement of the three modes, of aggregate verification, and of `FastAggregateVerify`.
+  Read this before relying on any claim about which mode fits which aggregation pattern.
+  Alongside it: RFC 5869 (HKDF), RFC 8018 (PBKDF2), RFC 9381 (VRF).
+- **A real implementation**: `docs/sources/aiken-bls-signatures/lib/bls/` — `g1/basic.ak`, `g1/aug.ak`,
+  and `g1/pop.ak` are the three modes in Aiken.
+- **Worked examples**: `docs/sources/bls12-381-examples-and-standards/aiken/` — Groth16, KDF, VRF, and
+  both aggregation cases; `tutorials/` alongside them covers BLS12-381 basics and ZKP from first principles.
+- **The stdlib API**: `docs/sources/aiken-stdlib/aiken/crypto/bls12_381/` for the current `g1` / `g2` /
+  `scalar` functions.
 - Named verifier and BLS libraries: the ZK/BLS section of `suggest-tooling/references/ecosystem-map.md`.
-- The IETF BLS signature draft for the normative definition of the three modes and of aggregate
-  verification.

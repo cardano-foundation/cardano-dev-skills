@@ -112,6 +112,11 @@ lightest tool; see `references/proof-systems.md`.
   — the landscape, what shipped when, and the catalog of real verifiers and apps
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken-stdlib/aiken/crypto/bls12_381/`
   — the actual `g1`, `g2`, and `scalar` module APIs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/bls12-381-examples-and-standards/`
+  — tutorials, worked Aiken examples, and `standards/` with the IETF BLS signature draft and the
+  HKDF / PBKDF2 / VRF RFCs. Prefer these specs over any summary for security-relevant claims.
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken-bls-signatures/lib/bls/`
+  — a working Aiken implementation of the three BLS signing modes
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cips/CIP-0381/`, `CIP-0133/`, `CIP-0109/`
   — the builtins these all rest on
 

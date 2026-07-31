@@ -12,7 +12,7 @@ Training data on Cardano drifts fast. Conway era changed governance, Aiken synta
 
 This plugin solves that by shipping:
 
-- **Authoritative bundled docs** from <!-- COUNT:sources -->56<!-- /COUNT:sources --> active Cardano projects (auto-refreshed weekly from upstream).
+- **Authoritative bundled docs** from <!-- COUNT:sources -->58<!-- /COUNT:sources --> active Cardano projects (auto-refreshed weekly from upstream).
 - **Behavioral skills** that encode common workflows: scaffolding, writing validators, building transactions, governance, optimization, debugging.
 - **Hooks that auto-consult bundled context** before the agent reaches for training data or the web.
 
@@ -20,8 +20,8 @@ End result: the agent answers from current, project-authoritative sources instea
 
 ## What's inside
 
-- **<!-- COUNT:skills -->15<!-- /COUNT:skills --> developer skills** — each a focused workflow
-- **<!-- COUNT:sources -->56<!-- /COUNT:sources --> documentation sources** — bundled locally under `docs/sources/`, auto-refreshed weekly via GitHub Actions
+- **<!-- COUNT:skills -->16<!-- /COUNT:skills --> developer skills** — each a focused workflow
+- **<!-- COUNT:sources -->58<!-- /COUNT:sources --> documentation sources** — bundled locally under `docs/sources/`, auto-refreshed weekly via GitHub Actions
 - **Hooks** — `SessionStart` reports doc freshness; a `UserPromptSubmit` auto-consultation hook is in development
 
 ### Skills
@@ -42,6 +42,7 @@ End result: the agent answers from current, project-authoritative sources instea
 | `governance-guide` | CIP-1694 governance, DRep, voting, treasury |
 | `explain-eutxo` | Cardano's UTxO model for newcomers |
 | `explain-cip` | Walk through a specific CIP |
+| `explain-zk` | Zero-knowledge and the BLS12-381 primitive family (proofs, signatures, VRF, KDF, BBS+) |
 | `suggest-tooling` | Recommend an SDK / framework given the use case |
 
 ## What we add (and don't)
@@ -118,7 +119,7 @@ We're tracking which prompts fail to auto-consult so the keyword set + skill tri
 
 ## Bundled documentation
 
-<!-- COUNT:sources -->56<!-- /COUNT:sources --> Cardano projects mirrored locally. Auto-refreshed every Monday at 06:00 UTC via GitHub Actions — the workflow opens a PR; maintainers review and merge.
+<!-- COUNT:sources -->58<!-- /COUNT:sources --> Cardano projects mirrored locally. Auto-refreshed every Monday at 06:00 UTC via GitHub Actions — the workflow opens a PR; maintainers review and merge.
 
 Manual refresh:
 

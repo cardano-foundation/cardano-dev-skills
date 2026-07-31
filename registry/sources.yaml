@@ -276,6 +276,19 @@
     - "**/*.ak"
   description: Aiken standard library - list, option, transaction helpers
 
+- name: Aiken BLS Signatures
+  repo: https://github.com/ilap/bls.git
+  docs_path: "."
+  format: aiken
+  format_overrides:
+    "**/*.md": markdown
+  category: smart-contracts
+  priority: medium
+  glob_patterns:
+    - README.md
+    - "lib/**/*.ak"
+  description: Aiken BLS12-381 signature library implementing the IETF draft (basic, augmented, proof-of-possession modes)
+
 - name: Aiken Examples
   repo: https://github.com/aiken-lang/aiken.git
   docs_path: examples

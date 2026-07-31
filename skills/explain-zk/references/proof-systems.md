@@ -34,54 +34,28 @@ not everything needs a circuit: a **sigma protocol** proves knowledge of a discr
 know the secret behind this public point") with no circuit and no ceremony. If that is all the
 application needs, it is the lighter tool.
 
-## The Groth16 verifier shape
+## What a Groth16 verifier does
 
-A Groth16 verification key and proof are just compressed curve points. This is the structure used by
-the compiled `zk-password` example the main skill imports:
+A Groth16 verification key and proof are just compressed curve points: the key holds one G1 point and
+three G2 points plus a list of G1 points (one per public input, with a constant term), and the proof
+is three points — two in G1, one in G2.
 
-```aiken
-pub type VerificationKey {
-  alpha: ByteArray,        // G1, 48 bytes
-  beta: ByteArray,         // G2, 96 bytes
-  gamma: ByteArray,        // G2
-  delta: ByteArray,        // G2
-  ic: List<ByteArray>,     // G1 points; ic[0] is the constant term,
-}                          // ic[i+1] pairs with public_input[i]
+Verification decompresses those points, folds the public inputs into a single commitment against the
+key's point list, and checks one pairing equation — a Miller loop per pair, multiplied together, with
+a single final verification. Circuit size does not affect this cost: the proof is the same three
+points whether the circuit has five constraints or five million. What grows the cost is the **number
+of public inputs**, so keep them few and commit bulky data with a single hash.
 
-pub type Proof {
-  pi_a: ByteArray,         // G1
-  pi_b: ByteArray,         // G2
-  pi_c: ByteArray,         // G1
-}
-```
-
-`groth16_verify(vk, proof, public_inputs)` decompresses the points, folds the public inputs into a
-single commitment `vk_x = ic[0] + Σ public_input[i] · ic[i+1]`, and checks the pairing equation
-
-```
-e(pi_a, pi_b) == e(alpha, beta) · e(vk_x, gamma) · e(pi_c, delta)
-```
-
-with `bls12_381_miller_loop`, `bls12_381_mul_miller_loop_result`, and a single
-`bls12_381_final_verify`. Circuit size does not affect this cost — the proof is the same three points
-whether the circuit has five constraints or five million. What grows the cost is the **number of
-public inputs**, so keep them few and commit bulky data with a single hash.
+Read a real implementation rather than reconstructing one; several are listed in the ZK/BLS section of
+the ecosystem map.
 
 ## The circuit-to-Aiken pipeline
 
-The validator is the last step of a longer path. The canonical first circuit — proving you know a
-password whose Poseidon hash equals a public commitment — is one constraint:
-
-```circom
-template PasswordLock() {
-    signal input hash;   // public: Poseidon(pwd)
-    signal input pwd;    // private: never leaves the prover's device
-    component h = Poseidon(1);
-    h.inputs[0] <== pwd;
-    hash === h.out;      // the whole statement
-}
-component main {public [hash]} = PasswordLock();
-```
+The validator is the last step of a longer path. The canonical first circuit proves you know a
+password whose hash equals a public commitment: the hash is a public input, the password is a private
+one, and the single constraint is that hashing the private input reproduces the public commitment.
+That one constraint *is* the entire statement being proven — a good illustration of why the circuit,
+not the surrounding prose, defines what a proof guarantees.
 
 The end-to-end steps:
 
@@ -105,12 +79,17 @@ implementations are in the ZK/BLS ecosystem map.
   dominates PLONK and Halo2 verification), and CIP-0109 added `expModInteger` for modular field
   arithmetic.
 
-## Cost, as measured snapshots
+## Cost
 
-Cost figures move with the protocol and the implementation; treat them as snapshots, not guarantees.
-A Groth16 verification has been measured at roughly a fifth to a quarter of one script's CPU budget
-(~2.1 billion CPU units in one measurement); a full PLONK verification around a third. Each public
-input adds meaningful cost, with about a hundred as a practical ceiling.
+The shape of the cost matters more than any number, because the numbers move with the protocol
+parameters, the proof system, and the implementation. What holds: a Groth16 verification consumes a
+significant fraction of a single script's CPU budget, PLONK more; **circuit size does not affect it**,
+while each **public input does**, which is why public inputs are kept few and bulky data is committed
+with a hash.
+
+Do not plan a design around a cost figure quoted here or in an article. Benchmark the verifier you
+actually depend on, at the protocol version you are deploying to — the projects in the ecosystem map
+publish their own benchmarks.
 
 ## Sharp edges in depth
 

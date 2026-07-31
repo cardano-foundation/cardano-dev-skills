@@ -138,7 +138,7 @@ below carry only facts (language, license) and a project's own stated caveats.
 
 | Name | Language | Notes |
 |---|---|---|
-| **ilap/bls** | Aiken | Apache-2.0. IETF BLS signatures with the three modes (basic / aug / pop). |
+| **ilap/bls** | Aiken | Apache-2.0. IETF BLS signatures with the three modes (basic / aug / pop). Bundled as a source: `docs/sources/aiken-bls-signatures/`. |
 | **lambdasistemi/cardano-bbs** | Aiken | BBS+ selective-disclosure / anonymous credentials. |
 | **ZK-from-zero-on-Cardano** | eBook + Aiken | Catalyst Fund 14; the README marks its status "in progress". A Circom-to-Aiken walkthrough ending in a password-locked UTxO. |
 

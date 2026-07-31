@@ -115,64 +115,32 @@ lightest tool; see `references/proof-systems.md`.
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cips/CIP-0381/`, `CIP-0133/`, `CIP-0109/`
   — the builtins these all rest on
 
-### Step 3: Build the on-chain verifier
+### Step 3: Describe the on-chain verifier, then read the real one
 
-Show the minimal working shape, then adapt it. The example below is a password lock: funds unlock
-only for someone who can prove they know a secret whose Poseidon hash matches an on-chain
-commitment — the "hello world" of ZK, and a faithful copy of a compiled, test-passing validator.
+The canonical first example is a password lock: funds unlock only for someone who can prove they know
+a secret whose hash matches an on-chain commitment. Its shape is the one above — the commitment and
+the verification key in the datum, the proof in the redeemer, and a single call into a Groth16
+verifier that returns a `Bool`.
 
-```aiken
-use aiken/crypto/bls12_381/scalar
-use cardano/transaction.{OutputReference, Transaction}
-use groth16.{Proof, VerificationKey, groth16_verify}
+That verifier is not something to write from memory. It is a standard component, the same for every
+circuit and around a hundred lines of pairing arithmetic, so you take it as a project dependency
+rather than reproduce it. Its public inputs are field scalars, so an integer commitment held in a
+datum is converted with the stdlib's scalar constructor before it is passed in.
 
-// Locked on-chain when the UTxO is created.
-pub type Datum {
-  credential_hash: Int,   // Poseidon(password) as a field element
-  vk: VerificationKey,    // the compressed Groth16 verification key for the circuit
-}
+**Do not hand-write cryptographic validator code from this skill's description.** Read the current
+API and a working implementation first:
 
-// Supplied by whoever tries to unlock.
-pub type Redeemer {
-  proof: Proof,           // a Groth16 proof that you know the pre-image
-}
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken-stdlib/aiken/crypto/bls12_381/` for the exact
+  `g1`, `g2`, and `scalar` functions and their present signatures
+- the verifier and library implementations listed in the ZK/BLS section of `suggest-tooling`
+- the bundled ZK page for which projects are doing this today
 
-validator password_lock {
-  spend(datum: Option<Datum>, redeemer: Redeemer, _self: OutputReference, _tx: Transaction) {
-    expect Some(d) = datum
-    // Convert the stored integer back to a field scalar; this rejects an
-    // out-of-range value, so a malformed datum can never slip through.
-    expect Some(hash) = scalar.new(d.credential_hash)
-    groth16_verify(d.vk, redeemer.proof, [hash])
-  }
+Two API notes that catch people, both worth checking against the stdlib version you pin: the scalar
+constructor **reduces modulo the field prime rather than rejecting** out-of-range input, so it is not
+a validation step; and rejecting a zero secret is not the same as rejecting every multiple of the
+group order, which also yields the identity point.
 
-  else(_) {
-    False
-  }
-}
-```
-
-`groth16_verify` / `Proof` / `VerificationKey` come from a **standard Groth16 verifier** — the `groth16`
-module above: plain Aiken code that runs the pairing equation on the BLS builtins. It is the same for
-every circuit (around a hundred lines, so you add it as a project dependency rather than inline it — see
-the ZK/BLS ecosystem map via `suggest-tooling` for implementations, e.g. `cardano-foundation/bls`). It
-checks `e(A, B) == e(alpha, beta) · e(vk_x, gamma) ·
-e(C, delta)`; circuit size does not change its cost (measured around a fifth of a script's CPU budget,
-~2.1 billion units in one run). Deriving a public key is even simpler — one scalar multiplication of
-the generator:
-
-```aiken
-use aiken/builtin
-use aiken/crypto/bls12_381/g1
-
-fn sk_to_pk(sk: ByteArray) -> ByteArray {
-  let s = builtin.bytearray_to_integer(True, sk)
-  expect s != 0
-  builtin.bls12_381_g1_compress(builtin.bls12_381_g1_scalar_mul(s, g1.generator))
-}
-```
-
-For aggregation, VRF, KDF, and BBS+ shapes, route to `references/bls-primitives.md`.
+For aggregation, VRF, KDF, and BBS+, see `references/bls-primitives.md`.
 
 ### Step 4: Outline the off-chain pipeline
 
@@ -208,16 +176,16 @@ Before they ship, walk the relevant items from the list below.
 ## Confidence and iteration
 
 The BLS12-381 builtins are stable and audited; the higher-level libraries and toolchains on top of
-them are unaudited and still moving. Two practical notes:
+them are unaudited and still moving.
 
-- **The BLS stdlib API is still changing.** Some examples use `scalar.new(x) -> Option<Scalar>`
-  (Aiken stdlib v2.1.0); newer stdlib replaces it with `scalar.from_int(x)`. Match the API to your
-  pinned `aiken/stdlib` version.
-- **BBS+ has the fewest Aiken implementations of the family.** Treat it as the least settled of these
-  primitives, and check the current landscape in the ZK/BLS ecosystem map before depending on it.
+**This skill deliberately carries no cryptographic code.** A subtly wrong snippet in a skill becomes a
+vulnerability in someone's contract, and these APIs change faster than a skill does: the scalar
+constructor alone has changed name, signature, and failure behaviour across recent stdlib versions.
+So the skill teaches the concepts, the decision criteria, and the failure modes, and sends you to the
+bundled docs and the real implementations for anything you will actually deploy.
 
-Where a proof system, library, or cost figure is newer or less settled, say so rather than presenting
-it as fixed.
+Treat everything here as orientation to be checked against the version you pin, and prefer a proof
+system, library, or figure that you have verified yourself over one described from memory.
 
 ## References
 

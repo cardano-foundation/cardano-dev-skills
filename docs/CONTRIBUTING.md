@@ -232,6 +232,18 @@ Bundled docs are read by AI agents on every consumer's machine, so every change 
 
 A maintainer merges the refresh PR when the scan is green and the review raises nothing that needs a closer look. Run the scanner locally with `python3 scripts/scan-docs-delta.py --base origin/main`.
 
+### Path portability
+
+git aborts the **entire** checkout when a tree contains a path Windows cannot create — not just the offending file — so one badly named upstream doc locks every Windows user out of the repo. Upstream wiki exports hit this routinely (a page titled `cardano-node and DataPoints: demo` becomes a filename with a colon).
+
+`scripts/_fetch_docs.py` normalizes fetched paths per component: `< > : " | ? * \` and control characters become `-`, trailing dots/spaces are stripped, reserved device names (`CON`, `NUL`, `COM1`…) get a `_` prefix, and a name that collides with one already taken — including case-only duplicates, which a case-insensitive Windows filesystem cannot distinguish — gets a `-2`, `-3` suffix. Renames are printed as `RENAMED <source>: <old> -> <new>`.
+
+Backslash is in that set because it is a legal filename character on POSIX but a path separator on Windows — an upstream `notes\draft.md` breaks the checkout exactly like a colon does, while looking harmless in a Linux-side review.
+
+`scripts/validate.py` re-checks every tracked path and fails the build on a violation. It is the backstop for hand-added files; the refresh workflow also runs it inline as `--paths-only`, because a PR opened with `GITHUB_TOKEN` never triggers the `pull_request` validate workflow. `--paths-only` skips the skill and registry checks (a docs refresh must not be blocked by an unrelated skill error) and is stdlib-only, so that job needs no `setup-python` or `pip install`.
+
+Files added by hand must satisfy the same rules. Path length is checked too, as a warning above 200 characters — Windows' default `MAX_PATH` is 260 including the clone directory.
+
 To trigger manually:
 
 ```bash

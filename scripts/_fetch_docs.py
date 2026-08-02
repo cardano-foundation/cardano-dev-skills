@@ -51,6 +51,57 @@ _EXPLICIT_INVISIBLE = (
 HTML_COMMENT_RE = re.compile(r'<!--.*?(?:--!?>|\Z)', re.DOTALL)
 MARKUP_EXTS = {'.md', '.mdx', '.html', '.htm'}
 
+# Windows path portability. These characters are illegal in a Win32 path
+# component, and git aborts the ENTIRE checkout when it hits one — not just
+# that file — so a single bad name makes the repo unusable on Windows
+# (issue #36). Upstream wiki exports produce them routinely, e.g. a page
+# titled "cardano-node and DataPoints: demo".
+#
+# Backslash is in the set because it is a legal filename character on POSIX
+# (so an upstream repo can genuinely ship `notes\draft.md`) but a path
+# separator on Windows — it breaks the checkout exactly like `:` does, while
+# looking harmless in a Linux-side review.
+WIN_ILLEGAL_CHARS_RE = re.compile(r'[<>:"|?*\\\x00-\x1f]')
+# Reserved device names, matched on the pre-extension stem, case-insensitively.
+WIN_RESERVED_NAMES = (
+    {'con', 'prn', 'aux', 'nul'}
+    | {f'com{i}' for i in range(1, 10)}
+    | {f'lpt{i}' for i in range(1, 10)}
+)
+
+
+def portable_component(part):
+    """Rewrite one path component so Windows can create it."""
+    safe = WIN_ILLEGAL_CHARS_RE.sub('-', part)
+    # Win32 silently strips trailing dots/spaces, so the on-disk name would
+    # differ from the one git recorded — leaving the worktree permanently
+    # dirty. Strip them ourselves instead.
+    safe = safe.rstrip(' .')
+    if safe.split('.', 1)[0].lower() in WIN_RESERVED_NAMES:
+        safe = '_' + safe
+    return safe or '_'
+
+
+def portable_relpath(rel, used):
+    """Rewrite a relative path so every component is checkout-safe on Windows.
+
+    `used` maps casefolded portable paths to the upstream path that claimed
+    them. A second file landing on the same name — because illegal characters
+    collapsed onto an existing name, or because upstream has two files
+    differing only in case (indistinguishable on a Windows filesystem) — gets
+    a numeric suffix rather than silently overwriting the first."""
+    candidate = os.path.join(*[portable_component(p) for p in Path(rel).parts])
+    key = candidate.casefold()
+    if used.get(key, rel) != rel:
+        stem, ext = os.path.splitext(candidate)
+        n = 2
+        while f"{stem}-{n}{ext}".casefold() in used:
+            n += 1
+        candidate = f"{stem}-{n}{ext}"
+        key = candidate.casefold()
+    used[key] = rel
+    return candidate
+
 
 def _strip_invisible(text):
     """Remove invisible/format-control codepoints, keeping tab/newline/CR."""
@@ -314,18 +365,41 @@ def clone_and_extract(source, tmp_dir, docs_dir, pin=None):
 
     patterns = glob_patterns or default_exts
     file_count = 0
+    used_paths = {}
+    # Keyed by upstream rel: overlapping glob_patterns can yield the same file
+    # twice, and one rename should be reported once.
+    renamed = {}
     for pattern in patterns:
         if glob_patterns:
             full_pattern = os.path.join(src_dir, pattern)
         else:
             full_pattern = os.path.join(src_dir, '**', pattern)
-        for filepath in globmod.glob(full_pattern, recursive=True):
+        # Sorted so collision suffixes are deterministic across runs — glob
+        # returns directory order, which would otherwise reshuffle which of
+        # two colliding files gets the bare name.
+        for filepath in sorted(globmod.glob(full_pattern, recursive=True)):
             if os.path.isfile(filepath) and not should_skip(filepath):
                 rel = os.path.relpath(filepath, src_dir)
-                dest = os.path.join(stage_dir, rel)
-                os.makedirs(os.path.dirname(dest), exist_ok=True)
-                copy_sanitized(filepath, dest)
+                safe_rel = portable_relpath(rel, used_paths)
+                if safe_rel != rel:
+                    renamed[rel] = safe_rel
+                dest = os.path.join(stage_dir, safe_rel)
+                try:
+                    os.makedirs(os.path.dirname(dest), exist_ok=True)
+                    copy_sanitized(filepath, dest)
+                except OSError as e:
+                    # Reachable only if normalization collapsed a directory
+                    # name onto a file name (upstream `foo:/x.md` alongside a
+                    # file `foo`) — a namespace clash no suffix can resolve.
+                    # Drop the one file loudly rather than aborting a 56-source
+                    # refresh with a traceback.
+                    print(f"  WARN {name}: could not stage {rel} as "
+                          f"{safe_rel}: {e}")
+                    continue
                 file_count += 1
+
+    for rel in sorted(renamed):
+        print(f"  RENAMED {name}: {rel} -> {renamed[rel]} (Windows-illegal path)")
 
     if file_count == 0:
         shutil.rmtree(stage_dir, ignore_errors=True)

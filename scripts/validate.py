@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
 """Validate cardano-dev-skills repo: SKILL.md files and sources.yaml."""
 
+import argparse
+import subprocess
 import sys
 import re
-import yaml
 from pathlib import Path
+
+# Only the skill/registry checks need pyyaml. `--paths-only` must stay
+# runnable on a bare python3 so the refresh workflow can gate on path
+# portability without installing anything.
+try:
+    import yaml
+except ModuleNotFoundError:
+    yaml = None
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILLS_DIR = REPO_ROOT / "skills"
@@ -13,6 +22,24 @@ SOURCES_FILE = REPO_ROOT / "registry" / "sources.yaml"
 MAX_SKILL_LINES = 500
 MAX_NAME_LEN = 64
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+
+# Windows path portability (issue #36). git aborts the ENTIRE checkout when a
+# tree contains a path Windows can't create — not just that file — so one bad
+# name locks every Windows user out of the repo. `scripts/_fetch_docs.py`
+# normalizes these at fetch time; this check is the backstop for hand-added
+# files and for snapshots fetched before that logic existed.
+# Backslash is included because it is a legal POSIX filename character but a
+# path separator on Windows — it breaks the checkout while looking harmless
+# in a Linux-side review.
+WIN_ILLEGAL_CHARS_RE = re.compile(r'[<>:"|?*\\\x00-\x1f]')
+WIN_RESERVED_NAMES = (
+    {"con", "prn", "aux", "nul"}
+    | {f"com{i}" for i in range(1, 10)}
+    | {f"lpt{i}" for i in range(1, 10)}
+)
+# Windows' default MAX_PATH is 260 chars including the clone directory, so a
+# repo-relative path this long is a warning, not yet a failure.
+MAX_PORTABLE_PATH_LEN = 200
 
 VALID_CATEGORIES = {
     "infrastructure", "smart-contracts", "sdk", "standards",
@@ -201,23 +228,87 @@ def validate_sources() -> None:
             warn(f"{prefix}: repo URL doesn't start with https://")
 
 
+def validate_path_portability() -> int:
+    """Check every tracked path can be checked out on Windows.
+
+    Returns the number of paths checked (0 if git isn't usable here)."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "ls-files", "-z"],
+            capture_output=True, text=True, timeout=60, check=True)
+    except (OSError, subprocess.SubprocessError):
+        warn("could not run 'git ls-files' — skipped Windows path portability check")
+        return 0
+
+    paths = [p for p in result.stdout.split("\0") if p]
+    seen: dict[str, str] = {}
+
+    for path in paths:
+        for part in path.split("/"):
+            bad = sorted(set(WIN_ILLEGAL_CHARS_RE.findall(part)))
+            if bad:
+                shown = ", ".join(repr(c) for c in bad)
+                error(f"{path}: path component '{part}' contains {shown}, "
+                      f"illegal on Windows — git cannot check out this repo there")
+            if part != part.rstrip(" ."):
+                error(f"{path}: path component '{part}' ends in a space or dot, "
+                      f"which Windows strips — leaves the worktree permanently dirty")
+            if part.split(".", 1)[0].lower() in WIN_RESERVED_NAMES:
+                error(f"{path}: path component '{part}' is a reserved Windows "
+                      f"device name")
+
+        # Windows filesystems are case-insensitive: two paths differing only
+        # in case collapse onto one file on checkout.
+        key = path.casefold()
+        if key in seen:
+            error(f"{path}: collides case-insensitively with {seen[key]} — "
+                  f"these cannot coexist on a Windows filesystem")
+        else:
+            seen[key] = path
+
+        if len(path) > MAX_PORTABLE_PATH_LEN:
+            warn(f"{path}: {len(path)} chars — risks exceeding Windows' "
+                 f"260-char MAX_PATH once the clone directory is prepended")
+
+    return len(paths)
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--paths-only", action="store_true",
+        help="run only the Windows path-portability check. Used by the docs "
+             "refresh workflow: a refresh must not be blocked by an unrelated "
+             "skill or registry error, and this mode needs no pyyaml.")
+    args = parser.parse_args()
+
     print("Validating cardano-dev-skills...\n")
 
-    # Validate skills (flat structure: skills/<skill-name>/SKILL.md)
     skill_count = 0
-    for skill_dir in sorted(SKILLS_DIR.iterdir()):
-        if not skill_dir.is_dir() or skill_dir.name == "shared":
-            continue
-        if (skill_dir / "SKILL.md").exists():
-            validate_skill(skill_dir)
-            skill_count += 1
+    if not args.paths_only:
+        if yaml is None:
+            print("ERROR: pyyaml is required for the skill and registry "
+                  "checks (pip install pyyaml), or pass --paths-only.")
+            return 1
 
-    # Validate sources
-    validate_sources()
+        # Validate skills (flat structure: skills/<skill-name>/SKILL.md)
+        for skill_dir in sorted(SKILLS_DIR.iterdir()):
+            if not skill_dir.is_dir() or skill_dir.name == "shared":
+                continue
+            if (skill_dir / "SKILL.md").exists():
+                validate_skill(skill_dir)
+                skill_count += 1
+
+        # Validate sources
+        validate_sources()
+
+    # Validate that every tracked path is checkout-safe on Windows
+    path_count = validate_path_portability()
 
     # Report
-    print(f"Skills validated: {skill_count}")
+    if not args.paths_only:
+        print(f"Skills validated: {skill_count}")
+    print(f"Paths checked for Windows portability: {path_count}")
 
     if warnings:
         print(f"\nWarnings ({len(warnings)}):")

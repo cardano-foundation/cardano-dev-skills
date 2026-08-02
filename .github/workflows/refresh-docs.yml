@@ -23,6 +23,24 @@ jobs:
           ./scripts/fetch-docs.sh --update-pins \
             --manifest-out /tmp/refresh-manifest.json
 
+      - name: Verify fetched paths are checkout-safe on Windows
+        # fetch-docs.sh already normalizes Windows-illegal names, so this
+        # should never fire — but a refresh PR is opened with GITHUB_TOKEN and
+        # therefore never triggers the pull_request validate workflow, so if
+        # normalization regressed the bad path would land unchecked and break
+        # `git clone` for every Windows user (issue #36).
+        #
+        # --paths-only deliberately: a docs refresh must not be blocked by an
+        # unrelated skill or registry error, and that mode is stdlib-only, so
+        # this job still needs no setup-python or pip.
+        run: |
+          # validate.py reads `git ls-files`, so newly fetched files must be
+          # in the index to be seen. Unstage afterwards to leave the tree
+          # exactly as the commit steps expect.
+          git add -A docs/sources/
+          python3 scripts/validate.py --paths-only || { git reset -q; exit 1; }
+          git reset -q
+
       - name: Check for changes
         id: changes
         run: |

@@ -23,22 +23,22 @@
 "CIP-113 SDK (TypeScript)": 6ddd7528aab87fc3202db870f2594ed5b8fb1cb2
 "CIPs": b491a839708eb0296597008e7b6b093eda5e3363
 "Cardano Addresses": 52da5d5e2ce62923c435cd683c3f7d3a523d18a3
-"Cardano CLI": 2c3376c4e7aa0c7c7aa739a988315c02cb6fa6e9
+"Cardano CLI": 7861f69d631929972b60f4a3cb7e176325cbaa82
 "Cardano Connect with Wallet": 47ceba88338f19b576bf72251e8158a7883a5e45
 "Cardano Docs": 833b88942a718e6f3577fd26765a57aed669afb9
 "Cardano GraphQL": 156356d6f904b32c3b3c3f8e599af98abbd93fa9
-"Cardano Ledger": 68f141b0bba7a346984b47a906f3aade81910270
+"Cardano Ledger": 4f7cb2d6874df70561e32147084ed82cee773e8a
 "Cardano Node Antithesis": 311dfc1d499277b23035a107eaf0ec097cf3d948
 "Cardano Node Wiki": 2b069655b5cacda7be6c2ac21a4fa159ec6a4c09
-"Cardano Serialization Lib": 02ae020a8879b21615fb256da8432fd8f1068cac
+"Cardano Serialization Lib": 6763b3f2e20b29aa8d556bf3dc4f253b3264ab13
 "Cardano Use Case Templates": 2f028b0d79ab9dfc47e9ac548b5bfae9b56104d8
-"Cardano Wallet": 320b1abc174ba406d474b006e719204626a903fd
+"Cardano Wallet": 75cd99bd1754cbda5e255d4bd38d0c6c7bc65c13
 "Charli3 Pull Oracle Client": 4f90fa3b1d41d6251ff3de246606b1abacc9cda1
 "Charli3 Pull Oracle Contracts": b5e1ecdefc6e3aae324d59898884bcab7d6e0335
 "Charli3 Pull Oracle SDK": acc01827e66c04b7f83c801a4e63603d6e641dea
 "DB-Sync": 6e3523d3d18e4b2718c72080e15a513a46077360
 "Developer Portal": 1c2ad0d061f5f241e5819f3ff938046abfc34799
-"Dolos": b8dc71139470bf5cacdb38650343bedb2a240296
+"Dolos": 174a5de651528d70135ae29ad97f48db07182985
 "Evolution SDK": e433aca7291cfdd4a4b5116d8e8a65458e994fe7
 "Evolution SDK Packages": e433aca7291cfdd4a4b5116d8e8a65458e994fe7
 "GovTool": 8f242130c1a8f5dee52fd6562f9b0424dc944afd
@@ -53,12 +53,12 @@
 "Ogmios": 435189aea2d9a047dc395a6f1cdef737d52f1cbe
 "OpShin": e94c181daf81333ffb421798b70440b99a09201c
 "Oura": 8433b1049b250b1c1ccc174e5ee17d5963effe5c
-"Ouroboros Leios": 684b3b0f6ccd1ad12b23fb6af2826eee99ddded1
+"Ouroboros Leios": 5ee1738e8d7392f1896936d19b0880a64ff857b8
 "Pallas": cdee91d931132338570e6e6fef3191a61586d61b
 "Pebble": 75cc0bf09e18fc2d3adacb33a79dbf88c3aae761
 "Plu-ts": 75cc0bf09e18fc2d3adacb33a79dbf88c3aae761
 "Plutarch": c3b4771901b2bc5ba0c1e1fed66de3c0f5523069
-"Plutus": 282e92a6dba3ac4b343e0d7bb4598dc552cb7ae7
+"Plutus": 3e257708aea5705074ae5a9687e0d97d66a954f2
 "PyCardano": 3bc5677d4db6c5e49de11bffd302a7ffe4e6bcff
 "SanchoNet": b4ece78e1552ba4e61426fb4fa53aead0e18da4a
 "Scalus": 84e33bc50a32f3d71fa0e05e606460c2a765851b

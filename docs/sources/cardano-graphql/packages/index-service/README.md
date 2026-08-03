@@ -7,7 +7,7 @@ A Docker service for creating performance indexes on the cardano-db-sync Postgre
 The index service creates additional database indexes to improve query performance. These indexes are **optional** but **recommended for production** because:
 
 - `idx_ma_tx_mint_ident` is required for efficient asset polling (without it polls degrade from <1ms to 500ms+)
-- `idx_tx_out_address` significantly speeds up payment address queries
+- `idx_tx_out_address_texthash` is required for payment address / UTXO-by-address queries; without it these do a full sequential scan of `tx_out` (hundreds of millions of rows), which can saturate the connection pool under concurrent load
 - `idx_asset_fingerprint` speeds up asset fingerprint lookups
 
 Index creation is not enabled by default because:
@@ -68,7 +68,7 @@ docker compose ps index-service
 | Index | Table | Speeds up |
 |-------|-------|-----------|
 | `idx_ma_tx_mint_ident` | `ma_tx_mint.ident` | New asset polling (critical for background service) |
-| `idx_tx_out_address` | `tx_out.address` | Payment address queries |
+| `idx_tx_out_address_texthash` | `tx_out.address` | Payment address / UTXO-by-address queries (prevents full-table scans) |
 | `idx_asset_fingerprint` | `Asset.fingerprint` | Asset fingerprint lookups |
 
 ## Operations
@@ -117,6 +117,7 @@ docker compose exec postgres psql -U $(cat placeholder-secrets/postgres_user) \
 
 # Drop all custom indexes
 DROP INDEX CONCURRENTLY IF EXISTS idx_ma_tx_mint_ident;
+DROP INDEX CONCURRENTLY IF EXISTS idx_tx_out_address_texthash;
 DROP INDEX CONCURRENTLY IF EXISTS idx_tx_out_address;
 DROP INDEX CONCURRENTLY IF EXISTS idx_asset_fingerprint;
 ```

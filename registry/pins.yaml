@@ -18,30 +18,30 @@
 "Amaru": 4845f448730f14da2e9efdb4b4aff68ade423001
 "Blockfrost OpenAPI": 486407227a55295cb20d1da6e132ed27c6dc5150
 "Buildooor": 7551104ea29d5606c2dd00d17c7ff71a2fe28d29
-"CIP-113 Programmable Tokens": 5e1d0507eb131cf0b9060ccbaed0d0e1f01795d3
+"CIP-113 Programmable Tokens": f16c85794345d36288de4802cfcd29dc74668b7d
 "CIP-113 Programmable Tokens Platform": bab6fc812aea1a0daad725f5766250645ce28ab3
 "CIP-113 SDK (TypeScript)": 6ddd7528aab87fc3202db870f2594ed5b8fb1cb2
 "CIPs": 0ed8837a02ed78b64847e5646f9572ee1830c7ba
 "Cardano Addresses": 52da5d5e2ce62923c435cd683c3f7d3a523d18a3
 "Cardano CLI": 7861f69d631929972b60f4a3cb7e176325cbaa82
 "Cardano Connect with Wallet": 47ceba88338f19b576bf72251e8158a7883a5e45
-"Cardano Docs": 833b88942a718e6f3577fd26765a57aed669afb9
+"Cardano Docs": df4ef8890e89a12a43561495e17207dd3217a295
 "Cardano GraphQL": 156356d6f904b32c3b3c3f8e599af98abbd93fa9
-"Cardano Ledger": 4f7cb2d6874df70561e32147084ed82cee773e8a
+"Cardano Ledger": adcb341f236fd224f60577a79ffeb5fb138f051f
 "Cardano Node Antithesis": 311dfc1d499277b23035a107eaf0ec097cf3d948
 "Cardano Node Wiki": 2b069655b5cacda7be6c2ac21a4fa159ec6a4c09
-"Cardano Serialization Lib": 6763b3f2e20b29aa8d556bf3dc4f253b3264ab13
+"Cardano Serialization Lib": 6b4253814f1831fee06cda2718fd47174960ace1
 "Cardano Use Case Templates": cbc86fc5d5a25daece94666a9e6f1c48368c1c72
-"Cardano Wallet": 75cd99bd1754cbda5e255d4bd38d0c6c7bc65c13
+"Cardano Wallet": d3d170d02df9e39be04d85f3ce09fca98c9c5380
 "Charli3 Pull Oracle Client": 4f90fa3b1d41d6251ff3de246606b1abacc9cda1
 "Charli3 Pull Oracle Contracts": b5e1ecdefc6e3aae324d59898884bcab7d6e0335
 "Charli3 Pull Oracle SDK": acc01827e66c04b7f83c801a4e63603d6e641dea
-"DB-Sync": 6e3523d3d18e4b2718c72080e15a513a46077360
+"DB-Sync": 655419f479f4ba5ac21b2d4e136aa32c107ab432
 "Developer Portal": 017f036fc6f68599d0a4e2be33e5157443384cdc
 "Dolos": 5d723a57bafdd6d157ef7658ccf14547a26ed8ba
-"Evolution SDK": e433aca7291cfdd4a4b5116d8e8a65458e994fe7
-"Evolution SDK Packages": e433aca7291cfdd4a4b5116d8e8a65458e994fe7
-"GovTool": 8f242130c1a8f5dee52fd6562f9b0424dc944afd
+"Evolution SDK": 1b31e06d068a794e9b2d0bd15ed39fc258f32f1f
+"Evolution SDK Packages": 1b31e06d068a794e9b2d0bd15ed39fc258f32f1f
+"GovTool": e34eeb91bbf99d5a462a0a15e730e91c32eb1ad4
 "Helios": 35440c890c128248f64196cd8394f87bf30de58c
 "Hydra": 1038bc1d0fef312fa3686e358690c47edd6f5935
 "Koios": 6e54441b755aa66707e5e2f826c02379de1b681e
@@ -55,15 +55,15 @@
 "Oura": 8433b1049b250b1c1ccc174e5ee17d5963effe5c
 "Ouroboros Leios": f58f8d6819c645460d8c712e5e371478ff11f3d8
 "Pallas": cdee91d931132338570e6e6fef3191a61586d61b
-"Pebble": 75cc0bf09e18fc2d3adacb33a79dbf88c3aae761
-"Plu-ts": 75cc0bf09e18fc2d3adacb33a79dbf88c3aae761
-"Plutarch": c3b4771901b2bc5ba0c1e1fed66de3c0f5523069
-"Plutus": 3e257708aea5705074ae5a9687e0d97d66a954f2
+"Pebble": 9f1ee2edb7d8a9e12093146bf0757118ac957ae1
+"Plu-ts": 9f1ee2edb7d8a9e12093146bf0757118ac957ae1
+"Plutarch": 87e11994c45b6af4768e5b6146d9c94879e279b5
+"Plutus": 2334b4e98f21653e3cdaf7ec25878e781ce7d5dc
 "PyCardano": 3bc5677d4db6c5e49de11bffd302a7ffe4e6bcff
 "SanchoNet": b4ece78e1552ba4e61426fb4fa53aead0e18da4a
 "Scalus": 8b887b08dce837618106dda9090015a412877bca
 "Smart Contract Vulnerabilities": 0fe98a6fc0c08ea6b21361f2d46c5e6a0cd1922a
 "Yaci DevKit": 0375121b578eafccd26b4512dc0ce6d66b15ad32
-"Yaci Store": b6dc8b5ccc876d72bb2abe1ffabb41e320971d24
+"Yaci Store": 60f5191b98697cee5fcd9a8effcd535169b6a1e8
 "cardano-client-lib": 161648d85ddb7c8b07cdd7740fa63744e52137f8
 "cardano-js-sdk": 0c0e700237ca524d8bd73054e3518fb182d09e46

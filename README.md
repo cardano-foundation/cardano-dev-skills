@@ -67,6 +67,26 @@ In any Claude Code session:
 
 Installed once, active in every Claude Code session in any directory. Verify with `/plugin list`.
 
+Run the two commands in that order. Adding the marketplace first is what registers
+it; going straight to `/plugin install` makes the client resolve the repository
+itself, which can fall back to an SSH URL and fail with
+`git@github.com: Permission denied (publickey)` even though this repository is
+public and clones fine over HTTPS.
+
+### Claude Cowork (desktop, web, mobile)
+
+Cowork uses the same plugin format, so this marketplace works there unchanged.
+
+1. Open **Customize** and go to the **Plugins** tab.
+2. Under **Personal plugins**, click **+**, then **Add marketplace**.
+3. Choose **Add from a repository** and enter:
+   `https://github.com/cardano-foundation/cardano-dev-skills`
+4. Install **cardano-dev-skills** from the marketplace once it syncs.
+
+The skills are the same ones listed above. Note that Cowork syncs the whole
+repository, and `docs/sources/` is roughly 30 MB of bundled documentation — the
+first sync is not instant.
+
 ### Codex / other agents
 
 ```bash

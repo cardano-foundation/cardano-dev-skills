@@ -22,7 +22,7 @@ The threat model is a living document, updated to reflect the [latest Mithril ve
 
 ### System description
 
-:::info[To do]
+:::info To do
 
 - Consider reducing these details and moving them into the [architecture page](https://mithril.network/doc/mithril/mithril-network/architecture).
 - Also consider updating the [protocol page](https://mithril.network/doc/mithril/mithril-protocol/protocol).
@@ -33,9 +33,9 @@ The system consists of three main components: signers, aggregators, and clients.
 
 - **Mithril signers** certify Cardano chain data by using a Mithril signing key. They must have access to both a trusted `cardano-node` and the Mithril signing key to operate.
 - **Mithril signing keys** are rotated every epoch and require certification by the Cardano KES key. Therefore, Mithril signers must have access to the KES key to register a signing key for each epoch.
-- **Cardano KES keys** are also used by the block-producing `cardano-node` and are typically located on the same machine that produces blocks. These keys must be evolved every 36 hours, although they can be rotated from a root key when needed. For more details, see [KES period documentation](https://github.com/input-output-hk/cardano-node-wiki/blob/main/docs/stake-pool-operations/7_KES_period.md).
+- **Cardano KES keys** are also used by the block-producing `cardano-node` and are typically located on the same machine that produces blocks. These keys must be evolved every 36 hours, although they can be rotated from a root key when needed. For more details, see [KES period documentation](https://github.com/IntersectMBO/cardano-node-wiki/blob/main/docs/stake-pool-operations/7_KES_period.md).
 
-:::info[To do]
+:::info To do
 
 Is there a Cardano threat model available for this?
 
@@ -55,7 +55,7 @@ Mithril clients do connect to an aggregator using HTTP over TLS to query Mithril
 
 A Mithril client can verify the received Mithril certificate is linked to other certificates up to the genesis certificate and can be verified using the Mithril genesis verification key (see [details](https://mithril.network/doc/mithril/mithril-protocol/certificates/)).
 
-:::info[To do]
+:::info To do
 
 Missing: the currently recommended relay (reverse proxy)
 
@@ -119,7 +119,7 @@ For each asset, we first identify which part of the **CIA triad** (Confidentiali
     Capturing KES private keys allows an attacker to impersonate a registered SPO on-chain and produce blocks on its behalf until the keys are rotated.
 
   - **Integrity**: Yes  
-    Rotating a compromised KES key is a time-consuming process that can be carried out even if the associated KES period has not fully passed. See [KES period docs](https://github.com/input-output-hk/cardano-node-wiki/blob/main/docs/stake-pool-operations/7_KES_period.md).
+    Rotating a compromised KES key is a time-consuming process that can be carried out even if the associated KES period has not fully passed. See [KES period docs](https://github.com/IntersectMBO/cardano-node-wiki/blob/main/docs/stake-pool-operations/7_KES_period.md).
 
   - **Availability**: Yes  
     If the KES key is unavailable, signing cannot proceed.

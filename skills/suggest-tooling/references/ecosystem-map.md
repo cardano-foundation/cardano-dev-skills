@@ -131,7 +131,7 @@ below carry only facts (language, license) and a project's own stated caveats.
 | **plutus-halo2-verifier-gen** | Rust to Plinth/Aiken | Generates Halo2 / KZG verifiers; the path for verifying Midnight proofs. |
 | **plutus-plonk-example** | Plutus | End-to-end PLONK verifier with published cost benchmarks. |
 | **ak-381** (Modulo-P) | Aiken | Groth16 verifier with Circom conversion scripts; the repository ships no license. |
-| **adaocommunity/zk** | Aiken | Apache-2.0. Collects Groth16, PLONK, and Bulletproofs verifiers. |
+| **adaocommunity/zk** | Aiken | Apache-2.0. Groth16, PLONK, and Bulletproofs (range proof) verifiers for Plutus V3, with protocol walkthroughs and negative-path tests; the README emphasises educational/demonstrative use, states PLONK is still being optimized to fit resource limits, and marks Bulletproofs early-stage; no external audit. Bundled as a source: `docs/sources/aiken-zkp-verifiers/`. |
 | **ZeroJ** (bloxbean) | Java | Full Java ZK pipeline with generated Plutus V3 verifiers; the authors state the code is AI-generated and not for production. |
 
 ### BLS-family libraries and learning

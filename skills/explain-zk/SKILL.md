@@ -7,7 +7,7 @@ description: >-
   "verify a SNARK on-chain", "Groth16 in Aiken", "zk-SNARK verifier", "BLS
   signatures in Aiken", "aggregate signatures", "VRF on Cardano", "verifiable
   randomness", "BBS+ / selective disclosure", "anonymous credentials",
-  "prove knowledge without revealing it".
+  "range proof", "Bulletproofs", "prove knowledge without revealing it".
 allowed-tools: Read Grep Glob
 disallowed-tools: Bash Edit Write WebFetch WebSearch
 ---
@@ -117,6 +117,9 @@ lightest tool; see `references/proof-systems.md`.
   HKDF / PBKDF2 / VRF RFCs. Prefer these specs over any summary for security-relevant claims.
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken-bls-signatures/lib/bls/`
   — a working Aiken implementation of the three BLS signing modes
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken-zkp-verifiers/`
+  — Groth16, PLONK, and Bulletproofs (range proof) verifiers in Aiken, with the protocol math
+  worked step by step under `zkp/docs/`
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cips/CIP-0381/`, `CIP-0133/`, `CIP-0109/`
   — the builtins these all rest on
 

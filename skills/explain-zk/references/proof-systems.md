@@ -26,13 +26,16 @@ factors. Every property an application claims must appear as a constraint.
 | **Groth16** | Smallest (~200 bytes: two G1, one G2) | Per circuit | Circom or gnark circuits; Groth16 verifier in Aiken |
 | **PLONK** | ~0.5 KB | Universal, reusable across circuits | Circom via a snarkjs adaptation; Plutus/Aiken verifiers |
 | **Halo2 (KZG)** | Circuit-dependent | Universal | Verifier generated from a Rust circuit; also the Midnight proof system |
+| **Bulletproofs** | Grows with the statement (logarithmic when compressed) | None (transparent) | Aiken range-proof verifier on the BLS12-381 builtins |
 | **Sigma protocol** (e.g. Schnorr) | A few group elements | None | Implemented directly on the BLS12-381 builtins |
 
-Two contrasts to internalise. Groth16 gives the smallest proof and cheapest verification but needs a
-fresh setup per circuit; PLONK and Halo2 pay a little more per proof for a setup you run once. And
-not everything needs a circuit: a **sigma protocol** proves knowledge of a discrete logarithm ("I
-know the secret behind this public point") with no circuit and no ceremony. If that is all the
-application needs, it is the lighter tool.
+Three contrasts to internalise. Groth16 gives the smallest proof and cheapest verification but needs
+a fresh setup per circuit; PLONK and Halo2 pay a little more per proof for a setup you run once.
+**Bulletproofs** remove the setup entirely — no ceremony, no toxic waste — and natively prove range
+statements ("this committed value lies in [0, 2^n)"), paying for it with proofs that grow with the
+statement and heavier verification. And not everything needs a circuit: a **sigma protocol** proves
+knowledge of a discrete logarithm ("I know the secret behind this public point") with no circuit and
+no ceremony. If that is all the application needs, it is the lighter tool.
 
 ## What a Groth16 verifier does
 
@@ -46,8 +49,9 @@ a single final verification. Circuit size does not affect this cost: the proof i
 points whether the circuit has five constraints or five million. What grows the cost is the **number
 of public inputs**, so keep them few and commit bulky data with a single hash.
 
-Read a real implementation rather than reconstructing one; several are listed in the ZK/BLS section of
-the ecosystem map.
+Read a real implementation rather than reconstructing one. One is bundled:
+`docs/sources/aiken-zkp-verifiers/` carries Groth16, PLONK, and Bulletproofs verifiers in Aiken with
+protocol walkthroughs under `zkp/docs/`. Others are listed in the ZK/BLS section of the ecosystem map.
 
 ## The circuit-to-Aiken pipeline
 
@@ -97,7 +101,8 @@ publish their own benchmarks.
   the setup randomness can forge proofs. A multi-party ceremony fixes this — the result is secure if
   *any one* participant was honest. Phase 1 ("powers of tau") is circuit-independent and reusable;
   Groth16's phase 2 must be redone per circuit. A single-party setup is fine for a demo and unsafe
-  for a real deployment.
+  for a real deployment. Transparent systems (Bulletproofs, STARKs) remove the ceremony entirely —
+  the trade is proof size and verification cost, not trust.
 - **Use circuit-friendly hashes, on the right curve.** SHA-256 or Blake2b inside a circuit costs tens
   of thousands of constraints; **Poseidon** and **MiMC** are built for circuits. Standard Poseidon
   parameters are generated for other curves — if you hash over BLS12-381 in-circuit, generate matching
@@ -111,6 +116,8 @@ publish their own benchmarks.
 
 - Bundled: `docs/sources/developer-portal/developers/curriculum/smart-contracts/advanced/zero-knowledge.md`
   — the full catalog of verifiers, toolkits, and shipped applications.
+- Bundled: `docs/sources/aiken-zkp-verifiers/` — Groth16, PLONK, and Bulletproofs verifiers in Aiken,
+  with the protocol math worked step by step in `zkp/docs/step-by-step.md`.
 - Toolchains and libraries: see the ZK/BLS section of `suggest-tooling/references/ecosystem-map.md`.
 - The CIPs: CIP-0381 (pairing builtins), CIP-0133 (multi-scalar multiplication), CIP-0109 (modular
   exponentiation) under `docs/sources/cips/`.

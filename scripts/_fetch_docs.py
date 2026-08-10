@@ -89,13 +89,17 @@ def portable_relpath(rel, used):
     them. A second file landing on the same name — because illegal characters
     collapsed onto an existing name, or because upstream has two files
     differing only in case (indistinguishable on a Windows filesystem) — gets
-    a numeric suffix rather than silently overwriting the first."""
+    a numeric suffix rather than silently overwriting the first.
+
+    Both lookups compare the claimant rather than testing mere presence, so a
+    file revisited by overlapping glob_patterns reclaims the name it already
+    holds instead of being staged a second time under the next free suffix."""
     candidate = os.path.join(*[portable_component(p) for p in Path(rel).parts])
     key = candidate.casefold()
     if used.get(key, rel) != rel:
         stem, ext = os.path.splitext(candidate)
         n = 2
-        while f"{stem}-{n}{ext}".casefold() in used:
+        while used.get(f"{stem}-{n}{ext}".casefold(), rel) != rel:
             n += 1
         candidate = f"{stem}-{n}{ext}"
         key = candidate.casefold()

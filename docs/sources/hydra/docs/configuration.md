@@ -68,6 +68,7 @@ chain:
   cardano-signing-key: "alice.cardano.sk"
   contestation-period: 43200
   deposit-period: 3600
+  deposit-activation: 3600
   backend:
     mode: direct
     node-socket: "node.socket"
@@ -123,6 +124,7 @@ chain:
   cardano-signing-key: "alice.cardano.sk"
   contestation-period: 43200
   deposit-period: 3600
+  deposit-activation: 3600
   backend:
     mode: direct
     node-socket: "node.socket"
@@ -195,7 +197,7 @@ The default contestation period is **12 hours (43200 seconds)**, aligned with Ca
 On mainnet, the contestation period should be **at least 12 hours**. Shorter periods may not provide sufficient time for dispute resolution due to Cardano's consensus security parameters. See [#2389](https://github.com/cardano-scaling/hydra/issues/2389) for details.
 :::
 
-The contestation deadline decides when a closed head can be fanned out. At worst, this is `(1 + n) * CP` after submitting a `Close` transaction, where `n` is the number of participants in the head. This is because the deadline is pushed forward on each `Contest`. With no contestations which may still be `2 * CP` after `Close` depending on the upper validity set on che close transaction. The `hydra-node` currently picks a blanket 200 seconds as [max grace time](https://hydra.family/head-protocol/haddock/hydra-node/Hydra-Chain-Direct-Handlers.html#v:maxGraceTime).
+The contestation deadline decides when a closed head can be fanned out. At worst, this is `(1 + n) * CP` after submitting a `Close` transaction, where `n` is the number of participants in the head. This is because the deadline is pushed forward on each `Contest`. With no contestations which may still be `2 * CP` after `Close` depending on the upper validity set on che close transaction. The `hydra-node` currently picks a blanket 200 seconds as [max grace time](pathname:///haddock/hydra-node/Hydra-Chain-Direct-Handlers.html#v:maxGraceTime).
 
 :::warning Invalid `Close` and `Contest` transactions
 
@@ -281,7 +283,25 @@ hydra-node --deposit-period 7200s
 
 Anyone can submit a deposit transaction that targets a given head. Each deposit has a **deposit deadline**, after which a deposit can be recovered. All participants need to agree before a deposit can be incremented into the head state and deposited funds are made available on the L2.
 
-For a deposit to be considered by the `hydra-node` the deadline must be further out than `now + DP`. The `hydra-node` will pick the deadline `now + 3 * DP` for any deposit transactions created through `POST /commit`. For example, if you set a deposit period of 2 hours, the deposit will be picked up after 2 hours and at latest after 4 hours, while it may be recovered by the user after 6 hours.
+For a deposit to be considered by the `hydra-node` the deadline must be further out than `now + DP`.
+
+### Deposit activation
+
+The deposit activation (DA) controls **only** how long a deposit must mature before it transitions from `Inactive` to `Active` and can be incremented into the head. It is independent from the deposit period and defaults to `3600s`.
+
+```
+hydra-node --deposit-activation 1800s
+```
+
+The `hydra-node` picks the deadline `now + DA + 2 * DP` for any deposit transactions created through `POST /commit`. This splits the lifetime of a deposit into three independent windows:
+
+- **maturity** (`DA`): time before the deposit becomes active,
+- **active** (`DP`): time during which the deposit can be incremented,
+- **recovery** (`DP`): time before the deadline during which the deposit can no longer be incremented but is not yet recoverable.
+
+For example, with `--deposit-activation 1800s` and `--deposit-period 3600s`, a deposit is picked up after 30 minutes, can be incremented until 1.5 hours, and may be recovered by the user after 2.5 hours.
+
+Keeping the default `3600s` for both flags reproduces the previous behaviour where the deadline was `now + 3 * DP`. Like the deposit period, all nodes in a head should configure identical values.
 
 See the [how-to](./how-to/incremental-commit) and [protocol documentation](./dev/protocol#incremental-commits) for more details.
 
@@ -316,6 +336,10 @@ hydra-node publish-scripts \
 
 This command outputs a transaction ID upon success. The provided key should hold sufficient funds (> 50 ada) to create multiple **UNSPENDABLE** UTXO entries on-chain, each carrying a script referenced by the Hydra node.
 
+:::info
+One of those entries is the `νCRS` output, which carries the common reference string used to verify the [membership proofs](./dev/architecture/partial-fanout.md) on every fanout transaction. A node pointed at scripts published before this output existed fails to start with a `MissingScript "νCRS"` error, so those scripts need to be re-published.
+:::
+
 ```shell
 hydra-node publish-scripts \
   --testnet-magic 42 \
@@ -323,7 +347,7 @@ hydra-node publish-scripts \
   --cardano-signing-key cardano.sk
 ```
 
-You can also use blockfrost for script publishing. On top of providing cardano signing key you need to provide a path to the file containing the blockfrost (project id)[https://blockfrost.dev/overview/getting-started#creating-first-project].
+You can also use blockfrost for script publishing. On top of providing cardano signing key you need to provide a path to the file containing the blockfrost [project id](https://blockfrost.dev/overview/getting-started#creating-first-project).
 
 ```shell
 hydra-node publish-scripts \
@@ -420,7 +444,7 @@ Hydra supports an offline mode that allows for disabling the layer 1 interface �
 
 As an offline head will not connect to any chain, we need to provide an `--offline-head-seed` manually, which is a hexadecimal byte string. Offline heads can still use the L2 network and to make multiple `hydra-node` "see" the same offline head, the offline head seed needs to match along with provided [hydra keys](#hydra-keys).
 
-To initialize UTxO state available on the L2 ledger, offline mode takes an obligatory `--initial-utxo` parameter, which points to a JSON-encoded UTxO file. See the [API reference](https://hydra.family/head-protocol/api-reference#schema-UTxO) for the schema.
+To initialize UTxO state available on the L2 ledger, offline mode takes an obligatory `--initial-utxo` parameter, which points to a JSON-encoded UTxO file. See the [API reference](pathname:///api-reference/#schema-UTxO) for the schema.
 
 For example, the following UTxO contains 100 ADA owned by test key [alice-funds.sk](https://github.com/cardano-scaling/hydra/tree/master/hydra-cluster/config/credentials/alice-funds.sk):
 ```json utxo.json
@@ -489,6 +513,7 @@ The response mirrors the YAML config file format (kebab-case keys, same hierarch
     "cardano-verification-keys": [],
     "contestation-period": 43200,
     "deposit-period": 3600.0,
+    "deposit-activation": 3600.0,
     "unsynced-period": 21600.0,
     "backend": {
       "mode": "direct",

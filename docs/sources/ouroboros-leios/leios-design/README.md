@@ -298,7 +298,7 @@ This demonstrates how modest adversarial stake combined with strategic network p
 
 **Attack on safety.** While throughput degradation represents the obvious impact, the most dangerous variant targets blockchain safety itself.
 The adversary can strategically delay transaction data release to create scenarios where EBs achieve certification but cannot be processed by honest nodes within the required timeframe.
-Just before the voting deadline, they release data to a subset of voting committee members—enough to achieve certification, but not to all network participants.
+Just before the voting deadline, they release data to a subset of voting committee members (who are approximately colocated in the worst case)—enough to achieve certification, but not to all network participants.
 The resulting certificate gets included in a subsequent RB, but honest block producers cannot acquire the certified EB's transaction closure within $L_\text{diff}$.
 
 By reducing the number of honest nodes that received the EB data in time for certification, the adversary also impairs subsequent diffusion.
@@ -429,17 +429,17 @@ The [prototyping and adversarial testing](#prototyping-and-adversarial-testing) 
 
 ## Architecture
 
-While being a significant change to the consensus protocol, Leios does not require fundamental changes to the overall architecture of the `cardano-node`. Several new components will be needed for the new responsibilities related to producing and relaying Endorser Blocks (EBs) and voting on them, as well as changes to existing components to support higher throughput and freshest-first-delivery. The following diagram illustrates the key components of a relay node where new and updated components are marked in purple:
+While being a significant change to the consensus protocol, Leios does not require fundamental changes to the overall architecture of the `cardano-node`. Several new components will be needed for the new responsibilities related to producing and relaying Endorser Blocks (EBs) and voting on them, as well as changes to existing components to support higher throughput and freshest-first-delivery. The following diagram illustrates the key components where new and updated components are marked in purple:
 
 > [!WARNING]
 >
 > TODO: Should consider adding Leios prefixes to VoteStore (to not confuse with PerasVoteDB), i.e. LeiosVoteDB?
 
-![](./relay-leios-component-diagram.svg)
+![](./leios-changes-component-diagram.svg)
 
 > [!WARNING]
 >
-> TODO: Explain why focus on relay node (upstream/downstream relationship); briefly mention block producer node differences; Add similar diagram for block producer? block and vote production not shown in relay diagram
+> TODO: Give an overview of the diagram and link to later sections for details
 
 ## Resource management
 
@@ -481,6 +481,8 @@ Due to extra volume that Leios imposes on the protocol, it is imperative that th
 > [!WARNING]
 >
 > TODO: investigate possibility to use TCP_NOTSENT_LOWAT on cardano network despite its non-portability.
+
+Benchmarks results showed that incremental decoding of a full Praos blocks can improve decoding time by several milliseconds (which is a minor improvement). However, more substantial gains were observed for blocks of size of several MBs, where time saved can reach several hundreds milliseconds (ref. Intersect/ouroboros-network#5367).
 
 ### Traffic prioritization
 
@@ -547,6 +549,8 @@ Furthermore, the existing `forgeBlock` method and/or the `BlockForging` interfac
 The first version of the Mempool can be naive, with the block production thread handling everything. A second version can try to pre-compute in order to avoid delays (ie discarding the certified EB's chunk of transactions) when issuing a CertRB and its announced EB.
 
 ### Endorser block diffusion
+
+![](./fetching-chain-selection-component-diagram.svg)
 
 > [!WARNING]
 >
@@ -624,6 +628,8 @@ The first version of LeiosTxCache should reliably cache all relevant transaction
 > TBD: Is this motivating to _not_ implement high churn components like the transaction cache in a garbage collected language and instead rely on implementations with more control over memory allocations? For example using an off-the-shelf key-value store for the transaction cache, or implementing a custom one in Rust and exposing it via FFI?
 
 ### Voting and certification
+
+![](./voting-component-diagram.svg)
 
 > [!WARNING]
 >

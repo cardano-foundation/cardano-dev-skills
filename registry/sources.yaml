@@ -289,13 +289,19 @@
     - "**/*.md"
   description: Official Aiken code examples and patterns
 
-- name: Plutus
+- name: Plinth
   repo: https://github.com/IntersectMBO/plutus.git
-  docs_path: doc
+  docs_path: doc/docusaurus
   format: markdown
   category: smart-contracts
   priority: medium
-  description: Original Haskell-based smart contract platform by IOG/Intersect
+  glob_patterns:
+    - "docs/**/*.md"
+    - "static/code/**/*.hs"
+    - "static/code/**/*.mjs"
+    - "static/code/**/*.uplc"
+    - "static/csv/**/*.csv"
+  description: Plinth (formerly PlutusTx) — Haskell eDSL for writing Plutus / Plutus Core smart contracts, from IOG/Intersect. Captures the user-guide prose plus the worked code examples the site embeds via LiteralInclude.
 
 - name: Helios
   repo: https://github.com/Hyperion-BT/helios.git

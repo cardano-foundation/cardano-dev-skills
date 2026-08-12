@@ -108,7 +108,7 @@ Determine:
 ### Step 2: Search Bundled Documentation
 
 Search the bundled documentation for relevant content:
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/plutus/` - Plutus docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/plinth/` - Plinth (PlutusTx) docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken/` - Aiken language docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/developer-portal/` - Cardano Developer Portal
 

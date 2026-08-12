@@ -68,7 +68,7 @@ Note the following:
 Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken/` - Aiken language docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken-stdlib/` - Aiken standard library docs
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/plutus/` - Plutus docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/plinth/` - Plinth (PlutusTx) docs
 
 ### Step 3: Identify expensive operations
 

@@ -59,7 +59,7 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken/` - Aiken language docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken-design-patterns/` - Aiken design patterns
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/smart-contract-vulnerabilities/` - Smart contract vulnerability reference
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/plutus/` - Plutus docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/plinth/` - Plinth (PlutusTx) docs
 
 ### Step 3: Check against the vulnerability checklist
 

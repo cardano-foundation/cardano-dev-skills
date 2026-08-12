@@ -107,12 +107,14 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 
 ## Scaling Solutions
 
-| Name | Type | Status | Best For |
+| Name | Type | Status | Best For / notes |
 |---|---|---|---|
-| **Hydra** | State channels (L2) | Production | High-frequency, low-latency off-chain transactions. |
-| **Mithril** | Snapshot certificates | Production | Fast chain sync, lightweight clients. |
-| **Partner Chains** | Sidechains | Experimental | Custom chains anchored to Cardano. |
-| **Input Endorsers** | L1 scaling | Research | Future L1 throughput improvements. |
+| **Hydra Head** | Isomorphic state channel (L2) | Production | A known, fixed set of parties transacting at high frequency among themselves, where all parties run a node and stay online. Same tx format and ledger rules as L1 (isomorphic). |
+| **Mithril** | Snapshot certificates | Production | Fast node bootstrap and light-client sync — not tx throughput. |
+| **Partner Chains** | Sidechains | Experimental | Custom app-specific chains anchored to Cardano. |
+| **Input Endorsers (Leios)** | L1 scaling | Research | Future L1 throughput improvements; not a tool you integrate today. |
+| **Midgard** | Optimistic rollup | Experimental | L2 without a fixed participant set. Frontier; **not a bundled source** — verify upstream, don't build production on it yet. |
+| **Gummiworm** | Validium-style L2 | Experimental | Off-chain data-availability L2. Not mainnet-ready; not bundled. |
 
 ## Wallet Connectors
 

@@ -20,7 +20,7 @@ End result: the agent answers from current, project-authoritative sources instea
 
 ## What's inside
 
-- **<!-- COUNT:skills -->15<!-- /COUNT:skills --> developer skills** — each a focused workflow
+- **<!-- COUNT:skills -->16<!-- /COUNT:skills --> developer skills** — each a focused workflow
 - **<!-- COUNT:sources -->57<!-- /COUNT:sources --> documentation sources** — bundled locally under `docs/sources/`, auto-refreshed weekly via GitHub Actions
 - **Hooks** — `SessionStart` reports doc freshness; a `UserPromptSubmit` auto-consultation hook is in development
 
@@ -43,6 +43,7 @@ End result: the agent answers from current, project-authoritative sources instea
 | `explain-eutxo` | Cardano's UTxO model for newcomers |
 | `explain-cip` | Walk through a specific CIP |
 | `suggest-tooling` | Recommend an SDK / framework given the use case |
+| `suggest-scalability` | Decide if a project needs L2, which approach, and which Hydra topology |
 
 ## What we add (and don't)
 

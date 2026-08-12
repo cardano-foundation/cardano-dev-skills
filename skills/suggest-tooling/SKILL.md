@@ -20,6 +20,7 @@ Help the developer choose the right tools, SDKs, and libraries for their Cardano
 - Selecting infrastructure components (indexers, APIs, testing tools)
 - Evaluating wallet integration options
 - Understanding which CIPs are relevant to their project
+- Deciding whether a project needs Layer 2 / scaling (Hydra) or can stay on L1
 
 ## When NOT to use
 
@@ -48,6 +49,7 @@ Ask the developer (if not already clear):
 - **What is your deployment target?** (mainnet, testnet, local devnet)
 - **What is your experience level with Cardano?** (new, intermediate, advanced)
 - **Any existing infrastructure?** (running a node, using hosted APIs)
+- **Do you require high throughput, sub-second-finality, or any other requirement that L1 is not fit to handle?** (micro-payments, sub-second-finality, etc.)
 
 ### Step 2: Search Bundled Documentation
 
@@ -57,6 +59,7 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken/` - Aiken language docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/ogmios/` - Ogmios WebSocket bridge docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/blockfrost-openapi/` - Blockfrost API docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/hydra/` - Hydra (Layer 2 state channels) docs
 
 ### Step 3: Search the ecosystem map
 
@@ -114,6 +117,10 @@ File: skills/suggest-tooling/references/ecosystem-map.md
 | **Yaci DevKit** | Local devnet | Self-hosted |
 
 **Default recommendation**: Blockfrost for getting started (easy, hosted). Ogmios + Kupo for production self-hosted.
+
+#### Scaling / Layer 2
+
+**Most projects do not need Layer 2.** Cardano L1 handles the large majority of dApp workloads. Reach for L2 only against a *specific, confirmed* throughput or latency requirement L1 cannot meet and validate that the requirement is real before recommending it. **If there's a posibility of needing an L2, hand off the decision to the `suggest-scalability` skill.**
 
 #### Testing
 

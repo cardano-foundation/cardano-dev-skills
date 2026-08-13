@@ -580,6 +580,20 @@
     - command-line/README.md
   description: Address derivation library — Shelley/Byron/Icarus address formats, key encodings, and CLI for offline key management
 
+- name: Tx3
+  repo: https://github.com/tx3-lang/docs.git
+  docs_path: "."
+  format: mdx
+  format_overrides:
+    "**/*.md": markdown
+  category: sdk
+  priority: medium
+  glob_patterns:
+    - "**/*.mdx"
+    - "**/*.md"
+  description: Interface-description DSL for UTxO protocols plus toolchain (TxPipe) — authors declare a protocol's transactions in `.tx3` files; consumers generate typed clients (TypeScript, Rust, Go, Python) via the `trix` CLI. Ships TII/TIR interface artifacts and Cardano-specific language bindings.
+  website: https://docs.txpipe.io/tx3
+
 # --- Testing & DevNets ---
 
 - name: Yaci DevKit

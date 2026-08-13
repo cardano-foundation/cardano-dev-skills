@@ -12,6 +12,7 @@ Quick reference for choosing and using Cardano transaction-building SDKs.
 | cardano-client-lib | Java | Mid-Low | Active | JVM fine-grained control |
 | cardano-js-sdk | TypeScript | Low-Mid | IOG-maintained | Full-stack TS, Lace wallet |
 | Cardano Serialization Lib | Rust/WASM | Low | IOG-maintained | Custom tooling, performance |
+| Tx3 | DSL -> TS/Rust/Go/Python | High/Declarative | Active (pre-1.0) | Multi-language teams, published protocols |
 
 ## Mesh SDK
 
@@ -235,6 +236,69 @@ npm install @cardano-sdk/core @cardano-sdk/wallet
 
 ---
 
+## Tx3
+
+- **Language:** `.tx3` DSL, with generated clients in TypeScript, Rust, Go, and Python
+- **Repository:** github.com/tx3-lang/tx3
+- **Documentation:** docs.txpipe.io/tx3
+
+Tx3 sits at a different level from the SDKs above. Instead of building a transaction
+imperatively in one language, you **declare** a protocol's transactions in a `.tx3`
+interface file — an ABI/OpenAPI analogue for UTxO protocols — then generate typed
+clients for any supported language. A resolver reached over the Transaction Resolver
+Protocol (TRP) does coin selection, fee calculation, and change.
+
+**Strengths:**
+- One interface definition, typed clients in four languages -- no per-language rewrite
+- Protocol interface is a publishable, machine-readable artifact others can integrate against
+- Toolchain included: `trix` (package manager, build, local devnet, test runner), LSP, VS Code extension
+- Declarative `.tx3` reads as intent, not UTxO plumbing
+
+**Weaknesses:**
+- Pre-1.0 -- smaller ecosystem and less battle-tested than the imperative SDKs
+- Extra moving parts: a TRP endpoint plus a codegen step
+- New concepts to learn (parties, the `.tx3` language, TII/TIR/TRP)
+- For a single-language app with simple needs, an imperative SDK is more direct
+
+**Installation:**
+```bash
+tx3up                      # install the toolchain (trix, compiler, LSP)
+npm install tx3-sdk        # runtime SDK for the generated client (TS shown)
+```
+
+**Basic send-ADA pattern (two parts):**
+
+Declare the transaction:
+```tx3
+// transfer.tx3 -- the interface
+party Sender;
+party Receiver;
+
+tx transfer(quantity: Int) {
+    input source  { from: Sender, min_amount: Ada(quantity) }
+    output        { to: Receiver, amount: Ada(quantity) }
+    output        { to: Sender,   amount: source - Ada(quantity) - fees }
+}
+```
+
+Consume transaction after generating:
+```typescript
+// after `trix codegen --plugin ts-client`
+import { Client } from "./gen/transfer";
+import { Party, Ed25519Signer } from "tx3-sdk";
+
+const client = new Client({ endpoint: "http://localhost:8164" }, "local")
+  .withSender(Party.signer(Ed25519Signer.fromHex("addr_test1...", "deadbeef...")))
+  .withReceiver(Party.address("addr_test1..."));
+
+const status = await client
+  .transfer({ quantity: 5_000_000n })
+  .resolve().then((r) => r.sign()).then((s) => s.submit())
+  .then((sub) => sub.waitForConfirmed());
+```
+
+---
+
 ## Decision Guide
 
 **Choose Mesh SDK when:**
@@ -268,3 +332,9 @@ npm install @cardano-sdk/core @cardano-sdk/wallet
 - Building performance-critical tooling
 - Need cross-platform Rust/WASM support
 - Building a new SDK or framework on top
+
+**Choose Tx3 when:**
+- The same protocol is consumed from several languages and you want one interface, not N rewrites
+- You are publishing a protocol for others to integrate against
+- You prefer declaring transaction intent over imperative builder code
+- You can accept a pre-1.0 toolchain and running (or pointing at) a TRP endpoint

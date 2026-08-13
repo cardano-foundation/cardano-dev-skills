@@ -1,0 +1,182 @@
+---
+title: Minting & burning
+---
+
+`mint` and `burn` blocks declare assets the transaction creates or destroys. They take an `amount` (an `AnyAsset` expression) and an optional `redeemer`. A transaction may contain multiple `mint` and `burn` blocks, and you can attach the minting policy via a `cardano::plutus_witness` or `cardano::native_witness` block when the policy is a script.
+
+## Password-gated faucet
+
+A minimal mint: anyone who provides the right `password` redeemer can claim `quantity` of `MyToken`. The minting policy is identified by its hash; the resolver figures out how to satisfy it.
+
+```tx3
+policy PasswordPolicy = 0xef7a1cebb2dc7de884ddf82f8fcbc91fe9750dcd8c12ec7643a99bbe;
+
+asset MyToken = 0xef7a1cebb2dc7de884ddf82f8fcbc91fe9750dcd8c12ec7643a99bbe."MYTOKEN";
+
+party Requester;
+
+tx claim_with_password(
+    password: Bytes,
+    quantity: Int
+) {
+    input provided_gas {
+        from: Requester,
+        min_amount: fees,
+    }
+
+    mint {
+        amount: MyToken(quantity),
+        redeemer: password,
+    }
+
+    output {
+        to: Requester,
+        amount: provided_gas - fees + MyToken(quantity),
+    }
+}
+```
+
+`MyToken(quantity)` is the `asset`-as-constructor syntax: invoking a named asset like a function builds an `AnyAsset` value of that asset with the given quantity.
+
+## Burning tokens
+
+`burn` mirrors `mint`. Here the asset to burn is built inline with `AnyAsset(policy, name, quantity)` and lifted into a `locals` binding so the same value is reused in the input lower bound, the burn block, and the change calculation.
+
+```tx3
+party Burner;
+
+tx burn_stuff(
+    quantity: Int
+) {
+    locals {
+        to_burn: AnyAsset(0x6b9c456aa650cb808a9ab54326e039d5235ed69f069c9664a8fe5b69, "ABC", quantity),
+    }
+
+    input source {
+        from: Burner,
+        min_amount: to_burn + fees,
+    }
+
+    burn {
+        amount: to_burn,
+        redeemer: (),
+    }
+
+    output {
+        to: Burner,
+        amount: source - to_burn - fees,
+    }
+}
+```
+
+## Minting with a Plutus or native witness
+
+When the minting policy is a script you carry inline, attach it as a witness. Tx3 has two flavours — `cardano::plutus_witness` for Plutus scripts (with a `version`) and `cardano::native_witness` for native scripts. Both transactions below mint the same asset; the only difference is the witness block.
+
+```tx3
+party Minter;
+
+tx mint_from_plutus(
+    quantity: Int
+) {
+    locals {
+       new_token: AnyAsset(0xbd3ae991b5aafccafe5ca70758bd36a9b2f872f57f6d3a1ffa0eb777, "ABC", quantity),
+    }
+
+    input source {
+        from: Minter,
+        min_amount: fees,
+    }
+
+    collateral {
+        from: Minter,
+        min_amount: fees,
+    }
+
+    mint {
+        amount: new_token,
+        redeemer: (),
+    }
+
+    output {
+        to: Minter,
+        amount: source + new_token - fees,
+    }
+
+    cardano::plutus_witness {
+        version: 3,
+        script: 0x5101010023259800a518a4d136564004ae69,
+    }
+}
+
+tx mint_from_native_script(
+    quantity: Int
+) {
+    locals {
+       new_token: AnyAsset(0xbd3ae991b5aafccafe5ca70758bd36a9b2f872f57f6d3a1ffa0eb777, "ABC", quantity),
+    }
+
+    input source {
+        from: Minter,
+        min_amount: fees,
+    }
+
+    collateral {
+        from: Minter,
+        min_amount: fees,
+    }
+
+    mint {
+        amount: new_token,
+    }
+
+    output {
+        to: Minter,
+        amount: source + new_token - fees,
+    }
+
+    cardano::native_witness {
+        script: 0x820181820400,
+    }
+}
+```
+
+The Plutus variant requires a `collateral` block (Cardano demands collateral whenever a Plutus script runs) and a `redeemer` on the `mint`. The native-script variant has no redeemer.
+
+## Minting against a published reference script
+
+Inlining script bytes every time you mint is wasteful and brittle. The usual workflow is to publish the script once (see [Publishing a reference script](/tx3/examples/cardano#publishing-a-reference-script)) and from then on cite its UTxO instead. Both the policy hash and the reference UTxO can be supplied per environment via an [`env`](/tx3/language/env) block, so the same transaction template works against devnet, preview, preprod, and mainnet without source edits.
+
+```tx3
+env {
+    mint_script: UtxoRef,
+    mint_policy: Bytes,
+}
+
+party Minter;
+
+tx mint_from_env(
+    quantity: Int
+) {
+    reference myscript {
+        ref: mint_script,
+    }
+
+    mint {
+        amount: AnyAsset(mint_policy, "ABC", 1),
+        redeemer: (),
+    }
+
+    input source {
+        from: Minter,
+        min_amount: fees,
+    }
+
+    output {
+        to: Minter,
+        amount: AnyAsset(mint_policy, "ABC", 1),
+    }
+}
+```
+
+`reference myscript` cites the on-chain UTxO that holds the script. `mint_policy` parametrises the asset's policy id. Both values come from the active profile in `trix.toml`, not from the source file.

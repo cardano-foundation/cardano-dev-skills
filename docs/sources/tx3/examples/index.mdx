@@ -1,0 +1,17 @@
+---
+title: Example Catalog
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+This section is organised around things you might be trying to build, not around the language features they happen to use. For the feature reference, see the [Language section](/tx3/language). Every snippet on these pages is drawn from the [tx3 reference examples](https://github.com/tx3-lang/tx3/tree/main/examples) and compiles against the current parser.
+
+<CardGrid>
+  <LinkCard title="Transfers" href="/tx3/examples/transfers" description="Send Ada or native assets between parties." />
+  <LinkCard title="Minting & burning" href="/tx3/examples/minting" description="Create new tokens or destroy existing ones." />
+  <LinkCard title="Vesting & escrow" href="/tx3/examples/vesting" description="Lock funds in a script and let someone redeem them later under conditions." />
+  <LinkCard title="Swaps & marketplaces" href="/tx3/examples/swaps" description="Atomically exchange one asset for another." />
+  <LinkCard title="UTxO state" href="/tx3/examples/utxo-state" description="Encode state into datums; spend a UTxO to advance it, reference one to read it." />
+  <LinkCard title="Cardano-specific use-cases" href="/tx3/examples/cardano" description="Stake withdrawals, governance, treasury donations, reference-script publishing." />
+  <LinkCard title="All examples on GitHub" href="https://github.com/tx3-lang/tx3/tree/main/examples" description="Browse the full set of reference examples in the language repo." />
+</CardGrid>

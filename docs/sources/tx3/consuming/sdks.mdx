@@ -1,0 +1,58 @@
+---
+title: SDKs
+sidebar:
+  order: 3
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+A Tx3 SDK is the runtime library your application uses to consume a Tx3 protocol. It provides the TRP transport, party and signer bindings, and the four-stage transaction lifecycle: `resolve → sign → submit → wait`.
+
+A client produced by [`trix codegen`](/tx3/consuming/codegen) is a thin typed layer on top of this SDK — it delegates to the SDK for everything but the typed transaction methods. You can also use the SDK directly without codegen; see [Dynamic Usage](/tx3/consuming/dynamic-usage).
+
+The conceptual surface is identical across every supported language; only the syntax differs. For a step-by-step walkthrough in your language of choice, see the [Quick Start](/tx3/consuming/quick-start).
+
+This page is a directory: each supported language, where its source lives, and where to install it from.
+
+## TypeScript
+
+The TypeScript SDK targets Node.js, modern browsers, Bun, and Deno. It ships CIP-30 wallet bridges and bundler plugins (Vite, Rollup, Next.js) so consumers can generate clients at build time instead of committing them.
+
+- **Source:** [`tx3-lang/web-sdk`](https://github.com/tx3-lang/web-sdk)
+- **Package:** [`tx3-sdk` on npm](https://www.npmjs.com/package/tx3-sdk)
+- **Install:** `npm install tx3-sdk`
+
+## Rust
+
+The Rust SDK is the canonical reference implementation. Cargo features gate optional integrations; a low-level TRP client and custom signer hooks are exposed for callers that need to bypass the high-level builder.
+
+- **Source:** [`tx3-lang/rust-sdk`](https://github.com/tx3-lang/rust-sdk)
+- **Package:** [`tx3-sdk` on crates.io](https://crates.io/crates/tx3-sdk)
+- **Install:** `cargo add tx3-sdk`
+
+## Go
+
+The Go SDK exposes typed errors, a context-aware lifecycle, and a low-level TRP client for backends that need to integrate without the full builder surface.
+
+- **Source:** [`tx3-lang/go-sdk`](https://github.com/tx3-lang/go-sdk)
+- **Package:** [`github.com/tx3-lang/go-sdk/sdk` on pkg.go.dev](https://pkg.go.dev/github.com/tx3-lang/go-sdk/sdk)
+- **Install:** `go get github.com/tx3-lang/go-sdk/sdk`
+
+## Python
+
+The Python SDK exposes an async lifecycle, a low-level TRP client, and custom signer hooks.
+
+- **Source:** [`tx3-lang/python-sdk`](https://github.com/tx3-lang/python-sdk)
+- **Package:** [`tx3-sdk` on PyPI](https://pypi.org/project/tx3-sdk/)
+- **Install:** `pip install tx3-sdk`
+
+## Per-language reference
+
+Each SDK ships its own README — the canonical reference for browser usage, CIP-30 wallet bridges, framework integrations, the low-level TRP client, custom signers, error handling, and version compatibility. It lives on each package's registry page:
+
+<CardGrid>
+  <LinkCard title="tx3-sdk on npm" href="https://www.npmjs.com/package/tx3-sdk" description="TypeScript — Node.js, browsers, Bun, Deno, CIP-30, bundler plugins" />
+  <LinkCard title="tx3-sdk on crates.io" href="https://crates.io/crates/tx3-sdk" description="Rust — Cargo features, low-level TRP client, custom signers" />
+  <LinkCard title="go-sdk on pkg.go.dev" href="https://pkg.go.dev/github.com/tx3-lang/go-sdk/sdk" description="Go — context-aware lifecycle, typed errors, low-level TRP client" />
+  <LinkCard title="tx3-sdk on PyPI" href="https://pypi.org/project/tx3-sdk/" description="Python — async lifecycle, low-level TRP client, custom signers" />
+</CardGrid>

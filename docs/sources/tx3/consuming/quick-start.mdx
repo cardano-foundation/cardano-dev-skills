@@ -1,0 +1,267 @@
+---
+title: Quick Start
+sidebar:
+  order: 1
+---
+
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components"
+
+This guide walks through consuming an existing Tx3 protocol from your application with the **codegen workflow**: pull a published protocol with `trix use`, generate a typed client with `trix codegen`, and drive transactions through that client. Every code step is shown in TypeScript, Rust, Go, and Python — pick the tab that matches your stack and the narrative still applies.
+
+We're assuming you already have:
+
+- An empty directory to work in. `trix use` bootstraps a minimal consumer-shape `trix.toml` automatically when none is found; if you're already inside an existing Tx3 project it pins into that one instead. (Authors who want the full project skeleton with `main.tx3` and tests still use `trix init`.)
+- A TRP server reachable from your machine. The simplest setup is `trix devnet`, which exposes a local TRP endpoint at `http://localhost:8164`; for testnet/mainnet, point at a hosted TRP endpoint (Demeter, Blockfrost-via-TRP, etc.).
+- The toolchain for your target language installed (Node.js 18+, Rust 1.78+, Go 1.22+, or Python 3.10+).
+
+<Aside type="note">
+Make sure you have followed the **[installation steps](/tx3/installation)** before you attempt to follow this guide.
+</Aside>
+
+## Add the protocol
+
+`trix use` pulls a published protocol from the registry and pins it into your `trix.toml` as an **interface**. From your project root:
+
+```sh
+trix use acme/transfer
+```
+
+This resolves the latest published version, downloads and caches its compiled interface, and records a pinned entry in `trix.toml`:
+
+```toml
+[interfaces.transfer]
+ref = "acme/transfer:0.1.3"
+digest = "sha256:1f3a…"
+```
+
+The `digest` locks the exact artifact, so every machine and CI run generates a client from the same interface. Append `:<version>` to the reference (`acme/transfer:0.1.0`) to pin a specific version instead of the latest, and pass `--alias <name>` to register the interface under a different local name.
+
+<Aside type="note">
+Protocols resolve against the default registry (`https://oci.tx3.land`). To use a different one, add a `[registry]` section with a `url` to `trix.toml`.
+</Aside>
+
+## Generate the client
+
+Pick a language and let `trix codegen` add the matching `[[codegen]]` entry to `trix.toml` on first run, then generate:
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript">
+    ```sh
+    trix codegen --plugin ts-client
+    ```
+  </TabItem>
+  <TabItem label="Rust">
+    ```sh
+    trix codegen --plugin rust-client
+    ```
+  </TabItem>
+  <TabItem label="Go">
+    ```sh
+    trix codegen --plugin go-client
+    ```
+  </TabItem>
+  <TabItem label="Python">
+    ```sh
+    trix codegen --plugin python-client
+    ```
+  </TabItem>
+</Tabs>
+
+Subsequent runs can drop the flag — bare `trix codegen` re-emits every configured target. To customize where output lands, edit the `output_dir` on the `[[codegen]]` entry in `trix.toml` (it defaults to `.tx3/codegen/<plugin>/`). Add a second `--plugin` invocation to target multiple languages from one project.
+
+This writes one typed module per protocol under `output_dir`: your own project lands in `<output_dir>/<project-name>/`, and each interface added with `trix use` lands in `<output_dir>/<alias>/` — so the `transfer` interface above is generated into `.tx3/codegen/ts-client/transfer/` (or wherever you set `output_dir`). Each module embeds the compiled interface (transactions, parties, profiles), exposes one typed method per `tx` the protocol declares, and ships a `README.md` with the language-specific install instructions.
+
+Re-run `trix codegen` whenever you `trix use` a new version of an interface. The generated code is meant to be checked into source control alongside your application — treat it like a lockfile, not a build artifact.
+
+## Install the runtime SDK
+
+The generated client is a thin typed layer: it delegates to the runtime SDK for transport, signing, and the transaction lifecycle. Install the SDK in the application that consumes the client.
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript">
+    ```sh
+    npm install tx3-sdk
+    ```
+  </TabItem>
+  <TabItem label="Rust">
+    ```toml
+    # Cargo.toml
+    [dependencies]
+    tx3-sdk = "0.12"
+    ```
+  </TabItem>
+  <TabItem label="Go">
+    ```sh
+    go get github.com/tx3-lang/go-sdk/sdk
+    ```
+  </TabItem>
+  <TabItem label="Python">
+    ```sh
+    pip install tx3-sdk
+    ```
+  </TabItem>
+</Tabs>
+
+## Construct the client
+
+The generated `Client` already embeds the protocol interface. The constructor takes the TRP transport options and a typed `Profile` value (the environment block — `local` / `preview` / `preprod` / `mainnet` — the SDK uses when it asks TRP to resolve). Profile selection is **locked in at construction**; switching profiles requires a new `Client`. Per-party setters are typed, one method per declared party — for the `transfer` protocol that means `withSender(...)` and `withReceiver(...)`, each taking a `Party`. `Party.signer(...)` ties a party to a key that can produce witnesses; `Party.address(...)` binds a read-only address.
+
+Each SDK ships two signer kinds: a `CardanoSigner` that derives keys from a BIP39 mnemonic at the standard Cardano path, and a generic `Ed25519Signer` for raw key material. The snippets below show whichever flavour is most idiomatic per language.
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript">
+    ```ts
+    import { Client } from "./gen/transfer";
+    import { Party, Ed25519Signer } from "tx3-sdk";
+
+    const signer = Ed25519Signer.fromHex("addr_test1...", "deadbeef...");
+
+    const client = new Client({ endpoint: "http://localhost:8164" }, "local")
+      .withSender(Party.signer(signer))
+      .withReceiver(Party.address("addr_test1..."));
+    ```
+  </TabItem>
+  <TabItem label="Rust">
+    ```rust
+    use tx3_sdk::{CardanoSigner, Party};
+    use tx3_sdk::trp::ClientOptions;
+    use transfer::{Client, Profile};
+
+    let signer = CardanoSigner::from_mnemonic(
+        "addr_test1...",
+        "word1 word2 ... word24",
+    )?;
+
+    let client = Client::new(
+            ClientOptions {
+                endpoint: "http://localhost:8164".into(),
+                headers: None,
+            },
+            Profile::Local,
+        )
+        .with_sender(Party::signer(signer))
+        .with_receiver(Party::address("addr_test1..."));
+    ```
+  </TabItem>
+  <TabItem label="Go">
+    ```go
+    import (
+        tx3 "github.com/tx3-lang/go-sdk/sdk"
+        "github.com/tx3-lang/go-sdk/sdk/signer"
+        "github.com/tx3-lang/go-sdk/sdk/trp"
+        "yourapp/gen/transfer"
+    )
+
+    mySigner, err := signer.CardanoSignerFromMnemonic(
+        "addr_test1...",
+        "word1 word2 ... word24",
+    )
+    if err != nil { log.Fatal(err) }
+
+    client := transfer.NewClient(
+        trp.ClientOptions{Endpoint: "http://localhost:8164"},
+        transfer.ProfileLocal,
+    ).
+        WithSender(tx3.SignerParty(mySigner)).
+        WithReceiver(tx3.AddressParty("addr_test1..."))
+    ```
+  </TabItem>
+  <TabItem label="Python">
+    ```python
+    from tx3_sdk import CardanoSigner, ClientOptions, Party
+    from gen.transfer import Client, Profile
+
+    sender_signer = CardanoSigner.from_mnemonic(
+        address="addr_test1...",
+        phrase="word1 word2 ... word24",
+    )
+
+    client = (
+        Client(ClientOptions(endpoint="http://localhost:8164"), Profile.LOCAL)
+        .with_sender(Party.signer(sender_signer))
+        .with_receiver(Party.address("addr_test1..."))
+    )
+    ```
+  </TabItem>
+</Tabs>
+
+## Drive a transaction end-to-end
+
+Every `tx` in the protocol becomes a typed method on the client — `client.transfer(...)` here. It takes a typed argument object (no string keys, no untyped values) and returns the four-stage lifecycle chain. Each stage hands a typed handle to the next: `ResolvedTx → SignedTx → SubmittedTx`. `waitForConfirmed` polls the chain (via TRP) until the transaction reaches the requested stability level; `waitForFinalized` waits for stronger finality.
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript">
+    ```ts
+    import { PollConfig } from "tx3-sdk";
+
+    const status = await client
+      .transfer({ quantity: 10_000_000n })
+      .resolve()
+      .then((r) => r.sign())
+      .then((s) => s.submit())
+      .then((sub) => sub.waitForConfirmed(PollConfig.default()));
+
+    console.log(status.stage); // "confirmed"
+    ```
+  </TabItem>
+  <TabItem label="Rust">
+    ```rust
+    use tx3_sdk::PollConfig;
+    use transfer::TransferParams;
+
+    let resolved = client
+        .transfer(TransferParams { quantity: 10_000_000 })
+        .resolve()
+        .await?;
+
+    let signed = resolved.sign()?;
+    let submitted = signed.submit().await?;
+    let status = submitted
+        .wait_for_confirmed(PollConfig::default())
+        .await?;
+
+    println!("Confirmed at stage: {:?}", status.stage);
+    ```
+  </TabItem>
+  <TabItem label="Go">
+    ```go
+    ctx := context.Background()
+
+    resolved, err := client.
+        Transfer(transfer.TransferParams{Quantity: 10_000_000}).
+        Resolve(ctx)
+    if err != nil { log.Fatal(err) }
+
+    signed, err := resolved.Sign()
+    if err != nil { log.Fatal(err) }
+
+    submitted, err := signed.Submit(ctx)
+    if err != nil { log.Fatal(err) }
+
+    status, err := submitted.WaitForConfirmed(ctx, tx3.DefaultPollConfig())
+    if err != nil { log.Fatal(err) }
+
+    fmt.Printf("Confirmed at stage %s\n", status.Stage)
+    ```
+  </TabItem>
+  <TabItem label="Python">
+    ```python
+    from tx3_sdk import PollConfig
+    from gen.transfer import TransferParams
+
+    resolved = await client.transfer(TransferParams(quantity=10_000_000)).resolve()
+    signed = await resolved.sign()
+    submitted = await signed.submit()
+
+    status = await submitted.wait_for_confirmed(PollConfig.default())
+    print(f"Confirmed at stage: {status.stage}")
+    ```
+  </TabItem>
+</Tabs>
+
+## What's next
+
+- Learn more about the [codegen workflow](/tx3/consuming/codegen) — `trix use`, supported targets, output layout, and framework integrations.
+- Find the canonical repository and package registry for each SDK on the [SDKs page](/tx3/consuming/sdks).
+- If you can't run codegen — an ad-hoc script, generic tooling, a protocol you load at runtime — see [Dynamic Usage](/tx3/consuming/dynamic-usage) for the untyped SDK surface.
+- Understand the [protocols underneath](/tx3/advanced) (TII, TRP) if you want to know how the wire format works.

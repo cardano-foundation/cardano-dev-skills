@@ -1,0 +1,167 @@
+---
+title: Dynamic Usage
+sidebar:
+  label: Dynamic Usage
+  order: 4
+---
+
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components"
+
+[Codegen](/tx3/consuming/codegen) is the recommended way to consume a protocol — it gives you a typed client with one method per transaction. But codegen isn't always an option. When it isn't, every runtime SDK can also load a protocol **dynamically** and address its transactions by string name.
+
+Reach for the dynamic surface when:
+
+- you're writing an ad-hoc script and don't want a codegen step;
+- you're building a generic tool that handles arbitrary protocols;
+- the protocol your code runs against is chosen at runtime rather than known at build time.
+
+The trade-off is type safety: transaction names are strings and arguments are dynamic values, so mistakes surface at runtime instead of compile time.
+
+## Load the protocol
+
+Instead of importing a generated client, you load a compiled interface (`.tii`) at runtime. Each SDK exposes a `Protocol.fromFile`-shaped entry point.
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript">
+    ```ts
+    import { Protocol } from "tx3-sdk";
+
+    const protocol = await Protocol.fromFile("./transfer.tii");
+    ```
+  </TabItem>
+  <TabItem label="Rust">
+    ```rust
+    let protocol = tx3_sdk::tii::Protocol::from_file("./transfer.tii")?;
+    ```
+  </TabItem>
+  <TabItem label="Go">
+    ```go
+    import tx3 "github.com/tx3-lang/go-sdk/sdk"
+
+    protocol, err := tx3.ProtocolFromFile("./transfer.tii")
+    if err != nil { log.Fatal(err) }
+    ```
+  </TabItem>
+  <TabItem label="Python">
+    ```python
+    from tx3_sdk import Protocol
+
+    protocol = Protocol.from_file("./transfer.tii")
+    ```
+  </TabItem>
+</Tabs>
+
+## Build a client and drive a transaction
+
+`protocol.client()` returns a builder seeded with the protocol's transactions, profiles, and declared parties. Configure the TRP endpoint, select a profile, and bind parties — `Party.signer(...)` for keys that produce witnesses, `Party.address(...)` for read-only addresses — then call `.build()` to materialize a `Tx3Client`. All fallible validation (endpoint present, profile declared, every party declared) happens at `build()` time; the optional setters never fail.
+
+From the built client, address each transaction by string name with `tx("...")` and supply each argument with `arg(...)`. From there the lifecycle is identical to the typed flow: `resolve → sign → submit → wait`.
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript">
+    ```ts
+    import { Party, Ed25519Signer, PollConfig } from "tx3-sdk";
+
+    const signer = Ed25519Signer.fromHex("addr_test1...", "deadbeef...");
+
+    const tx3 = protocol
+      .client()
+      .trpEndpoint("http://localhost:8164")
+      .withProfile("local")
+      .withParty("sender", Party.signer(signer))
+      .withParty("receiver", Party.address("addr_test1..."))
+      .build();
+
+    const status = await tx3
+      .tx("transfer")
+      .arg("quantity", 10_000_000n)
+      .resolve()
+      .then((r) => r.sign())
+      .then((s) => s.submit())
+      .then((sub) => sub.waitForConfirmed(PollConfig.default()));
+    ```
+  </TabItem>
+  <TabItem label="Rust">
+    ```rust
+    use serde_json::json;
+    use tx3_sdk::{CardanoSigner, Party, PollConfig};
+
+    let signer = CardanoSigner::from_mnemonic("addr_test1...", "word1 ... word24")?;
+
+    let tx3 = protocol
+        .client()
+        .trp_endpoint("http://localhost:8164")
+        .with_profile("local")
+        .with_party("sender", Party::signer(signer))
+        .with_party("receiver", Party::address("addr_test1..."))
+        .build()?;
+
+    let status = tx3
+        .tx("transfer")?
+        .arg("quantity", json!(10_000_000))
+        .resolve()
+        .await?
+        .sign()?
+        .submit()
+        .await?
+        .wait_for_confirmed(PollConfig::default())
+        .await?;
+    ```
+  </TabItem>
+  <TabItem label="Go">
+    ```go
+    import (
+        "context"
+        tx3 "github.com/tx3-lang/go-sdk/sdk"
+        "github.com/tx3-lang/go-sdk/sdk/facade"
+        "github.com/tx3-lang/go-sdk/sdk/signer"
+    )
+
+    mySigner, _ := signer.CardanoSignerFromMnemonic("addr_test1...", "word1 ... word24")
+
+    client, err := tx3.ProtocolClient(protocol).
+        TRPEndpoint("http://localhost:8164").
+        WithProfile("local").
+        WithParty("sender", facade.SignerParty(mySigner)).
+        WithParty("receiver", facade.AddressParty("addr_test1...")).
+        Build()
+    if err != nil { log.Fatal(err) }
+
+    ctx := context.Background()
+    b, _ := client.Tx("transfer")
+    resolved, _ := b.Arg("quantity", 10_000_000).Resolve(ctx)
+    signed, _ := resolved.Sign()
+    submitted, _ := signed.Submit(ctx)
+    status, _ := submitted.WaitForConfirmed(ctx, tx3.DefaultPollConfig())
+    ```
+  </TabItem>
+  <TabItem label="Python">
+    ```python
+    from tx3_sdk import CardanoSigner, Party, PollConfig
+
+    signer = CardanoSigner.from_mnemonic(address="addr_test1...", phrase="word1 ... word24")
+
+    client = (
+        protocol.client()
+        .trp_endpoint("http://localhost:8164")
+        .with_profile("local")
+        .with_party("sender", Party.signer(signer))
+        .with_party("receiver", Party.address("addr_test1..."))
+        .build()
+    )
+
+    resolved = await client.tx("transfer").arg("quantity", 10_000_000).resolve()
+    signed = await resolved.sign()
+    submitted = await signed.submit()
+    status = await submitted.wait_for_confirmed(PollConfig.default())
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="note">
+Go uses `tx3.ProtocolClient(protocol)` (equivalently `facade.FromProtocol(protocol)`) instead of `protocol.Client()`. The method-on-Protocol shape would create a `tii → facade → tii` import cycle in Go; the other SDKs expose `protocol.client()` directly.
+</Aside>
+
+<Aside type="tip">
+If the protocol is known at build time, prefer [codegen](/tx3/consuming/codegen) — you get the same lifecycle with typed transaction methods and compile-time argument checking.
+</Aside>

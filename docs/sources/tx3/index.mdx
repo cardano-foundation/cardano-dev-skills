@@ -1,0 +1,60 @@
+---
+title: Tx3 Introduction
+sidebar:
+  label: Introduction
+  order: 1
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Tx3 is an interface description format for UTxO blockchain protocols, plus the tooling to author and consume those interfaces. Protocol authors define a spec that declares what their protocol exposes; consumers read that spec and generate typed clients to build the transactions it accepts.
+
+## Software is about abstractions
+
+**In Web2**, an HTTP API is described with OpenAPI: a machine-readable spec listing every endpoint, the shape of each request, and the shape of each response. With that spec in hand, any consumer can generate a typed client and start calling the API without reading the server's source.
+
+**The EVM ecosystem** solves the same problem at the contract layer. Every contract publishes an ABI — a machine-readable description of the functions a consumer can call, the arguments each takes, and what each returns. The interface is data, not lore.
+
+## UTxO blockchains need an interface
+
+UTxO chains have nothing equivalent. A dApp is a set of validators that accept or reject transactions; nothing in the chain tells you which UTxOs to spend, which datums to attach, which redeemers to supply, which scripts to witness. That knowledge usually lives in the protocol author's head, or in a hand-written SDK that consumers have to reverse-engineer.
+
+Tx3 makes that knowledge a first-class, machine-readable artifact: the protocol's interface, written down.
+
+## Pick your lane
+
+The same spec serves two audiences: the protocol author who publishes it, and the application developer who consumes it. The docs are organised around the two audiences. Start with the side that matches what you're trying to do.
+
+<CardGrid>
+    <LinkCard icon="pencil" title="Authoring Protocols" href="/tx3/authoring" description="Write `.tx3` files describing the transactions your protocol exposes" />
+    <LinkCard icon="puzzle" title="Consuming Protocols" href="/tx3/consuming" description="Pull a published protocol with `trix use` and generate a typed client to integrate it into your application" />
+</CardGrid>
+  
+Either way, start with [Installation](/tx3/installation) to get the toolchain on your machine.
+
+## What's in the toolkit
+
+- A declarative source format (`.tx3`) for describing the interface of a UTxO protocol.
+- The `trix` CLI — package manager, build system, local devnet, and test runner.
+- An interface artifact (TII) and an intermediate representation (TIR) that downstream tools consume.
+- A codegen framework that produces strongly-typed clients in TypeScript, Rust, Go, and Python.
+- The Transaction Resolver Protocol (TRP) — a wire protocol that backends speak to materialise, sign, and submit transactions described by a TIR.
+
+## Not a smart contract language
+
+Tx3 does not replace on-chain validators. Write those in your favourite language for the job — we love [Aiken](https://aiken-lang.org/) ♥️. Tx3 sits at a higher level of abstraction, describing how off-chain code interacts with on-chain validators by constructing the transactions they accept.
+
+## Reference
+
+<CardGrid>
+  <LinkCard title="Language Guide" href="/tx3/language" description="Top-level declarations, transaction blocks, types, and expression syntax." />
+  <LinkCard title="Examples" href="/tx3/examples" description="Worked snippets organised by what you're trying to build." />
+  <LinkCard title="Tooling Reference" href="/tx3/tooling" description="Install, CLI command surface, editor extension." />
+</CardGrid>
+
+## Advanced Topics
+
+<CardGrid>
+  <LinkCard title="TRP" href="/tx3/advanced/trp" description="Transaction Resolver Protocol" />
+  <LinkCard title="TII" href="/tx3/advanced/tii" description="Transaction Invocation Interface" />
+</CardGrid>

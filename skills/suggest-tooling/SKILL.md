@@ -60,6 +60,7 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/ogmios/` - Ogmios WebSocket bridge docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/blockfrost-openapi/` - Blockfrost API docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/hydra/` - Hydra (Layer 2 state channels) docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/tx3/` - Tx3 interface DSL and toolchain docs
 
 ### Step 3: Search the ecosystem map
 
@@ -97,6 +98,7 @@ File: skills/suggest-tooling/references/ecosystem-map.md
 | **Cardano Java Client Lib** | Java/Kotlin | JVM backends, Android | Production |
 | **whisky** | Rust | Transaction building for dApps (Mesh-like API; young project by SIDAN Lab) | Production |
 | **Pallas** | Rust | Low-level building blocks: network protocols, ledger primitives, indexers (foundation of Dolos, Oura, Amaru) | Production |
+| **Tx3** | DSL → TS/Rust/Go/Python | Interface-driven alternative: declare a protocol's transactions in a `.tx3` file, generate typed clients across languages (like an ABI/OpenAPI for UTxO protocols). Good for multi-language teams or publishing a protocol others integrate. TxPipe. | Beta (pre-1.0) |
 
 **Default recommendation by language**:
 - TypeScript/JavaScript: **Mesh SDK** (comprehensive, well-documented, great for beginners) or **Evolution SDK** (type-safe, Effect-based composable builder)

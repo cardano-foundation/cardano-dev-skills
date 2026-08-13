@@ -66,13 +66,21 @@ Ask the user to specify or confirm:
 
 | Parameter | Options | Default |
 |-----------|---------|---------|
-| SDK | `mesh`, `evolution-sdk`, `pycardano`, `cardano-client-lib` | `mesh` |
+| SDK | `mesh`, `evolution-sdk`, `pycardano`, `cardano-client-lib`, `tx3` | `mesh` |
 | Transaction type | `send-ada`, `mint-nft`, `mint-token`, `interact-with-contract`, `delegate-stake`, `register-drep`, `vote` | required |
 | Network | `preview`, `preprod`, `mainnet` | `preview` |
 | Wallet | mnemonic, private key, browser wallet | mnemonic |
 
 If the user does not specify an SDK, recommend **Mesh SDK** for TypeScript
 projects or **cardano-client-lib** for Java/JVM projects.
+
+**Alternative paradigm with Tx3:** Most SDKs above build transactions imperatively in
+code. Tx3 takes a declarative route: you describe a protocol's transactions
+in a `.tx3` interface file and generate typed clients in TypeScript, Rust, Go, or
+Python (an ABI/OpenAPI analogue for UTxO protocols). Reach for it when the same
+protocol is consumed from several languages, or when you are publishing a protocol
+for others to integrate. It is pre-1.0; for a single-language app the imperative SDKs
+are the more battle-tested default. 
 
 ### Step 2: Search Bundled Documentation
 
@@ -82,6 +90,7 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/mesh-sdk-packages/` - Mesh SDK package docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/pycardano/` - PyCardano docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/` - Cardano Client Lib docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/tx3/` - Tx3 docs
 
 ### Step 3: Set Up Prerequisites
 
@@ -129,6 +138,28 @@ pip install pycardano
 
 - Java/JVM library by BloxBean
 - Good for fine-grained transaction control
+
+**Tx3 (declarative, multi-language)**
+
+Tx3 is not a library you install into one project — it is a toolchain plus a
+per-language runtime SDK. Setup has three parts:
+
+```bash
+# 1. Install the toolchain (provides trix, the compiler, and the LSP)
+tx3up                       # see docs/sources/tx3/installation.mdx for the installer
+tx3up show                  # verify installed components
+
+# 2. Install the runtime SDK for your target language, e.g. TypeScript
+npm install tx3-sdk         # Rust: tx3-sdk crate · Go: go-sdk · Python: tx3-sdk
+```
+
+- Needs a **TRP endpoint** to resolve, sign, and submit — `trix devnet` exposes a
+  local one at `http://localhost:8164`; for preview/preprod/mainnet point at a hosted
+  TRP endpoint.
+- Needs the toolchain for whichever client language you generate (Node.js 18+,
+  Rust 1.78+, Go 1.22+, or Python 3.10+).
+- Search `${CLAUDE_SKILL_DIR}/../../docs/sources/tx3/` for the language reference,
+  `trix` commands, and Cardano examples.
 
 ### Step 4: Build the Transaction
 
@@ -277,6 +308,58 @@ signed_tx = builder.build_and_sign([signing_key], change_address=sender_address)
 context.submit_tx(signed_tx)
 ```
 
+### Tx3 -- Declarative Interface + Typed Client
+
+Tx3 splits the work in two. First, **describe** the transaction once in a `.tx3`
+file (this is the protocol interface, language-agnostic):
+
+```tx3
+party Sender;
+party Receiver;
+
+tx transfer(quantity: Int) {
+    input source {
+        from: Sender,
+        min_amount: Ada(quantity),
+    }
+    output {
+        to: Receiver,
+        amount: Ada(quantity),
+    }
+    output {
+        to: Sender,
+        amount: source - Ada(quantity) - fees,
+    }
+}
+```
+
+Then **generate** a typed client and drive the lifecycle from your app (TypeScript
+shown; Rust/Go/Python clients are generated the same way):
+
+```bash
+trix codegen --plugin ts-client   # emits a typed client from the .tx3 interface
+```
+
+```typescript
+import { Client } from "./gen/transfer";
+import { Party, Ed25519Signer } from "tx3-sdk";
+
+const client = new Client({ endpoint: "http://localhost:8164" }, "local")
+  .withSender(Party.signer(Ed25519Signer.fromHex("addr_test1...", "deadbeef...")))
+  .withReceiver(Party.address("addr_test1..."));
+
+// Each `tx` becomes a typed method; the lifecycle is resolve → sign → submit
+const status = await client
+  .transfer({ quantity: 10_000_000n })
+  .resolve()
+  .then((r) => r.sign())
+  .then((s) => s.submit())
+  .then((sub) => sub.waitForConfirmed());
+```
+
+The resolver (reached over TRP) does coin selection, fee calculation, and change —
+the `.tx3` file declares intent, not the concrete UTxOs.
+
 ## References
 
 - `references/sdk-comparison.md` -- detailed SDK comparison table
@@ -285,3 +368,4 @@ context.submit_tx(signed_tx)
 - Mesh SDK docs: https://meshjs.dev
 - Evolution SDK docs: https://evolution-sdk.dev
 - PyCardano docs: https://pycardano.readthedocs.io
+- Tx3 docs: https://docs.txpipe.io/tx3

@@ -1,0 +1,82 @@
+---
+title: Vesting & escrow
+---
+
+You want to lock funds in a script so that a specific beneficiary can claim them — perhaps once a deadline has passed, perhaps under some other condition the validator enforces. The pattern needs two transactions: one to **lock** funds at the script address with a datum describing the conditions, and one to **unlock** them later by spending that UTxO.
+
+The script address is named by a [`policy`](/tx3/language/policies) declaration. The datum is a record you define. The unlocker pins the locked UTxO with a `UtxoRef` parameter so the caller can point at exactly which lock they're claiming.
+
+## Locking and unlocking funds
+
+```tx3
+party Owner;
+
+party Beneficiary;
+
+policy TimeLock = 0x6b9c456aa650cb808a9ab54326e039d5235ed69f069c9664a8fe5b69;
+
+type State {
+  lock_until: Int,
+  owner: Bytes,
+  beneficiary: Bytes,
+}
+
+tx lock(
+    quantity: Int,
+    until: Int
+) {
+    input source {
+        from: Owner,
+        min_amount: Ada(quantity),
+    }
+
+    output target {
+        to: TimeLock,
+        amount: Ada(quantity),
+        datum: State {
+            lock_until: until,
+            owner: Owner,
+            beneficiary: Beneficiary,
+        },
+    }
+
+    output {
+        to: Owner,
+        amount: source - Ada(quantity) - fees,
+    }
+}
+
+tx unlock(
+    locked_utxo: UtxoRef
+) {
+    input gas {
+        from: Beneficiary,
+        min_amount: fees,
+    }
+
+    input locked {
+        from: TimeLock,
+        ref: locked_utxo,
+        redeemer: (),
+    }
+
+    collateral {
+        from: Beneficiary,
+        min_amount: fees,
+    }
+
+    output target {
+        to: Beneficiary,
+        amount: gas + locked - fees,
+    }
+}
+```
+
+A few notes:
+
+- `lock` produces an output `to: TimeLock` — sending value to a policy address makes it script-controlled. The `datum` carries the conditions the validator will later check.
+- `unlock`'s `input gas` covers fees from the beneficiary's own wallet; `input locked` spends the script UTxO. The `ref: locked_utxo` field pins the input to the exact lock being redeemed.
+- The Plutus validator runs on `unlock`, so the transaction must include a `collateral` block — that's a chain-level requirement, not a Tx3 quirk.
+- `redeemer: ()` is the unit value, used when the validator does not need data from the spender.
+
+For chain-aware deadlines, combine the lock pattern with a [`validity`](/tx3/language/txs#validity) window and the `tip_slot()` / `slot_to_time()` built-ins so the unlock transaction submits only after `lock_until` has elapsed.

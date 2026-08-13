@@ -1,0 +1,64 @@
+---
+title: Tx3 Toolchain Installation
+sidebar:
+  label: Installation
+  order: 2
+---
+
+import { Aside, TabItem, Tabs } from "@astrojs/starlight/components"
+
+To start working with Tx3 you'll need to install the toolchain. The fastest way to setup your environment is to run `tx3up`, which bundles everything you need in a single install experience:
+
+<Tabs>
+    <TabItem label="linux">
+    You can install Tx3up on linux system using the following command:
+
+    ```
+    curl --proto '=https' --tlsv1.2 -LsSf https://github.com/tx3-lang/tx3up/releases/latest/download/tx3up-installer.sh | sh
+    ```
+    </TabItem>
+    <TabItem label="mac">
+    You can use Homebrew to install the latest version of Tx3up in Mac (both x86 / ARM64)
+
+    ```
+    brew install txpipe/tap/tx3up
+    ```
+    </TabItem>
+</Tabs>
+
+---
+
+Once you've installed `tx3up`, run the following command to execute the install of toolchain:
+
+```
+tx3up
+```
+
+You'll see how the process downloads and install many components. By the end, you should have everything you need.
+
+Run the following command to check the installed versions of each component:
+
+```
+tx3up show
+```
+
+The installer has a lot of advanced features, check our [tx3up guide](/tools/tx3up) if you want to learn more.
+
+## Channels
+
+`tx3up` has support for multiple _channels_. A channel is a way of grouping tools at different levels of maturity. The available channels are:
+
+| Channel | Description |
+| ------- | ----------- |
+| `stable`| versions that are considered stable for general use |
+| `beta` | versions that have experimental features |
+
+The default channel is `stable`. If you want to switch to a different channel, use the `tx3up use` command as in the example below:
+
+```
+tx3up use beta
+```
+
+If you're in doubt of which channel you're currently using, run the `tx3up show` command and the info will appear in the top banner.
+
+You can switch back and forth as much as you like. Under the hood, the only change is how we symlink binaries in your file system.

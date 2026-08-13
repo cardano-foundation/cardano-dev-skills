@@ -1,0 +1,160 @@
+---
+title: Cardano-specific constructs
+---
+
+Most of Tx3 is chain-agnostic, but a handful of blocks live under the `cardano::` namespace because they only make sense on Cardano. See the [Cardano features reference](/tx3/language/cardano) for the full grammar of each block; this page shows them in the context of complete transactions.
+
+## Transfer plus stake-rewards withdrawal
+
+Most `cardano::*` blocks compose freely with regular tx bodies. Here, a single transaction moves Ada *and* withdraws stake rewards in one step.
+
+```tx3
+party Sender;
+
+party Receiver;
+
+tx transfer(
+    quantity: Int
+) {
+    input source {
+        from: Sender,
+        min_amount: Ada(quantity),
+    }
+
+    output {
+        to: Receiver,
+        amount: Ada(quantity),
+    }
+
+    output {
+        to: Sender,
+        amount: source - Ada(quantity) - fees,
+    }
+
+    cardano::withdrawal {
+        from: Sender,
+        amount: 0,
+        redeemer: (),
+    }
+}
+```
+
+`amount: 0` is valid — it produces a zero-lovelace withdrawal, which is sometimes used solely to force the stake credential's witness to be present on the transaction.
+
+## Treasury donation
+
+`cardano::treasury_donation` adds a treasury payment. The donating amount is in lovelace, and is in addition to the regular fee.
+
+```tx3
+party Contributor;
+
+tx mint_from_plutus(
+    quantity: Int
+) {
+    input source {
+        from: Contributor,
+        min_amount: fees + Ada(quantity + 445) + min_utxo(change),
+    }
+
+    output change {
+        to: Contributor,
+        amount: source - Ada(quantity + 445) - fees,
+    }
+
+    cardano::treasury_donation {
+        coin: 445 + quantity,
+    }
+}
+```
+
+The input's `min_amount` accounts for both the donation (`Ada(quantity + 445)`) and the change output's minimum UTxO size (`min_utxo(change)`).
+
+## Governance: delegating votes to a DRep
+
+`cardano::vote_delegation_certificate` registers a stake credential's voting power with a DRep. Below, a participant buys a ticket *and* delegates their vote in one transaction.
+
+```tx3
+party Participant;
+
+party EventOrganizer;
+
+tx purchase_ticket(
+    drep: Bytes,
+    ticket_price: Int
+) {
+    input source {
+        from: Participant,
+        min_amount: Ada(ticket_price),
+    }
+
+    output ticket_payment {
+        to: EventOrganizer,
+        amount: Ada(ticket_price),
+    }
+
+    output change_return {
+        to: Participant,
+        amount: source - Ada(ticket_price) - fees,
+    }
+
+    cardano::vote_delegation_certificate {
+        drep: drep,
+        stake: Participant,
+    }
+}
+```
+
+`cardano::stake_delegation_certificate` works the same way but delegates to a stake pool rather than a DRep.
+
+## Publishing a reference script
+
+`cardano::publish` produces an output that carries a reference script — the on-chain artifact other transactions later cite to satisfy a script credential without inlining the bytes. Use `version: 0` for native scripts and a positive Plutus version for Plutus scripts.
+
+```tx3
+party Sender;
+party Receiver;
+
+tx publish_plutus(
+    quantity: Int
+) {
+    input source {
+        from: Sender,
+        min_amount: Ada(quantity),
+    }
+
+    cardano::publish {
+        to: Receiver,
+        amount: Ada(quantity),
+        version: 3,
+        script: 0x5101010023259800a518a4d136564004ae69,
+    }
+
+    output {
+        to: Sender,
+        amount: source - Ada(quantity) - fees,
+    }
+}
+
+tx publish_native(
+    quantity: Int
+) {
+    input source {
+        from: Sender,
+        min_amount: Ada(quantity),
+    }
+
+    cardano::publish {
+        to: Receiver,
+        amount: Ada(quantity),
+        version: 0,
+        script: 0x820181820400,
+    }
+
+    output {
+        to: Sender,
+        amount: source - Ada(quantity) - fees,
+    }
+}
+```
+
+`cardano::publish` is in addition to your regular `output` blocks, not a replacement.

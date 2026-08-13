@@ -61,6 +61,12 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 | **CardanoSharp** | Production | Low | .NET backends, Unity game development. |
 | **Chrysalis** | Experimental | Low | .NET Cardano integration. |
 
+### Interface-driven (language-agnostic)
+
+| Name | Status | Adoption | Best For |
+|---|---|---|---|
+| **Tx3** | Beta (pre-1.0) | Low | A different model from the SDKs above: instead of building transactions imperatively in one language, you declare a protocol's transactions in a `.tx3` interface file (like an OpenAPI/ABI for UTxO protocols) and generate typed clients in TypeScript, Rust, Go, or Python. Fits teams shipping the same protocol across several languages, or publishing a protocol others integrate against. Toolchain: `trix` CLI, TII/TIR artifacts. By TxPipe. |
+
 ## Infrastructure - Data Providers
 
 | Name | Type | Protocol | Status | Adoption | Best For |

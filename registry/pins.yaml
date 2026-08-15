@@ -28,6 +28,7 @@
 "Cardano Docs": df4ef8890e89a12a43561495e17207dd3217a295
 "Cardano GraphQL": 156356d6f904b32c3b3c3f8e599af98abbd93fa9
 "Cardano Ledger": adcb341f236fd224f60577a79ffeb5fb138f051f
+"Cardano Ledger API Blaster": 5dab3c43f042b8735b6d067223baaa8d32ed28a1
 "Cardano Node Antithesis": 311dfc1d499277b23035a107eaf0ec097cf3d948
 "Cardano Node Wiki": 2b069655b5cacda7be6c2ac21a4fa159ec6a4c09
 "Cardano Serialization Lib": 6b4253814f1831fee06cda2718fd47174960ace1
@@ -46,6 +47,7 @@
 "Hydra": 1038bc1d0fef312fa3686e358690c47edd6f5935
 "Koios": 6e54441b755aa66707e5e2f826c02379de1b681e
 "Kupo": 2502466cb48ade03daae6384c432cee1ab8e045d
+"Lean Blaster": 074940438077c44815674e60e6becc1b203452a7
 "Masumi": 020c3b47153bc110b9d1c6f60cf957aadac25c8c
 "Mesh SDK": 5e5a792353885eca9b26c160312f2af399b0fd98
 "Mesh SDK Packages": c0b183eccd0c20a465778f204f8c9caf73294bd8

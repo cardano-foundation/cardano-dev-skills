@@ -619,6 +619,31 @@
     - "docs/**/*.md"
   description: Cardano-specific assets for the Antithesis deterministic-simulation testing platform — primarily for node operators and protocol engineers
 
+# Lean-blaster is a general Lean4 SMT backend, not a Cardano protocol.
+# Registered because CardanoLedgerApiBlaster's README treats it as the
+# solver, and its own README is the only authored #blaster user guide.
+# Flagged against the Cardano-native source test (issue #35 / #49).
+- name: Lean Blaster
+  repo: https://github.com/input-output-hk/Lean-blaster.git
+  docs_path: "."
+  format: markdown
+  category: testing
+  priority: low
+  glob_patterns:
+    - README.md
+  description: Lean4 SMT backend (Z3) used to discharge theorems about Cardano validators; command/tactic #blaster
+  website: https://input-output-hk.github.io/Lean-blaster/
+
+- name: Cardano Ledger API Blaster
+  repo: https://github.com/input-output-hk/CardanoLedgerApiBlaster.git
+  docs_path: "."
+  format: markdown
+  category: testing
+  priority: medium
+  glob_patterns:
+    - README.md
+  description: Lean4 model of Plutus V1–V3 script-context types and ledger-rule predicates; how-to for importing compiled UPLC and discharging validator properties
+
 # --- Governance (Conway Era) ---
 
 - name: GovTool

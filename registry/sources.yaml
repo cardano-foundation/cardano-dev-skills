@@ -151,6 +151,35 @@
     - "**/README.md"
   description: Rust building blocks for Ouroboros/Cardano protocols
 
+# haskell.nix is IOG Haskell/Nix infra, not a Cardano protocol. It is
+# registered because it is the documented Nix consumer of CHaP (see the
+# CHaP README) and every Intersect/CF Haskell repo is a haskell.nix flake.
+# Flagged against the Cardano-native source test in issue #45.
+- name: haskell.nix
+  repo: https://github.com/input-output-hk/haskell.nix.git
+  docs_path: docs
+  format: markdown
+  category: infrastructure
+  priority: high
+  glob_patterns:
+    - "*.md"
+    - "tutorials/**/*.md"
+    - "template/**/*.md"
+    - "reference/**/*.md"
+  description: Nix infrastructure for Cabal/Haskell projects — flakes, inputMap for extra package indexes (CHaP), source-repository-package hashes. The Nix frontend used by Intersect Cardano Haskell repos.
+  website: https://input-output-hk.github.io/haskell.nix
+
+- name: iohk-nix
+  repo: https://github.com/input-output-hk/iohk-nix.git
+  docs_path: "."
+  format: markdown
+  category: infrastructure
+  priority: high
+  glob_patterns:
+    - README.md
+    - changelog.md
+  description: Shared Nix overlays for IOG/Intersect Cardano Haskell builds — libsodium-vrf, secp256k1, libblst, haskell.nix crypto helpers. Required to compile cardano-crypto-class and friends.
+
 - name: Cardano Wallet
   repo: https://github.com/cardano-foundation/cardano-wallet.git
   docs_path: docs
@@ -579,6 +608,17 @@
     - core/README.md
     - command-line/README.md
   description: Address derivation library — Shelley/Byron/Icarus address formats, key encodings, and CLI for offline key management
+
+- name: CHaP
+  repo: https://github.com/IntersectMBO/cardano-haskell-packages.git
+  docs_path: "."
+  format: markdown
+  category: sdk
+  priority: high
+  glob_patterns:
+    - README.md
+  description: Cardano Haskell package repository — Cabal index for Intersect packages that are not on Hackage (cardano-ledger, plutus-tx, cardano-api, …). Documents the repository stanza, index-state pinning, and haskell.nix inputMap.
+  website: https://chap.intersectmbo.org/
 
 - name: Tx3
   repo: https://github.com/tx3-lang/docs.git

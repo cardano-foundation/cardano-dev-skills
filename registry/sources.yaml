@@ -644,6 +644,21 @@
     - README.md
   description: Lean4 model of Plutus V1–V3 script-context types and ledger-rule predicates; how-to for importing compiled UPLC and discharging validator properties
 
+# Last push 2026-08-11, no public tags/issues/PRs — mechanical rule 2
+# may fail. Flagged in #47. Tree is freshly maintained.
+- name: DWARF
+  repo: https://github.com/Cyber-Castellum/DWARF.git
+  docs_path: "."
+  format: markdown
+  category: testing
+  priority: medium
+  glob_patterns:
+    - README.md
+    - INSTALL.md
+    - OPERATIONS.md
+    - "dwarf/docs/**/*.md"
+  description: Fuzz and adversarial-testing framework for cardano-node and Amaru — CBOR, N2N mini-protocols, eclipse/sybil, mixed-client chain-selection; Antithesis bridge. Not a dApp product.
+
 # --- Governance (Conway Era) ---
 
 - name: GovTool

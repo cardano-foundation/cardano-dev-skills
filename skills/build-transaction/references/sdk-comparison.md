@@ -13,6 +13,7 @@ Quick reference for choosing and using Cardano transaction-building SDKs.
 | cardano-js-sdk | TypeScript | Low-Mid | IOG-maintained | Full-stack TS, Lace wallet |
 | Cardano Serialization Lib | Rust/WASM | Low | IOG-maintained | Custom tooling, performance |
 | Tx3 | DSL -> TS/Rust/Go/Python | High/Declarative | Active (pre-1.0) | Multi-language teams, published protocols |
+| cardano-ledger | Haskell | Low (ledger types) | Active (Intersect) | Haskell services; same types as the node |
 
 ## Mesh SDK
 
@@ -299,6 +300,28 @@ const status = await client
 
 ---
 
+## cardano-ledger (Haskell)
+
+- **Language:** Haskell
+- **Repository:** github.com/IntersectMBO/cardano-ledger
+- **Documentation:** bundled `docs/sources/cardano-ledger/`, CHaP README, haskell.nix tutorials
+- **Build:** haskell.nix + CHaP + iohk-nix. See `references/haskell-ledger.md`.
+
+**Strengths:**
+- Same Conway `Tx` / cert / value types the node validates
+- CIP-57 `plutus.json` from Aiken is the on-chain contract
+- CHaP gives versioned `cardano-ledger-*` / `plutus-tx` instead of ad-hoc git pins
+
+**Weaknesses:**
+- No high-level builder; you construct ledger types
+- Nix eval (haskell.nix) is the cold-start cost
+- Not a browser / CIP-30 stack
+
+**Installation:** not an npm/pip package. Wire CHaP + haskell.nix as in
+`references/haskell-ledger.md`, then `cabal build` inside `nix develop`.
+
+---
+
 ## Decision Guide
 
 **Choose Mesh SDK when:**
@@ -332,6 +355,11 @@ const status = await client
 - Building performance-critical tooling
 - Need cross-platform Rust/WASM support
 - Building a new SDK or framework on top
+
+**Choose cardano-ledger when:**
+- The off-chain service is Haskell and must share types with the node
+- Validators are Aiken (CIP-57), not Plinth
+- You already live in haskell.nix / CHaP
 
 **Choose Tx3 when:**
 - The same protocol is consumed from several languages and you want one interface, not N rewrites

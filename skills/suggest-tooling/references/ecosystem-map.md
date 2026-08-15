@@ -61,6 +61,17 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 | **CardanoSharp** | Production | Low | .NET backends, Unity game development. |
 | **Chrysalis** | Experimental | Low | .NET Cardano integration. |
 
+### Haskell
+
+| Name | Status | Adoption | Best For |
+|---|---|---|---|
+| **cardano-ledger** (`cardano-ledger-api`, era packages) | Production | High (node/wallet/Hydra) | Off-chain txs in the same types the ledger validates. Pair with Aiken blueprints. |
+| **CHaP** | Production | High | Cabal index for Intersect Haskell packages that are not on Hackage. |
+| **haskell.nix** | Production | High (every Intersect Haskell repo) | Nix frontend: flakes, CHaP `inputMap`, `--sha256` on `source-repository-package`. |
+| **iohk-nix** | Production | High | Crypto overlays (`crypto`, `haskell-nix-crypto`) so `cardano-crypto-class` / `plutus-core` find libsodium-vrf, secp256k1, libblst. |
+| **cardano-api** | Production | High | Client façade over ledger/consensus/network when you do not want raw ledger types. |
+| **Atlas** | Maintenance unclear | Medium (historical) | PAB-style Haskell backend. Last commit 2026-02; not a registered source. |
+
 ### Interface-driven (language-agnostic)
 
 | Name | Status | Adoption | Best For |

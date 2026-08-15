@@ -3,7 +3,8 @@ name: build-transaction
 description: >-
   Build Cardano transaction, send ADA, mint NFT, mint token, interact with
   smart contract, delegate stake, register DRep, vote on-chain using Mesh SDK,
-  Evolution SDK, PyCardano, or cardano-client-lib.
+  Evolution SDK, PyCardano, cardano-client-lib, or Haskell cardano-ledger
+  (Aiken CIP-57 + haskell.nix + CHaP).
 allowed-tools: Read Grep Glob
 disallowed-tools: WebFetch WebSearch
 ---
@@ -25,6 +26,8 @@ construction, signing, submission, and verification on a testnet.
 - User wants to register as a DRep or cast a governance vote
 - User asks how to build, sign, or submit a Cardano transaction
 - User asks which SDK to use for off-chain transaction building
+- User is in Haskell and wants to build a Conway tx from an Aiken blueprint
+  with cardano-ledger / haskell.nix / CHaP
 
 ## When NOT to Use
 
@@ -39,6 +42,8 @@ construction, signing, submission, and verification on a testnet.
 1. **Choose the right SDK for the job.** Mesh SDK (TypeScript) and Evolution SDK
    (TypeScript) have the best documentation and highest-level APIs. PyCardano is best
    for Python shops. cardano-client-lib suits JVM projects needing fine control.
+   Haskell services that share types with the node use **cardano-ledger** (not
+   Mesh, not Atlas) and are built with **haskell.nix** + **CHaP**.
    Search `${CLAUDE_SKILL_DIR}/../../docs/sources/` for the latest SDK comparison details.
 
 2. **Always prototype on Preview testnet.** Never build against mainnet first.
@@ -66,13 +71,14 @@ Ask the user to specify or confirm:
 
 | Parameter | Options | Default |
 |-----------|---------|---------|
-| SDK | `mesh`, `evolution-sdk`, `pycardano`, `cardano-client-lib`, `tx3` | `mesh` |
+| SDK | `mesh`, `evolution-sdk`, `pycardano`, `cardano-client-lib`, `tx3`, `cardano-ledger` | `mesh` |
 | Transaction type | `send-ada`, `mint-nft`, `mint-token`, `interact-with-contract`, `delegate-stake`, `register-drep`, `vote` | required |
 | Network | `preview`, `preprod`, `mainnet` | `preview` |
 | Wallet | mnemonic, private key, browser wallet | mnemonic |
 
 If the user does not specify an SDK, recommend **Mesh SDK** for TypeScript
-projects or **cardano-client-lib** for Java/JVM projects.
+projects, **cardano-client-lib** for Java/JVM, or **cardano-ledger** for
+Haskell (see `references/haskell-ledger.md`).
 
 **Alternative paradigm with Tx3:** Most SDKs above build transactions imperatively in
 code. Tx3 takes a declarative route: you describe a protocol's transactions
@@ -91,6 +97,11 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/pycardano/` - PyCardano docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/` - Cardano Client Lib docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/tx3/` - Tx3 docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/chap/` - CHaP cabal.project + haskell.nix inputMap
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/haskell-nix/` - flakes, `--sha256` on git deps
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/iohk-nix/` - crypto overlays
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-ledger/` - Conway tx types / phase-1
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken/` - CIP-57 `plutus.json` from `aiken build`
 
 ### Step 3: Set Up Prerequisites
 
@@ -160,6 +171,30 @@ npm install tx3-sdk         # Rust: tx3-sdk crate · Go: go-sdk · Python: tx3-s
   Rust 1.78+, Go 1.22+, or Python 3.10+).
 - Search `${CLAUDE_SKILL_DIR}/../../docs/sources/tx3/` for the language reference,
   `trix` commands, and Cardano examples.
+
+**cardano-ledger (Haskell)**
+
+This path is a haskell.nix flake, not cabal on a system GHC. Full wiring
+(CHaP stanza, `inputMap`, iohk-nix overlays, Aiken blueprint):
+`references/haskell-ledger.md`. Short form:
+
+```bash
+# inside the haskell.nix dev shell
+cabal update
+cabal build all -O0
+```
+
+- `cabal.project` must contain the CHaP `repository` stanza and a **dual**
+  `index-state` (Hackage + `cardano-haskell-packages`). See
+  `docs/sources/chap/README.md`.
+- Flake input `CHaP` on `?ref=index-only`, then
+  `inputMap = { "https://chap.intersectmbo.org/" = CHaP; }`.
+- iohk-nix overlays `crypto` and `haskell-nix-crypto` (CHaP README: needed
+  for `libblst` / `plutus-core`).
+- `source-repository-package` stanzas need a `--sha256` comment
+  (`docs/sources/haskell-nix/tutorials/source-repository-hashes.md`).
+- Load scripts from Aiken `plutus.json` (CIP-57). Datums/redeemers are
+  `plutus-tx` `ToData`, not JSON.
 
 ### Step 4: Build the Transaction
 
@@ -363,6 +398,7 @@ the `.tx3` file declares intent, not the concrete UTxOs.
 ## References
 
 - `references/sdk-comparison.md` -- detailed SDK comparison table
+- `references/haskell-ledger.md` -- Aiken + cardano-ledger + CHaP + haskell.nix
 - Search `${CLAUDE_SKILL_DIR}/../../docs/sources/` for CIP-25, CIP-68 metadata standards
 - Cardano Developer Portal: https://developers.cardano.org
 - Mesh SDK docs: https://meshjs.dev

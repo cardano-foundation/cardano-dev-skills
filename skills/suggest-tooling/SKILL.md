@@ -1,7 +1,7 @@
 ---
 name: suggest-tooling
 description: >-
-  Recommends Cardano developer tools and SDKs for a specific project. Triggers: "which SDK", "recommend tools", "best library for", "Cardano SDK", "Mesh vs Evolution SDK", "Aiken vs Plutus", "what tools should I use", "Cardano ecosystem".
+  Recommends Cardano developer tools and SDKs for a specific project. Triggers: "which SDK", "recommend tools", "best library for", "Cardano SDK", "Mesh vs Evolution SDK", "Aiken vs Plutus", "what tools should I use", "Cardano ecosystem", "haskell.nix", "CHaP", "cardano-ledger off-chain", "Haskell Cardano stack".
 allowed-tools: Read Grep Glob
 disallowed-tools: Bash Edit Write WebFetch WebSearch
 ---
@@ -17,6 +17,7 @@ Help the developer choose the right tools, SDKs, and libraries for their Cardano
 - Developer is starting a new Cardano project and needs tool recommendations
 - Comparing SDKs (Mesh vs Evolution SDK vs PyCardano vs others)
 - Choosing a smart contract language (Aiken vs Plutus vs others)
+- Picking a Haskell off-chain stack (cardano-ledger + CHaP + haskell.nix)
 - Selecting infrastructure components (indexers, APIs, testing tools)
 - Evaluating wallet integration options
 - Understanding which CIPs are relevant to their project
@@ -25,6 +26,7 @@ Help the developer choose the right tools, SDKs, and libraries for their Cardano
 ## When NOT to use
 
 - Already chosen tools and needs help using them (use specific tool skills)
+- Building a transaction once the stack is chosen (use `build-transaction`)
 - Setting up a devnet (use `setup-devnet` skill)
 - Querying chain data with a specific provider (use `query-chain` skill)
 - Detailed wallet integration steps (use `connect-wallet` skill)
@@ -32,7 +34,7 @@ Help the developer choose the right tools, SDKs, and libraries for their Cardano
 ## Key principles
 
 1. **Start from the project requirements, not the tools.** Understand what they are building before recommending.
-2. **Language preference matters.** A Python developer should know about PyCardano; a TypeScript developer about Mesh and Evolution SDK.
+2. **Language preference matters.** A Python developer should know about PyCardano; a TypeScript developer about Mesh and Evolution SDK; a Haskell developer about cardano-ledger, CHaP, and haskell.nix.
 3. **Recommend production-ready tools first.** Flag experimental tools clearly.
 4. **Fewer tools is better.** Do not recommend 10 options when 2 will do.
 5. **Consider the full stack.** Smart contracts, off-chain code, infrastructure, testing, and deployment are all part of the picture.
@@ -61,6 +63,10 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/blockfrost-openapi/` - Blockfrost API docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/hydra/` - Hydra (Layer 2 state channels) docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/tx3/` - Tx3 interface DSL and toolchain docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/chap/` - CHaP (Cabal index + haskell.nix inputMap)
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/haskell-nix/` - haskell.nix flakes and source-repository-package hashes
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/iohk-nix/` - crypto overlays (libsodium-vrf, libblst)
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-ledger/` - ledger types and Conway tx validation
 
 ### Step 3: Search the ecosystem map
 
@@ -99,12 +105,16 @@ File: skills/suggest-tooling/references/ecosystem-map.md
 | **whisky** | Rust | Transaction building for dApps (Mesh-like API; young project by SIDAN Lab) | Production |
 | **Pallas** | Rust | Low-level building blocks: network protocols, ledger primitives, indexers (foundation of Dolos, Oura, Amaru) | Production |
 | **Tx3** | DSL → TS/Rust/Go/Python | Interface-driven alternative: declare a protocol's transactions in a `.tx3` file, generate typed clients across languages (like an ABI/OpenAPI for UTxO protocols). Good for multi-language teams or publishing a protocol others integrate. TxPipe. | Beta (pre-1.0) |
+| **cardano-ledger** | Haskell | Era types and Conway tx construction (`cardano-ledger-api`, `cardano-ledger-conway`, `plutus-tx` for `ToData`/`FromData`). Same types the node validates. Built with **haskell.nix** + **CHaP**, not cabal-on-system-GHC. | Production |
+| **cardano-api** | Haskell | Client façade over ledger/consensus/network. Use when you want that wrapper; not required if you already speak ledger types. | Production |
+| **Atlas** | Haskell | Higher-level PAB-style backend. Last library commit 2026-02; fails this repo's 6-month source bar. Mention only; do not start a new project on it. | Maintenance unclear |
 
 **Default recommendation by language**:
 - TypeScript/JavaScript: **Mesh SDK** (comprehensive, well-documented, great for beginners) or **Evolution SDK** (type-safe, Effect-based composable builder)
 - Python: **PyCardano**
 - Rust: **Pallas**
 - Java/Kotlin: **Cardano Java Client Lib**
+- Haskell: **cardano-ledger** via **haskell.nix** + **CHaP**. On-chain default stays **Aiken** (CIP-57 `plutus.json`); do not switch to Plinth unless the team is writing validators in Haskell. Search `docs/sources/chap/README.md` for the repository stanza and `inputMap`.
 
 #### Infrastructure
 
@@ -177,6 +187,13 @@ Based on the project requirements, recommend a concrete stack. Example stacks:
 - Infrastructure: **Blockfrost** or **Koios** (governance endpoints)
 - Wallet: CIP-30 + CIP-95
 - Reference: CIP-1694 for governance actions
+
+#### Haskell service (Aiken on-chain, ledger off-chain)
+- Smart contracts: **Aiken** → CIP-57 `plutus.json`
+- Off-chain: **cardano-ledger-*** + `plutus-tx` / `plutus-ledger-api`
+- Build: **haskell.nix** flake, **CHaP** `inputMap`, **iohk-nix** `crypto` + `haskell-nix-crypto` overlays (CHaP README: those overlays supply `libblst` and friends)
+- Pin: dual `index-state` (Hackage + `cardano-haskell-packages`); align the CHaP flake input to a `cardano-node` release
+- Then hand off to `build-transaction` (SDK `cardano-ledger`)
 
 ### Step 6: Mention relevant CIPs
 

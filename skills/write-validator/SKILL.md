@@ -183,9 +183,11 @@ test claim_before_deadline_fails() fail {
 ```
 
 **Plutus/Haskell notes:**
-- Use `plutus-simple-model` or `cardano-testnet` for testing
-- Use `PlutusTx.compile` for on-chain compilation
-- Define datum/redeemer with `PlutusTx.unstableMakeIsData`
+- New Haskell *off-chain* work uses Aiken on-chain + cardano-ledger
+  off-chain (see `build-transaction`). Do not start new validators in
+  Plinth unless the team already writes Plinth.
+- Existing Plinth code: search `docs/sources/plinth/`. Testing:
+  `plutus-simple-model` or `cardano-testnet`.
 
 **OpShin notes:**
 - Use Python dataclasses for datum/redeemer types

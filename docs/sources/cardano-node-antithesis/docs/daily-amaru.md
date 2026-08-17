@@ -6,6 +6,52 @@ It runs on one fixed UTC cron. Pull requests and manual dispatches execute the
 same state machine through the deterministic fake transport and cannot call
 the real launcher.
 
+## Scheduled runner contract
+
+The scheduled job provisions every non-shell command the controller and
+transport can reach: `ripgrep` and `nix` on top of the stock image. The
+controller checks the commands it needs to reach the transport at all using
+shell builtins, then has the transport preflight the full census — both before
+the UTC day is claimed. A missing command is a precondition failure, not a setup
+exception: exit non-zero at `stage=runner-preflight` with
+`error=missing-command-<name>`. A preflight reporting nothing or an unparsable
+success is `error=malformed-dependency-evidence`. Each transport operation
+declares only the commands it uses, so publishing a failure receipt never
+depends on the command whose absence it reports.
+
+## Bootstrap App identity
+
+Production mints a short-lived token from a dedicated GitHub App, named by
+repository variable `DAILY_AMARU_APP_ID` and secret
+`DAILY_AMARU_APP_PRIVATE_KEY`, scoped to owner `lambdasistemi`, repository
+`amaru-bootstrap` alone, and exactly five permissions: actions read, checks
+read, contents write, pull requests write, metadata read.
+
+That token authorizes the bootstrap boundary only. Same-repository work — issue
+receipts, consumer repin, check observation, launch — uses the workflow's own
+repository token, granted exactly the permissions those operations declare. The
+two are never interchangeable, and neither the private key nor the minted token
+is printed, persisted, exported through `$GITHUB_ENV`, committed, or passed as a
+command-line argument; the token is a step-scoped environment binding only.
+
+If an input or the mint step is unavailable, the mint is allowed to fail and the
+controller still runs with an empty identity, exiting non-zero at
+`stage=identity` with `error=missing-credentials-<name>` before any bootstrap,
+image, repin, integration, or launch effect.
+
+Every receipt is written locally before external publication is requested, and
+the scheduled job uploads that file on every outcome, so a broken precondition
+leaves the day, stage, `outcome=FAILED`, and a specific error behind even when
+the transport cannot publish its issue receipt.
+
+## Operator setup gate
+
+Creating the App, installing it on `lambdasistemi/amaru-bootstrap`, approving
+its permissions, and placing the variable and secret are operator actions
+outside this repository. Until they are done the scheduled run is expected to
+fail at `stage=identity`; that is the contract working, not a regression. No
+secret value is recorded anywhere in this repository.
+
 ## Decision and durable guards
 
 The GitHub transport first claims the UTC day in issue #210, resolves exactly
@@ -15,11 +61,6 @@ mutation or launch. A changed SHA must claim a no-retry attempt marker before
 any cross-repository mutation. Duplicate days, attempted SHAs, malformed or
 ambiguous observations, and every failed stage retain an honest `FAILED`
 receipt.
-
-Production requires `DAILY_AMARU_CROSS_REPO_TOKEN`, injected as both
-`DAILY_AMARU_IDENTITY` and `GH_TOKEN`. The repository neither creates nor
-defaults that credential. Without it, the controller fails before the
-bootstrap proposal, image publication, consumer repin, integration, or launch.
 
 ## Supervised changed path
 
@@ -62,3 +103,10 @@ tests/test-daily-amaru.sh
 It exercises changed, unchanged, malformed observations, exact-head check
 failures, non-vacuous #202 evidence, duplicate/no-retry guards, failure
 ordering, receipt honesty, and the counted zero-real-launch invariant.
+
+It also reproduces the 2026-08-02 and 2026-08-03 missing-`rg` incidents against
+the real transport in a hermetic seeded PATH, checks the App scope, credential
+non-persistence, and the token grant/use seam, counts the effects both broken
+preconditions reach, and checks that CI executably calls this suite while the
+schedule calls the controller. Every instrument carries controls proving it can
+fail.

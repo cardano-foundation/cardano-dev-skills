@@ -12,6 +12,10 @@ pub type ThirdPartyDestinationAction {
 }
 
 pub type ThirdPartyTransferLogicScriptWithdrawRedeemer {
+  /// Index into `self.reference_inputs` — the CIP-113 registry node for THIS
+  /// token. See `MintingLogicScriptWithdrawRedeemer` for why it is named
+  /// rather than searched for.
+  registry_node_ref_input_index: Int,
   global_state_ref_input_index: Int,
   power_user_node_ref_input_index: Int,
   destination_actions: List<ThirdPartyDestinationAction>,

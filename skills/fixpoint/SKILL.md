@@ -168,9 +168,6 @@ these iterations, so it does not weaken that contraction argument.
 
 ### Step 4: Apply the verified API branch
 
-Use these version-pinned rules; re-probe identifiers before applying them to a
-different version:
-
 - For native in-loop hooks, keep recursion inside the builder. **Cardano Tx
   Tools** (`0.2.3.0+14`, `7bfe95b`) provides `balanceTx`, fee-to-output
   `balanceFeeLoop`, and `Peek (ConwayTx -> Convergence a)`; use full `build`, not
@@ -190,6 +187,8 @@ different version:
   and a fresh reconstruction for deeper recursion. **cardano-api** (`10.19.1.0`,
   `b951a63`) accepts fixed `TxBodyContent` and returns `BalancedTxBody`; reconstruct
   the content between calls when outputs or redeemers depend on the result.
+  **Mesh SDK** (`@meshsdk/core` `1.9.1`) accepts fixed outputs/redeemers and
+  returns CBOR after `complete`; inspect it and reconstruct for deeper recursion.
 - If only fixed command inputs exist, move recursion into another construction
   layer. **cardano-cli** (`11.0.0.0`) auto-balances ordinary fixed outputs, but
   its output/redeemer flags expose no callback; invoke it only after recursive

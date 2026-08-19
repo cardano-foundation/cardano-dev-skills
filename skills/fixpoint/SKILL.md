@@ -104,13 +104,21 @@ candidate.
 
 ### Step 2: Choose the construction surface
 
-Survey the available stack rather than assuming one interface:
+Match the loop boundary to what the API actually exposes:
 
-- **High-level auto-balancing:** Prefer it when requested outputs are
-  fee-independent. SDKs normally perform coin selection, change creation, fee
-  calculation, and any required retries internally. Evolution SDK documents an
-  explicit balance/evaluation/fee cycle and a ten-attempt limit in
-  `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/architecture/script-evaluation.mdx`.
+- **Fixed outputs:** use high-level auto-balancing for ordinary payments. Do not
+  replace a bounded built-in fee/change loop with application code.
+- **Fee-dependent outputs:** require a callback that receives the candidate fee
+  and returns replacement outputs. If the API accepts only fixed outputs, build,
+  read the fee, recompute outputs, create a fresh builder/body, and repeat within
+  your own bound.
+- **Final-transaction-dependent data:** require a candidate-transaction callback
+  whose result participates in another balance pass. A transaction accessor that
+  exists only after completion is not such a hook; use it in an outer bounded
+  build → inspect → reconstruct loop.
+- **Raw assemblers:** if the API does not balance, own input selection, min-UTxO,
+  evaluation, fee/change iteration, witness assumptions, and validation outside
+  it. Do not classify serialization success as balancing success.
 - **Ledger-level estimation:** `cardano-ledger`'s `estimateMinFeeTx` measures a
   candidate transaction and pads it with the requested number of dummy VKey
   witnesses. The caller still owns candidate construction, witness-count
@@ -118,14 +126,6 @@ Survey the available stack rather than assuming one interface:
   available, prefer the more accurate `calcMinFeeTx`, or
   `calcMinFeeTxNativeScriptWits` for native-script witnesses, so the ledger can
   derive witness requirements instead of trusting a supplied count.
-- **Explicit fixpoint:** Use a visible loop or a `Peek`/`Convergence`-style
-  builder when a validator equation, datum, or redeemer depends on the final
-  transaction. This exposes the recursive value to application code and makes
-  failure to converge reportable.
-
-The registered Cardano Tx Tools source describes its `Cardano.Tx.Build`,
-`Cardano.Tx.Balance`, `Cardano.Tx.Evaluate`, and phase-1 validation surfaces in
-`${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-tx-tools/README.md`.
 
 ### Step 3: Iterate over complete candidates
 
@@ -166,46 +166,37 @@ an engineering expectation, not permission to omit the bound. With the
 reference-input set fixed, the tiered reference-script charge is constant across
 these iterations, so it does not weaken that contraction argument.
 
-### Step 4: Recognize the pattern in real implementations
+### Step 4: Apply the verified API branch
 
-Compare implementations by which part of the cycle they expose. The bundled
-[Cardano Tx Tools overview](../../docs/sources/cardano-tx-tools/README.md)
-documents separate build, balance, evaluate, and phase-1 validation modules.
-The upstream source details mentioned below are **not bundled here**; verify
-them in a current upstream checkout before relying on identifiers or types.
+Use these version-pinned rules; re-probe identifiers before applying them to a
+different version:
 
-1. **Ordinary fee/change fixpoint.** Evolution SDK documents iterative base-fee
-   calculation followed by balance. Cardano API's auto-balance design likewise
-   documents a multi-step strategy that estimates with maximum values and then
-   recalculates; `cardano-cli transaction build` exposes that style as an
-   automatically balanced interface. These keep the loop behind a high-level
-   API. Cardano Tx Tools' `balanceTx` instead makes the loop visible: it starts
-   from zero fee, raises the retained fee monotonically, and stops at a stable
-   candidate, returning `FeeNotConverged` if the bound is exhausted. Its witness
-   count is estimated from inputs and required signers and can under-count a
-   native-script multisig, so callers must validate the result.
-
-2. **Fee-dependent outputs.** Evolution SDK's documented
-   balance/evaluation/fee cycle rebuilds after validators observe a changed
-   transaction. A custom builder must add the application-specific step:
-   recompute outputs from the current fee before each assembly. Cardano Tx
-   Tools' `balanceFeeLoop` exposes this as an output-producing callback,
-   `mkOutputs :: Coin -> ...`, directly modeling fee-dependent refunds.
-
-3. **Final-transaction observations.** High-level auto-balancers generally hide
-   their loop; when they provide no final-transaction observation hook, place a
-   bounded loop around the builder. Cardano Tx Tools' build module exposes
-   `Peek :: (ConwayTx -> Convergence a) -> TxInstr q e a`; the result uses
-   `Iterate` for a provisional value that requires another pass and `Ok` for a
-   stable value, then reinterprets the program over successive candidates.
-
-4. **Recursive redeemer/min-UTxO value.** Evolution SDK documents CBOR-accurate
-   min-UTxO calculation during output/change construction. Cardano Tx Tools'
-   test suite goes further: under its non-balancing `draft` path,
-   `peek (observeTxOutCoin ix)` pins the min-UTxO → final-output observation →
-   redeemer leg by checking that the redeemer carries the compensated output
-   coin. Its full `build` path, not that test, closes the outer fee and
-   execution-unit loop.
+- For native in-loop hooks, keep recursion inside the builder. **Cardano Tx
+  Tools** (`0.2.3.0+14`, `7bfe95b`) provides `balanceTx`, fee-to-output
+  `balanceFeeLoop`, and `Peek (ConwayTx -> Convergence a)`; use full `build`, not
+  `draft`, to close fee and execution-unit recursion. **cardano-client-lib**
+  (`0.8.0-pre5`, `4f1ea9c`) provides `UpdateOutputFunction(fee, outputs)` and
+  composable `TxBuilder` transforms over the assembled transaction; add an
+  explicit bound when transforms rebalance recursively. **Scalus** (`1.0.0`,
+  `6844943`) invokes `DiffHandler(Value, Transaction)` inside its bounded balance
+  loop; use that handler for fee-dependent outputs and post-min-UTxO redeemers,
+  because delayed redeemer/datum builders run before min-UTxO and balancing.
+- For post-build-only access, own a fresh-builder outer loop. **Evolution SDK**
+  (`@evolution-sdk/evolution` `0.5.12`) accepts fixed payment assets, exposes fee
+  and transaction only on the completed result, and gives redeemer callbacks
+  indexed inputs rather than the candidate; rebuild for fee-dependent outputs or
+  final-output redeemers. **Cardano Serialization Lib** (`17.0.0`, `6b42538`)
+  requires `add_change_if_needed` after all other fields; use `min_fee`, `build`,
+  and a fresh reconstruction for deeper recursion. **cardano-api** (`10.19.1.0`,
+  `b951a63`) accepts fixed `TxBodyContent` and returns `BalancedTxBody`; reconstruct
+  the content between calls when outputs or redeemers depend on the result.
+- If only fixed command inputs exist, move recursion into another construction
+  layer. **cardano-cli** (`11.0.0.0`) auto-balances ordinary fixed outputs, but
+  its output/redeemer flags expose no callback; invoke it only after recursive
+  values stabilize elsewhere.
+- If the API is a raw assembler, supply the complete algorithm outside it.
+  **Pallas txbuilder** (`1.1.1`, `cdee91d`) explicitly performs no balancing or
+  fee/execution-unit calculation in `build_conway_raw`.
 
 ### Step 5: Validate the stable transaction
 

@@ -178,34 +178,33 @@ them in a current upstream checkout before relying on identifiers or types.
    documents a multi-step strategy that estimates with maximum values and then
    recalculates; `cardano-cli transaction build` exposes that style as an
    automatically balanced interface. These keep the loop behind a high-level
-   API. In the current Cardano Tx Tools upstream repository, the balance module
-   instead makes the loop visible: it starts from zero fee, raises the retained
-   fee monotonically, and stops at a bounded stable candidate. Its witness count
-   is estimated from inputs and required signers and can under-count a
+   API. Cardano Tx Tools' `balanceTx` instead makes the loop visible: it starts
+   from zero fee, raises the retained fee monotonically, and stops at a stable
+   candidate, returning `FeeNotConverged` if the bound is exhausted. Its witness
+   count is estimated from inputs and required signers and can under-count a
    native-script multisig, so callers must validate the result.
 
 2. **Fee-dependent outputs.** Evolution SDK's documented
    balance/evaluation/fee cycle rebuilds after validators observe a changed
    transaction. A custom builder must add the application-specific step:
-   recompute outputs from the current fee before each assembly. The current
-   Cardano Tx Tools upstream balance module exposes such an output-producing
-   callback, directly modeling fee-dependent refunds. This capability is not
-   asserted by its bundled README, so check the current source before adopting
-   that API.
+   recompute outputs from the current fee before each assembly. Cardano Tx
+   Tools' `balanceFeeLoop` exposes this as an output-producing callback,
+   `mkOutputs :: Coin -> ...`, directly modeling fee-dependent refunds.
 
 3. **Final-transaction observations.** High-level auto-balancers generally hide
    their loop; when they provide no final-transaction observation hook, place a
-   bounded loop around the builder. The current Cardano Tx Tools upstream build
-   module has a first-class provisional-versus-stable observation instruction
-   and reinterprets the program over successive candidates. Treat those names
-   and types as upstream details, not as bundled API documentation.
+   bounded loop around the builder. Its build module exposes
+   `Peek :: (ConwayTx -> Convergence a) -> TxInstr q e a`; the result uses
+   `Iterate` for a provisional value that requires another pass and `Ok` for a
+   stable value, then reinterprets the program over successive candidates.
 
 4. **Recursive redeemer/min-UTxO value.** Evolution SDK documents CBOR-accurate
-   min-UTxO calculation during output/change construction. The current Cardano
-   Tx Tools upstream test suite goes further: under its non-balancing `draft`
-   path, a test pins the min-UTxO → final-output observation → redeemer leg by
-   checking that the redeemer carries the compensated output coin. Its full
-   `build` path, not that test, closes the outer fee and execution-unit loop.
+   min-UTxO calculation during output/change construction. Cardano Tx Tools'
+   test suite goes further: under its non-balancing `draft` path,
+   `peek (observeTxOutCoin ix)` pins the min-UTxO → final-output observation →
+   redeemer leg by checking that the redeemer carries the compensated output
+   coin. Its full `build` path, not that test, closes the outer fee and
+   execution-unit loop.
 
 ### Step 5: Validate the stable transaction
 

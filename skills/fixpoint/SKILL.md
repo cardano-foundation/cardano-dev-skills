@@ -129,7 +129,8 @@ The registered Cardano Tx Tools source describes its `Cardano.Tx.Build`,
 
 ### Step 3: Iterate over complete candidates
 
-Use this general algorithm, adapting the stable-state comparison to the stack:
+Use this general algorithm — illustrative pseudocode, not executable code —
+adapting the stable-state comparison to the stack:
 
 ```text
 state := initial conservative estimates

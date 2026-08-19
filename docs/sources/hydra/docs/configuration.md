@@ -197,7 +197,7 @@ The default contestation period is **12 hours (43200 seconds)**, aligned with Ca
 On mainnet, the contestation period should be **at least 12 hours**. Shorter periods may not provide sufficient time for dispute resolution due to Cardano's consensus security parameters. See [#2389](https://github.com/cardano-scaling/hydra/issues/2389) for details.
 :::
 
-The contestation deadline decides when a closed head can be fanned out. At worst, this is `(1 + n) * CP` after submitting a `Close` transaction, where `n` is the number of participants in the head. This is because the deadline is pushed forward on each `Contest`. With no contestations which may still be `2 * CP` after `Close` depending on the upper validity set on che close transaction. The `hydra-node` currently picks a blanket 200 seconds as [max grace time](pathname:///haddock/hydra-node/Hydra-Chain-Direct-Handlers.html#v:maxGraceTime).
+The contestation deadline decides when a closed head can be fanned out. At worst, this is `(1 + n) * CP` after submitting a `Close` transaction, where `n` is the number of participants in the head. This is because the deadline is pushed forward on each `Contest`. With no contestations which may still be `2 * CP` after `Close` depending on the upper validity set on che close transaction. The `hydra-node` currently picks a blanket 200 seconds as [max grace time](pathname:///haddocks/hydra-node/Hydra-Chain-Direct-Handlers.html#v:maxGraceTime).
 
 :::warning Invalid `Close` and `Contest` transactions
 
@@ -359,9 +359,13 @@ hydra-node publish-scripts \
 
 The ledger is at the core of a Hydra head. Hydra is currently integrated with Cardano and assumes a ledger configuration similar to layer 1. This translates as a command-line option `--ledger-protocol-parameters`. This defines the updatable protocol parameters such as fees or transaction sizes. These parameters follow the same format as the `cardano-cli query protocol-parameters` output.
 
-We provide existing files in [hydra-cluster/config](https://github.com/cardano-scaling/hydra/blob/master/hydra-cluster/config), which can be used as the basis. In particular, the protocol parameters nullify costs inside a head. Apart from that, they are the direct copy of the current mainnet parameters. An interesting point about Hydra's ledger is that while it re-uses the same rules and code as layer 1 (isomorphic), some parameters can be altered. For example, fees can be adjusted, but not parameters controlling maximum value sizes or minimum ada values, as altering these could make a head unclosable.
+We provide existing files in [hydra-cluster/config](https://github.com/cardano-scaling/hydra/blob/master/hydra-cluster/config), which can be used as the basis. They are a copy of the current mainnet parameters, with three deliberate changes:
 
-A good rule of thumb is that anything that applies strictly to transactions (fees, execution units, max tx size, etc) is safe to change. But anything that could be reflected in the UTXO is not.
+* All fees are nullified (`txFeeFixed`, `txFeePerByte`, `executionUnitPrices`, `minFeeRefScriptCostPerByte`), so transactions inside a head cost nothing.
+* `maxTxSize` is *lowered* to 10250 bytes. Every UTxO produced inside a head must eventually be distributed on layer 1 by a fanout transaction, which additionally carries roughly 5.8 kB of overhead (most of it the head's minting policy, which cannot be a reference script). A larger `maxTxSize` on layer 2 would allow creating a single output (for example one with a big inline datum or reference script) that no fanout transaction can ever fit under the layer 1 limit of 16384 bytes, permanently locking funds in the head. The value 10250 is safe for heads of up to 10 parties; each additional party costs about 31 bytes of fanout overhead.
+* `utxoCostPerByte` is kept at the mainnet value. Lowering it would allow outputs below the layer 1 minimum ada requirement, which would make the fanout transaction invalid on layer 1.
+
+While Hydra's ledger re-uses the same rules and code as layer 1 (isomorphic), only some parameters can be altered safely. Anything that applies strictly to transaction validation and never gets reflected in the UTxO is safe to relax: fees and execution unit prices can be zeroed, and `maxTxExecutionUnits` can be raised, since layer 2 scripts are never re-executed on layer 1. Anything that shapes what a single output can look like must remain at least as restrictive as on layer 1: do not raise `maxTxSize` or `maxValueSize`, and do not lower `utxoCostPerByte`, as any of these could make a head impossible to fan out.
 
 :::info About protocol parameters
 Many protocol parameters are irrelevant in the Hydra context (eg, there is no treasury or stake pools within a head). Therefore, parameters related to reward incentives or delegation rules are unused.
@@ -386,7 +390,7 @@ While the `hydra-node` needs to pay fees for protocol transactions, any wallet c
  - A set of `UTXO` outputs to deposit (belonging to public keys), or
  - A _blueprint_ transaction along with the `UTXO` that resolves it.
 
-This endpoint returns a deposit transaction, which is balanced, and all fees are paid by the `hydra-node`. The wallet must sign and submit this transaction to the Cardano network. See the [API documentation](pathname:///api-reference/#operation-publish-/commit) for details.
+This endpoint returns a deposit transaction, which is balanced, and all fees are paid by the `hydra-node`. The wallet must sign and submit this transaction to the Cardano network. See the [API documentation](pathname:///api-reference#operation-publish-/commit) for details.
 
 For more details, refer to the [how to deposit funds](./how-to/incremental-commit) guide.
 
@@ -398,7 +402,7 @@ Hydra node can talk to cardano-node directly or it can be used with the [`Blockf
 
 #### Through a cardano-node
 
-When using a direct connection to a [`cardano-node`](https://github.com/input-output-hk/cardano-node/) please refer to existing documentation on starting a node, for example on [developers.cardano.org](https://developers.cardano.org/docs/get-started/running-cardano), or [use Mithril](https://mithril.network/doc/manual/getting-started/bootstrap-cardano-node) to bootstrap the local node.
+When using a direct connection to a [`cardano-node`](https://github.com/input-output-hk/cardano-node/) please refer to existing documentation on starting a node, for example on [developers.cardano.org](https://developers.cardano.org/docs/get-started/cardano-node/running-cardano), or [use Mithril](https://mithril.network/doc/manual/getting-started/bootstrap-cardano-node) to bootstrap the local node.
 
 To specify how to connect to the local `cardano-node`, use `--node-socket` and `--testnet-magic`:
 
@@ -444,7 +448,7 @@ Hydra supports an offline mode that allows for disabling the layer 1 interface â
 
 As an offline head will not connect to any chain, we need to provide an `--offline-head-seed` manually, which is a hexadecimal byte string. Offline heads can still use the L2 network and to make multiple `hydra-node` "see" the same offline head, the offline head seed needs to match along with provided [hydra keys](#hydra-keys).
 
-To initialize UTxO state available on the L2 ledger, offline mode takes an obligatory `--initial-utxo` parameter, which points to a JSON-encoded UTxO file. See the [API reference](pathname:///api-reference/#schema-UTxO) for the schema.
+To initialize UTxO state available on the L2 ledger, offline mode takes an obligatory `--initial-utxo` parameter, which points to a JSON-encoded UTxO file. See the [API reference](pathname:///api-reference#schema-UTxO) for the schema.
 
 For example, the following UTxO contains 100 ADA owned by test key [alice-funds.sk](https://github.com/cardano-scaling/hydra/tree/master/hydra-cluster/config/credentials/alice-funds.sk):
 ```json utxo.json
@@ -524,7 +528,7 @@ The response mirrors the YAML config file format (kebab-case keys, same hierarch
 }
 ```
 
-This is useful for verifying that all paths were resolved correctly, that CLI flags took effect, and for debugging configuration issues. The full schema is described in the [API reference](pathname:///api-reference/#operation-subscribe-/config).
+This is useful for verifying that all paths were resolved correctly, that CLI flags took effect, and for debugging configuration issues. The full schema is described in the [API reference](pathname:///api-reference#operation-subscribe-/config).
 
 :::caution
 

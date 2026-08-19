@@ -193,7 +193,7 @@ them in a current upstream checkout before relying on identifiers or types.
 
 3. **Final-transaction observations.** High-level auto-balancers generally hide
    their loop; when they provide no final-transaction observation hook, place a
-   bounded loop around the builder. Its build module exposes
+   bounded loop around the builder. Cardano Tx Tools' build module exposes
    `Peek :: (ConwayTx -> Convergence a) -> TxInstr q e a`; the result uses
    `Iterate` for a provisional value that requires another pass and `Ok` for a
    stable value, then reinterprets the program over successive candidates.

@@ -12,7 +12,7 @@
 # A source with no entry here (e.g. newly added) fetches its branch tip;
 # the next refresh records its first pin.
 "Aiken": 20b105bcdf4842f31f24e36a2b9b8013670765ff
-"Aiken Design Patterns": d9b5a127963b0232bdc3d3acf1d8932fc17dddd5
+"Aiken Design Patterns": dab059406035ed30a9464211822b1e5520d21cfc
 "Aiken Examples": 6aa51055f6d54b57f508d8ddcb2c33612c96dee4
 "Aiken Stdlib": 41f3c823f8d36dc81c285f34c8c6e545e2fffbfd
 "Amaru": 4845f448730f14da2e9efdb4b4aff68ade423001

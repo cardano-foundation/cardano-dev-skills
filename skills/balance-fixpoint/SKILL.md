@@ -1,5 +1,5 @@
 ---
-name: fixpoint
+name: balance-fixpoint
 description: >-
   Compute recursive values while building Cardano transactions. Use when
   "fee depends on the size", there is a "circular dependency in balancing",
@@ -158,6 +158,8 @@ return IterationLimit(lastStates)
 Rebuild rather than append. In particular, do not add a fresh change output on
 each pass. Make insufficient funds, rejected output equations, oscillation, and
 iteration exhaustion distinct errors.
+If the library re-runs randomized coin selection on every pass, pin and reuse the inputs chosen
+on the first pass; otherwise the candidate keeps changing shape and the convergence test never fires.
 
 Convergence is usually fast because a fee delta changes only a few CBOR bytes.
 Multiplying those bytes by the protocol's fee-per-byte coefficient produces a

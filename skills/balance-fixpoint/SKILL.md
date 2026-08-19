@@ -126,6 +126,8 @@ Match the loop boundary to what the API actually exposes:
   available, prefer the more accurate `calcMinFeeTx`, or
   `calcMinFeeTxNativeScriptWits` for native-script witnesses, so the ledger can
   derive witness requirements instead of trusting a supplied count.
+  The reference-implementation Haskell surfaces (`cardano-ledger` and `cardano-api`) deliver new eras
+  and hard-fork features first; choose them when era currency outweighs their heavy toolchain cost.
 
 ### Step 3: Iterate over complete candidates
 

@@ -71,5 +71,5 @@
 "Yaci Store": 60f5191b98697cee5fcd9a8effcd535169b6a1e8
 "cardano-client-lib": 161648d85ddb7c8b07cdd7740fa63744e52137f8
 "cardano-js-sdk": 0c0e700237ca524d8bd73054e3518fb182d09e46
-"haskell.nix": af91947226573c4e3503629e9daae44b02f888dc
+"haskell.nix": b917abe9af04f0d11e5a618ace29a5522f8f6b73
 "iohk-nix": 9ebcc963cc35bf8ba974a069186dbe101dfdf395

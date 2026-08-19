@@ -700,7 +700,7 @@
   priority: medium
   glob_patterns:
     - README.md
-    - "docs/**/*.md"
+    - "docs/*.md"
   description: Conway-era transaction construction, balancing, inspection, validation, signing, graphing, and workload-generation tools and Haskell libraries
   website: https://lambdasistemi.github.io/cardano-tx-tools/
 

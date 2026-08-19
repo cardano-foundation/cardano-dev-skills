@@ -40,7 +40,7 @@ transaction is ledger-valid.
 
 1. **Build the real candidate before measuring it.** Fee estimation must see
    the fee field, outputs, change, redeemers, scripts, metadata, reference-script
-   bytes, execution units, and correctly padded witness count.
+   bytes, execution units, and a justified witness count.
 2. **Make recursive dependencies explicit.** Write down which value depends on
    which part of the final transaction before choosing the loop boundary.
 3. **Use monotone or contractive updates where possible.** Retain the greatest
@@ -56,8 +56,12 @@ transaction is ledger-valid.
 
 ## Why the transaction is recursive
 
-Cardano's minimum fee is a linear function of serialized transaction size, but
-the final size is not available at the start of construction:
+Cardano's minimum fee is linear in serialized body size (`a * size + b`) plus
+Conway's tiered reference-script charge. That charge prices total reference
+script bytes in 25 KiB tiers, escalating each tier by 1.2 from
+`minFeeRefScriptCostPerByte`. See the bundled
+[ledger decision](../../docs/sources/cardano-ledger/adr/2024-08-14_009-refscripts-fee-change.md).
+The final body size is not available at the start of construction:
 
 - Writing the fee can change the CBOR integer width.
 - Subtracting the fee from change can change the change output's encoding.
@@ -110,7 +114,10 @@ Survey the available stack rather than assuming one interface:
 - **Ledger-level estimation:** `cardano-ledger`'s `estimateMinFeeTx` measures a
   candidate transaction and pads it with the requested number of dummy VKey
   witnesses. The caller still owns candidate construction, witness-count
-  assumptions, iteration, and final validation.
+  assumptions, iteration, and final validation. When resolved UTxOs are
+  available, prefer the more accurate `calcMinFeeTx`, or
+  `calcMinFeeTxNativeScriptWits` for native-script witnesses, so the ledger can
+  derive witness requirements instead of trusting a supplied count.
 - **Explicit fixpoint:** Use a visible loop or a `Peek`/`Convergence`-style
   builder when a validator equation, datum, or redeemer depends on the final
   transaction. This exposes the recursive value to application code and makes
@@ -154,40 +161,51 @@ iteration exhaustion distinct errors.
 Convergence is usually fast because a fee delta changes only a few CBOR bytes.
 Multiplying those bytes by the protocol's fee-per-byte coefficient produces a
 much smaller next delta: locally the update behaves like a contraction. This is
-an engineering expectation, not permission to omit the bound.
+an engineering expectation, not permission to omit the bound. With the
+reference-input set fixed, the tiered reference-script charge is constant across
+these iterations, so it does not weaken that contraction argument.
 
-### Step 4: Recognize the Cardano Tx Tools examples
+### Step 4: Recognize the pattern in real implementations
 
-Use these examples as patterns, not as a requirement to adopt that library:
+Compare implementations by which part of the cycle they expose. The bundled
+[Cardano Tx Tools overview](../../docs/sources/cardano-tx-tools/README.md)
+documents separate build, balance, evaluate, and phase-1 validation modules.
+The upstream source details mentioned below are **not bundled here**; verify
+them in a current upstream checkout before relying on identifiers or types.
 
-1. **Ordinary fee/change fixpoint — `Cardano.Tx.Balance.balanceTx`.**
-   `src-tx-build/Cardano/Tx/Balance.hs` constructs the full candidate for the
-   current fee, including change and collateral fields, calls
-   `estimateMinFeeTx`, and retries from zero until the estimate no longer
-   exceeds the retained fee. It assumes the correct key-witness count and
-   reference-script bytes and returns `FeeNotConverged` after a bounded loop.
+1. **Ordinary fee/change fixpoint.** Evolution SDK documents iterative base-fee
+   calculation followed by balance. Cardano API's auto-balance design likewise
+   documents a multi-step strategy that estimates with maximum values and then
+   recalculates; `cardano-cli transaction build` exposes that style as an
+   automatically balanced interface. These keep the loop behind a high-level
+   API. In the current Cardano Tx Tools upstream repository, the balance module
+   instead makes the loop visible: it starts from zero fee, raises the retained
+   fee monotonically, and stops at a bounded stable candidate. Its witness count
+   is estimated from inputs and required signers and can under-count a
+   native-script multisig, so callers must validate the result.
 
-2. **Fee-dependent outputs — `balanceFeeLoop`.** The same module accepts
-   `mkOutputs :: Coin -> Either String (StrictSeq TxOut)`. Each round computes
-   outputs from the current fee, installs both outputs and fee into a complete
-   template, re-estimates, and retries. This directly models conservation rules
-   such as fee-dependent refunds without pretending outputs are fixed.
+2. **Fee-dependent outputs.** Evolution SDK's documented
+   balance/evaluation/fee cycle rebuilds after validators observe a changed
+   transaction. A custom builder must add the application-specific step:
+   recompute outputs from the current fee before each assembly. The current
+   Cardano Tx Tools upstream balance module exposes such an output-producing
+   callback, directly modeling fee-dependent refunds. This capability is not
+   asserted by its bundled README, so check the current source before adopting
+   that API.
 
-3. **Final-transaction observations — `Peek` and `Convergence`.**
-   `src-tx-build/Cardano/Tx/Build.hs` defines
-   `Peek :: (ConwayTx -> Convergence a) -> TxInstr q e a`, with
-   `Iterate a` meaning "use this provisional value and run again" and `Ok a`
-   meaning the observation is stable. The builder reinterprets the program over
-   successive candidates, making a value read from the final transaction a
-   first-class dependency rather than an out-of-band callback.
+3. **Final-transaction observations.** High-level auto-balancers generally hide
+   their loop; when they provide no final-transaction observation hook, place a
+   bounded loop around the builder. The current Cardano Tx Tools upstream build
+   module has a first-class provisional-versus-stable observation instruction
+   and reinterprets the program over successive candidates. Treat those names
+   and types as upstream details, not as bundled API documentation.
 
-4. **Recursive redeemer/min-UTxO value.** In
-   `test/Cardano/Tx/Build/MinUtxoSpec.hs`, `payTo` creates a token-bearing output,
-   `peek (observeTxOutCoin ix)` reads its post-compensation coin, and
-   `spendScript` places that coin in a redeemer. The test checks that the final
-   redeemer equals the coin in the final output. This covers the full cycle:
-   min-UTxO changes the output, the observation changes the redeemer, and the
-   redeemer participates in the transaction whose final shape is observed.
+4. **Recursive redeemer/min-UTxO value.** Evolution SDK documents CBOR-accurate
+   min-UTxO calculation during output/change construction. The current Cardano
+   Tx Tools upstream test suite goes further: under its non-balancing `draft`
+   path, a test pins the min-UTxO → final-output observation → redeemer leg by
+   checking that the redeemer carries the compensated output coin. Its full
+   `build` path, not that test, closes the outer fee and execution-unit loop.
 
 ### Step 5: Validate the stable transaction
 
@@ -210,4 +228,9 @@ Iterate again within the same bound or return a structured failure.
 
 - [Cardano Tx Tools overview](../../docs/sources/cardano-tx-tools/README.md)
 - [Evolution SDK script evaluation cycle](../../docs/sources/evolution-sdk/architecture/script-evaluation.mdx)
+- [Evolution SDK transaction flow](../../docs/sources/evolution-sdk/architecture/transaction-flow.mdx)
+- [Evolution SDK min-UTxO output sizing](../../docs/sources/evolution-sdk/architecture/unfrack-optimization.mdx)
+- [cardano-cli automatically balanced build](../../docs/sources/cardano-node-wiki/reference/cardano-node-cli-reference.md)
+- [Cardano API auto-balance strategy](../../docs/sources/cardano-node-wiki/ADR-016-cardano-api-new-txbodycontent.md)
+- [Conway reference-script fee decision](../../docs/sources/cardano-ledger/adr/2024-08-14_009-refscripts-fee-change.md)
 - [Shared Cardano development principles](../shared/PRINCIPLES.md)

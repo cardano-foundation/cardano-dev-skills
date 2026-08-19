@@ -101,6 +101,7 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 | **SanchoNet** | Governance testnet | Production | Governance-specific testing. |
 | **tx-village** | Tx testing framework | Experimental | Transaction-level testing. |
 | **Plutip** | Local cluster | Production | Haskell-based local cluster testing. |
+| **DWARF** | Node fuzz / adversarial catalog | Production | CBOR, N2N mini-protocols, eclipse/sybil, mixed cardano-node/Amaru chain-selection. |
 
 ## Governance Tools
 

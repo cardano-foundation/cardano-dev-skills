@@ -61,6 +61,7 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/blockfrost-openapi/` - Blockfrost API docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/hydra/` - Hydra (Layer 2 state channels) docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/tx3/` - Tx3 interface DSL and toolchain docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/dwarf/` - node fuzz / adversarial scenario catalog (DWARF)
 
 ### Step 3: Search the ecosystem map
 
@@ -133,6 +134,7 @@ File: skills/suggest-tooling/references/ecosystem-map.md
 | **Preview testnet** | Public testnet with frequent hard forks |
 | **Preprod testnet** | Public testnet mirroring mainnet |
 | **tx-village** | Transaction-level testing framework |
+| **DWARF** | Node fuzz and adversarial scenarios (CBOR, mini-protocols, mixed cardano-node/Amaru). Search `docs/sources/dwarf/`. Not a validator-unit tool. |
 
 #### Wallet Integration
 

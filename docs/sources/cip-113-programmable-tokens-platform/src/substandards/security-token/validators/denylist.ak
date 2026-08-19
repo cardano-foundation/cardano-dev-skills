@@ -1,8 +1,8 @@
 use aiken/collection/dict
 use aiken/collection/list
 use aiken_design_patterns/linked_list.{
-  deinit, init, insert_ascending, remove, run_eval_with, run_root_with,
-  spend_for_adding_or_removing_an_element,
+  deinit, get_element_info, init, insert_ascending, remove, run_element_with,
+  run_eval_with, run_root_with, spend_for_adding_or_removing_an_element,
 }
 use cardano/assets.{PolicyId, tokens}
 use cardano/transaction.{OutputReference, Transaction}
@@ -11,8 +11,47 @@ use types/denylist.{
   AddToDenylist, Deinit, Denylist, Init, MintRedeemer, RemoveFromDenylist,
   SpendRedeemer, StateTransition,
 }
-use types/global_state.{admin_from_ref_input}
+use types/global_state.{active_admin_from_ref_input, gs_datum_from_ref_input}
+use types/power_users.{PowerUser}
 use utils.{must_be_signed_by_credential}
+
+/// Resolves the GS reference input (for the power-user linked-list policy id)
+/// and the power-user node reference input at `power_user_node_ref_input_index`,
+/// authenticating the node against that list. Returns the node's credential hash
+/// and parsed `PowerUser` data. Callers gate sanctions on `is_admin` + the
+/// returned credential's signature.
+fn power_user_from_refs(
+  self: Transaction,
+  global_state_ref_input_index: Int,
+  global_state_policy_id: ByteArray,
+  power_user_node_ref_input_index: Int,
+) -> (ByteArray, PowerUser) {
+  let gs = gs_datum_from_ref_input(
+    self.reference_inputs,
+    global_state_ref_input_index,
+    global_state_policy_id,
+  )
+  // No sanctions administration on a decommissioned protocol.
+  expect !gs.deactivated
+  let power_user_node_ref_input = utils.safe_list_at(
+    self.reference_inputs,
+    power_user_node_ref_input_index,
+  )
+  get_element_info(
+    power_user_node_ref_input.output,
+    fn(_lovelace, node_key, data, _link) {
+      expect Some(key) = node_key
+      expect power_user_data: PowerUser = data
+      (key, power_user_data)
+    },
+  )
+    |> run_element_with(
+        gs.power_user_linked_list_policy_id,
+        constants.linked_list_root_key,
+        constants.linked_list_node_key_prefix,
+        constants.linked_list_node_key_prefix_length,
+      )
+}
 
 validator denylist_validator(denylist_linked_list_policy_id: ByteArray) {
   spend(
@@ -56,7 +95,7 @@ validator mint(
         }
       }
       Deinit { root_input_index, global_state_ref_input_index } -> {
-        let admin = admin_from_ref_input(
+        let admin = active_admin_from_ref_input(
           self.reference_inputs,
           global_state_ref_input_index,
           global_state_policy_id,
@@ -75,11 +114,15 @@ validator mint(
         anchor_node_output_index,
         appended_node_output_index,
         global_state_ref_input_index,
+        power_user_node_ref_input_index,
       } -> {
-        let admin = admin_from_ref_input(
-          self.reference_inputs,
+        // Sanctioning is delegated: any power user holding `is_admin` can add a
+        // denylist entry (signed by that user). The GS admin grants the flag.
+        let (power_user_credential_hash, power_user_data) = power_user_from_refs(
+          self,
           global_state_ref_input_index,
           global_state_policy_id,
+          power_user_node_ref_input_index,
         )
         let anchor_input = utils.safe_list_at(
           self.inputs,
@@ -94,7 +137,8 @@ validator mint(
           appended_node_output_index,
         )
         and {
-          must_be_signed_by_credential(self, admin),
+          power_user_data.is_admin,
+          must_be_signed_by_credential(self, power_user_credential_hash),
           dict.size(tokens(self.mint, policy_id)) == 1,
           insert_ascending(
             anchor_input,
@@ -129,11 +173,15 @@ validator mint(
         removed_node_input_index,
         anchor_node_output_index,
         global_state_ref_input_index,
+        power_user_node_ref_input_index,
       } -> {
-        let admin = admin_from_ref_input(
-          self.reference_inputs,
+        // Un-sanctioning is gated the same as adding: a power user holding
+        // `is_admin`, signed by that user.
+        let (power_user_credential_hash, power_user_data) = power_user_from_refs(
+          self,
           global_state_ref_input_index,
           global_state_policy_id,
+          power_user_node_ref_input_index,
         )
         let anchor_input = utils.safe_list_at(
           self.inputs,
@@ -148,7 +196,8 @@ validator mint(
           anchor_node_output_index,
         )
         and {
-          must_be_signed_by_credential(self, admin),
+          power_user_data.is_admin,
+          must_be_signed_by_credential(self, power_user_credential_hash),
           dict.size(tokens(self.mint, policy_id)) == 1,
           remove(
             anchor_input,

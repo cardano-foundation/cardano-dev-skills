@@ -704,6 +704,18 @@
   description: Conway-era transaction construction, balancing, inspection, validation, signing, graphing, and workload-generation tools and Haskell libraries
   website: https://lambdasistemi.github.io/cardano-tx-tools/
 
+- name: Cardano Library Conformance
+  repo: https://github.com/lambdasistemi/cardano-lib-conformance.git
+  docs_path: "."
+  format: markdown
+  category: sdk
+  priority: medium
+  glob_patterns:
+    - README.md
+    - "balance-fixpoint/**/*.md"
+    - "docs/*.md"
+  description: Cross-library conformance evidence, runnable examples, and capability matrices for Cardano transaction balancing
+
 # --- Testing & DevNets ---
 
 - name: Yaci DevKit

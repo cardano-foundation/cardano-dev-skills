@@ -34,7 +34,7 @@ End result: the agent answers from current, project-authoritative sources instea
 | `review-contract` | Security review of a validator |
 | `optimize-validator` | Lower CPU / memory / script-size costs |
 | `build-transaction` | Build & submit transactions across SDKs |
-| `balance-fixpoint` | Resolve fee-, output-, datum-, and redeemer-dependent transaction values with bounded iteration |
+| `balance-transaction-at-fixpoint` | Resolve fee-, output-, datum-, and redeemer-dependent transaction values with bounded iteration |
 | `design-token` | Design native tokens, NFTs, CIP-25/68/113 metadata |
 | `debug-transaction` | Diagnose failing transactions |
 | `query-chain` | Pick the right query strategy (Blockfrost / Ogmios / indexer) |

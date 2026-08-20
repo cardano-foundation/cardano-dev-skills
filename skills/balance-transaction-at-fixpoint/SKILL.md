@@ -1,5 +1,5 @@
 ---
-name: balance-fixpoint
+name: balance-transaction-at-fixpoint
 description: >-
   Compute recursive values while building Cardano transactions. Use when
   "fee depends on the size", there is a "circular dependency in balancing",
@@ -11,7 +11,7 @@ disallowed-tools: WebFetch WebSearch
 
 <!-- Documentation lookup path: ${CLAUDE_SKILL_DIR}/../../docs/sources/ -->
 
-# Fixpoint Transaction Construction
+# Balance Transaction at Fixpoint
 
 Explain and implement bounded iteration when a Cardano transaction contains a
 value that cannot be known until the transaction itself has been assembled.

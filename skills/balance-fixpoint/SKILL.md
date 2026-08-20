@@ -172,38 +172,26 @@ across these iterations, so it does not weaken that contraction argument.
 
 ### Step 4: Apply the verified API branch
 
-Checked against the listed versions/commits; these sources are not bundled here.
-Re-check identifiers and types in a current upstream checkout before relying on them.
+Use the bundled [gap matrix](../../docs/sources/cardano-library-conformance/balance-fixpoint/static/gap-matrix.md)
+and its [Mesh extension](../../docs/sources/cardano-library-conformance/balance-fixpoint/static/gap-matrix-mesh.md)
+to select a capability branch. Versions and commits live in those conformance
+pages and are re-checked by their runnable evidence.
 
-- For native in-loop hooks, keep recursion inside the builder. **Cardano Tx
-  Tools** (`0.2.3.0+14`, `7bfe95b`) provides `balanceTx`, fee-to-output
-  `balanceFeeLoop`, and `Peek (ConwayTx -> Convergence a)`; use full `build`, not
-  `draft`, to close fee and execution-unit recursion. **cardano-client-lib**
-  (`0.7.2`) provides `UpdateOutputFunction(fee, outputs)` and
-  composable `TxBuilder` transforms over the assembled transaction; add an
-  explicit bound when transforms rebalance recursively. **Scalus** (`1.0.0+38`,
-  `6844943`) invokes `DiffHandler(Value, Transaction)` inside its bounded balance
-  loop; use that handler for fee-dependent outputs and post-min-UTxO redeemers,
-  because delayed redeemer/datum builders run before min-UTxO and balancing.
-- For post-build-only access, own a fresh-builder outer loop. **Evolution SDK**
-  (`@evolution-sdk/evolution` `0.5.12`) accepts fixed payment assets. A custom
-  `BuildOptions.evaluator` sees each candidate mid-build but can return only
-  execution units; redeemer callbacks receive indexed inputs, not the candidate.
-  Rebuild for fee-dependent outputs or final-output redeemers. **Cardano
-  Serialization Lib** (`17.0.0`, `6b42538`)
-  requires `add_change_if_needed` after all other fields; use `min_fee`, `build`,
-  and a fresh reconstruction for deeper recursion. **cardano-api** (`10.19.1.0`,
-  `b951a63`) accepts fixed `TxBodyContent` and returns `BalancedTxBody`; reconstruct
-  the content between calls when outputs or redeemers depend on the result.
-  **Mesh SDK** (`@meshsdk/core` `1.9.1`) accepts fixed outputs/redeemers and
-  returns CBOR after `complete`; inspect it and reconstruct for deeper recursion.
-- If only fixed command inputs exist, move recursion into another construction
-  layer. **cardano-cli** (`11.0.0.0`) auto-balances ordinary fixed outputs, but
-  its output/redeemer flags expose no callback; invoke it only after recursive
-  values stabilize elsewhere.
-- If the API is a raw assembler, supply the complete algorithm outside it.
-  **Pallas txbuilder** (`1.1.1`, `cdee91d`) explicitly performs no balancing or
-  fee/execution-unit calculation in `build_conway_raw`.
+- For native in-loop hooks, keep recursion inside the builder and preserve its
+  bound. See the worked pages for [Cardano Tx Tools](../../docs/sources/cardano-library-conformance/balance-fixpoint/examples/tx-tools.md),
+  [cardano-client-lib](../../docs/sources/cardano-library-conformance/balance-fixpoint/examples/ccl.md),
+  and [Scalus](../../docs/sources/cardano-library-conformance/balance-fixpoint/examples/scalus.md).
+- For fixed-body or post-build access, own a bounded fresh-builder loop: inspect
+  the candidate, recompute dependent outputs or redeemers, and reconstruct. See
+  [Evolution SDK](../../docs/sources/cardano-library-conformance/balance-fixpoint/examples/evolution.md),
+  [CSL](../../docs/sources/cardano-library-conformance/balance-fixpoint/examples/csl.md),
+  and [cardano-api](../../docs/sources/cardano-library-conformance/balance-fixpoint/examples/cardano-api.md).
+  Mesh follows this branch but has no worked example in the current conformance
+  slice.
+- If only fixed command inputs exist, stabilize recursive values in another
+  construction layer before invoking the command.
+- If the API is a raw assembler, own selection, evaluation, fee/change,
+  witnesses, and validation outside it.
 
 ### Step 5: Validate the stable transaction
 
@@ -224,6 +212,9 @@ Iterate again within the same bound or return a structured failure.
 
 ## References
 
+- [Balance-fixpoint capability matrix](../../docs/sources/cardano-library-conformance/balance-fixpoint/static/gap-matrix.md)
+- [Mesh capability extension](../../docs/sources/cardano-library-conformance/balance-fixpoint/static/gap-matrix-mesh.md)
+- [Worked conformance examples](../../docs/sources/cardano-library-conformance/balance-fixpoint/examples/README.md)
 - [Cardano Tx Tools overview](../../docs/sources/cardano-tx-tools/README.md)
 - [Evolution SDK script evaluation cycle](../../docs/sources/evolution-sdk/architecture/script-evaluation.mdx)
 - [Evolution SDK transaction flow](../../docs/sources/evolution-sdk/architecture/transaction-flow.mdx)

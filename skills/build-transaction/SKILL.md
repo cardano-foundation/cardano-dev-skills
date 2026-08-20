@@ -36,7 +36,7 @@ construction, signing, submission, and verification on a testnet.
 - User is designing token metadata standards -- use `design-token`
 - User has a failing transaction and needs help debugging -- use `debug-transaction`
 - User wants to set up a local devnet or node infrastructure -- use `setup-devnet`
-- Output values or a redeemer depend on the final fee -- use `balance-fixpoint`
+- Output values or a redeemer depend on the final fee -- use `balance-transaction-at-fixpoint`
 
 ## Key Principles
 

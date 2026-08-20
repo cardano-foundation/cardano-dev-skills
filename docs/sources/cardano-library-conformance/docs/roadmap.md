@@ -31,7 +31,7 @@ that compares each page with its real source file.
 ## Registration as a cardano-dev-skills documentation source
 
 Once the repository stabilizes, register it as a documentation source for
-`cardano-dev-skills`. The balance-fixpoint skill then cites these pages
+`cardano-dev-skills`. The balance-transaction-at-fixpoint skill then cites these pages
 from the bundled corpus and slims its own version pins, since the pins and
 their evidence live here and are re-checked by the gate.
 

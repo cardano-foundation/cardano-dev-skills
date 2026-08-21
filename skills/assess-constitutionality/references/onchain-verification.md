@@ -181,5 +181,5 @@ analysis applies in full.
 
 ## 6. Constitution currency
 
-Settles: whether the bundled corpus is still the enacted text. See `constitution-meta.md` for
+Settles: whether the mirrored text is still the enacted Constitution. See `constitution-meta.md` for
 the command and how to read its result.

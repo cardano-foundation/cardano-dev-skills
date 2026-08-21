@@ -1,2 +1,0 @@
-**ARTICLE IV. AMENDMENT PROCESS**
----------------------------------

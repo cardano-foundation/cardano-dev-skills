@@ -1,28 +1,35 @@
-# Bundled Constitution Version
+# Constitution Version
 
-The constitutional text in this directory is a snapshot of the Cardano Constitution
-as enacted on-chain. Every assessment produced by this skill must state these values
-so a reader can tell exactly which text the reasoning rests on.
+The constitutional text this skill reasons over is mirrored from Intersect's repository of
+record ([IntersectMBO/cardano-constitution](https://github.com/IntersectMBO/cardano-constitution))
+into `docs/sources/cardano-constitution/`, one directory per enacted version. This skill
+targets the version below. Every assessment must state these values so a reader can tell
+exactly which text the reasoning rests on.
 
 | Field | Value |
 |---|---|
+| Version directory | `cardano-constitution-2/` |
 | Anchor URI | `ipfs://bafkreieyuknozbtewyurfqoagvplvykadn6a4u6wglupavdz46bbsnnl6e` |
 | Anchor hash | `b368bdad83c727bbfe86425575233fb914eb76d05d89497f7790cf007fd95f52` |
 | Ratified epoch | 608 |
 | Enacted epoch | 609 |
-| Snapshot taken | 2026-05-22 |
+
+The anchor hash above is the BLAKE2b-256 of the on-chain document, as stated in the version
+directory's upstream `README.md`. Version directories are immutable once enacted; an
+amendment arrives as a new sibling directory, which the weekly source refresh picks up
+automatically.
 
 ## Why this matters
 
-The Constitution is amendable through `NewConstitution` governance actions. If one has
-been enacted since the snapshot date above, this corpus is superseded and any finding
-derived from it may be wrong. This skill cannot check that itself, so it never claims
-the corpus is current. It states the version and hands the reader the check.
+The Constitution is amendable through `NewConstitution` governance actions. If one has been
+enacted since the version above, that text is superseded and any finding derived from it may
+be wrong. This skill cannot check that itself, so it never claims the version is current. It
+states the version and hands the reader the check.
 
 ## Verifying currency
 
-This skill does not make network calls. Ask the user to run the check and paste the
-result back, or point them at it so they can confirm independently:
+This skill does not make network calls. Ask the user to run the check and paste the result
+back, or point them at it so they can confirm independently:
 
 ```sh
 curl -s "https://api.koios.rest/api/v1/proposal_list?select=proposal_type,ratified_epoch,enacted_epoch,proposal_description" \
@@ -33,10 +40,11 @@ curl -s "https://api.koios.rest/api/v1/proposal_list?select=proposal_type,ratifi
 
 Interpreting the result:
 
-- **`enacted_epoch` is 609** — the bundled corpus is current. Proceed normally.
-- **`enacted_epoch` is greater than 609** — a newer Constitution is in force. The corpus is
-  stale. Say so plainly, stop, and do not issue findings from superseded text. Refreshing
-  the corpus is a repo maintenance task, not something to work around mid-assessment.
+- **`enacted_epoch` is 609** — the mirrored version is current. Proceed normally.
+- **`enacted_epoch` is greater than 609** — a newer Constitution is in force. This version is
+  stale. Say so plainly, stop, and do not issue findings from superseded text. Check whether
+  `docs/sources/cardano-constitution/` already holds a newer version directory; retargeting
+  this skill at it is a repo maintenance task, not something to work around mid-assessment.
 - **Check not run, or the command failed** — proceed, but stamp the report
   `Constitution currency: unverified` alongside the version table. Never silently assume
   currency.

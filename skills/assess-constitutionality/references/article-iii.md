@@ -1,2 +1,0 @@
-**ARTICLE III. CONSTITUTIONAL COMMITTEE**
------------------------------------------

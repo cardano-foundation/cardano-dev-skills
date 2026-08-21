@@ -3,7 +3,7 @@ name: assess-constitutionality
 description: >-
   Assesses whether a Cardano governance action complies with the Constitution, for live
   on-chain actions and unsubmitted drafts alike. Produces a provision-by-provision findings
-  report against the bundled constitutional text. Triggers: "is this governance action
+  report against the mirrored constitutional text. Triggers: "is this governance action
   constitutional", "assess constitutionality", "constitutional review", "check this proposal
   against the Constitution", "will this treasury withdrawal pass CC review", "review my
   governance action draft", "constitutional defects".
@@ -11,7 +11,7 @@ allowed-tools: Read Grep Glob
 disallowed-tools: WebFetch WebSearch
 ---
 
-<!-- Constitutional text: ${CLAUDE_SKILL_DIR}/references/ -->
+<!-- Constitutional text: ${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-constitution/ (see references/constitution-index.md) -->
 <!-- Koios API spec: ${CLAUDE_SKILL_DIR}/../../docs/sources/koios/specs/results/koiosapi-mainnet.yaml -->
 
 # Assess Constitutionality of a Governance Action
@@ -93,13 +93,13 @@ than a verified on-chain record, and the reader should be able to see that.
 
 ### Step 2: Check the Constitution's currency
 
-Read `references/constitution-meta.md`. Surface the bundled version and give the user the
+Read `references/constitution-meta.md`. Surface the mirrored version and give the user the
 verification command.
 
 Then act on the result:
 
 - **Confirmed current** — proceed, and stamp the version in the report.
-- **A newer Constitution is enacted** — stop. Report the corpus as superseded and do not issue
+- **A newer Constitution is enacted** — stop. Report the text as superseded and do not issue
   findings from it. This is the one condition that blocks the assessment outright.
 - **Not checked, or the check failed** — proceed, and stamp `Currency: unverified` in the
   report's Basis table with a sentence explaining what that means.
@@ -108,18 +108,20 @@ Never let this step pass silently. The reader must always know which text the fi
 
 ### Step 3: Identify the action type and route to provisions
 
-Read `references/constitution-index.md`, then read **only** the sections the action engages.
-Never load the whole corpus; it is large and most of it is irrelevant to any given action.
+Read `references/constitution-index.md`, then read **only** the line ranges the action
+engages (the index maps each reference below to its range in the mirrored constitutional
+text). Never load the whole document; it is large and most of it is irrelevant to any given
+action.
 
 | Action type | Sections to read | Depth |
 |---|---|---|
-| TreasuryWithdrawals | `article-ii-6.md`, `article-ii-7.md`, `appendix-i-3.md` | Detailed, see Step 4 |
-| ParameterChange | `article-ii-6.md`, `article-ii-5.md`, `appendix-i-2.md`, `appendix-i-2-1.md` (always), plus the category subsection for each changed parameter | Detailed, see Step 5 |
-| InfoAction | `article-ii-6.md`, `appendix-i-8.md`, plus any Article I tenet the action engages | General |
-| HardForkInitiation | `article-ii-6.md`, `appendix-i-4.md` | General |
-| NewConstitution | `article-ii-6.md`, `article-i.md` and subsections, `appendix-i-6.md` | General |
-| NewCommittee / UpdateCommittee | `article-ii-6.md`, `article-iii.md` and subsections, `appendix-i-5.md` | General |
-| NoConfidence | `article-ii-6.md`, `article-iii-3.md`, `appendix-i-7.md` | General |
+| TreasuryWithdrawals | Article II.6, Article II.7, Appendix I.3 | Detailed, see Step 4 |
+| ParameterChange | Article II.6, Article II.5, Appendix I.2, Appendix I.2.1 (always), plus the category subsection for each changed parameter | Detailed, see Step 5 |
+| InfoAction | Article II.6, Appendix I.8, plus any Article I tenet the action engages | General |
+| HardForkInitiation | Article II.6, Appendix I.4 | General |
+| NewConstitution | Article II.6, Article I and its sections, Appendix I.6 | General |
+| NewCommittee / UpdateCommittee | Article II.6, Article III and its sections, Appendix I.5 | General |
+| NoConfidence | Article II.6, Article III.3, Appendix I.7 | General |
 
 Article II.6 governance action standards apply to every type. Start there in all cases.
 
@@ -264,8 +266,8 @@ careful, it is being useless.
 
 ## References
 
-- [`references/constitution-index.md`](references/constitution-index.md) — routing table for the bundled constitutional text
-- [`references/constitution-meta.md`](references/constitution-meta.md) — bundled version, and how to verify currency
+- [`references/constitution-index.md`](references/constitution-index.md) — routing table into the mirrored constitutional text
+- [`references/constitution-meta.md`](references/constitution-meta.md) — mirrored version, and how to verify currency
 - [`references/interpretive-positions.md`](references/interpretive-positions.md) — readings of ambiguous provisions, with reasoning
 - [`references/onchain-verification.md`](references/onchain-verification.md) — commands for the user to run, and what each settles
 - [`references/report-template.md`](references/report-template.md) — report structure and output rules

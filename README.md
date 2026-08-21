@@ -40,6 +40,7 @@ End result: the agent answers from current, project-authoritative sources instea
 | `setup-devnet` | Local devnet with Yaci DevKit or testnet setup |
 | `connect-wallet` | CIP-30 wallet integration for dApps |
 | `governance-guide` | CIP-1694 governance, DRep, voting, treasury |
+| `assess-constitutionality` | Assess a live governance action or draft against the Constitution |
 | `explain-eutxo` | Cardano's UTxO model for newcomers |
 | `explain-cip` | Walk through a specific CIP |
 | `suggest-tooling` | Recommend an SDK / framework given the use case |

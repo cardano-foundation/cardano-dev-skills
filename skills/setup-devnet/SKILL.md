@@ -51,6 +51,7 @@ Ask the developer (if not already clear):
 |---|---|---|
 | **Yaci DevKit** | Smart contract dev, fast iteration, visual block explorer | 5 minutes |
 | **Evolution SDK devnet** | TypeScript projects; code-first devnet inside the test suite | 5 minutes |
+| **Dingo devnet** | Node-side behaviour: consensus, diffusion, mempool, fast epoch boundaries | 10 minutes |
 | **Preview testnet** | Integration testing, shared state, longer-lived deployments | 10 minutes |
 | **Preprod testnet** | Pre-production testing, mirrors mainnet parameters | 10 minutes |
 | **Custom local cluster** | Advanced scenarios, custom protocol params | 30+ minutes |
@@ -62,6 +63,7 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/yaci-store/` - Yaci Store docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/devnet/` - Evolution SDK devnet docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-node-wiki/` - Cardano node wiki
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/dingo/` - Dingo devnet (see the README's DevNet section)
 
 ### Step 3: Set up Yaci DevKit (CLI tool, visual explorer)
 
@@ -122,6 +124,37 @@ File: skills/setup-devnet/references/evolution-sdk-devnet.md
 5. **Connect a client**: `Client.make(Cluster.getChain(cluster)).withKupmios({ kupoUrl, ogmiosUrl })`.
 
 Choose this over Yaci DevKit when you want the devnet managed from inside integration tests; choose Yaci DevKit for its visual block explorer and Blockfrost-compatible REST API. Both run a standard `cardano-node`, so chain behaviour is identical.
+
+### Step 3c: Set up a Dingo devnet (all-Go network, fast epochs)
+
+Reach for this when what you are testing is node-side rather than dApp-side:
+consensus, block diffusion, mempool behaviour, or how your service reacts to
+epoch boundaries. Yaci DevKit remains the better default for ordinary dApp
+integration work, because it ships a Blockfrost-compatible API and a block
+explorer aimed at that job.
+
+**What the default profile runs** — a private all-Dingo network: three Dingo
+block producers, one Dingo relay, and `txpump` feeding transactions into the
+mempool. Passing `--conformance` instead runs Dingo beside `cardano-node`, which
+is the configuration to use when you care whether both implementations agree.
+
+**Prerequisites**: Docker with the Compose plugin, and Go 1.26+.
+
+**Why the fast parameters matter.** The devnet uses 1-second slots and 500-slot
+epochs — roughly eight minutes per epoch — with `activeSlotsCoeff=0.4` and
+`k=40`. Epoch transitions, leader election, and stake-snapshot rotation all
+become observable in minutes, which is the thing a public testnet cannot give
+you. If your code has epoch-boundary logic, this is where to exercise it.
+
+For quick iteration without Docker, `devmode.sh` runs a single Dingo node
+against a local devnet genesis, resetting state and refreshing genesis
+timestamps on each run.
+
+**Scope caveat.** Dingo's own README places it on testnets and devnets only, not
+mainnet with real funds. For devnet work that is the intended envelope rather
+than a limitation, but do not let a Dingo-only devnet be your last check before
+mainnet — validate against `cardano-node` too, which is what `--conformance`
+exists for.
 
 ### Step 4: Set up local chain indexers
 

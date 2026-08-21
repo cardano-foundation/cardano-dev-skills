@@ -101,6 +101,7 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 | **cardano-node** | Production | Running a full Cardano node. Required for SPOs and self-hosted infra. |
 | **Dolos** | Experimental | Lightweight data-only node (no block production). Faster sync. |
 | **Amaru** | Experimental | Alternative node implementation in Rust. |
+| **Dingo** | Experimental | Alternative node implementation in Go, with UTxORPC, Blockfrost-compatible REST, and Mesh APIs served by the node itself. Block production is exercised on public testnets; its README rules out mainnet. |
 | **Mithril** | Production | Fast bootstrapping via snapshot certificates. Sync in minutes, not days. |
 
 ## Testing

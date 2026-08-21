@@ -59,6 +59,7 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/blockfrost-go/` - Blockfrost Go client (typed endpoint wrappers)
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/utxorpc-go-sdk/` - UTxORPC Go SDK (provider-agnostic gRPC)
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/gouroboros/` - gOuroboros (direct node mini-protocols)
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/dingo/` - Dingo (Go node serving UTxORPC / Blockfrost-compatible / Mesh)
 
 ### Step 3: Evaluate providers for the context
 
@@ -125,6 +126,24 @@ GET /epochs/latest/parameters
 - Comprehensive endpoints similar to Blockfrost
 - Community-maintained, decentralized backend nodes
 - Best for: open-source projects, quick queries, no-signup needs
+
+#### Dingo (Self-hosted node with APIs built in)
+
+A Cardano node implementation in Go that serves the query layer itself, so one
+process replaces the usual node-plus-Ogmios-plus-Kupo stack:
+
+- UTxO RPC (default port `9090`), a Blockfrost-compatible REST API (`3000`), and
+  Mesh / Coinbase Rosetta (`8080`), each enabled and bound through
+  `DINGO_PLUGINS_API_*_CONFIG_PORT`
+- Because the REST API is Blockfrost-compatible, existing Blockfrost client code
+  and the mirrored Blockfrost OpenAPI spec both apply — point the client at your
+  own host instead of the hosted service
+- **Storage mode is the gotcha.** The client-facing APIs require
+  `storageMode: "api"` (full indexing). The lighter `"core"` mode carries only
+  what consensus needs and will not serve them.
+- Its own README states Dingo is pre-production: testnets and devnets only, not
+  mainnet with real funds. Treat it as a development and testnet query layer,
+  and keep Blockfrost, Koios, or Ogmios + Kupo for anything mainnet-facing.
 
 #### Cardano GraphQL (Self-hosted GraphQL)
 

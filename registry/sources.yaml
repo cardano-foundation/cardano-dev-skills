@@ -22,6 +22,8 @@
 #   3. No archived / deprecated / sunset banner
 #   4. For forks: pick the maintained canonical (e.g. Evolution SDK, not the
 #      dead Lucid Evolution).
+#   Document-of-record repos may waive 1-2 via `vetting_exception` (see the
+#   schema below and docs/CONTRIBUTING.md); 3-4 always hold.
 #
 # Schema:
 #   name: Human-readable project name

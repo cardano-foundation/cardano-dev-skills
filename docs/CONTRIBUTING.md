@@ -44,6 +44,8 @@ Before adding any new entry to `registry/sources.yaml`, verify the upstream repo
 
 If signals are ambiguous (e.g. low commit frequency but a stable mature library; deprecation notice with unclear successor), flag it in the PR rather than guess.
 
+**Document-of-record exception.** Rules 1–2 measure maintenance cadence, which is meaningless for a repo whose only job is to mirror a document that changes rarely by design (e.g. the Cardano Constitution, amended only by on-chain governance action). For such a source, set a `vetting_exception` field on the registry entry with a one-sentence reason; the policy check then waives rules 1–2 for it (rules 3–4 still apply) and surfaces the waiver as a warning in the PR check output. The reason must explain why cadence is uninformative *and* what does guarantee currency (for the Constitution: the on-chain anchor hash).
+
 The same bar applies to the candidate entries at the bottom of `registry/sources.yaml` — don't promote a candidate without re-vetting against this bar.
 
 ## Automated PR policy checks
@@ -82,6 +84,8 @@ If a check misfires (e.g. a legitimately-named skill trips the brand heuristic),
   #   - "**/*.md"
   # format_overrides:
   #   "**/*.yaml": openapi
+  # vetting_exception: >-        # document-of-record repos only — see the
+  #   one-sentence reason         # vetting policy above
 ```
 
 **Valid `format` values:** `markdown`, `mdx`, `rst`, `openapi`, `aiken`, `python`, `toml`, `go`

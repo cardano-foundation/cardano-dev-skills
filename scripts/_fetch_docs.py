@@ -161,8 +161,14 @@ PINS_HEADER = """\
 # proposes new pins — one commit per source in the refresh PR, so a bad
 # upstream delta can be reverted per source.
 #
-# A source with no entry here (e.g. newly added) fetches its branch tip;
-# the next refresh records its first pin.
+# A newly added source is pinned in the PR that registers it, by running
+# `fetch-docs.sh --source "<name>" --update-pins`. That merges into this
+# file rather than rewriting it, so it touches one line.
+#
+# A source with no entry here falls back to its branch tip. That fallback is
+# a safety net so a missing pin never breaks a fetch — not the intended path
+# for a new source: unpinned content has no recorded provenance, and every
+# fetch re-resolves it to whatever the tip happens to be at the time.
 """
 
 

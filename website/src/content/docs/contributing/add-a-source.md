@@ -74,14 +74,21 @@ checked by `scripts/validate.py` against an explicit allow-list.
 python3 scripts/validate.py
 ```
 
-## 4. Fetch and verify locally
+## 4. Fetch and pin locally
 
 ```bash
-./scripts/fetch-docs.sh --source "Project Name"
+./scripts/fetch-docs.sh --source "Project Name" --update-pins
 ```
 
 Check that files were actually pulled (`docs/sources/<slug>/`) and that the
 count looks right.
+
+`--update-pins` records the upstream commit in `registry/pins.yaml`, and a new
+source is pinned in the PR that registers it. The pin is the only record of
+which upstream commit the mirrored content came from; without one the source
+re-resolves to whatever the branch tip is at fetch time. Despite the
+"auto-generated" banner, `--update-pins` merges into the file rather than
+rewriting it, so a per-source run touches one line.
 
 ## 5. Open a PR
 

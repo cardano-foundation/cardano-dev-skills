@@ -135,6 +135,7 @@ Go adoption is lower than TypeScript or Python, so expect fewer tutorials and sm
 | **Kupo** | UTxO indexer | Self-hosted |
 | **DB-Sync** | Full chain PostgreSQL | Self-hosted |
 | **Oura** | Event pipeline | Self-hosted |
+| **Adder** | Event pipeline (Go, embeddable) | Self-hosted |
 | **Dingo** | Go node + UTxORPC/Blockfrost/Mesh APIs (pre-production) | Self-hosted |
 | **Yaci DevKit** | Local devnet | Self-hosted |
 

@@ -61,6 +61,7 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/utxorpc-go-sdk/` - UTxORPC Go SDK (provider-agnostic gRPC)
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/gouroboros/` - gOuroboros (direct node mini-protocols)
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/dingo/` - Dingo (Go node serving UTxORPC / Blockfrost-compatible / Mesh)
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/adder/` - Adder (Go event pipeline; `docs/swagger.yaml` for its REST surface)
 
 ### Step 3: Evaluate providers for the context
 
@@ -76,7 +77,7 @@ File: skills/query-chain/references/provider-comparison.md
 |---|---|---|
 | **backend-service** | Ogmios + Kupo (self-hosted) or Blockfrost (hosted) | Koios (hosted, free tier) |
 | **dapp-frontend** | Blockfrost (via SDK) or Koios | Ogmios via backend proxy |
-| **data-pipeline** | Oura (streaming) or DB-Sync (SQL) | Cardano GraphQL |
+| **data-pipeline** | Oura or Adder (streaming) or DB-Sync (SQL) | Cardano GraphQL |
 | **one-off-query** | Koios (free, no signup) or Blockfrost | cardano-cli with local node |
 
 ### Step 4: Describe each viable option
@@ -166,6 +167,23 @@ process replaces the usual node-plus-Ogmios-plus-Kupo stack:
 - Outputs to Kafka, Elasticsearch, webhooks, files
 - Filters and maps chain events
 - Best for: real-time event processing, data pipelines, notifications
+
+#### Adder (Self-hosted pipeline, Go)
+
+- Same shape as Oura in a Go process: an input stage follows the chain, filters
+  narrow the stream, output stages emit it
+- Inputs are chainsync (over NtC or NtN), mempool, and UTxORPC, so it can follow
+  a node directly or ride on a UTxORPC provider; the chainsync input emits
+  `input.block`, `input.rollback`, `input.transaction`, and `input.governance`,
+  each with its own payload
+- Outputs include webhook, push, notify, log, and Telegram
+- Filters narrow by event type, address, asset fingerprint, minting policy, pool
+  ID, or DRep ID (`WithTypes`, `WithAddresses`, `WithAssetFingerprints`,
+  `WithPolicies`, `WithPoolIds`, `WithDRepIds`)
+- Runs standalone or embeds as a library, which is the reason to pick it over
+  Oura: a Go service can consume the event stream in-process instead of
+  shipping it through a broker first
+- Best for: Go backends reacting to chain events, webhook fan-out, alerting
 
 #### Evolution SDK (TypeScript client over providers)
 

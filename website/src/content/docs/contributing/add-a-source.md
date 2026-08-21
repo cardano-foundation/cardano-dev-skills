@@ -23,6 +23,14 @@ If signals are ambiguous (e.g. low commit frequency but a stable mature
 library; deprecation notice with unclear successor), flag it in the PR
 rather than guess.
 
+Rules 1–2 measure maintenance cadence, which is meaningless for a repo whose
+only job is to mirror a document that changes rarely by design (e.g. the
+Cardano Constitution, amended only by on-chain governance action). For such a
+document-of-record source, set a `vetting_exception` field on the registry
+entry with a one-sentence reason saying why cadence is uninformative and what
+does guarantee currency; the policy check waives rules 1–2 for it (rules 3–4
+still apply) and surfaces the waiver as a warning in the PR check output.
+
 The same bar applies to the candidate entries at the bottom of
 `registry/sources.yaml` — don't promote a candidate without re-vetting.
 

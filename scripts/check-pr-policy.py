@@ -8,7 +8,9 @@ docs/CONTRIBUTING.md:
   1. Source vetting: every NEW entry in registry/sources.yaml must point to a
      GitHub repo that is not archived, pushed to within 6 months, and shows a
      release or issue/PR activity within 3 months (checked live via the
-     GitHub API).
+     GitHub API). An entry may carry a `vetting_exception` reason string that
+     waives the recency/activity rules for document-of-record sources; the
+     archived and fork checks still apply, and the waiver prints as a warning.
   2. Skill naming: a NEW skill named after a registered source/project brand
      fails (skills are task-oriented: build-transaction, connect-wallet, ...).
      Non-verb-first names produce a warning.
@@ -58,10 +60,10 @@ GENERIC_BRAND_WORDS = {
 # Task verbs seen across the existing skill set; new skills should normally
 # start with one (warning only — the convention, not a hard rule).
 TASK_VERBS = {
-    "build", "connect", "debug", "design", "explain", "optimize", "query",
-    "review", "scaffold", "setup", "suggest", "write", "create", "deploy",
-    "migrate", "test", "audit", "monetize", "integrate", "generate", "choose",
-    "plan", "estimate", "monitor", "govern", "governance", "stake",
+    "assess", "build", "connect", "debug", "design", "explain", "optimize",
+    "query", "review", "scaffold", "setup", "suggest", "write", "create",
+    "deploy", "migrate", "test", "audit", "monetize", "integrate", "generate",
+    "choose", "plan", "estimate", "monitor", "govern", "governance", "stake",
 }
 
 # Filename patterns that smell like marketing-only pages rather than
@@ -180,6 +182,27 @@ def vet_source(entry: dict) -> None:
     if info.get("archived"):
         fail(f"source `{name}` ({slug}): repository is ARCHIVED — "
              "fails vetting rule 3 (no archived/deprecated/sunset sources)")
+
+    # A `vetting_exception` on the registry entry waives the recency/activity
+    # rules (1-2) for document-of-record sources — repos that change only when
+    # the document they mirror does (e.g. the Cardano Constitution, amended
+    # on-chain), where commit cadence says nothing about health. The archived
+    # (rule 3) and fork (rule 4) checks above/below still apply, and the
+    # waiver is surfaced as a warning so it is never silent.
+    exception = entry.get("vetting_exception")
+    if exception is not None:
+        if not (isinstance(exception, str) and exception.strip()):
+            fail(f"source `{name}` ({slug}): vetting_exception must be a "
+                 "non-empty reason string")
+        else:
+            warn(f"source `{name}` ({slug}): recency/activity vetting "
+                 f"(rules 1-2) waived by registry vetting_exception — "
+                 f"{' '.join(exception.split())}")
+        if info.get("fork"):
+            warn(f"source `{name}` ({slug}): repo is a fork — vetting rule 4 "
+                 "requires justifying in the PR that this is the maintained "
+                 "canonical")
+        return
 
     pushed_at = info.get("pushed_at")
     if pushed_at and now - parse_iso(pushed_at) > MAX_PUSH_AGE:

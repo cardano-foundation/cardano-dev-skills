@@ -27,7 +27,7 @@
 #   name: Human-readable project name
 #   repo: GitHub clone URL
 #   docs_path: Path within repo containing documentation
-#   format: Primary format (markdown, mdx, rst, openapi, aiken, python, toml)
+#   format: Primary format (markdown, mdx, rst, openapi, aiken, python, toml, go)
 #   format_overrides: Per-glob format overrides (optional)
 #   category: infrastructure | smart-contracts | sdk | standards | governance | scaling | testing | oracles
 #   priority: high | medium | low
@@ -43,7 +43,7 @@
 # --- Core Infrastructure ---
 
 - name: Ogmios
-  repo: https://github.com/cardanosolutions/ogmios.git
+  repo: https://github.com/CardanoSolutions/ogmios.git
   docs_path: docs
   format: markdown
   category: infrastructure
@@ -117,7 +117,7 @@
   description: Official PostgreSQL chain indexer (resource-heavy)
 
 - name: Mithril
-  repo: https://github.com/input-output-hk/mithril.git
+  repo: https://github.com/IntersectMBO/mithril.git
   docs_path: docs
   format: markdown
   category: infrastructure
@@ -179,6 +179,31 @@
     - README.md
     - changelog.md
   description: Shared Nix overlays for IOG/Intersect Cardano Haskell builds — libsodium-vrf, secp256k1, libblst, haskell.nix crypto helpers. Required to compile cardano-crypto-class and friends.
+
+# Go doc comments sit directly above the identifiers they describe, so mirroring
+# `.go` source gives agents the API reference (same rationale as `format: python`
+# for docstrings). `internal/` is excluded from every Go source below: the Go
+# compiler forbids importing it, so it is not an integration surface.
+- name: gOuroboros
+  repo: https://github.com/blinklabs-io/gouroboros.git
+  docs_path: "."
+  format: go
+  category: infrastructure
+  priority: medium
+  glob_patterns:
+    - README.md
+    - ARCHITECTURE.md
+    - DEVELOPMENT.md
+    - "protocol/**/*.md"
+    - consensus/README.md
+    - kes/README.md
+    - vrf/README.md
+    - "*.go"
+    - "ledger/*.go"
+    - "ledger/common/**/*.go"
+    - "examples/**/*.go"
+  description: Go building blocks for Ouroboros/Cardano protocols - mini-protocol implementations, ledger types, CBOR codecs
+  website: https://pkg.go.dev/github.com/blinklabs-io/gouroboros
 
 - name: Cardano Wallet
   repo: https://github.com/cardano-foundation/cardano-wallet.git
@@ -333,7 +358,7 @@
   description: Plinth (formerly PlutusTx) — Haskell eDSL for writing Plutus / Plutus Core smart contracts, from IOG/Intersect. Captures the user-guide prose plus the worked code examples the site embeds via LiteralInclude.
 
 - name: Helios
-  repo: https://github.com/Hyperion-BT/helios.git
+  repo: https://github.com/HeliosLang/compiler.git
   docs_path: "."
   format: markdown
   category: smart-contracts
@@ -344,7 +369,7 @@
   description: DSL with JS/TS SDK that compiles to UPLC in the browser. Smaller community than Aiken but actively maintained.
 
 - name: OpShin
-  repo: https://github.com/opshin/opshin.git
+  repo: https://github.com/OpShin/opshin.git
   docs_path: "."
   format: markdown
   category: smart-contracts
@@ -402,18 +427,6 @@
     - "Tricks/**/*.md"
   description: Typed Haskell eDSL for highly optimized UPLC
 
-- name: Plu-ts
-  repo: https://github.com/HarmonicLabs/plu-ts.git
-  docs_path: "."
-  format: markdown
-  category: smart-contracts
-  priority: medium
-  glob_patterns:
-    - README.md
-    - "docs/**/*.md"
-    - "packages/**/README.md"
-  description: TypeScript eDSL for on-chain and off-chain
-
 - name: Scalus
   repo: https://github.com/scalus3/scalus.git
   docs_path: "."
@@ -426,7 +439,7 @@
   description: Scala 3 on-chain and off-chain platform
 
 - name: Cardano Use Case Templates
-  repo: https://github.com/cardano-foundation/cardano-template-and-ecosystem-monitoring.git
+  repo: https://github.com/cardano-foundation/cardano-templates.git
   docs_path: "."
   format: markdown
   format_overrides:
@@ -439,7 +452,7 @@
     - "**/*.ak"
     - "**/*.ts"
     - "**/*.java"
-  description: 19 generic blockchain use-case templates implemented across Aiken (on-chain) and Mesh/Evolution/cardano-client-lib (off-chain). Foundation reference set.
+  description: Generic blockchain use-case templates implemented across Aiken (on-chain) and Mesh/Evolution/cardano-client-lib (off-chain). Foundation reference set.
 
 - name: CIP-113 Programmable Tokens
   repo: https://github.com/cardano-foundation/cip113-programmable-tokens.git
@@ -548,6 +561,51 @@
     - "docs/**/*.md"
     - "examples/**/*.md"
   description: Java client library by BloxBean
+
+- name: Apollo
+  repo: https://github.com/Salvionied/apollo.git
+  docs_path: "."
+  format: go
+  category: sdk
+  priority: medium
+  # NB: upstream's readme filename is lowercase; glob matching is case-sensitive.
+  glob_patterns:
+    - readme.md
+    - "docs/**/*.md"
+    - "*.go"
+    - "backend/**/*.go"
+    - "plutusencoder/**/*.go"
+    - "constants/**/*.go"
+  description: Pure Go transaction builder - fluent tx construction, Plutus datum encoding, pluggable chain backends (use the /v2 module path)
+  website: https://pkg.go.dev/github.com/Salvionied/apollo/v2
+
+- name: blockfrost-go
+  repo: https://github.com/blockfrost/blockfrost-go.git
+  docs_path: "."
+  format: go
+  category: sdk
+  priority: medium
+  glob_patterns:
+    - README.md
+    - "*.go"
+    - "example/**/*.go"
+  description: Official Go client for the Blockfrost API - typed endpoint wrappers, IPFS, webhook verification
+  website: https://pkg.go.dev/github.com/blockfrost/blockfrost-go
+
+- name: UTxORPC Go SDK
+  repo: https://github.com/utxorpc/go-sdk.git
+  docs_path: "."
+  format: go
+  category: sdk
+  priority: medium
+  glob_patterns:
+    - README.md
+    - "*.go"
+    - "cardano/**/*.go"
+    - "v1alpha/**/*.go"
+    - "examples/**/*.go"
+  description: Go SDK for the UTxORPC interface - provider-agnostic chain sync, query, and submit over gRPC
+  website: https://utxorpc.org
 
 - name: Buildooor
   repo: https://github.com/HarmonicLabs/buildooor.git
@@ -841,8 +899,6 @@
 # =============================================================================
 
 # --- Smart Contract Languages (candidates) ---
-
-# Helios promoted to active sources on 2026-05-14 — see Hyperion-BT/helios above.
 
 # - name: Marlowe
 #   repo: https://github.com/input-output-hk/marlowe-cardano.git

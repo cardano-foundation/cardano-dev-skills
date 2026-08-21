@@ -51,8 +51,10 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 
 | Name | Status | Adoption | Best For |
 |---|---|---|---|
-| **gouroboros** | Production | Low | Go backends, node communication. |
-| **apollo (Go)** | Production | Low | Go tx building. |
+| **gOuroboros** | Production | Low | Low-level building blocks: mini-protocol implementations, ledger types, CBOR codecs. Go counterpart to Pallas; not an app-dev tx builder. |
+| **Apollo** | Production | Low | Go tx building. Fluent builder with pluggable Blockfrost/Maestro/Ogmios/UTxORPC backends. |
+| **blockfrost-go** | Production | Low | Official Go client for the Blockfrost REST API; also IPFS and webhook signature verification. |
+| **UTxORPC Go SDK** | Production | Low | Provider-agnostic chain sync/query/submit over gRPC. Swap backends without rewriting calls. |
 
 ### C# / .NET
 

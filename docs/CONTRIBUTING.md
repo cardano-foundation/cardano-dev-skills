@@ -84,7 +84,20 @@ If a check misfires (e.g. a legitimately-named skill trips the brand heuristic),
   #   "**/*.yaml": openapi
 ```
 
-**Valid `format` values:** `markdown`, `mdx`, `rst`, `openapi`, `aiken`, `python`, `toml`
+**Valid `format` values:** `markdown`, `mdx`, `rst`, `openapi`, `aiken`, `python`, `toml`, `go`
+
+`python` and `go` mirror source files rather than prose, so agents read the API
+reference out of docstrings and doc comments. For those, scope `glob_patterns`
+to the importable public surface — Go's `internal/` cannot be imported by
+consumers, and `cmd/` holds CLI entry points, so neither belongs in a mirror.
+Test files and `testdata/` fixture directories are dropped automatically
+(`SKIP_FILE_SUFFIXES` and `SKIP_DIRS` in `scripts/_fetch_docs.py`), since
+`glob_patterns` is include-only and cannot express an exclusion.
+
+Never mirror an upstream `AGENTS.md` or `CLAUDE.md`. Bundled docs are read by
+agents on every consumer's machine, so upstream agent instructions are an
+injection vector; enumerate the markdown you want instead of globbing `*.md` at
+a repo root.
 
 **Valid `category` values:** `infrastructure`, `smart-contracts`, `sdk`, `standards`, `governance`, `scaling`, `testing`, `oracles`
 

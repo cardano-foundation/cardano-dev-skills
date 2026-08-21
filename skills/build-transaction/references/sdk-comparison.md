@@ -10,6 +10,7 @@ Quick reference for choosing and using Cardano transaction-building SDKs.
 | Evolution SDK | TypeScript | High | Active | Type-safe composable txs |
 | PyCardano | Python | Mid | Active | Python backends, scripting |
 | cardano-client-lib | Java | Mid-Low | Active | JVM fine-grained control |
+| Apollo | Go | Mid | Active | Go backends, Conway-era certs |
 | cardano-js-sdk | TypeScript | Low-Mid | IOG-maintained | Full-stack TS, Lace wallet |
 | Cardano Serialization Lib | Rust/WASM | Low | IOG-maintained | Custom tooling, performance |
 | Tx3 | DSL -> TS/Rust/Go/Python | High/Declarative | Active (pre-1.0) | Multi-language teams, published protocols |
@@ -142,6 +143,52 @@ signed_tx = builder.build_and_sign(
     change_address=sender_address
 )
 context.submit_tx(signed_tx)
+```
+
+---
+
+## Apollo
+
+- **Language:** Go
+- **Repository:** github.com/Salvionied/apollo
+- **Module path:** github.com/Salvionied/apollo/v2
+- **Documentation:** pkg.go.dev/github.com/Salvionied/apollo/v2
+
+**Strengths:**
+- Only maintained fluent transaction builder for Go
+- Pluggable chain backends: Blockfrost, Maestro, Ogmios, UTxORPC, fixed/cached
+- Broad Conway coverage: DRep registration, votes, proposals, treasury donations
+- Shares gOuroboros ledger types, so Go services can pass `common.Address` and
+  ledger structs between tx building and node communication without conversion
+- Plutus datum encoding via `plutusencoder`, plus script attachment helpers
+
+**Weaknesses:**
+- Small community relative to TypeScript and Python options; few tutorials
+- Mixed return conventions: fallible builder steps return `(*Apollo, error)`
+  while state-only steps return a bare `*Apollo`, so a chain breaks wherever a
+  fallible step appears
+- No browser wallet support (server-side only)
+
+**Installation:**
+```bash
+go get github.com/Salvionied/apollo/v2
+```
+
+Use the `/v2` path. The unsuffixed `github.com/Salvionied/apollo` module is
+feature-complete and no longer receives updates; `docs/v2_migration/MIGRATION.md`
+in the mirror covers porting off it.
+
+**Basic send-ADA pattern:**
+```go
+cc := blockfrost.NewBlockFrostChainContext(
+    "https://cardano-preprod.blockfrost.io/api/v0", 0, projectID)
+
+b, err := apollo.New(cc).AddInputAddressFromBech32(senderBech32)
+if err != nil { return err }
+b, err = b.PayToAddressBech32(recipientBech32, 5_000_000)
+if err != nil { return err }
+b, err = b.Complete()
+if err != nil { return err }
 ```
 
 ---
@@ -340,6 +387,12 @@ const status = await client
 - Building Python backends or automation scripts
 - Team is Python-focused
 - Need quick scripting for testing or ops
+
+**Choose Apollo when:**
+- Building a Go backend or service and don't want to shell out to another runtime
+- Already using gOuroboros and want shared ledger types across the stack
+- Need Conway-era certificates, votes, or proposals from Go
+- Accept a smaller community than the TypeScript and Python options in exchange
 
 **Choose cardano-client-lib when:**
 - Need low-level JVM control over transaction bytes

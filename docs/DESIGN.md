@@ -11,6 +11,8 @@ This document captures the architectural decisions behind `cardano-dev-skills`. 
 - **Lower contribution barrier.** A Cardano developer can add a skill or source without learning a build system, a framework, or a deployment pipeline.
 - **Decoupled from any specific consumer.** Multiple agents and tools can read this content: Claude Code (as a plugin), Codex (via symlink), any agent that reads Markdown, or external indexers. The repo doesn't assume which one is using it.
 
+**Source-mirroring formats.** Some sources are documented in their own source files rather than in prose, so the `format` allow-list in `scripts/validate.py` admits `python`, `aiken`, and `go` alongside the markup formats: Python docstrings and Go doc comments sit on the identifiers they describe, which makes the source the API reference. Mirrored code is inert reference text — read by agents, never executed, and never built (generating `go doc` output would put a language toolchain and module downloads in the fetch path, which Decision 13's posture rules out). Because a repository's source tree is much larger than its public API, these formats carry per-source `glob_patterns` scoped to the importable surface, and `scripts/_fetch_docs.py` drops test files and `testdata/` fixtures.
+
 **Alternative considered:** Bundling content with an indexing/serving runtime. Rejected because it couples content updates to runtime releases and shrinks the set of tools that can consume the content.
 
 ## Decision 2: Skills organized by developer workflow (flat directory layout)

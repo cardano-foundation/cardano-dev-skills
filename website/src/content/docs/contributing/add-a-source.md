@@ -53,7 +53,14 @@ the final call.
 ```
 
 **Valid `format` values:** `markdown`, `mdx`, `rst`, `openapi`, `aiken`,
-`python`, `toml`
+`python`, `toml`, `go`
+
+`python` and `go` mirror source files instead of prose, so the API reference
+comes from docstrings and doc comments. Scope `glob_patterns` to the importable
+public surface — Go's `internal/` can't be imported by consumers and `cmd/`
+holds CLI entry points, so neither belongs in a mirror. Test files are dropped
+automatically. Never mirror an upstream `AGENTS.md` or `CLAUDE.md`: bundled docs
+are read by agents, so upstream agent instructions are an injection vector.
 
 **Valid `category` values:** `infrastructure`, `smart-contracts`, `sdk`,
 `standards`, `governance`, `scaling`, `testing`, `oracles`

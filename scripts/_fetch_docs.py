@@ -15,9 +15,13 @@ from pathlib import Path
 
 
 SKIP_DIRS = {'.git', 'node_modules', 'dist', 'build', '.next', '__pycache__',
-             '.github', '.vscode', 'target', '.tox', 'vendor'}
+             '.github', '.vscode', 'target', '.tox', 'vendor', 'testdata'}
 SKIP_FILES = {'CHANGELOG.md', 'CONTRIBUTING.md', 'LICENSE.md', 'LICENSE',
               'CODE_OF_CONDUCT.md', 'SECURITY.md'}
+# Suffix-matched skips. `glob_patterns` is include-only with no exclusion
+# syntax, so a pattern like `ledger/**/*.go` unavoidably matches test files
+# alongside API source. Tests document the test suite, not the API surface.
+SKIP_FILE_SUFFIXES = ('_test.go',)
 
 # Supply-chain sanitization: bundled docs are read by AI agents, so strip the
 # places where instructions hide from a human reviewer while staying visible
@@ -264,7 +268,10 @@ def should_skip(filepath):
     for part in parts:
         if part in SKIP_DIRS:
             return True
-    if os.path.basename(filepath) in SKIP_FILES:
+    basename = os.path.basename(filepath)
+    if basename in SKIP_FILES:
+        return True
+    if basename.endswith(SKIP_FILE_SUFFIXES):
         return True
     if os.path.getsize(filepath) > 500_000:
         return True
@@ -355,6 +362,10 @@ def clone_and_extract(source, tmp_dir, docs_dir, pin=None):
         'openapi': ['*.yaml', '*.yml', '*.json'],
         'aiken': ['*.ak', '*.md'],
         'toml': ['*.toml', '*.md'],
+        # Go doc comments sit directly above the identifiers they describe, so
+        # the source reads as reference material (same rationale as `python`
+        # mirroring docstrings). `_test.go` is filtered by should_skip().
+        'go': ['*.go', '*.md'],
     }
     default_exts = ext_map.get(fmt, ['*.md'])
 
@@ -395,7 +406,7 @@ def clone_and_extract(source, tmp_dir, docs_dir, pin=None):
                     # Reachable only if normalization collapsed a directory
                     # name onto a file name (upstream `foo:/x.md` alongside a
                     # file `foo`) — a namespace clash no suffix can resolve.
-                    # Drop the one file loudly rather than aborting a 56-source
+                    # Drop the one file loudly rather than aborting a full
                     # refresh with a traceback.
                     print(f"  WARN {name}: could not stage {rel} as "
                           f"{safe_rel}: {e}")

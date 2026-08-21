@@ -1,7 +1,7 @@
 ---
 name: query-chain
 description: >-
-  Guides finding the best way to query Cardano blockchain data. Triggers: "query chain", "read UTxOs", "fetch blockchain data", "Blockfrost vs Ogmios", "chain indexer", "query Cardano", "get transaction data", "read on-chain state".
+  Guides finding the best way to query Cardano blockchain data. Triggers: "query chain", "read UTxOs", "fetch blockchain data", "Blockfrost vs Ogmios", "chain indexer", "query Cardano", "get transaction data", "read on-chain state", "query chain from Go".
 allowed-tools: Read Grep Glob
 disallowed-tools: Bash Edit Write WebFetch WebSearch
 ---
@@ -56,6 +56,9 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-graphql/` - Cardano GraphQL docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/db-sync/` - DB-Sync docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/` - Evolution SDK docs (TypeScript client; see `providers/` and `querying/`)
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/blockfrost-go/` - Blockfrost Go client (typed endpoint wrappers)
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/utxorpc-go-sdk/` - UTxORPC Go SDK (provider-agnostic gRPC)
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/gouroboros/` - gOuroboros (direct node mini-protocols)
 
 ### Step 3: Evaluate providers for the context
 
@@ -165,6 +168,16 @@ const { poolId, rewards } = await client.getDelegation(rewardAddress)
 
 Query methods: `getUtxos`, `getUtxosWithUnit`, `getUtxoByUnit`, `getUtxosByOutRef`, `getDatum`, `getDelegation`, `getProtocolParameters`, `awaitTx`. Best for: TypeScript backends and dApps that want one query API independent of the underlying provider. See `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/providers/` and `.../querying/`.
 
+#### Go clients over providers
+
+Three Go paths, ordered by how much infrastructure you run:
+
+- **blockfrost-go** — typed client for the hosted Blockfrost REST API. `NewAPIClient(APIClientOptions{...})`, then methods mirroring the REST surface (`Transaction`, `TransactionUTXOs`, `TransactionMetadata`, and the `Address*` / `Epoch*` / `Pool*` families). Inherits every Blockfrost trade-off above, including rate limits. Also covers IPFS and webhook signature verification.
+- **UTxORPC Go SDK** — the role Evolution SDK plays for TypeScript: the provider becomes a config choice rather than a code rewrite, against any UTxORPC-compatible backend. Paging query helpers (`GetUtxosByAddressPages`, `GetUtxosByAssetPages`, tuned with `WithSearchMaxItems` / `WithSearchStartToken`); submit and mempool operations on `UtxorpcClient` (`SubmitTx`, `EvalTx`, `WaitForTx`, `ReadMempool`, `WatchMempool`). Best when you may switch providers later.
+- **gOuroboros** — speaks the node's mini-protocols directly, with no intermediary. `NewConnection(...)`, then `LocalStateQuery().Client` for point-in-time state (`GetUTxOByAddress`, `GetUTxOByTxIn`, `GetCurrentProtocolParams`, `GetStakeDistribution`, `GetDRepState`, `GetProposals`) or `ChainSync().Client` to follow the chain (`GetCurrentTip`, `GetAvailableBlockRange`, `Sync`). Lowest latency and no third party, but you run the node and manage the protocol lifecycle yourself.
+
+Runnable examples ship in the mirror: `${CLAUDE_SKILL_DIR}/../../docs/sources/gouroboros/examples/state-query/main.go` and `.../examples/chain-sync/main.go`. Because Go sources mirror `.go` files, `Grep` a method name to get its signature and doc comment.
+
 ### Step 6: Provide working code
 
 Give the developer a working code snippet for their chosen provider and language. Always include:
@@ -185,10 +198,12 @@ Give the developer a working code snippet for their chosen provider and language
 
 ## References
 
-- `skills/query-chain/references/provider-comparison.md` -- Detailed comparison of all 7 providers with decision matrix
+- `skills/query-chain/references/provider-comparison.md` -- Detailed comparison of the providers with decision matrix
 - Blockfrost docs: https://docs.blockfrost.io
 - Ogmios docs: https://ogmios.dev
 - Kupo docs: https://cardanosolutions.github.io/kupo
 - Koios docs: https://api.koios.rest
 - DB-Sync docs: https://github.com/IntersectMBO/cardano-db-sync
 - Oura docs: https://github.com/txpipe/oura
+- UTxORPC: https://utxorpc.org
+- blockfrost-go: https://pkg.go.dev/github.com/blockfrost/blockfrost-go

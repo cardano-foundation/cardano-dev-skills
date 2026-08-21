@@ -23,7 +23,7 @@ docs/sources/mesh-sdk/                      # Mesh SDK API docs
 docs/sources/evolution-sdk/                 # Evolution SDK docs
 docs/sources/cips/                          # All CIP proposals
 docs/sources/ogmios/                        # Ogmios WebSocket bridge
-docs/sources/cardano-use-case-templates/    # 21 Foundation use-case templates
+docs/sources/cardano-use-case-templates/    # Foundation use-case templates
 ...
 ```
 

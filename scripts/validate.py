@@ -45,7 +45,8 @@ VALID_CATEGORIES = {
     "infrastructure", "smart-contracts", "sdk", "standards",
     "governance", "scaling", "testing", "oracles",
 }
-VALID_FORMATS = {"markdown", "mdx", "rst", "openapi", "aiken", "python", "toml"}
+VALID_FORMATS = {"markdown", "mdx", "rst", "openapi", "aiken", "python", "toml",
+                 "go"}
 VALID_PRIORITIES = {"high", "medium", "low"}
 
 # Tool-grant policy. `allowed-tools` entries are PRE-APPROVED (they skip the

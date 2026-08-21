@@ -1,7 +1,7 @@
 ---
 name: suggest-tooling
 description: >-
-  Recommends Cardano developer tools and SDKs for a specific project. Triggers: "which SDK", "recommend tools", "best library for", "Cardano SDK", "Mesh vs Evolution SDK", "Aiken vs Plutus", "what tools should I use", "Cardano ecosystem", "haskell.nix", "CHaP", "cardano-ledger off-chain", "Haskell Cardano stack".
+  Recommends Cardano developer tools and SDKs for a specific project. Triggers: "which SDK", "recommend tools", "best library for", "Cardano SDK", "Mesh vs Evolution SDK", "Aiken vs Plutus", "what tools should I use", "Cardano ecosystem", "haskell.nix", "CHaP", "cardano-ledger off-chain", "Haskell Cardano stack", "Cardano in Go".
 allowed-tools: Read Grep Glob
 disallowed-tools: Bash Edit Write WebFetch WebSearch
 ---
@@ -67,6 +67,10 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/haskell-nix/` - haskell.nix flakes and source-repository-package hashes
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/iohk-nix/` - crypto overlays (libsodium-vrf, libblst)
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-ledger/` - ledger types and Conway tx validation
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/apollo/` - Apollo (Go) tx builder docs and API source
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/gouroboros/` - gOuroboros (Go) protocol and ledger API source
+
+Go sources mirror `.go` files, so their API reference is the doc comment above each exported identifier. Start with a package's `doc.go` for the overview, then `Grep` a type or function name rather than looking for a prose manual.
 
 ### Step 3: Search the ecosystem map
 
@@ -108,6 +112,8 @@ File: skills/suggest-tooling/references/ecosystem-map.md
 | **cardano-ledger** | Haskell | Era types and Conway tx construction (`cardano-ledger-api`, `cardano-ledger-conway`, `plutus-tx` for `ToData`/`FromData`). Same types the node validates. Built with **haskell.nix** + **CHaP**, not cabal-on-system-GHC. | Production |
 | **cardano-api** | Haskell | Client façade over ledger/consensus/network. Use when you want that wrapper; not required if you already speak ledger types. | Production |
 | **Atlas** | Haskell | Higher-level PAB-style backend. Last library commit 2026-02; fails this repo's 6-month source bar. Mention only; do not start a new project on it. | Maintenance unclear |
+| **Apollo** | Go | Go backends and services: fluent tx building, pluggable chain backends (Blockfrost/Maestro/Ogmios/UTxORPC) | Production |
+| **gOuroboros** | Go | Low-level building blocks: mini-protocol implementations, ledger types, CBOR codecs (Go counterpart to Pallas) | Production |
 
 **Default recommendation by language**:
 - TypeScript/JavaScript: **Mesh SDK** (comprehensive, well-documented, great for beginners) or **Evolution SDK** (type-safe, Effect-based composable builder)
@@ -115,6 +121,9 @@ File: skills/suggest-tooling/references/ecosystem-map.md
 - Rust: **Pallas**
 - Java/Kotlin: **Cardano Java Client Lib**
 - Haskell: **cardano-ledger** via **haskell.nix** + **CHaP**. On-chain default stays **Aiken** (CIP-57 `plutus.json`); do not switch to Plinth unless the team is writing validators in Haskell. Search `docs/sources/chap/README.md` for the repository stanza and `inputMap`.
+- Go: **Apollo** for transaction building, **gOuroboros** for protocol and ledger primitives
+
+Go adoption is lower than TypeScript or Python, so expect fewer tutorials and smaller communities. Weigh that against an existing Go backend: rewriting a service in TypeScript to gain SDK maturity is rarely the cheaper trade.
 
 #### Infrastructure
 
@@ -177,6 +186,12 @@ Based on the project requirements, recommend a concrete stack. Example stacks:
 - Infrastructure: **Blockfrost** or **Koios**
 - Testing: Aiken tests + pytest with PyCardano
 
+#### Go Backend
+- Smart contracts: **Aiken**
+- Off-chain: **Apollo** for tx building, **gOuroboros** for ledger types and direct node protocols
+- Infrastructure: **blockfrost-go** (hosted) or **UTxORPC Go SDK** (provider-agnostic gRPC)
+- Testing: Aiken tests + Go `testing` against Yaci DevKit
+
 #### Data Analytics Platform
 - Infrastructure: **DB-Sync** (SQL) + **Oura** (streaming)
 - Language: Python or SQL
@@ -227,3 +242,5 @@ For each recommendation, briefly note:
 - Evolution SDK: https://github.com/IntersectMBO/evolution-sdk (docs: https://evolution-sdk.dev)
 - PyCardano: https://pycardano.readthedocs.io
 - Blockfrost: https://blockfrost.io
+- Apollo (Go): https://pkg.go.dev/github.com/Salvionied/apollo/v2
+- gOuroboros (Go): https://pkg.go.dev/github.com/blinklabs-io/gouroboros

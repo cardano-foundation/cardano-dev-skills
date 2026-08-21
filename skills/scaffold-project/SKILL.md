@@ -2,7 +2,7 @@
 name: scaffold-project
 description: >-
   Scaffold a new Cardano project with on-chain + off-chain toolchain wired up.
-  Helps pick a use case from the 21 Cardano Foundation templates (or a custom
+  Helps pick a use case from the Cardano Foundation templates (or a custom
   one), a stack (Aiken on-chain; Evolution SDK, Mesh SDK, PyCardano, or
   cardano-client-lib off-chain), a network (Yaci DevKit, preview, preprod), and
   optionally a Next.js frontend. Produces a canonical directory layout, config
@@ -58,7 +58,7 @@ Take a developer from "I want to build a Cardano dApp" to a working project skel
 
 ### Step 1: Pick a use case
 
-Drive the scaffolding by what the contract does, not by the stack. Ask the developer to pick from one of the 21 reference use cases or describe their own.
+Drive the scaffolding by what the contract does, not by the stack. Ask the developer to pick from one of the reference use cases or describe their own.
 
 The 5 curated use cases have hand-reviewed implementations across on-chain Aiken and all four off-chain stacks:
 
@@ -245,7 +245,7 @@ These defaults are non-negotiable. The scaffold prints them; do not let a develo
 
 ## References
 
-- `references/use-cases.md` — the 21 reference use cases, curated vs agent-generated, with source-code pointers
+- `references/use-cases.md` — the reference use cases, curated vs agent-generated, with source-code pointers
 - `references/vesting-walkthrough.md` — flagship end-to-end walkthrough across all four off-chain stacks, plus the frontend story; includes a full PyCardano implementation
 - `references/stack-decision.md` — decision aid for picking one of the four stacks; brief notes on deferred stacks and why they are not v1 defaults
 - `references/config-templates.md` — annotated `aiken.toml`, `package.json`, `pyproject.toml`, `pom.xml`, `.gitignore`, `.env.example` (with per-network Blockfrost / faucet guidance)

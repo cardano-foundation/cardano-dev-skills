@@ -71,14 +71,14 @@ Ask the user to specify or confirm:
 
 | Parameter | Options | Default |
 |-----------|---------|---------|
-| SDK | `mesh`, `evolution-sdk`, `pycardano`, `cardano-client-lib`, `tx3`, `cardano-ledger` | `mesh` |
+| SDK | `mesh`, `evolution-sdk`, `pycardano`, `cardano-client-lib`, `tx3`, `cardano-ledger`, `apollo` | `mesh` |
 | Transaction type | `send-ada`, `mint-nft`, `mint-token`, `interact-with-contract`, `delegate-stake`, `register-drep`, `vote` | required |
 | Network | `preview`, `preprod`, `mainnet` | `preview` |
 | Wallet | mnemonic, private key, browser wallet | mnemonic |
 
 If the user does not specify an SDK, recommend **Mesh SDK** for TypeScript
-projects, **cardano-client-lib** for Java/JVM, or **cardano-ledger** for
-Haskell (see `references/haskell-ledger.md`).
+projects, **cardano-client-lib** for Java/JVM, **Apollo** for Go, or
+**cardano-ledger** for Haskell (see `references/haskell-ledger.md`).
 
 **Alternative paradigm with Tx3:** Most SDKs above build transactions imperatively in
 code. Tx3 takes a declarative route: you describe a protocol's transactions
@@ -102,6 +102,9 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/iohk-nix/` - crypto overlays
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-ledger/` - Conway tx types / phase-1
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken/` - CIP-57 `plutus.json` from `aiken build`
+
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/apollo/` - Apollo (Go) builder: `docs/**` prose plus `.go` API source
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/gouroboros/` - gOuroboros (Go) ledger types Apollo builds on
 
 ### Step 3: Set Up Prerequisites
 
@@ -195,6 +198,21 @@ cabal build all -O0
   (`docs/sources/haskell-nix/tutorials/source-repository-hashes.md`).
 - Load scripts from Aiken `plutus.json` (CIP-57). Datums/redeemers are
   `plutus-tx` `ToData`, not JSON.
+
+**Apollo (Go)**
+
+```bash
+go get github.com/Salvionied/apollo/v2
+```
+
+- Needs a `backend.ChainContext` (Blockfrost, Maestro, Ogmios, UTxORPC, or a fixed/cached backend)
+- Builds on gOuroboros ledger types, so `common.Address` and friends are shared across the Go stack
+- **Always use the `/v2` module path.** It is the maintained line and what the
+  mirror documents. The unsuffixed `github.com/Salvionied/apollo` path is
+  feature-complete and no longer receives updates — when porting code off it,
+  see `docs/v2_migration/MIGRATION.md` in the mirror.
+- The `/v2` path is on a stable release line, so `go get` resolves to a released
+  tag rather than a pre-release or a commit off the default branch
 
 ### Step 4: Build the Transaction
 
@@ -395,6 +413,41 @@ const status = await client
 The resolver (reached over TRP) does coin selection, fee calculation, and change —
 the `.tx3` file declares intent, not the concrete UTxOs.
 
+### Apollo -- Fluent Builder (Go)
+
+Verified to compile against `apollo/v2` at `v2.0.1` (2026-08-19). The builder is
+fluent, but the steps that can fail return `(*Apollo, error)` rather than a bare
+`*Apollo` — `AddInputAddressFromBech32` and `PayToAddressBech32` among them — so
+handle the error and re-assign at each of those:
+
+```go
+import (
+    apollo "github.com/Salvionied/apollo/v2"
+    "github.com/Salvionied/apollo/v2/backend/blockfrost"
+)
+
+cc := blockfrost.NewBlockFrostChainContext(
+    "https://cardano-preprod.blockfrost.io/api/v0", 0, projectID)
+
+b, err := apollo.New(cc).AddInputAddressFromBech32(senderBech32)
+if err != nil { return err }
+b, err = b.PayToAddressBech32(recipientBech32, 10_000_000)
+if err != nil { return err }
+b, err = b.Complete()          // coin selection, fee calculation, balancing
+if err != nil { return err }
+```
+
+Methods that only mutate builder state — `AddLoadedUTxOs`, `RegisterDRep`,
+`AddRequiredSigner` — return a bare `*Apollo` and do chain, recording any error
+internally for `Complete` to report. Start from `doc.go` in a mirrored package
+for the overview, then `Grep` a method name in
+`${CLAUDE_SKILL_DIR}/../../docs/sources/apollo/` for its signature and doc
+comment.
+
+Then `SetWalletFromMnemonic` + `Sign` + `Submit` for a signed submission, or
+`GetTxCbor` to hand the CBOR to an external signer. The mirror's `docs/`
+directory carries worked examples for staking, governance, and Plutus V3.
+
 ## References
 
 - `references/sdk-comparison.md` -- detailed SDK comparison table
@@ -405,3 +458,5 @@ the `.tx3` file declares intent, not the concrete UTxOs.
 - Evolution SDK docs: https://evolution-sdk.dev
 - PyCardano docs: https://pycardano.readthedocs.io
 - Tx3 docs: https://docs.txpipe.io/tx3
+
+- Apollo docs: https://pkg.go.dev/github.com/Salvionied/apollo/v2

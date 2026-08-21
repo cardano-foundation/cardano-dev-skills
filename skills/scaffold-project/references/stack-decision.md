@@ -64,7 +64,7 @@ These languages and SDKs exist and are used in production by specific teams. The
 - **Scalus** — Scala 3 on-chain and off-chain. Powerful for Scala teams but still evolving; small developer base. Use directly if your team is already deep in Scala.
 - **OpShin** — Python that compiles to UPLC. Works, but tooling and ecosystem are smaller than Aiken's. Pick if a Python-on-chain story is a hard requirement.
 - **Plutarch** — typed Haskell eDSL for highly optimised UPLC. Best raw performance, but steepest learning curve and a Haskell-only team requirement.
-- **Plu-ts** — TypeScript eDSL for on-chain and off-chain. Interesting for keeping one language across the stack, but smaller community than Aiken + Evolution/Mesh.
+- **Pebble** — Harmonic Labs' TypeScript-family on-chain language (successor of Plu-ts; same repo, renamed). Interesting for keeping one language across the stack, but smaller community than Aiken + Evolution/Mesh.
 - **Plutus (original Haskell)** — the historical on-chain language. Functional and production-proven, but Aiken has surpassed it in developer experience for new projects. Pick Plutus only if maintaining an existing Plutus codebase.
 - **Helios** — DSL with browser-side compilation. Niche; smaller ecosystem than Aiken.
 - **Marlowe** — domain-specific language for financial contracts. Use only if you are building a structured financial contract that fits Marlowe's model.

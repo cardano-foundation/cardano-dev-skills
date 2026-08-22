@@ -30,6 +30,7 @@ and covers both native script and Plutus script errors.
 - User wants to review a smart contract for vulnerabilities -- use `review-contract`
 - User wants to optimize a validator's execution budget -- use `optimize-validator`
 - User is designing a token standard -- use `design-token`
+- Output values or a redeemer depend on the final fee -- use `balance-transaction-at-fixpoint`
 
 ## Key Principles
 

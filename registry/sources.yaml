@@ -713,7 +713,8 @@
   glob_patterns:
     - README.md
     - "balance-fixpoint/**/*.md"
-    - "docs/*.md"
+    - docs/constitution.md
+    - docs/index.md
   description: Cross-library conformance evidence, runnable examples, and capability matrices for Cardano transaction balancing
 
 # --- Testing & DevNets ---

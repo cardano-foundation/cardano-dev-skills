@@ -16,9 +16,12 @@ pub type SpendRedeemer {
   StateTransition
 }
 
-/// Mint redeemer. Admin-gated Add/Remove/Deinit; Init is nonce-gated.
-/// Every admin-gated action carries a reference-input index to the GS UTxO
-/// so the validator can read the current `admin_credential_hash` from GS datum.
+/// Mint redeemer. Add/Remove are gated by a power user holding `is_admin`;
+/// Deinit by the GS admin credential; Init is nonce-gated. Each gated action
+/// carries a reference-input index to the GS UTxO. Add/Remove additionally
+/// carry `power_user_node_ref_input_index`, pointing at the power-user linked-
+/// list node (a reference input) whose `is_admin` flag + signature authorise
+/// the sanction; the power-user list policy id is read from the GS datum.
 pub type MintRedeemer {
   Init { root_output_index: Int }
   Deinit { root_input_index: Int, global_state_ref_input_index: Int }
@@ -28,6 +31,7 @@ pub type MintRedeemer {
     anchor_node_output_index: Int,
     appended_node_output_index: Int,
     global_state_ref_input_index: Int,
+    power_user_node_ref_input_index: Int,
   }
   RemoveFromDenylist {
     user_pkh: ByteArray,
@@ -35,5 +39,6 @@ pub type MintRedeemer {
     removed_node_input_index: Int,
     anchor_node_output_index: Int,
     global_state_ref_input_index: Int,
+    power_user_node_ref_input_index: Int,
   }
 }

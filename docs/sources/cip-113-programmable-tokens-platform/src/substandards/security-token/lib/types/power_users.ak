@@ -3,11 +3,15 @@
 ///
 /// KYC verification is no longer a power-user concern — it's delegated to
 /// trusted-entity-issued signed proofs (see `lib/types/kyc_proof.ak`).
-/// Sanctions (denylist) mutations are gated directly by the admin credential
-/// stored in `GlobalStateDatum`, not a PowerUser flag.
+///
+/// Authority split: power-user *list* lifecycle (add/remove/modify power users)
+/// is gated by the single GS admin credential. Sanctions (denylist) add/remove
+/// is delegated to any power user holding `is_admin` + their signature, so a
+/// compliance role can be granted without handing over the master admin key.
 pub type PowerUser {
   credential_hash: ByteArray,
-  //Admins can add/remove entries from the users/denylist linked list lifecycle
+  //Holders can add/remove entries from the denylist (sanction wallets),
+  //gated together with their signature. The GS admin grants/revokes this flag.
   is_admin: Bool,
   //Minters can mint new tokens
   can_mint: Bool,

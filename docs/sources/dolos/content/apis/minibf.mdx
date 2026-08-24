@@ -132,7 +132,10 @@ Dolos provides many, but not all of the Blockfrost endpoints. The following list
 | `/blocks/{hash_or_number}/txs/cbor`        | Get transactions with CBOR data for a specific block     |
 | `/epochs/latest/parameters`                | Get latest epoch parameters                              |
 | `/epochs/{epoch}/blocks`                   | Get blocks in a specific epoch                           |
+| `/epochs/{epoch}/blocks/{pool_id}`         | Get blocks minted by a specific pool in a specific epoch |
 | `/epochs/{epoch}/parameters`               | Get epoch parameters                                     |
+| `/epochs/{epoch}/stakes`                   | Get epoch stake distribution                             |
+| `/epochs/{epoch}/stakes/{pool_id}`         | Get epoch stake distribution for a specific pool         |
 | `/genesis`                                 | Get genesis information                                  |
 | `/governance/dreps/{drep_id}`              | Get DRep information                                     |
 | `/metadata/txs/labels/{label}`             | Get metadata for transactions with a specific label      |
@@ -147,6 +150,7 @@ Dolos provides many, but not all of the Blockfrost endpoints. The following list
 | `/scripts/{script_hash}`                   | Get script information                                   |
 | `/scripts/{script_hash}/json`              | Get script JSON                                          |
 | `/scripts/{script_hash}/cbor`              | Get script CBOR                                          |
+| `/scripts/{script_hash}/utxos`             | Get live UTxOs that hold the script as a reference       |
 | `/scripts/datum/{datum_hash}`              | Get datum by hash                                        |
 | `/scripts/datum/{datum_hash}/cbor`         | Get datum CBOR by hash                                   |
 | `/tx/submit`                               | Submit a transaction                                     |
@@ -159,6 +163,7 @@ Dolos provides many, but not all of the Blockfrost endpoints. The following list
 | `/txs/{tx_hash}/pool_retires`              | Get pool retirements for a specific transaction          |
 | `/txs/{tx_hash}/pool_updates`              | Get pool updates for a specific transaction              |
 | `/txs/{tx_hash}/redeemers`                 | Get redeemers for a specific transaction                 |
+| `/txs/{tx_hash}/required_signers`          | Get required signers for a specific transaction          |
 | `/txs/{tx_hash}/stakes`                    | Get stakes for a specific transaction                    |
 | `/txs/{tx_hash}/utxos`                     | Get UTXOs for a specific transaction                     |
 | `/txs/{tx_hash}/withdrawals`               | Get withdrawals for a specific transaction               |

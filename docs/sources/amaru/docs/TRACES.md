@@ -359,31 +359,6 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 </details>
 
-## target: `amaru::cli::cardano_node_config`
-
-| name | level | public | description | required fields | optional fields |
-| --- | --- | --- | --- | --- | --- |
-| `download` | `TRACE` | public | Download the official cardano-node configuration bundle | config_dir, network |  |
-| `use` | `TRACE` | public | Use an existing cardano-node configuration | config_dir, network |  |
-
-<details><summary>span: `download`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `config_dir` | `string` | ✓ |
-| `network` | `string` | ✓ |
-
-</details>
-
-<details><summary>span: `use`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `config_dir` | `string` | ✓ |
-| `network` | `string` | ✓ |
-
-</details>
-
 ## target: `amaru::cli::chain_db`
 
 | name | level | public | description | required fields | optional fields |
@@ -643,6 +618,21 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 </details>
 
+## target: `amaru::consensus::block`
+
+| name | level | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- |
+| `skip` | `TRACE` | public | Skip a block validation when it is not better than the current ledger tip | current, tip |  |
+
+<details><summary>span: `skip`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `current` | `string` | ✓ |
+| `tip` | `string` | ✓ |
+
+</details>
+
 ## target: `amaru::consensus::perf::fork`
 
 | name | level | public | description | required fields | optional fields |
@@ -733,13 +723,13 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
-| `create` | `TRACE` | public | Create validation context for a block | block_body_hash, block_number, block_body_size | total_inputs |
+| `create` | `TRACE` | public | Create validation context for a block | block_id, block_number, block_body_size | total_inputs |
 
 <details><summary>span: `create`</summary>
 
 | field | type | required |
 | --- | --- | --- |
-| `block_body_hash` | `string` | ✓ |
+| `block_id` | `string` | ✓ |
 | `block_number` | `integer` | ✓ |
 | `block_body_size` | `integer` | ✓ |
 | `total_inputs` | `integer` |  |
@@ -929,22 +919,6 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | field | type | required |
 | --- | --- | --- |
 | `consecutive_dormant_epochs` | `integer` | ✓ |
-
-</details>
-
-## target: `amaru::ledger::non_empty_block`
-
-| name | level | public | description | required fields | optional fields |
-| --- | --- | --- | --- | --- | --- |
-| `found` | `TRACE` | public | Found a non-empty block while applying it to the ledger | point, block_height, tx_count |  |
-
-<details><summary>span: `found`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `point` | `string` | ✓ |
-| `block_height` | `integer` | ✓ |
-| `tx_count` | `integer` | ✓ |
 
 </details>
 
@@ -1217,46 +1191,38 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
-| `execute` | `TRACE` | public | Validate block against ledger rules |  |  |
+| `block` | `TRACE` | public | Block-related rules and other preflight checks |  |  |
+| `phase_one` | `TRACE` | public | All phase one validations |  | preflight_micros, certificates_micros, collateral_micros, collateral_return_micros, donation_micros, fees_micros, inputs_micros, metadata_micros, mint_micros, outputs_micros, proposals_micros, scripts_micros, signatures_micros, validity_interval_micros, votes_micros, withdrawals_micros |
+| `phase_two` | `TRACE` | public | Initialize script context and cost models for phase-2 validations, common to all scripts |  | script_context_micros |
 
-## target: `amaru::ledger::rules::phase_one`
-
-| name | level | public | description | required fields | optional fields |
-| --- | --- | --- | --- | --- | --- |
-| `block` | `TRACE` | public | Ledger rules related to block metadata and 'global' preflight checks |  |  |
-| `certificates` | `TRACE` | public | Ledger rules and state-transitions for certificates |  |  |
-| `collateral` | `TRACE` | public | Ledger rules and state-transitions for collateral |  |  |
-| `donation` | `TRACE` | public | Ledger rules and state-transitions for treasury donation |  |  |
-| `fees` | `TRACE` | public | Ledger rules and state-transitions for fees |  |  |
-| `inputs` | `TRACE` | public | Ledger rules and state-transitions for inputs |  |  |
-| `metadata` | `TRACE` | public | Ledger rules and state-transitions for metadata |  |  |
-| `mint` | `TRACE` | public | Ledger rules and state-transitions for minte/burned assets |  |  |
-| `outputs` | `TRACE` | public | Ledger rules and state-transitions for outputs |  |  |
-| `proposals` | `TRACE` | public | Ledger rules and state-transitions for governance proposals |  |  |
-| `scripts` | `TRACE` | public | Ledger rules and state-transitions for script witnesses |  |  |
-| `signatures` | `TRACE` | public | Ledger rules and state-transitions for key signatures |  |  |
-| `validity_interval` | `TRACE` | public | Ledger rules and state-transitions for validity interval |  |  |
-| `votes` | `TRACE` | public | Ledger rules and state-transitions for governance votes |  |  |
-| `withdrawals` | `TRACE` | public | Ledger rules and state-transitions for withdrawas |  |  |
-
-## target: `amaru::ledger::rules::phase_two`
-
-| name | level | public | description | required fields | optional fields |
-| --- | --- | --- | --- | --- | --- |
-| `acquire_arena` | `TRACE` | public | Acquiring the allocation arena for decoding and execution |  |  |
-| `build_script_context` | `TRACE` | public | Initialize script context and cost models, common to all scripts |  |  |
-| `build_uplc_program` | `TRACE` | public | Construct the UPLC program from parameters, decoded script and context |  |  |
-| `decode_script` | `TRACE` | public | Decoding the script from Cbor/Flat |  |  |
-| `evaluate_uplc_program` | `TRACE` | public | Execute the fully-applied UPLC program |  |  |
-| `execute_one_script` | `TRACE` | public | A single script execution, with the associated redeemer qualifiers | purpose, index |  |
-| `execute_scripts` | `TRACE` | public | A span wrapping all script executions |  |  |
-
-<details><summary>span: `execute_one_script`</summary>
+<details><summary>span: `phase_one`</summary>
 
 | field | type | required |
 | --- | --- | --- |
-| `purpose` | `string` | ✓ |
-| `index` | `integer` | ✓ |
+| `preflight_micros` | `integer` |  |
+| `certificates_micros` | `integer` |  |
+| `collateral_micros` | `integer` |  |
+| `collateral_return_micros` | `integer` |  |
+| `donation_micros` | `integer` |  |
+| `fees_micros` | `integer` |  |
+| `inputs_micros` | `integer` |  |
+| `metadata_micros` | `integer` |  |
+| `mint_micros` | `integer` |  |
+| `outputs_micros` | `integer` |  |
+| `proposals_micros` | `integer` |  |
+| `scripts_micros` | `integer` |  |
+| `signatures_micros` | `integer` |  |
+| `validity_interval_micros` | `integer` |  |
+| `votes_micros` | `integer` |  |
+| `withdrawals_micros` | `integer` |  |
+
+</details>
+
+<details><summary>span: `phase_two`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `script_context_micros` | `integer` |  |
 
 </details>
 
@@ -1332,7 +1298,7 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `push` | `TRACE` | public | Forward ledger state with new volatile state |  |  |
 | `roll_backward` | `TRACE` | public | Roll backward to a specific point |  |  |
 | `roll_forward` | `TRACE` | public | Roll forward with a new block |  |  |
-| `switch_to_fork` | `TRACE` | public | Switching to an alternative chain fork | fork_point, fork_length, rollback_length |  |
+| `switch_to_fork` | `TRACE` | public | Switching to an alternative chain fork | fork_point, fork_length, rollback_length | outcome, stable_modified |
 
 <details><summary>span: `switch_to_fork`</summary>
 
@@ -1341,6 +1307,8 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `fork_point` | `string` | ✓ |
 | `fork_length` | `integer` | ✓ |
 | `rollback_length` | `integer` | ✓ |
+| `outcome` | `string` |  |
+| `stable_modified` | `boolean` |  |
 
 </details>
 
@@ -1370,133 +1338,32 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
-| `certificate_committee_delegate` | `TRACE` | public | Delegate cold key to committee | cc_member, delegate |  |
-| `certificate_committee_resign` | `TRACE` | public | Resign from committee | cc_member | anchor_url |
-| `certificate_drep_registration` | `TRACE` | public | Register a DRep | drep, deposit | anchor_url |
-| `certificate_drep_retirement` | `TRACE` | public | Unregister a DRep | drep, refund |  |
-| `certificate_drep_update` | `TRACE` | public | Update DRep anchor | drep | anchor_url |
-| `certificate_pool_registration` | `TRACE` | public | Register a pool | pool_id |  |
-| `certificate_pool_retirement` | `TRACE` | public | Retire a pool | pool_id, epoch |  |
-| `certificate_stake_delegation` | `TRACE` | public | Delegate stake to a pool | credential, pool_id |  |
-| `certificate_stake_deregistration` | `TRACE` | public | Unregister a stake credential | credential |  |
-| `certificate_stake_registration` | `TRACE` | public | Register a stake credential | credential |  |
-| `certificate_vote_delegation` | `TRACE` | public | Delegate vote to DRep | credential | drep |
-| `found` | `TRACE` | public | Found a transaction while applying a block | point, block_height, tx_index, tx_id |  |
-| `validate` | `TRACE` | public | Validate a single transaction | transaction_id |  |
-
-<details><summary>span: `certificate_committee_delegate`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `cc_member` | `string` | ✓ |
-| `delegate` | `string` | ✓ |
-
-</details>
-
-<details><summary>span: `certificate_committee_resign`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `cc_member` | `string` | ✓ |
-| `anchor_url` | `string` |  |
-
-</details>
-
-<details><summary>span: `certificate_drep_registration`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `drep` | `string` | ✓ |
-| `deposit` | `integer` | ✓ |
-| `anchor_url` | `string` |  |
-
-</details>
-
-<details><summary>span: `certificate_drep_retirement`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `drep` | `string` | ✓ |
-| `refund` | `integer` | ✓ |
-
-</details>
-
-<details><summary>span: `certificate_drep_update`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `drep` | `string` | ✓ |
-| `anchor_url` | `string` |  |
-
-</details>
-
-<details><summary>span: `certificate_pool_registration`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `pool_id` | `string` | ✓ |
-
-</details>
-
-<details><summary>span: `certificate_pool_retirement`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `pool_id` | `string` | ✓ |
-| `epoch` | `string` | ✓ |
-
-</details>
-
-<details><summary>span: `certificate_stake_delegation`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `credential` | `string` | ✓ |
-| `pool_id` | `string` | ✓ |
-
-</details>
-
-<details><summary>span: `certificate_stake_deregistration`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `credential` | `string` | ✓ |
-
-</details>
-
-<details><summary>span: `certificate_stake_registration`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `credential` | `string` | ✓ |
-
-</details>
-
-<details><summary>span: `certificate_vote_delegation`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `credential` | `string` | ✓ |
-| `drep` | `string` |  |
-
-</details>
-
-<details><summary>span: `found`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `point` | `string` | ✓ |
-| `block_height` | `integer` | ✓ |
-| `tx_index` | `integer` | ✓ |
-| `tx_id` | `string` | ✓ |
-
-</details>
+| `validate` | `TRACE` | public | Validate a single transaction | id |  |
 
 <details><summary>span: `validate`</summary>
 
 | field | type | required |
 | --- | --- | --- |
-| `transaction_id` | `string` | ✓ |
+| `id` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::ledger::transaction::script`
+
+| name | level | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- |
+| `execute` | `TRACE` | public | A single script execution, with the associated redeemer qualifiers | purpose, index | acquire_arena_micros, decode_script_micros, build_uplc_program_micros, evaluate_uplc_program_micros |
+
+<details><summary>span: `execute`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `purpose` | `string` | ✓ |
+| `index` | `integer` | ✓ |
+| `acquire_arena_micros` | `integer` |  |
+| `decode_script_micros` | `integer` |  |
+| `build_uplc_program_micros` | `integer` |  |
+| `evaluate_uplc_program_micros` | `integer` |  |
 
 </details>
 
@@ -1504,13 +1371,13 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
-| `create` | `TRACE` | public | Create validation context for a transaction | transaction_id |  |
+| `create` | `TRACE` | public | Create validation context for a transaction | id |  |
 
 <details><summary>span: `create`</summary>
 
 | field | type | required |
 | --- | --- | --- |
-| `transaction_id` | `string` | ✓ |
+| `id` | `string` | ✓ |
 
 </details>
 
@@ -1533,16 +1400,7 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
-| `hydrate` | `TRACE` | public | Resolve committee members from the volatile db or the stable one |  | from_volatile, from_db |
-
-<details><summary>span: `hydrate`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `from_volatile` | `integer` |  |
-| `from_db` | `integer` |  |
-
-</details>
+| `hydrate` | `TRACE` | public | Resolve committee members from the volatile db or the stable one |  |  |
 
 ## target: `amaru::ledger::validation_context::dreps`
 
@@ -1638,16 +1496,16 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
-| `accepted` | `TRACE` | public | Transaction validated and inserted into the mempool. | tx_id, seq_no, origin |  |
-| `evicted` | `TRACE` | public | Transaction removed from the mempool. Reason ∈ {invalid_after_tip}. TODO: split the reason into invalid after tip + present in applied block | tx_id, reason |  |
-| `received` | `TRACE` | public | Transaction received by the mempool stage, before validation. | tx_id, origin |  |
-| `rejected` | `TRACE` | public | Transaction rejected at insertion. Reason ∈ {invalid, duplicate, mempool_full}. | tx_id, reason | validation_error |
+| `accepted` | `TRACE` | public | Transaction validated and inserted into the mempool. | id, seq_no, origin |  |
+| `evicted` | `TRACE` | public | Transaction removed from the mempool. Reason ∈ {included_in_adopted_block, evicted_after_new_tip}. | id, tip, reason |  |
+| `received` | `TRACE` | public | Transaction received by the mempool stage, before validation. | id, origin |  |
+| `rejected` | `TRACE` | public | Transaction rejected at insertion. Reason ∈ {invalid, duplicate, mempool_full}. | id, reason | validation_error |
 
 <details><summary>span: `accepted`</summary>
 
 | field | type | required |
 | --- | --- | --- |
-| `tx_id` | `string` | ✓ |
+| `id` | `string` | ✓ |
 | `seq_no` | `integer` | ✓ |
 | `origin` | `string` | ✓ |
 
@@ -1657,7 +1515,8 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | field | type | required |
 | --- | --- | --- |
-| `tx_id` | `string` | ✓ |
+| `id` | `string` | ✓ |
+| `tip` | `string` | ✓ |
 | `reason` | `string` | ✓ |
 
 </details>
@@ -1666,7 +1525,7 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | field | type | required |
 | --- | --- | --- |
-| `tx_id` | `string` | ✓ |
+| `id` | `string` | ✓ |
 | `origin` | `string` | ✓ |
 
 </details>
@@ -1675,7 +1534,7 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | field | type | required |
 | --- | --- | --- |
-| `tx_id` | `string` | ✓ |
+| `id` | `string` | ✓ |
 | `reason` | `string` | ✓ |
 | `validation_error` | `string` |  |
 
@@ -1744,7 +1603,7 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | field | type | required |
 | --- | --- | --- |
 | `peer` | `string` | ✓ |
-| `conn_id` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
 | `round_trip_micros` | `integer` | ✓ |
 
 </details>
@@ -1778,7 +1637,7 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | field | type | required |
 | --- | --- | --- |
 | `peer` | `string` | ✓ |
-| `conn_id` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
 
 </details>
 
@@ -1803,7 +1662,7 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | field | type | required |
 | --- | --- | --- |
 | `peer` | `string` | ✓ |
-| `conn_id` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
 | `role` | `string` | ✓ |
 
 </details>
@@ -1843,6 +1702,35 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `conn_id` | `integer` | ✓ |
 | `direction` | `string` | ✓ |
 | `reason` | `string` |  |
+
+</details>
+
+## target: `amaru::protocols::peer_selection::sharing`
+
+| name | level | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- |
+| `received` | `TRACE` | public | Peer-sharing address list received from peer. | peer, peers, added, total |  |
+| `sent` | `TRACE` | public | Peer-sharing request served for peer. | peer, peers, requested, count |  |
+
+<details><summary>span: `received`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `peers` | `string` | ✓ |
+| `added` | `integer` | ✓ |
+| `total` | `integer` | ✓ |
+
+</details>
+
+<details><summary>span: `sent`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `peers` | `string` | ✓ |
+| `requested` | `integer` | ✓ |
+| `count` | `integer` | ✓ |
 
 </details>
 
@@ -2220,6 +2108,7 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
 | `add` | `TRACE` | public | Record governance votes |  |  |
+| `remove` | `TRACE` | public | Remove now-obsolete governance votes |  |  |
 
 ## Updating This Documentation
 

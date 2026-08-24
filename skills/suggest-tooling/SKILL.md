@@ -72,6 +72,7 @@ Search the bundled documentation for relevant content:
 - `../../docs/sources/gouroboros/` - gOuroboros (Go) protocol and ledger API source
 - `../../docs/sources/x402/` - x402 protocol, the Cardano `exact` scheme and the `@x402/cardano` README
 - `../../docs/sources/developer-portal-templates/` - READMEs of the portal's starter templates, including x402-express and x402-next
+- `../../docs/sources/cardano-init/` - cardano-init project scaffolder: roles, tool registry, CLI reference
 
 Go sources mirror `.go` files, so their API reference is the doc comment above each exported identifier. Start with a package's `doc.go` for the overview, then search for a type or function name rather than looking for a prose manual.
 
@@ -84,6 +85,12 @@ File: skills/suggest-tooling/references/ecosystem-map.md
 ```
 
 ### Step 4: Recommend by category
+
+#### Project Scaffolding (start here)
+
+For a new project, point the developer at **cardano-init**, the project scaffolder. For the stacks it covers, it generates a wired monorepo (on-chain, off-chain, devnet, and optionally infrastructure) that builds and tests out of the box. That makes it the default starting point. Use this skill to reason about *which* tool fills each role, and hand off to `scaffold-project` for the guided flow: use case, generation, starter code, verification.
+
+What each role supports changes with every cardano-init release. Read it from `npx cardano-init@0.2.1 list --format json` or from `../../docs/sources/cardano-init/registry/tools/`, rather than from a static list. A stack it does not cover yet gets `scaffold-project`'s hand-authored templates.
 
 #### Smart Contract Languages
 
@@ -252,6 +259,7 @@ For each recommendation, briefly note:
 ## References
 
 - `skills/suggest-tooling/references/ecosystem-map.md` -- Full ecosystem map with all tools
+- cardano-init (project scaffolder): https://github.com/input-output-hk/cardano-init
 - Cardano developer portal: https://developers.cardano.org
 - Aiken: https://aiken-lang.org
 - Mesh SDK: https://meshjs.dev

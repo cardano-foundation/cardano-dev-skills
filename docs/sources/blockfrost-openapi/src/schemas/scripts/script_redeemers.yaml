@@ -12,7 +12,7 @@ items:
       description: The index of the redeemer pointer in the transaction
     purpose:
       type: string
-      enum: [spend, mint, cert, reward]
+      enum: [spend, mint, cert, reward, vote, propose]
       example: "spend"
       description: Validation purpose
     redeemer_data_hash:

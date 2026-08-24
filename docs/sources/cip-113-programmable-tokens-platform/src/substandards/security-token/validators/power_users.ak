@@ -7,7 +7,7 @@ use aiken_design_patterns/linked_list.{
 use cardano/assets.{PolicyId, tokens}
 use cardano/transaction.{OutputReference, Transaction}
 use constants
-use types/global_state.{admin_from_ref_input}
+use types/global_state.{active_admin_from_ref_input}
 use types/power_users.{
   AddPowerUser, Deinit, Init, MintRedeemer, ModifyPowerUser, PowerUser,
   RemovePowerUser, SpendRedeemer, StateTransition,
@@ -37,7 +37,7 @@ validator power_users_validator(
         wanted_user_state,
         global_state_ref_input_index,
       } -> {
-        let admin = admin_from_ref_input(
+        let admin = active_admin_from_ref_input(
           self.reference_inputs,
           global_state_ref_input_index,
           global_state_policy_id,
@@ -96,7 +96,7 @@ validator mint(
         }
       }
       Deinit { root_input_index, global_state_ref_input_index } -> {
-        let admin = admin_from_ref_input(
+        let admin = active_admin_from_ref_input(
           self.reference_inputs,
           global_state_ref_input_index,
           global_state_policy_id,
@@ -119,7 +119,7 @@ validator mint(
         appended_node_output_index,
         global_state_ref_input_index,
       } -> {
-        let admin = admin_from_ref_input(
+        let admin = active_admin_from_ref_input(
           self.reference_inputs,
           global_state_ref_input_index,
           global_state_policy_id,
@@ -172,7 +172,7 @@ validator mint(
         anchor_node_output_index,
         global_state_ref_input_index,
       } -> {
-        let admin = admin_from_ref_input(
+        let admin = active_admin_from_ref_input(
           self.reference_inputs,
           global_state_ref_input_index,
           global_state_policy_id,

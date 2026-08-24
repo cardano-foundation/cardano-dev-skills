@@ -117,6 +117,7 @@ builder, err = builder.Complete()
 
 ## See also
 
+- [Getting started](../getting_started/README.md)
 - [Staking Functionalities](../staking_functionalities/README.md) — Vote delegation (`DelegateVote*`), stake registration, and combined certificates
 - [Plutus V3 Support](../plutus_v3_support/README.md) — Plutus V3 scripts and reference inputs (relevant if using script-based DRep credentials)
 

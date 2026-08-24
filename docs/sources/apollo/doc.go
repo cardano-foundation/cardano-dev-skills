@@ -72,8 +72,8 @@
 // # Backends
 //
 // Every backend implements ChainContext from
-// [github.com/Salvionied/apollo/v2/backend]: blockfrost, maestro, ogmios (with
-// Kupo), and utxorpc for live chains, plus fixed for deterministic tests and
-// cache as a TTL wrapper. Backends may also report which optional operations
-// they support, so check backend.CapabilityReporter before depending on one.
+// [github.com/Salvionied/apollo/v2/backend]: blockfrost, ogmios (with Kupo),
+// and utxorpc for live chains, plus fixed for deterministic tests and cache as
+// a TTL wrapper. Backends may also report which optional operations they
+// support, so check backend.CapabilityReporter before depending on one.
 package apollo

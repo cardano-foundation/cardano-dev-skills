@@ -29,6 +29,8 @@ Plutus V4 reference scripts are recognized by the underlying types, but the curr
 
 ## See also
 
+- [Builder: inputs and payments](../transaction_building/inputs_and_payments.md)
+- [Validation: datum hashes](../validation/README.md)
 - [Staking Functionalities](../staking_functionalities/README.md) — Stake certificates and withdrawals
 - [Plutus V3 Support](../plutus_v3_support/README.md) — Plutus V3 scripts and reference inputs
 

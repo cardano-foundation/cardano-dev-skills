@@ -33,6 +33,10 @@ pub type TransferLogicScriptDestinationAction {
 ///   order. Both positive (KYC) and negative (denylist absence) attestations
 ///   required on receive.
 pub type TransferLogicScriptWithdrawRedeemer {
+  /// Index into `self.reference_inputs` — the CIP-113 registry node for THIS
+  /// token. See `MintingLogicScriptWithdrawRedeemer` for why it is named
+  /// rather than searched for.
+  registry_node_ref_input_index: Int,
   global_state_ref_input_index: Int,
   actions_for_each_input: List<TransferLogicScriptAction>,
   destination_actions: List<TransferLogicScriptDestinationAction>,

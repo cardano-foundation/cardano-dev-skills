@@ -69,8 +69,8 @@ conformance catches future signature changes:
 var _ backend.ChainContext = (*myChainContext)(nil)
 ```
 
-The repository includes Blockfrost, Maestro, Ogmios/Kupo, UTxO RPC, and a
-deterministic fixed backend for tests.
+The repository includes Blockfrost, Ogmios/Kupo, UTxO RPC, and a deterministic
+fixed backend for tests.
 
 ## Dependency expectations
 

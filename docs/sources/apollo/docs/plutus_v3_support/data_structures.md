@@ -91,3 +91,8 @@ if err != nil {
 // Add datum directly to witness set
 a.AddDatum(&datum)
 ```
+
+Struct-tag encoding of custom datum types is documented in
+[Plutus encoder](../plutusencoder/README.md). Hash with `apollo.DatumHash`,
+not `common.Datum.Hash` on a value built in Go; see
+[validation](../validation/README.md).

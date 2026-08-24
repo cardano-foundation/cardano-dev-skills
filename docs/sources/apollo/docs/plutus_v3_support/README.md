@@ -18,5 +18,9 @@ This documentation provides a comprehensive overview of Plutus V3 support within
 
 ## See also
 
+- [Getting started](../getting_started/README.md) — Install, first transaction, fluent errors
+- [Plutus encoder](../plutusencoder/README.md) — Struct-tag datums and redeemers
 - [Data Attachment](../data_attachment/README.md) — Datums and reference scripts on outputs (including V1/V2/V3 reference scripts; V4 requires Dijkstra)
+- [Fees and collateral](../fees_and_collateral/README.md) — Execution units and collateral overlap
+- [Evaluation witnesses](../wallets/evaluation_witnesses.md) — Required signers during `EvaluateTx`
 - [Staking Functionalities](../staking_functionalities/README.md) — Stake certificates and withdrawals

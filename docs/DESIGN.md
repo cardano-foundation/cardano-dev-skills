@@ -40,6 +40,8 @@ This document captures the architectural decisions behind `cardano-dev-skills`. 
 
 **How it works:** Every SKILL.md declares `allowed-tools: Read Grep Glob`. The agent searches local documentation, the user's codebase, or its own knowledge. If a user has additional tools or MCP servers connected, the agent can use them on its own initiative, but the skill never depends on it.
 
+**Reviewed exception — `scaffold-project`.** Creating a project is the one task where a self-contained skill is the wrong tool: hand-writing directory trees and version pins duplicates, and drifts from, what the `cardano-init` scaffolder already does correctly and keeps current. So `scaffold-project` drives `cardano-init` as the source of truth — running the CLI, the installer, and `just build`/`just test` — which requires `Bash Edit Write`. The grant is an explicit entry in `ALLOWED_TOOLS_EXCEPTIONS` (`scripts/validate.py`), reviewed in the same PR. `WebFetch`/`WebSearch` stay disallowed even here, and the skill still falls back to hand-authored templates offline or for stacks `cardano-init` cannot generate.
+
 ## Decision 5: Progressive disclosure
 
 **Decision:** SKILL.md files are capped at 500 lines. Deep reference content goes in `references/` subdirectories, one level deep only.
@@ -147,7 +149,7 @@ These additions follow the principle: ship small, observe, iterate.
 
 **The layers:**
 
-0. **Tool-grant policy** (`scripts/validate.py`): `allowed-tools` is a one-turn pre-approval in Claude Code, not a restriction, so the base grant is `Read Grep Glob`, anything wider needs a reviewed exception entry, and every skill must disallow `WebFetch`/`WebSearch` (skills are self-contained). Advisory-only skills additionally disallow `Bash`/`Edit`/`Write`, containing injection blast radius during the turn untrusted docs are read.
+0. **Tool-grant policy** (`scripts/validate.py`): `allowed-tools` is a one-turn pre-approval in Claude Code, not a restriction, so the base grant is `Read Grep Glob`, anything wider needs a reviewed exception entry, and every skill must disallow `WebFetch`/`WebSearch` (skills are self-contained). Advisory-only skills additionally disallow `Bash`/`Edit`/`Write`, containing injection blast radius during the turn untrusted docs are read. Two skills hold reviewed exceptions: `cardano-context` (`Edit Write Bash(pwd)`, to write the context block into the user's CLAUDE.md) and `scaffold-project` (`Bash Edit Write`, to drive `cardano-init` — see Decision 4).
 1. **Fetch-time sanitization** (`scripts/_fetch_docs.py`): strips zero-width/bidi characters everywhere and HTML comments + `<script>` from markup — deletes the hidden-text injection class instead of trying to detect it.
 2. **Mechanical delta scanner** (`scripts/scan-docs-delta.py`, blocking check in the PR Policy workflow): pattern-level screening of changed lines only — injection phrasing, pipe-to-shell, swapped bech32 addresses, changed install commands, new domains per source.
 3. **Advisory AI docs-delta review** (PR Policy workflow): reuses the non-agentic scope-review harness with a supply-chain rubric (`.github/docs-delta-review-prompt.md`) to catch what patterns can't — plausible address swaps, typosquats, injection phrased as documentation. Advisory per this repo's discipline: only mechanical checks go red.

@@ -1,0 +1,23 @@
+[tool]
+id = "cardano-node"
+name = "Cardano Node"
+description = """\
+The reference Cardano node. Choose this when you just want a synced local node \
+and its UNIX socket — no indexer or query layer — for tools that talk to the \
+node directly. Run as infrastructure via cardano-up. The socket path is \
+published to the project .env as NODE_SOCKET_PATH. Pair it with an off-chain \
+tool that uses the socket, or add an indexer/query provider (kupo, ogmios) for \
+a fuller stack."""
+website = "https://github.com/IntersectMBO/cardano-node"
+languages = []
+system_deps = ["docker", "cardano-up"]
+nix_packages = []
+
+[roles.infrastructure]
+template = "_infra/cardano-up"
+
+[infra]
+# Only a node socket. The driver's base default already maps
+# CARDANO_NODE_SOCKET_PATH → NODE_SOCKET_PATH, so no explicit mapping is needed.
+cardano_up_package = "cardano-node"
+env = []

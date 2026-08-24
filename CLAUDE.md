@@ -35,7 +35,7 @@ Use `Read` and `Grep` tools to search these directories for accurate, up-to-date
 - SKILL.md files must be under 500 lines; deep content goes in `references/` (one level deep only)
 - Skill names are kebab-case, max 64 characters; directory name matches `name:` field
 - `registry/sources.yaml` is the single source of truth for documentation sources
-- Skills are self-contained — work with `Read` / `Grep` / `Glob` only, no external service dependencies
+- Skills are self-contained — work with `Read` / `Grep` / `Glob` only, no external service dependencies. The one reviewed exception is `scaffold-project`, which drives `cardano-init` (the project scaffolder) as the source of truth for new projects and therefore needs `Bash Edit Write`; its grant lives in `ALLOWED_TOOLS_EXCEPTIONS` in `scripts/validate.py`
 - When referencing documentation, guide the user to search or read rather than pasting specs
 
 ## Skill Format

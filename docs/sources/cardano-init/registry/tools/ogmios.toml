@@ -1,0 +1,26 @@
+[tool]
+id = "ogmios"
+name = "Ogmios"
+description = """\
+A lightweight bridge interface for Cardano. Ogmios exposes the node's \
+local protocols (chain-sync, state-query, tx-submission) over WebSocket and \
+HTTP/JSON, so off-chain code can query ledger state and submit transactions \
+without speaking the raw node protocols. Run as infrastructure via cardano-up, \
+which pulls in a Cardano node automatically. Its endpoint is published to the \
+project .env as OGMIOS_URL."""
+website = "https://ogmios.dev"
+languages = []
+system_deps = ["docker", "cardano-up"]
+nix_packages = []
+
+[roles.infrastructure]
+template = "_infra/cardano-up"
+
+[infra]
+cardano_up_package = "ogmios"
+env = [{ from = "OGMIOS_URL", to = "OGMIOS_URL" }]
+
+# Ogmios serves the node's protocols over JSON-RPC — a provider on its own, and
+# the other half of a Kupmios (Kupo + Ogmios) provider.
+[compat]
+serves = ["ogmios"]

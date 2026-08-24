@@ -1,0 +1,28 @@
+[tool]
+id = "dingo"
+name = "Dingo"
+description = """\
+A Cardano node implementation from Blink Labs with batteries included: it \
+syncs the chain and serves a Blockfrost-compatible HTTP API alongside its own \
+node socket — a single all-in-one process. Run as infrastructure via \
+cardano-up (it does not run a separate cardano-node). Its Blockfrost-compatible \
+API is published to the project .env as INDEXER_URL and its socket as \
+NODE_SOCKET_PATH, so off-chain components connect to it automatically."""
+website = "https://github.com/blinklabs-io/dingo"
+languages = []
+system_deps = ["docker", "cardano-up"]
+nix_packages = []
+
+[roles.infrastructure]
+template = "_infra/cardano-up"
+
+[infra]
+cardano_up_package = "dingo"
+env = [
+    { from = "DINGO_BLOCKFROST", to = "INDEXER_URL" },
+    { from = "DINGO_SOCKET_PATH", to = "NODE_SOCKET_PATH" },
+]
+
+# Dingo serves a Blockfrost-compatible HTTP API (published as INDEXER_URL).
+[compat]
+serves = ["blockfrost"]

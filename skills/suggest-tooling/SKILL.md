@@ -82,6 +82,12 @@ File: skills/suggest-tooling/references/ecosystem-map.md
 
 ### Step 4: Recommend by category
 
+#### Project Scaffolding (start here)
+
+Before recommending individual tools, point the developer at **cardano-init** — the project scaffolder ("zero to a running Cardano protocol in one command"). It generates a wired-together monorepo (on-chain, off-chain, devnet, infrastructure, formal-methods) with a shared CIP-57 `blueprint/` and an `AGENTS.md`, and the result builds and passes `just test` out of the box. It is the source of truth for creating new projects — recommend it as the default starting point, then use this skill to reason about *which* tools to select for each role. For the guided end-to-end flow (use-case selection, flag mapping, verification), hand off to `scaffold-project`.
+
+cardano-init's registry is the authoritative, up-to-date list of what each role supports; it moves fast. Run `cardano-init list --table` (or `--format json`) for the live matrix rather than trusting a static table. As of writing it can scaffold: on-chain **Aiken, Scalus, Plinth**; off-chain **MeshJS, Evolution SDK, Scalus** (Tx3 experimental); devnet **Yaci DevKit**; infrastructure **Kupo, Ogmios, Dolos, Tx Submit API, Cardano Node, Cardano Node API, Dingo**; formal-methods **Blaster** (experimental). Tools not yet in its registry (e.g. **PyCardano, cardano-client-lib**) are scaffolded from `scaffold-project`'s hand-authored templates instead.
+
 #### Smart Contract Languages
 
 | Language | Best for | Language base | Status |
@@ -172,6 +178,7 @@ Based on the project requirements, recommend a concrete stack. Example stacks:
 - Infrastructure: **Blockfrost**
 - Testing: Aiken tests + Yaci DevKit
 - Wallet: Mesh wallet hooks
+- Scaffold: `cardano-init --name my-dapp --on-chain aiken --off-chain meshjs --devnet yaci`
 
 #### DeFi Protocol (TypeScript, advanced)
 - Smart contracts: **Aiken**
@@ -179,12 +186,14 @@ Based on the project requirements, recommend a concrete stack. Example stacks:
 - Infrastructure: **Ogmios + Kupo** (self-hosted)
 - Testing: Aiken property tests + Preview testnet
 - Wallet: CIP-30 direct integration
+- Scaffold: `cardano-init --name my-defi --on-chain aiken --off-chain evolution --devnet yaci --infra kupo --infra ogmios`
 
 #### Python Backend
 - Smart contracts: **Aiken** (or OpShin if team prefers Python on-chain too)
 - Off-chain: **PyCardano**
 - Infrastructure: **Blockfrost** or **Koios**
 - Testing: Aiken tests + pytest with PyCardano
+- Scaffold: PyCardano is not yet in cardano-init's registry — hand off to `scaffold-project` for the hand-authored Aiken + PyCardano template
 
 #### Go Backend
 - Smart contracts: **Aiken**
@@ -236,6 +245,7 @@ For each recommendation, briefly note:
 ## References
 
 - `skills/suggest-tooling/references/ecosystem-map.md` -- Full ecosystem map with all tools
+- cardano-init (project scaffolder): https://github.com/input-output-hk/cardano-init — bundled docs under `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-init/`
 - Cardano developer portal: https://developers.cardano.org
 - Aiken: https://aiken-lang.org
 - Mesh SDK: https://meshjs.dev

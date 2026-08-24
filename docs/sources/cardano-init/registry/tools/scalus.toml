@@ -1,0 +1,30 @@
+[tool]
+id = "scalus"
+name = "Scalus"
+description = """\
+A Scala-native toolkit for Cardano. Scalus can compile Scala code \
+to UPLC for on-chain validators and build transactions for off-chain \
+interaction — all in one language. Its off-chain tests run validators \
+locally. Choose it for one role or both."""
+website = "https://scalus.org"
+languages = ["scala"]
+system_deps = ["sbt", "jvm"]
+nix_packages = ["sbt", "jdk"]
+detect = [{ file = "build.sbt", contains = "org.scalus" }]
+
+[roles.on-chain]
+template = "scalus/on-chain"
+
+[roles.off-chain]
+template = "scalus/off-chain"
+
+# Scalus's off-chain uses a Blockfrost provider (INDEXER_URL → a devnet's
+# Blockfrost-compatible API, e.g. Yaci Store).
+[compat]
+consumes = ["blockfrost"]
+
+# Used when Scalus fills BOTH roles: on-chain + off-chain collapse into one
+# unified `protocol/` component (a single sbt build, shared types) instead of two
+# folders handing off through blueprint/plutus.json.
+[fullstack]
+template = "scalus/fullstack"

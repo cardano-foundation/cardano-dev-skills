@@ -29,7 +29,7 @@ End result: the agent answers from current, project-authoritative sources instea
 | Skill | What it does |
 |---|---|
 | `cardano-context` | Install a per-project Cardano directive into `CLAUDE.md` so the agent reliably consults bundled skills and docs |
-| `scaffold-project` | Bootstrap a new Cardano project across Aiken + 4 off-chain stacks |
+| `scaffold-project` | Bootstrap a new Cardano project by driving the `cardano-init` scaffolder, with hand-authored fallbacks for stacks it can't generate |
 | `write-validator` | Guide writing a validator from spec (default Aiken) |
 | `review-contract` | Security review of a validator |
 | `optimize-validator` | Lower CPU / memory / script-size costs |

@@ -1,0 +1,35 @@
+[tool]
+id = "dolos"
+name = "Dolos"
+description = """\
+A lightweight Cardano data node. Dolos syncs the chain and serves it over a \
+UTxO RPC (gRPC) interface — a single process that replaces a full node plus \
+separate indexer for many off-chain needs. Run as infrastructure via \
+cardano-up. It provides its own node socket (it does not run a separate \
+cardano-node), published to the project .env as NODE_SOCKET_PATH, and its gRPC \
+endpoint as DOLOS_GRPC_URL."""
+website = "https://github.com/txpipe/dolos"
+languages = []
+system_deps = ["docker", "cardano-up"]
+nix_packages = []
+
+[roles.infrastructure]
+template = "_infra/cardano-up"
+
+[infra]
+cardano_up_package = "dolos"
+env = [
+    { from = "DOLOS_GRPC", to = "DOLOS_GRPC_URL" },
+    { from = "DOLOS_SOCKET_PATH", to = "NODE_SOCKET_PATH" },
+]
+
+# Dolos serves the chain over UTxORPC (gRPC), which is its complete off-chain
+# provider (params, utxos, submit, AND tx evaluation). It also exposes a
+# Blockfrost-compatible "minibf" REST API, but minibf omits tx evaluation
+# (`/utils/txs/evaluate`, https://docs.txpipe.io/dolos/apis/minibf), which every
+# off-chain Blockfrost provider needs to budget script execution units — so it
+# can't drive the script-based (gift-card) templates. We therefore declare only
+# `u5c`: tools with a UTxORPC provider (e.g. Mesh) work; Blockfrost/TRP-only
+# tools (Evolution, Scalus, Tx3) don't.
+[compat]
+serves = ["u5c"]

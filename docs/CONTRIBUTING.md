@@ -182,8 +182,8 @@ Instructions...
 - [ ] `name:` matches directory name
 - [ ] Description includes trigger phrases
 - [ ] Has "When to use", "When NOT to use", "Key principles", "Workflow" sections
-- [ ] No external service dependencies — works with `Read` / `Grep` / `Glob` only
-- [ ] `allowed-tools` is `Read Grep Glob` (anything wider needs a reviewed exception in `scripts/validate.py`) and `disallowed-tools` includes `WebFetch WebSearch` — validate.py enforces both
+- [ ] No external service dependencies — works with `Read` / `Grep` / `Glob` only (the sole reviewed exception is `scaffold-project`, which drives the `cardano-init` CLI)
+- [ ] `allowed-tools` is `Read Grep Glob` (anything wider needs a reviewed exception in `scripts/validate.py` — currently `cardano-context` and `scaffold-project`) and `disallowed-tools` includes `WebFetch WebSearch` — validate.py enforces both
 - [ ] Deep content in `references/`, one level only — no nested subdirectories
 - [ ] No mention of specific deployed dApps; teach categories generically
 - [ ] No mention of grants, treasuries, or governance proposals — the skill must read as a neutral community contribution

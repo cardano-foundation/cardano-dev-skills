@@ -1,0 +1,16 @@
+[tool]
+id = "aiken"
+name = "Aiken"
+description = """\
+A modern smart contract language for Cardano. Aiken has its own \
+purpose-built syntax inspired by Rust and Gleam, and compiles to \
+UPLC (Untyped Plutus Core). It's the most popular choice for \
+writing Cardano validators and produces CIP-57 blueprints natively."""
+website = "https://aiken-lang.org"
+languages = ["aiken"]
+system_deps = ["aiken"]
+nix_packages = ["aiken"]
+detect = ["aiken.toml"]
+
+[roles.on-chain]
+template = "aiken/on-chain"

@@ -1,0 +1,113 @@
+# Dependency recipes for the `cardano-init doctor` (TECH_SPEC §9.2).
+#
+# Keyed by dep id. Each recipe has:
+#   binaries  presence check — the dep is present if any of these is on PATH
+#   docs      universal fallback when the resolver can't produce a plan
+#   install   ordered list of single-key { installer = arg } methods (order = preference)
+#
+# Installer keys are validated against the closed `Installer` enum in
+# src/doctor/installers.rs at load (unknown installer → load error). Recipes are
+# data; installers are code. Shared deps (node, jvm) are defined once and
+# referenced by many tools' `system_deps`.
+
+# --- base / derived dep (owned by no tool) ---
+
+[just]
+binaries = ["just"]
+docs = "https://just.systems"
+install = [{ brew = "just" }, { apt = "just" }, { cargo = "just" }, { nix = "just" }]
+
+# --- tool system_deps ---
+
+[node]
+binaries = ["node"]
+docs = "https://nodejs.org/en/download"
+install = [{ brew = "node" }, { apt = "nodejs" }, { winget = "OpenJS.NodeJS" }, { nix = "nodejs" }]
+
+# The tx3 toolchain (trix, dolos, cshell, tx3c) — installed by `tx3up install`,
+# which bundles them under ~/.tx3. tx3up is a bootstrappable installer (like
+# aikup): the `[tx3up]` dep below provides it, so `doctor` installs tx3up first,
+# then runs `tx3up install` here.
+[tx3]
+binaries = ["trix"]
+docs = "https://docs.txpipe.io/tx3/installation"
+install = [{ tx3up = "" }]
+
+[aiken]
+binaries = ["aiken"]
+docs = "https://aiken-lang.org/installation-instructions"
+install = [{ aikup = "" }, { nix = "aiken" }]
+
+[sbt]
+binaries = ["sbt"]
+docs = "https://www.scala-sbt.org/download.html"
+# No stock `apt` package: sbt ships only via its own scala-sbt apt repo, which a
+# single-package recipe can't add — so apt is deliberately omitted (use brew/nix).
+install = [{ brew = "sbt" }, { nix = "sbt" }]
+
+[jvm]
+binaries = ["java"]
+docs = "https://adoptium.net/installation"
+install = [{ brew = "openjdk" }, { apt = "default-jdk" }, { winget = "EclipseAdoptium.Temurin.21.JDK" }, { nix = "jdk" }]
+
+[docker]
+binaries = ["docker"]
+docs = "https://docs.docker.com/get-docker/"
+install = [{ brew = "docker" }, { apt = "docker.io" }, { winget = "Docker.DockerDesktop" }, { nix = "docker" }]
+
+[cabal]
+binaries = ["cabal"]
+docs = "https://www.haskell.org/ghcup/"
+# ghcup (via curl) is IOG's recommended way to get a matching GHC + Cabal.
+install = [{ brew = "cabal-install" }, { apt = "cabal-install" }, { nix = "cabal-install" }, { curl = "https://get-ghcup.haskell.org" }]
+
+[ghc]
+binaries = ["ghc"]
+docs = "https://www.haskell.org/ghcup/"
+# Plinth currently targets GHC 9.6.x; ghcup lets you pin that series.
+install = [{ brew = "ghc" }, { apt = "ghc" }, { nix = "haskell.compiler.ghc966" }, { curl = "https://get-ghcup.haskell.org" }]
+
+# --- installer-provider deps (reached via installer `bootstrap` lists) ---
+
+[aikup]
+binaries = ["aikup"]
+docs = "https://aiken-lang.org/installation-instructions"
+install = [{ npm = "@aiken-lang/aikup" }, { curl = "https://install.aiken-lang.org" }, { powershell = "https://windows.aiken-lang.org" }]
+
+[cardano-up]
+binaries = ["cardano-up"]
+docs = "https://github.com/blinklabs-io/cardano-up"
+install = [{ go = "github.com/blinklabs-io/cardano-up/cmd/cardano-up@latest" }]
+
+# tx3up: the tx3 toolchain manager (provides the `tx3up` installer used by [tx3]).
+# `brew install txpipe/tap/tx3up` gets the binary; the curl script is the
+# cross-platform fallback. Running it installs only tx3up itself — the toolchain
+# lands via `tx3up install` (the [tx3] recipe).
+[tx3up]
+binaries = ["tx3up"]
+docs = "https://docs.txpipe.io/tx3/installation"
+install = [{ brew = "txpipe/tap/tx3up" }, { curl = "https://github.com/tx3-lang/tx3up/releases/latest/download/tx3up-installer.sh" }]
+
+[rustup]
+binaries = ["rustup"]
+docs = "https://www.rust-lang.org/tools/install"
+install = [{ brew = "rustup" }, { curl = "https://sh.rustup.rs" }, { nix = "rustup" }]
+
+[rust]
+binaries = ["cargo", "rustc"]
+docs = "https://www.rust-lang.org/tools/install"
+install = [{ curl = "https://sh.rustup.rs" }, { nix = "cargo" }]
+
+[go]
+binaries = ["go"]
+docs = "https://go.dev/doc/install"
+install = [{ brew = "go" }, { apt = "golang" }, { winget = "GoLang.Go" }, { nix = "go" }]
+
+# --- catalog reference (no tool requires it today; see §9.1) ---
+
+[process-compose]
+binaries = ["process-compose"]
+docs = "https://f1bonacc1.github.io/process-compose/"
+# process-compose is not in homebrew-core; it lives in the maintainer's tap.
+# `brew install` auto-taps a tap-qualified formula.
+install = [{ brew = "f1bonacc1/tap/process-compose" }, { go = "github.com/f1bonacc1/process-compose@latest" }, { nix = "process-compose" }]

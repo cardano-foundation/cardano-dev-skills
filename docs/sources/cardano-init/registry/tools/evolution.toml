@@ -1,0 +1,25 @@
+[tool]
+id = "evolution"
+name = "Evolution SDK"
+description = """\
+A modern, type-safe TypeScript SDK for Cardano, built on Effect. Evolution \
+SDK has zero CML/WASM runtime dependency — it is pure TypeScript, so it is \
+lighter, tree-shakeable, and works across Node.js and the browser. Its \
+staged `Client` API (provider + wallet) and composable transaction builder \
+make it a strong choice for off-chain transaction building and dApps."""
+website = "https://github.com/IntersectMBO/evolution-sdk"
+languages = ["typescript"]
+system_deps = ["node"]
+nix_packages = ["nodejs"]
+# A package.json alone is ambiguous (any JS project has one); require the
+# Evolution SDK dependency so foreign projects read as "unrecognized" instead.
+detect = [{ file = "package.json", contains = "@evolution-sdk" }]
+
+[roles.off-chain]
+template = "evolution/off-chain"
+
+# Evolution SDK connects through its Blockfrost or Kupmios (Kupo + Ogmios)
+# providers. It has no UTxORPC provider yet, so it cannot use a UTxORPC/TRP-only
+# provider such as Dolos.
+[compat]
+consumes = ["blockfrost", "kupo", "ogmios"]

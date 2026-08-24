@@ -1,0 +1,27 @@
+[tool]
+id = "yaci"
+name = "Yaci DevKit"
+description = """\
+A local Cardano development and testing kit. Yaci DevKit spins up a private \
+devnet (a local node plus the Yaci Store indexer, which serves a \
+Blockfrost-compatible API) so you can deploy and exercise your contracts \
+end-to-end without touching a public network or spending real funds. Its \
+built-in faucet tops up test wallets on demand. Run `just test` for an \
+integration smoke test, or `just dev` to start a persistent devnet that \
+off-chain components connect to automatically (it writes the standard \
+connection details into the project .env). Yaci DevKit is a dev/test tool — \
+you never deploy it — so it fills the devnet role, not infrastructure."""
+website = "https://devkit.yaci.xyz"
+languages = ["typescript"]
+system_deps = ["docker", "node"]
+nix_packages = []
+detect = [{ file = "scripts/set-env.mjs", contains = "Yaci" }]
+
+[roles.devnet]
+template = "yaci/devnet"
+
+# Yaci Store exposes a Blockfrost-compatible REST API, so Yaci serves the
+# `blockfrost` seam. Off-chain tools that consume it (Evolution, Mesh, Scalus)
+# connect via INDEXER_URL; a TRP-only consumer (Tx3) cannot use it.
+[compat]
+serves = ["blockfrost"]

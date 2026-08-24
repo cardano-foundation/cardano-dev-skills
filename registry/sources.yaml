@@ -96,6 +96,21 @@
     - "cardano-cli/**/*.md"
   description: Official command-line tool for interacting with cardano-node — building, signing, submitting transactions, queries, key management
 
+- name: Cardano Init
+  repo: https://github.com/input-output-hk/cardano-init.git
+  docs_path: "."
+  format: markdown
+  format_overrides:
+    "**/*.toml": toml
+  category: infrastructure
+  priority: high
+  glob_patterns:
+    - README.md
+    - "docs/**/*.md"
+    - "registry/**/*.toml"
+  description: Official IOG project scaffolder — "zero to a running Cardano protocol in one command". Generates wired on-chain/off-chain/devnet monorepos with a CIP-57 blueprint and a machine-readable AGENTS.md; every command emits JSON. Source of truth for creating new Cardano projects.
+  website: https://github.com/input-output-hk/cardano-init
+
 - name: Amaru
   repo: https://github.com/pragma-org/amaru.git
   docs_path: "."

@@ -62,6 +62,14 @@ ALLOWED_TOOLS_EXCEPTIONS = {
     # cardano-context writes the context block into the user's CLAUDE.md;
     # Bash is scoped to `pwd` (used to resolve the project root).
     "cardano-context": {"Edit", "Write", "Bash(pwd)"},
+    # scaffold-project drives cardano-init (the project scaffolder) as the
+    # source of truth for new projects: it runs the CLI (via `cardano-init` /
+    # `npx` / `nix run`), the official installer, and `just build`/`just test`,
+    # so it needs unscoped Bash. Edit/Write cover drafting the use-case starter
+    # code into the generated tree and the offline fallback templates. The
+    # self-contained rule is relaxed for this one skill by design (DESIGN.md
+    # Decision 4); WebFetch/WebSearch stay disallowed.
+    "scaffold-project": {"Bash", "Edit", "Write"},
 }
 # Skills are self-contained (Read/Grep/Glob over bundled docs), so no skill
 # turn ever needs network access. Requiring these keeps a poisoned doc read

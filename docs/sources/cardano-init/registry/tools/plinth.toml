@@ -1,0 +1,22 @@
+[tool]
+id = "plinth"
+name = "Plinth"
+description = """\
+Write Cardano validators in Haskell. Plinth (formerly PlutusTx) is the \
+original on-chain language: ordinary Haskell that the GHC plugin compiles \
+to Plutus Core, giving you the full type system and a blueprint emitted \
+straight from your compiled scripts. Built with Cabal against the IOG \
+package repository (CHaP)."""
+website = "https://plutus.cardano.intersectmbo.org"
+languages = ["haskell"]
+system_deps = ["cabal", "ghc"]
+nix_packages = ["cabal-install", "haskell.compiler.ghc966", "pkg-config", "libsodium", "secp256k1", "blst"]
+# Plinth ships its own component-local haskell.nix flake (the recommended setup
+# from IntersectMBO/plinth-template) under `--nix`; a plain nixpkgs shell cannot
+# build its CHaP/Plutus dependencies. The top-level flake composes that flake's
+# dev shell (via `inputsFrom`) instead of listing these packages directly.
+nix_self_contained = true
+detect = ["cabal.project"]
+
+[roles.on-chain]
+template = "plinth/on-chain"

@@ -1,3 +1,4 @@
+use types/global_state.{GlobalStateLocation}
 use types/kyc_proof.{KycProof}
 
 /// One action per unique sender (unique stake-credential among inputs carrying
@@ -24,8 +25,8 @@ pub type TransferLogicScriptDestinationAction {
 
 /// Transfer-logic withdraw redeemer.
 ///
-/// - `global_state_ref_input_index` — GS UTxO as ref input; provides pause
-///   flag, TEL, denylist policy id.
+/// - `global_state_location` — where the GS UTxO is; provides pause flag, TEL,
+///   denylist policy id.
 /// - `actions_for_each_input` — one KYC proof + denylist-absence covering-node
 ///   index per unique sender, ordered to match the aggregated-senders order.
 /// - `destination_actions` — one KYC proof + denylist-absence covering-node
@@ -33,11 +34,18 @@ pub type TransferLogicScriptDestinationAction {
 ///   order. Both positive (KYC) and negative (denylist absence) attestations
 ///   required on receive.
 pub type TransferLogicScriptWithdrawRedeemer {
-  /// Index into `self.reference_inputs` — the CIP-113 registry node for THIS
-  /// token. See `MintingLogicScriptWithdrawRedeemer` for why it is named
-  /// rather than searched for.
-  registry_node_ref_input_index: Int,
-  global_state_ref_input_index: Int,
+  /// WHERE GlobalState is, not just which reference input it is.
+  ///
+  /// This validator only READS the datum, so it has no reason to dictate which
+  /// list the UTxO sits in — and dictating it is not free. Conway rejects a
+  /// transaction whose `inputs` and `reference_inputs` overlap, so while this
+  /// field was a bare `global_state_ref_input_index` no transfer of the
+  /// security token could occur in any transaction that also SPENDS
+  /// GlobalState: not alongside a mint, not alongside a burn, not alongside an
+  /// admin action. That is the same defect that made the burn unbuildable
+  /// through `third_party_transfer_logic_script`, caught here before it cost a
+  /// second on-chain failure rather than after.
+  global_state_location: GlobalStateLocation,
   actions_for_each_input: List<TransferLogicScriptAction>,
   destination_actions: List<TransferLogicScriptDestinationAction>,
 }

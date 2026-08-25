@@ -197,18 +197,20 @@ if err != nil { return err }
 
 - **Language:** Java / Kotlin (JVM)
 - **Repository:** github.com/bloxbean/cardano-client-lib
-- **Documentation:** github wiki + javadoc
+- **Documentation:** cardano-client.dev (mirrored under `docs/sources/cardano-client-lib/`) + javadoc
 
 **Strengths:**
-- Fine-grained control over transaction building
-- Direct access to serialization primitives
-- Mature and battle-tested
-- Comprehensive JVM Cardano library by BloxBean
+- QuickTx gives a declarative builder comparable to Mesh, with the composable-functions
+  API underneath when byte-level control is needed
+- First-class Aiken support: CIP-57 blueprint loading, parameter application,
+  and compile-time-checked datum codegen via the annotation processor
+- Mature and battle-tested; the reference off-chain stack for JVM backends
 
 **Weaknesses:**
-- More verbose than higher-level SDKs
-- Requires deeper Cardano knowledge
-- Less documentation than higher-level options
+- More verbose than the TypeScript SDKs
+- Sharp edges around script-cost evaluation and protocol-parameter drift that the
+  API surface does not advertise
+- Worked script-spending examples live in the examples repo, not the docs site
 
 **Installation (Maven):**
 ```xml
@@ -219,23 +221,23 @@ if err != nil { return err }
 </dependency>
 ```
 
-**Basic send-ADA pattern:**
+**Basic send-ADA pattern (QuickTx -- the recommended API):**
 ```java
-TxBuilder txBuilder = (context, txn) -> {};
-TxOutputBuilder txOutBuilder = (context, outputs) -> {
-    outputs.add(Output.builder()
-        .address(receiver)
-        .assetName(LOVELACE)
-        .qty(BigInteger.valueOf(5_000_000))
-        .build());
-};
+BackendService backendService = new BFBackendService(
+        "https://cardano-preprod.blockfrost.io/api/v0/", "<PROJECT_ID>");
+QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
 
-UtxoSupplier utxoSupplier = new DefaultUtxoSupplier(utxoService);
-TxBuilderContext ctx = TxBuilderContext.init(utxoSupplier, protocolParamsSupplier);
-Transaction tx = ctx.buildAndSign(txn -> {
-    txOutBuilder.accept(ctx, txn.getBody().getOutputs());
-}, signerFrom(senderAccount));
+Tx tx = new Tx()
+        .payToAddress(receiver, Amount.ada(5))
+        .from(sender.baseAddress());
+
+TxResult result = quickTxBuilder.compose(tx)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .completeAndWait();
 ```
+
+For Plutus spending, minting, datum encoding and signer semantics, see
+`cclib-quicktx.md` in this directory.
 
 ---
 
@@ -395,9 +397,11 @@ const status = await client
 - Accept a smaller community than the TypeScript and Python options in exchange
 
 **Choose cardano-client-lib when:**
-- Need low-level JVM control over transaction bytes
-- Building custom tooling or libraries
-- Already using it and need backward compatibility
+- The backend is JVM (Spring Boot services, existing Java/Kotlin infrastructure)
+- Building against Aiken validators and you want blueprint-generated, compile-time-checked
+  datum types rather than hand-encoded PlutusData
+- Need low-level control over transaction bytes, via the composable-functions API
+- Pairing with Yaci Store as the indexer, which speaks the Blockfrost API
 
 **Choose cardano-js-sdk when:**
 - Building a wallet application

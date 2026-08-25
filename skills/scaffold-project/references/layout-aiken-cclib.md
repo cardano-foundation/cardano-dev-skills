@@ -220,6 +220,9 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
+import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
@@ -248,12 +251,13 @@ public final class Lock {
 
         // Build, sign, submit using QuickTxBuilder.
         var quickTxBuilder = new QuickTxBuilder(configured.backend());
+        // Inline datum: HelloDatum { owner: <payment key hash bytes> }.
+        // Constructor 0, one ByteArray field — field order follows the Aiken type.
+        var ownerVkh = account.getBaseAddress().getPaymentCredentialHash().orElseThrow();
+        PlutusData datum = ConstrPlutusData.of(0, BytesPlutusData.of(ownerVkh));
+
         var tx = new Tx()
-            .payToContract(scriptAddr.toBech32(), Amount.lovelace(5_000_000L).build(),
-                // Inline datum: { owner: <pubkey hash bytes> }. Encode using cclib's
-                // PlutusData builders; see ${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/.
-                /* datum */ null
-            )
+            .payToContract(scriptAddr.toBech32(), Amount.lovelace(5_000_000L).build(), datum)
             .from(account.baseAddress());
 
         var result = quickTxBuilder
@@ -266,9 +270,9 @@ public final class Lock {
 }
 ```
 
-The datum placeholder above is intentional: encoding `HelloDatum { owner: bytes }` via cclib's `PlutusData` API has a few possible shapes depending on the cclib version. Consult `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/` for the current `PlutusData.builder()` and `ConstrPlutusData` patterns before pasting the encoding into production code.
+`ConstrPlutusData.of(constructorIndex, fields...)` maps onto an Aiken constructor, and field order is the declaration order in the Aiken type. For datums larger than a field or two, generate the Java types from the CIP-57 blueprint with the annotation processor instead of hand-encoding — see `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/annotations/plutus-blueprint-code-generation.mdx`.
 
-A matching `Redeem.java` queries the script address through the backend service, picks the locked UTxO, attaches the validator + redeemer + datum to the spending input, sets a collateral UTxO, and submits. Hand off to `build-transaction` for the complete pattern.
+A matching `Redeem.java` queries the script address through the backend service, picks the locked UTxO, and spends it with `ScriptTx().collectFrom(List.of(utxo), redeemer).attachSpendingValidator(script)` — the validator is attached inline, so nothing needs to be published first, and QuickTx selects collateral automatically. The complete pattern, including the `withSigner` vs `withRequiredSigners` distinction, is in `${CLAUDE_SKILL_DIR}/../../skills/build-transaction/references/cclib-quicktx.md`; a full runnable program is at `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-use-case-templates/vesting/offchain/ccl-java/Vesting.java`.
 
 ## Network config patterns
 
@@ -314,13 +318,14 @@ Hand off to `connect-wallet` for the CIP-30 wallet integration content.
 1. **Run `aiken build` in `onchain/`** -- produces `plutus.json`.
 2. **Start Yaci DevKit** -- hand off to `setup-devnet`. Copy the dev wallet mnemonic into `.env`.
 3. **Run `mvn install` in `offchain/`** -- pulls cardano-client-lib and dependencies.
-4. **Implement the datum encoding TODO in `Lock.java`** -- see the bundled cclib docs.
-5. **Run `mvn -q exec:java -Dexec.mainClass=org.acme.offchain.hello.Lock`** -- exercises the on-chain / off-chain bridge.
-6. **Write real validator logic** -- hand off to `write-validator`.
-7. **Write real transactions** -- hand off to `build-transaction`.
+4. **Run `mvn -q exec:java -Dexec.mainClass=org.acme.offchain.hello.Lock`** -- exercises the on-chain / off-chain bridge.
+5. **Write real validator logic** -- hand off to `write-validator`.
+6. **Write real transactions** -- hand off to `build-transaction`.
 
 Spring Boot or Quarkus integration: cclib has Spring Boot starters. If the project is part of an existing Spring service, wire the `BackendService` and `Account` as beans, and read network configuration from `application.yml` instead of bare env vars.
 
 Search the bundled cclib docs for advanced patterns:
 
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/` -- guides, transaction examples, PlutusData encoding
+- `${CLAUDE_SKILL_DIR}/../../skills/build-transaction/references/cclib-quicktx.md` -- QuickTx guide: script spending, minting, datum encoding, signer semantics
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/` -- mirrored upstream API reference (`apis/`, `annotations/`, `integrations/`)
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-use-case-templates/<use-case>/offchain/ccl-java/` -- complete runnable programs (`.java`, so markdown-only searches miss them)

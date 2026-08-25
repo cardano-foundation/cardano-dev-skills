@@ -125,7 +125,11 @@ context = BlockFrostChainContext(
 )
 ```
 
-## Smart Contract Deployment
+## Exercising a Smart Contract
+
+Cardano has no script deployment step -- a validator rides in the witness set of the
+transaction that spends from it. "Running a contract" means locking funds at the script
+address, then spending them with the validator and a redeemer attached.
 
 ### Using Aiken + SDK
 
@@ -134,7 +138,8 @@ context = BlockFrostChainContext(
 aiken build
 
 # 2. The plutus.json blueprint is generated
-# 3. Use your SDK to read the blueprint and deploy
+# 3. Use your SDK to read the blueprint, derive the script address,
+#    lock funds to it, then spend them back
 
 # Or query the node directly with the bundled cardano-cli
 devkit cli    # runs cardano-cli against the DevKit node

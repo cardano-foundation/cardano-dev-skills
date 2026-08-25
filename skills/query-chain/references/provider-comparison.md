@@ -114,22 +114,43 @@ Filters: by address, policy, asset, transaction metadata, block slot range.
 
 ## Decision Matrix
 
-| Need | Blockfrost | Ogmios | Kupo | Koios | GraphQL | DB-Sync | Oura |
-|---|---|---|---|---|---|---|---|
-| UTxO by address | Yes | No | Yes | Yes | Yes | Yes | No |
-| Tx history | Yes | No | No | Yes | Yes | Yes | No |
-| Protocol params | Yes | Yes | No | Yes | Yes | Yes | No |
-| Tx submission | Yes | Yes | No | No | No | No | No |
-| Tx evaluation | No | Yes | No | No | No | No | No |
-| Datum resolution | Yes | No | Yes | Yes | Yes | Yes | No |
-| Asset metadata | Yes | No | No | Yes | Yes | Yes | No |
-| Real-time events | No | Yes | No | No | Sub | No | Yes |
-| Historical analytics | Partial | No | No | Partial | Yes | Yes | No |
-| SQL access | No | No | No | No | No | Yes | No |
-| No infra needed | Yes | No | No | Yes | No | No | No |
-| Free | Limited | Yes* | Yes* | Yes | Yes* | Yes* | Yes* |
+| Need | Blockfrost | Ogmios | Kupo | Koios | GraphQL | DB-Sync | Oura | Yaci Store |
+|---|---|---|---|---|---|---|---|---|
+| UTxO by address | Yes | No | Yes | Yes | Yes | Yes | No | Yes |
+| Tx history | Yes | No | No | Yes | Yes | Yes | No | Yes |
+| Protocol params | Yes | Yes | No | Yes | Yes | Yes | No | Yes |
+| Tx submission | Yes | Yes | No | No | No | No | No | Yes |
+| Tx evaluation | No | Yes | No | No | No | No | No | Yes† |
+| Datum resolution | Yes | No | Yes | Yes | Yes | Yes | No | Yes |
+| Asset metadata | Yes | No | No | Yes | Yes | Yes | No | Yes |
+| Real-time events | No | Yes | No | No | Sub | No | Yes | In-proc |
+| Historical analytics | Partial | No | No | Partial | Yes | Yes | No | Yes |
+| SQL access | No | No | No | No | No | Yes | No | Yes |
+| No infra needed | Yes | No | No | Yes | No | No | No | No |
+| Free | Limited | Yes* | Yes* | Yes | Yes* | Yes* | Yes* | Yes* |
 
 *Self-hosted: free software but requires infrastructure.
+†Requires a configured evaluation backend — Ogmios, or a Scalus-backed local evaluator.
+
+**Yaci Store** is a modular JVM indexer: enable only the stores you need (UTxO,
+transaction, assets, governance, ...), each backed by your own Postgres — hence
+direct SQL access. It exposes a **Blockfrost-compatible REST API** (`/blocks`,
+`/epochs` including `latest/parameters`, `/txs`, `/tx/submit`, `/addresses`,
+`/accounts`, `/assets`, `/scripts`, `/metadata`, `/utils/txs/evaluate`), so any
+Blockfrost client — including cardano-client-lib's `BFBackendService` — points at
+it unchanged.
+
+Its "events" are **Spring application events consumed in-process**: you write
+listeners and processors inside your own Spring Boot app to build custom indexers.
+That is a different shape from Oura's streaming sinks (Kafka, webhooks, S3) — Yaci
+Store is a library you embed, not a pipe you tap. Against Kupo it trades
+pattern-matching simplicity for a full relational schema; against DB-Sync it trades
+completeness for modularity and a much lighter footprint.
+
+It is the indexer embedded in Yaci DevKit, so a project can develop locally and run
+the same component in production. See
+`${CLAUDE_SKILL_DIR}/../../docs/sources/yaci-store/` — `stores/`, `plugins/`,
+`usage/as-library/`, `blockfrost/endpoints/`.
 
 ## Common Pairings
 

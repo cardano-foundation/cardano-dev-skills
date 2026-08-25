@@ -18,6 +18,7 @@ except ModuleNotFoundError:
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILLS_DIR = REPO_ROOT / "skills"
 SOURCES_FILE = REPO_ROOT / "registry" / "sources.yaml"
+DOCS_SOURCES_DIR = REPO_ROOT / "docs" / "sources"
 
 MAX_SKILL_LINES = 500
 MAX_NAME_LEN = 64
@@ -177,6 +178,44 @@ def validate_skill(skill_dir: Path) -> None:
                 warn(f"{ref_file}: unexpected file type in references/")
 
 
+def check_snapshot_matches_globs(prefix: str, name: str, src: dict) -> None:
+    """Flag a source whose glob patterns appear to match nothing upstream.
+
+    `glob_patterns` is include-only and silent: a pattern matching zero files
+    produces exactly the same snapshot as a project that genuinely ships one
+    README, so a mis-specified pattern can sit undetected indefinitely. That is
+    how `cardano-client-lib` and `Yaci Store` each spent months vendored as a
+    README while their real documentation — 66 and 85 pages — sat behind a
+    `docs/**/*.md` glob against upstreams whose pages are all `.mdx`.
+
+    The signal used here is intent versus result: a recursive glob says the
+    source expects a documentation *tree*, so a snapshot holding at most a
+    README means the pattern did not find it. Warn rather than error — a source
+    can legitimately be mid-migration upstream, and this check must never block
+    a refresh on its own.
+    """
+    globs = [str(p) for p in (src.get("glob_patterns") or [])]
+    tree_globs = [p for p in globs if "**" in p]
+    if not (name and tree_globs):
+        return
+
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    snapshot = DOCS_SOURCES_DIR / slug
+    if not snapshot.is_dir():
+        return
+
+    file_count = sum(1 for p in snapshot.rglob("*") if p.is_file())
+    if file_count > 1:
+        return
+
+    warn(
+        f"{prefix}: requests a documentation tree ({', '.join(tree_globs)}) "
+        f"but docs/sources/{slug}/ holds {file_count} file(s) — the pattern "
+        f"probably matches nothing upstream. Check the file extension "
+        f"(.md vs .mdx) and the directory the docs actually live in."
+    )
+
+
 def validate_sources() -> None:
     """Validate registry/sources.yaml."""
     if not SOURCES_FILE.exists():
@@ -227,6 +266,8 @@ def validate_sources() -> None:
         repo = src.get("repo", "")
         if repo and not repo.startswith("https://"):
             warn(f"{prefix}: repo URL doesn't start with https://")
+
+        check_snapshot_matches_globs(prefix, name, src)
 
 
 def validate_path_portability() -> int:

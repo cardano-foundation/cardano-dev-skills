@@ -96,6 +96,10 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/mesh-sdk-packages/` - Mesh SDK package docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/pycardano/` - PyCardano docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/` - Cardano Client Lib docs
+  (QuickTx API, blueprint codegen, backend providers). For a worked lock-and-spend
+  cycle, read the Java programs under
+  `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-use-case-templates/<use-case>/offchain/ccl-java/`
+  -- they are `.java`, so a markdown-only search will miss them.
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/tx3/` - Tx3 docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/chap/` - CHaP cabal.project + haskell.nix inputMap
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/haskell-nix/` - flakes, `--sha256` on git deps
@@ -360,6 +364,40 @@ builder.add_output(TransactionOutput(recipient, 5_000_000))
 signed_tx = builder.build_and_sign([signing_key], change_address=sender_address)
 context.submit_tx(signed_tx)
 ```
+
+### cardano-client-lib -- QuickTx
+
+```java
+BackendService backendService = new BFBackendService(
+        "https://cardano-preprod.blockfrost.io/api/v0/", "<PROJECT_ID>");
+QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+Tx tx = new Tx()
+        .payToAddress(receiver, Amount.ada(1.5))
+        .from(sender.baseAddress());
+
+TxResult result = quickTxBuilder.compose(tx)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .completeAndWait();
+```
+
+Spending from a Plutus script uses `ScriptTx` and attaches the validator inline --
+no reference script needs to be published first:
+
+```java
+ScriptTx scriptTx = new ScriptTx()
+        .collectFrom(List.of(utxo), redeemer)
+        .payToAddress(receiver, utxo.getAmount())
+        .attachSpendingValidator(plutusScript);
+
+TxResult result = quickTxBuilder.compose(scriptTx)
+        .feePayer(sender.baseAddress())
+        .withSigner(SignerProviders.signerFrom(sender))       // signs the tx
+        .withRequiredSigners(sender.getBaseAddress())         // satisfies must_be_signed_by
+        .completeAndWait();
+```
+
+Full guide -- datum encoding, minting, collateral: `${CLAUDE_SKILL_DIR}/references/cclib-quicktx.md`.
 
 ### Tx3 -- Declarative Interface + Typed Client
 

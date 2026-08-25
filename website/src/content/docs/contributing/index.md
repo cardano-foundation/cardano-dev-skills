@@ -22,5 +22,7 @@ The canonical contribution guide lives in
 in the repo. These pages mirror it; the repo file is authoritative if they
 ever drift.
 
-For freeform feedback or to suggest a missing topic, use the
-[issue templates](https://github.com/cardano-foundation/cardano-dev-skills/issues/new/choose).
+For feedback on a skill or doc, ask your agent to run the `give-feedback`
+skill, or use the
+[issue templates](https://github.com/cardano-foundation/cardano-dev-skills/issues/new/choose)
+directly.

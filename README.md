@@ -29,6 +29,7 @@ End result: the agent answers from current, project-authoritative sources instea
 | Skill | What it does |
 |---|---|
 | `cardano-context` | Install a per-project Cardano directive into `CLAUDE.md` so the agent reliably consults bundled skills and docs |
+| `give-feedback` | Draft and file a GitHub issue about a skill or doc that was wrong, stale, or notably helpful, with one approval |
 | `scaffold-project` | Bootstrap a new Cardano project across Aiken + 4 off-chain stacks |
 | `write-validator` | Guide writing a validator from spec (default Aiken) |
 | `review-contract` | Security review of a validator |
@@ -115,7 +116,7 @@ Even with the plugin installed globally, Claude sometimes answers Cardano questi
 What it does:
 
 - Writes a version-tagged block into the project's `CLAUDE.md` (default `./CLAUDE.md`). Claude Code re-injects `CLAUDE.md` into every conversation turn, so the directive survives compaction and applies on every new session.
-- The block tells Claude to treat training data as potentially stale for Cardano, to bias toward invoking `cardano-dev-skills:*` skills, to search `${CLAUDE_PLUGIN_ROOT}/docs/sources/` before falling back on memory, and to cite what it used.
+- The block tells Claude to treat training data as potentially stale for Cardano, to bias toward invoking `cardano-dev-skills:*` skills, to search `${CLAUDE_PLUGIN_ROOT}/docs/sources/` before falling back on memory, to cite what it used, and to offer the `give-feedback` skill when a skill or doc turns out wrong or notably helpful.
 - Commit `CLAUDE.md` and teammates inherit the directive on clone.
 - Re-running is safe: same version is a no-op; older versions are atomically replaced.
 
@@ -183,9 +184,11 @@ python3 scripts/scan-docs-delta.py # security scan of docs/sources/ changes (CI 
 
 ## Feedback
 
-We want to know how this works in practice — which skills get used, which prompts miss, which docs are stale, what's missing.
+We want to know how this works in practice: which skills get used, which prompts miss, which docs are stale, what's missing, and what saved you time.
 
-File an issue using the templates at [.github/ISSUE_TEMPLATE/](.github/ISSUE_TEMPLATE/), or open a freeform issue / discussion.
+The quickest path is from inside a session. Tell the agent "send feedback" or run `/give-feedback`: it drafts a GitHub issue from the context it already has, shows it to you, and files it under your GitHub account once you say yes (with `gh` if you have it, otherwise it gives you the text to paste).
+
+Or [open an issue](https://github.com/cardano-foundation/cardano-dev-skills/issues/new/choose) directly. The templates cover stale docs, missing topics, new sources, and general feedback.
 
 ## Architecture
 

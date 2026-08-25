@@ -158,3 +158,15 @@ These additions follow the principle: ship small, observe, iterate.
 **Trust boundary stated plainly:** the screening narrows the window between "upstream compromised" and "detected", it does not close it. A maintainer merges every refresh PR; the layers exist to make that human's review tractable (a per-source verdict table instead of an unreviewable 300-file diff), not to replace it. The mechanical scanner is the blocking gate; the AI docs-delta review is advisory only, because it reads attacker-influenced content and can be steered.
 
 **Rejected:** full manual review of refresh diffs (doesn't scale — the pre-guardrail rubber stamp was the evidence); per-source refresh PRs (10× PR noise for isolation that per-source commits already provide); blanket `context: fork`/tool restriction on all skills (breaks builder skills whose job is writing code in the same turn).
+
+## Decision 14: Feedback channel is GitHub Issues, agent-mediated
+
+**Decision:** Feedback about the skills and bundled docs goes to GitHub Issues on this repository, drafted by the `give-feedback` skill from the conversation it is in, shown to the user, and filed with `gh` after one approval under the user's own GitHub account. No feedback server or endpoint (Decision 1); Discussions are disabled; the existing issue forms remain the manual path.
+
+**Why agent-mediated:** the agent holds the context at the moment a doc fails or helps (the path, what was asked, what happened), and that context is gone by the time a human would open a form. Praise is collected as deliberately as defects: it tells maintainers what to keep.
+
+**The gate is the chat ask, not a tool grant.** The skill keeps the base `Read Grep Glob` grant and runs `gh` under the host's normal permissions. A skill grant would cover only the invoking turn while the user's yes arrives in the next one, and other hosts ignore the field; showing the draft and asking once is the safeguard that holds in every host and permission mode. When `gh` is missing or fails, the draft on screen plus the new-issue link is the fallback.
+
+**Activation:** one sentence in the `cardano-context` block (v3) tells the agent to note misfires and wins while working and to show a ready draft once at a natural pause, never mid-task; the skill's trigger phrases cover explicit requests. The SessionStart banner was rejected: it scrolls out of reach, while `CLAUDE.md` is re-injected every turn.
+
+**Rejected:** a hosted endpoint (a runtime to operate, anonymous submissions); pre-authorized silent filing via a `CLAUDE.md` token (public issues under the user's name with no human reading the draft); prefilled issue-form links as a fallback (GitHub truncates long query values); an auth check and duplicate search before sending (friction for a job maintainers do in seconds).

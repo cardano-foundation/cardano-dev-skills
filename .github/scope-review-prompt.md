@@ -47,6 +47,11 @@ the same reasoning to comparable projects (payment protocols, indexers).
   by itself, a path to acceptance** — whether the repo wants a new task
   skill is an editorial decision that starts with a discussion, not a
   rename (per CONTRIBUTING: open a discussion before writing code).
+- **Plugin meta-skills are the recorded exception, not project-specific
+  skills.** `cardano-context` and `give-feedback` configure or feed back
+  into the plugin itself rather than teach a Cardano workflow; each is
+  justified in DESIGN.md (Decisions 12 and 14). Do not flag them, or a
+  change to them, under the project-specific rule.
 - **A skill teaching a specific project requires that project as a
   registered source.** Spec-level detail (endpoints, request bodies, datum
   schemas) belongs in `docs/sources/` where the weekly refresh keeps it

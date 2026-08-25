@@ -1,6 +1,6 @@
 # CIP-113 Programmable Tokens — Aiken Implementation
 
-![Aiken](https://img.shields.io/badge/Aiken-v1.1.22-blue)
+![Aiken](https://img.shields.io/badge/Aiken-v1.1.23-blue)
 ![CIP-113](https://img.shields.io/badge/CIP--113-Last%20Check-green)
 ![Status](https://img.shields.io/badge/Status-Audit%20in%20progress-yellow)
 
@@ -66,7 +66,7 @@ Programmable tokens are **native Cardano assets** with an additional layer of va
 
 ### Prerequisites
 
-- [Aiken](https://aiken-lang.org/installation-instructions) v1.1.22 (pinned in `aiken.toml`)
+- [Aiken](https://aiken-lang.org/installation-instructions) v1.1.23 (pinned in `aiken.toml`)
 - [Cardano CLI](https://github.com/IntersectMBO/cardano-cli) (optional, for deployment)
 
 ### Build
@@ -88,9 +88,11 @@ All tests should pass (280+ unit tests and benchmarks at the time of writing).
 ```
 .
 ├── validators/                             # Smart contract validators
-│   ├── programmable_logic_global.ak        # Core transfer validation coordinator
-│   ├── programmable_logic_base.ak          # Token custody (delegates to global)
-│   ├── programmable_logic/                 # Supporting modules for the global validator
+│   ├── programmable_logic_base.ak          # Token custody; dispatches to one delegate per spend
+│   ├── transfer.ak                         # Transfer validator (the hot path)
+│   ├── third_party.ak                      # Seize / clawback / freeze-enforcement validator
+│   ├── unfracking.ak                       # Same-owner UTxO restructuring validator
+│   ├── programmable_logic/                 # Invariant modules shared by the delegate validators
 │   ├── registry_mint.ak                    # Registry sorted linked list management
 │   ├── registry_spend.ak                   # Registry node UTxO guard
 │   ├── issuance_mint.ak                    # Token minting/burning policy
@@ -131,9 +133,9 @@ These components form the shared infrastructure that all programmable tokens use
 
 A sorted linked list of registered programmable tokens, implemented as on-chain UTxOs with NFT markers. Each registry entry contains the token policy ID, the substandard's issuance (minting-logic), transfer, and third-party (issuer control) script credentials, an optional global state reference, and a list of protected asset-name prefixes that third-party actions may never seize or burn. The sorted structure enables O(1) membership and non-membership proofs via covering nodes. Entries are live configuration: the governance fields can be updated in place by the token's lifecycle authority (its issuance credential), while the policy ID and that authority itself are immutable.
 
-#### 2. Programmable Logic Base + Global Validator
+#### 2. Programmable Logic Base + Delegate Validators
 
-A shared spending validator (`programmable_logic_base`) holds all programmable tokens. It delegates all validation to the `programmable_logic_global` stake validator via the withdraw-zero pattern — the base runs per-input but the global runs once per-transaction, keeping costs constant regardless of input count.
+A shared spending validator (`programmable_logic_base`) holds all programmable tokens. Each spend names, in its redeemer, which of three stake validators authorises it — `transfer` (ordinary transfers), `third_party` (seize / clawback / freeze enforcement) or `unfracking` (same-owner restructuring) — and the base requires that validator's withdraw-zero. The base runs per-input but the delegate runs once per-transaction, keeping costs constant regardless of input count, and every transaction loads exactly one delegate reference script.
 
 #### 3. Minting Policies
 
@@ -156,8 +158,10 @@ Substandard implementations live in the platform repository:
 
 | Validator | Type | Purpose |
 |-----------|------|---------|
-| `programmable_logic_base` | Spend | Custody of all programmable token UTxOs; delegates to global validator |
-| `programmable_logic_global` | Stake (withdraw) | Core coordinator: registry lookups, transfer logic invocation, value preservation |
+| `programmable_logic_base` | Spend | Custody of all programmable token UTxOs; dispatches each spend to one of the three delegate validators |
+| `transfer` | Stake (withdraw) | Transfer validator: registry lookups, transfer logic invocation, value preservation |
+| `third_party` | Stake (withdraw) | Third-party (seize / clawback / freeze-enforcement) validator |
+| `unfracking` | Stake (withdraw) | Unfracking validator: holder-driven same-owner restructuring of PLB UTxOs |
 | `protocol_params_mint` | Mint | One-shot mint of protocol parameters NFT |
 | `registry_mint` | Mint | Sorted linked list management for registered token policies |
 | `registry_spend` | Spend | Guards registry node UTxOs |
@@ -287,7 +291,7 @@ Run the complete test suite:
 aiken check
 
 # Run specific test file
-aiken check -m validators/programmable_logic_global
+aiken check -m transfer
 
 # Watch mode for development
 aiken check --watch

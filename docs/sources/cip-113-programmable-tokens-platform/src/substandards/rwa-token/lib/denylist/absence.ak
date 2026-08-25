@@ -1,5 +1,6 @@
 use aiken/builtin
 use aiken_design_patterns/linked_list.{get_element_info, run_element_with}
+use cardano/address.{Address, Script}
 use cardano/transaction.{Input}
 use constants
 use utils
@@ -49,15 +50,72 @@ pub fn verify_denylist_absence(
   covering_ref_input_index: Int,
   reference_inputs: List<Input>,
   denylist_policy_id: ByteArray,
+  /// The DENYLIST SPEND VALIDATOR's script hash — deliberately not the
+  /// list policy id. `denylist_validator` (spend) and `mint` are separate
+  /// validators in the same file and therefore have different hashes; the test
+  /// fixtures previously reused the policy id as the address only because
+  /// nothing checked it.
+  denylist_script_hash: ByteArray,
 ) -> Bool {
+  with_covering_node_bounds(
+    covering_ref_input_index,
+    reference_inputs,
+    denylist_policy_id,
+    denylist_script_hash,
+    fn(covering_key, covering_link) {
+      covers_key(covering_key, covering_link, target_pkh)
+    },
+  )
+}
+
+/// Authenticate the denylist element at `covering_ref_input_index` and hand
+/// its two bounds — its own key (`None` = Root) and its link (`None` = tail
+/// sentinel) — to `continue_with`.
+///
+/// Authentication is the expensive half of an absence proof: the library
+/// re-reads the UTxO's value to find the list NFT, re-parses the datum and
+/// re-derives the key from the asset name — and none of it depends on the
+/// party being vetted, only on the reference input. A caller that vets many
+/// parties against the same covering node (`compliance.verify_parties`) can
+/// therefore authenticate once and run `covers_key` per party. The accepted set
+/// is identical: the element at a given reference-input index is one immutable
+/// UTxO for the whole transaction, so its bounds cannot differ between parties.
+/// Continuation style rather than returning a pair keeps the single-party path
+/// free of any extra allocation.
+///
+/// The library authenticates the element: a genuine single-NFT UTxO of
+/// `denylist_policy_id`, holding exactly ADA plus that one NFT, with a
+/// well-formed `Element` datum and the correct `"Node"` key prefix. It hands
+/// back the element's address, its own key, and its link.
+///
+/// Authentication says nothing about WHERE the element sits, so we pin the
+/// address ourselves. Without that, one denylist NFT in a private wallet would
+/// authenticate whatever datum its holder writes — and since the key is fixed
+/// by the NFT's asset name but the LINK comes from the datum, a wallet-held
+/// node keyed at 00…00 with `link: None` would certify absence for every
+/// address on chain. Requiring the element to still live at the list's own
+/// spend address is what makes "authenticated" mean "in the list".
+///
+/// Fails loudly (UPLC error) if the reference input does not carry the denylist
+/// NFT, has a malformed datum, or does not sit at `denylist_script_hash`.
+pub fn with_covering_node_bounds(
+  covering_ref_input_index: Int,
+  reference_inputs: List<Input>,
+  denylist_policy_id: ByteArray,
+  denylist_script_hash: ByteArray,
+  continue_with: fn(Option<ByteArray>, Option<ByteArray>) -> a,
+) -> a {
   let covering_ref = utils.safe_list_at(
     reference_inputs,
     covering_ref_input_index,
   )
-
-  let (covering_key_opt, covering_link) = get_element_info(
+  get_element_info(
     covering_ref.output,
-    fn(_lovelace, node_key, _data, link) { (node_key, link) },
+    fn(address, _lovelace, node_key, _data, link) {
+      expect Address { payment_credential: Script(covering_script), .. } = address
+      expect covering_script == denylist_script_hash
+      continue_with(node_key, link)
+    },
   )
     |> run_element_with(
         denylist_policy_id,
@@ -65,19 +123,21 @@ pub fn verify_denylist_absence(
         constants.linked_list_node_key_prefix,
         constants.linked_list_node_key_prefix_length,
       )
-
-  covers_key(covering_key_opt, covering_link, target_pkh)
 }
 
 // ============================================================================
 // Tests — `covers_key` structural cases
 // ============================================================================
 //
-// Note: tests for the full `verify_denylist_absence` (which requires
-// constructing an authentic denylist Input with the correct NFT + inline
-// Element datum) are deferred to integration-level testing — they'd require
-// substantial fixture plumbing and the core absence logic is covered here.
-// End-to-end coverage lands in PR 2 via run-all.ts scenarios.
+// The unit tests below exercise `covers_key` in isolation with hand-supplied
+// link values. Keep in mind what that does NOT cover: the link-reading bug this
+// function was once subject to lived in what `verify_denylist_absence` FEEDS
+// `covers_key`, not in `covers_key` itself, so no amount of testing here would
+// have caught it. Full `verify_denylist_absence` coverage — an authentic
+// denylist Input with the correct NFT and inline Element datum, over a
+// multi-node list — lives in `validators/regression.ak`, because a test module
+// that imports validators must live in `validators/`. Keep both: this file
+// proves the predicate, that one proves the plumbing.
 
 const pkh_low: ByteArray =
   #"00000000000000000000000000000000000000000000000000000000"

@@ -24,10 +24,9 @@ pub type SpendRedeemer {
 /// the sanction; the power-user list policy id is read from the GS datum.
 pub type MintRedeemer {
   Init { root_output_index: Int }
-  Deinit { root_input_index: Int, global_state_ref_input_index: Int }
+  Deinit { global_state_ref_input_index: Int }
   AddToDenylist {
     user_pkh: ByteArray,
-    anchor_node_input_index: Int,
     anchor_node_output_index: Int,
     appended_node_output_index: Int,
     global_state_ref_input_index: Int,
@@ -36,7 +35,6 @@ pub type MintRedeemer {
   RemoveFromDenylist {
     user_pkh: ByteArray,
     anchor_node_input_index: Int,
-    removed_node_input_index: Int,
     anchor_node_output_index: Int,
     global_state_ref_input_index: Int,
     power_user_node_ref_input_index: Int,

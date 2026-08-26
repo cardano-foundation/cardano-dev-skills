@@ -129,7 +129,6 @@
     - "config/**/*.go"
     - "topology/**/*.go"
     - "plugin/**/*.go"
-    - "examples/**/*.go"
   description: Cardano node implementation in Go - Ouroboros consensus, tiered storage, and UTxO RPC / Blockfrost-compatible REST / Mesh APIs. Pre-production - testnets and devnets only
   website: https://github.com/blinklabs-io/dingo
 

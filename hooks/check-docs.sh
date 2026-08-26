@@ -65,7 +65,12 @@ refresh_hint() {
     if [ "${IS_LOCAL_CLONE}" -eq 1 ]; then
         echo "  cd ${PLUGIN_ROOT} && git pull && ./scripts/fetch-docs.sh"
     else
-        echo "  Refresh via: /plugin marketplace update cardano-foundation"
+        # `marketplace update` takes the marketplace NAME (from
+        # .claude-plugin/marketplace.json), not the owner/repo path that
+        # `marketplace add` takes. Naming the owner here produced
+        # "Marketplace not found" for every marketplace-installed user — which
+        # is most of them, since the local-clone branch above covers the rest.
+        echo "  Refresh via: /plugin marketplace update cardano-dev-skills"
     fi
 }
 

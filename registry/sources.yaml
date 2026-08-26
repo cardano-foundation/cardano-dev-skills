@@ -488,12 +488,23 @@
   format: markdown
   category: smart-contracts
   priority: medium
+  # Upstream restructured: documentation/ sits at the repo root, not under
+  # src/programmable-tokens-onchain-aiken/, and neither RFI-REVIEW-SUMMARY.md
+  # nor the src/**/README.md paths still exist — every pattern but the root
+  # README matched nothing.
+  #
+  # `documentation/0*.md` covers the numbered guide series and keeps covering it
+  # as upstream adds to it. It deliberately does NOT cover
+  # `documentation/cip113-substandard-upgrade-guide.md`, whose "How to use this
+  # document" section is written in the imperative to an AI agent performing the
+  # upgrade. The content is benign, but bundled docs are read as data and never
+  # as instructions (DESIGN Decision 13), and scan-docs-delta.py blocks on it.
+  # Including it is a maintainer call — see the PR that introduced this comment.
   glob_patterns:
     - README.md
-    - RFI-REVIEW-SUMMARY.md
-    - src/programmable-tokens-onchain-aiken/README.md
-    - "src/programmable-tokens-onchain-aiken/documentation/**/*.md"
-    - src/programmable-tokens-offchain-java/README.md
+    - CONTRACT_SURFACE_CHANGES.md
+    - "documentation/0*.md"
+    - documentation/cip113-api-changes-post-audit.md
   description: Reference implementation for programmable token standard
 
 - name: CIP-113 Programmable Tokens Platform

@@ -384,11 +384,17 @@ def clone_and_extract(source, tmp_dir, docs_dir, pin=None):
     # Keyed by upstream rel: overlapping glob_patterns can yield the same file
     # twice, and one rename should be reported once.
     renamed = {}
+    # `glob_patterns` is include-only and silent, so a pattern that matches
+    # nothing is indistinguishable from a repo that genuinely has one README.
+    # Report per-pattern misses: an extension or directory change upstream is
+    # otherwise invisible until someone notices the snapshot is empty.
+    unmatched = []
     for pattern in patterns:
         if glob_patterns:
             full_pattern = os.path.join(src_dir, pattern)
         else:
             full_pattern = os.path.join(src_dir, '**', pattern)
+        pattern_hits = 0
         # Sorted so collision suffixes are deterministic across runs — glob
         # returns directory order, which would otherwise reshuffle which of
         # two colliding files gets the bare name.
@@ -412,6 +418,16 @@ def clone_and_extract(source, tmp_dir, docs_dir, pin=None):
                           f"{safe_rel}: {e}")
                     continue
                 file_count += 1
+                pattern_hits += 1
+        # Only meaningful for explicit patterns: the format-derived defaults are
+        # a menu (e.g. *.md and *.mdx), and most sources match only one of them.
+        if glob_patterns and pattern_hits == 0:
+            unmatched.append(pattern)
+
+    for pattern in unmatched:
+        print(f"  WARN {name}: glob pattern '{pattern}' matched no files at "
+              f"{docs_path or '.'} — the docs may have moved or changed "
+              f"extension upstream")
 
     for rel in sorted(renamed):
         print(f"  RENAMED {name}: {rel} -> {renamed[rel]} (Windows-illegal path)")

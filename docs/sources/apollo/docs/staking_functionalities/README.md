@@ -42,8 +42,11 @@ Combined certificates (register+delegate, vote, stake+vote) are documented in th
 
 ## See also
 
+- [Wallets](../wallets/README.md) — Bursa stake key and `GetStakeCredentialFromWallet`
+- [Coin selection](../coin_selection/README.md) — Withdrawals that cover the target still need one input
 - [Data Attachment](../data_attachment/README.md) — Datums and reference scripts on outputs
 - [Plutus V3 Support](../plutus_v3_support/README.md) — Plutus V3 scripts and reference inputs
+- [Conway Governance](../conway_governance/README.md) — Becoming a DRep and voting, as opposed to vote delegation
 
 ## Reference
 

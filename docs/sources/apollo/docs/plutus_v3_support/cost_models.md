@@ -45,10 +45,6 @@ if v4 := ppCardano.GetCostModels().GetPlutusV4(); v4 != nil {
 }
 ```
 
-### Maestro
-
-Cost models are extracted from the Maestro protocol parameters endpoint.
-
 ## Script Data Hash
 
 When a transaction contains Plutus scripts, a script data hash must be computed. This hash covers the redeemers, datums, and the relevant cost models. Apollo computes this automatically during `Complete()`:

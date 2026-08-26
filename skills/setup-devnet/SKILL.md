@@ -177,18 +177,25 @@ setups, see `docs/sources/ogmios/` and `docs/sources/kupo/`.
 
 ### Step 5: Smart contract workflow
 
-#### Aiken build-deploy-test cycle
+#### Aiken build-and-exercise cycle
 
 1. **Build**: `aiken build` compiles validators to UPLC
 2. **Generate blueprint**: Produces `plutus.json` with compiled scripts and parameter schemas
-3. **Deploy**: Use an off-chain SDK (Mesh, Evolution SDK, PyCardano) to create a transaction referencing the script
-4. **Test on-chain**: Submit to local devnet, query results, iterate
+3. **Lock**: Use an off-chain SDK (Mesh, Evolution SDK, PyCardano, cardano-client-lib) to
+   read the blueprint, derive the script address, and pay to it with a datum
+4. **Spend**: Build a spending transaction that attaches the validator and a redeemer,
+   submit to the local devnet, query results, iterate
+
+There is **no deployment step** on Cardano. A validator is not installed on-chain
+ahead of time — it travels in the witness set of the transaction that spends from it.
+Publishing a script into a UTxO's `script_ref` (CIP-33) is an optional optimization for
+large, frequently-spent validators, not a prerequisite; see `optimize-validator`.
 
 ```bash
 # Typical Aiken workflow
 aiken build
 aiken check        # Run unit tests
-# Then use SDK to deploy to local devnet
+# Then use an SDK to lock to, and spend from, the script on the local devnet
 ```
 
 #### Test structure

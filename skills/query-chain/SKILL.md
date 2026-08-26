@@ -55,6 +55,7 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/koios/` - Koios API docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-graphql/` - Cardano GraphQL docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/db-sync/` - DB-Sync docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/yaci-store/` - Yaci Store (modular JVM indexer; see `stores/`, `plugins/`, `usage/as-library/`)
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/` - Evolution SDK docs (TypeScript client; see `providers/` and `querying/`)
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/blockfrost-go/` - Blockfrost Go client (typed endpoint wrappers)
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/utxorpc-go-sdk/` - UTxORPC Go SDK (provider-agnostic gRPC)

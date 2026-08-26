@@ -280,14 +280,18 @@
 
 - name: Yaci Store
   repo: https://github.com/bloxbean/yaci-store.git
-  docs_path: "."
-  format: markdown
+  # store.yaci.xyz is a Next.js App Router site inside this repo: pages are
+  # `page.mdx` under docs/app/docs/<version>/, so a `docs/**/*.md` glob matches
+  # none of it. Pinned to v2 deliberately — v1 is the legacy tree and vendoring
+  # both leaves an agent unable to tell current API guidance from superseded.
+  docs_path: docs/app/docs/v2
+  format: mdx
   category: infrastructure
   priority: medium
   glob_patterns:
-    - README.md
-    - "docs/**/*.md"
+    - "**/*.mdx"
   description: Modular Java indexer with Blockfrost-compatible APIs
+  website: https://store.yaci.xyz
 
 - name: Masumi
   repo: https://github.com/masumi-network/masumi-docs.git
@@ -577,15 +581,17 @@
 
 - name: cardano-client-lib
   repo: https://github.com/bloxbean/cardano-client-lib.git
-  docs_path: "."
-  format: markdown
+  # The docs site (cardano-client.dev) is a Next.js app inside this repo and
+  # every page is .mdx under docs/content — a `docs/**/*.md` glob matches none
+  # of it and silently yields a README-only snapshot.
+  docs_path: docs/content
+  format: mdx
   category: sdk
   priority: medium
   glob_patterns:
-    - README.md
-    - "docs/**/*.md"
-    - "examples/**/*.md"
+    - "**/*.mdx"
   description: Java client library by BloxBean
+  website: https://cardano-client.dev
 
 - name: Apollo
   repo: https://github.com/Salvionied/apollo.git

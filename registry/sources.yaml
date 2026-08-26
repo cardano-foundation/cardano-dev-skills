@@ -108,6 +108,30 @@
     - "crates/**/README.md"
   description: Rust implementation of a Cardano node by PRAGMA — alternative to cardano-node, focused on diversification of consensus implementations
 
+# Dingo is pre-production by its own README: testnets and devnets only, not
+# mainnet. Mirrored for the operator, integrator, and embedding surfaces; the
+# `**/doc.go` glob carries each package's overview without its implementation.
+- name: Dingo
+  repo: https://github.com/blinklabs-io/dingo.git
+  docs_path: "."
+  format: go
+  category: infrastructure
+  priority: medium
+  glob_patterns:
+    - README.md
+    - DATABASE.md
+    - GENESIS_SYNC.md
+    - docs/dashboards/README.md
+    - database/plugin/PLUGIN_DEVELOPMENT.md
+    - "examples/**/*.md"
+    - "*.go"
+    - "**/doc.go"
+    - "config/**/*.go"
+    - "topology/**/*.go"
+    - "plugin/**/*.go"
+  description: Cardano node implementation in Go - Ouroboros consensus, tiered storage, and UTxO RPC / Blockfrost-compatible REST / Mesh APIs. Pre-production - testnets and devnets only
+  website: https://github.com/blinklabs-io/dingo
+
 - name: DB-Sync
   repo: https://github.com/IntersectMBO/cardano-db-sync.git
   docs_path: doc

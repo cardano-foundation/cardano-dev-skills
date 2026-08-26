@@ -135,6 +135,7 @@ Go adoption is lower than TypeScript or Python, so expect fewer tutorials and sm
 | **Kupo** | UTxO indexer | Self-hosted |
 | **DB-Sync** | Full chain PostgreSQL | Self-hosted |
 | **Oura** | Event pipeline | Self-hosted |
+| **Dingo** | Go node + UTxORPC/Blockfrost/Mesh APIs (pre-production) | Self-hosted |
 | **Yaci DevKit** | Local devnet | Self-hosted |
 
 **Default recommendation**: Blockfrost for getting started (easy, hosted). Ogmios + Kupo for production self-hosted.

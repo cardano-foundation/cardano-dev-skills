@@ -445,14 +445,19 @@
 
 - name: Plutarch
   repo: https://github.com/Plutonomicon/plutarch-plutus.git
+  # The guide lives in plutarch-docs/src, not docs/ — and Tricks/ moved under it.
+  # The previous `docs/**/*.md` + `Tricks/**/*.md` pair matched nothing, leaving a
+  # README-only snapshot while 70 pages sat upstream. docs_path stays at the repo
+  # root so the upstream README (the only place carrying installation, "Why
+  # Plutarch" and the benchmarks) is not shadowed by the guide's own one-line
+  # README stub — the guide has no install section of its own.
   docs_path: "."
   format: markdown
   category: smart-contracts
   priority: medium
   glob_patterns:
     - README.md
-    - "docs/**/*.md"
-    - "Tricks/**/*.md"
+    - "plutarch-docs/src/**/*.md"
   description: Typed Haskell eDSL for highly optimized UPLC
 
 - name: Scalus
@@ -689,10 +694,14 @@
   format: markdown
   category: sdk
   priority: high
+  # This repo has no docs/ tree and no packages/ dir: the documentation is the
+  # per-package READMEs (core/, react/, html/) alongside the root one. Both
+  # previous tree globs matched nothing. Scoped one level deep on purpose — a
+  # recursive `**/README.md` also pulls in vendored dependency READMEs such as
+  # html/highlight/README.md, which documents Highlight.js, not this library.
   glob_patterns:
     - README.md
-    - "docs/**/*.md"
-    - "packages/**/README.md"
+    - "*/README.md"
   description: Official Cardano Foundation library + React hooks for CIP-30 wallet integration in web dApps
 
 - name: Cardano Addresses

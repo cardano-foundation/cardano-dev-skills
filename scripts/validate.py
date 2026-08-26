@@ -6,10 +6,17 @@ import subprocess
 import sys
 import re
 from pathlib import Path
+from typing import Optional
 
 # Only the skill/registry checks need pyyaml. `--paths-only` must stay
 # runnable on a bare python3 so the refresh workflow can gate on path
 # portability without installing anything.
+#
+# That also means NO PEP-604 (`X | Y`) annotations in this file: they are
+# evaluated at import time, so one of them takes the whole module down before
+# argparse ever sees --paths-only. macOS ships Python 3.9, where this failed
+# with a bare `TypeError: unsupported operand type(s) for |` and no hint that
+# the interpreter, not the repo, was the problem. Use typing.Optional here.
 try:
     import yaml
 except ModuleNotFoundError:
@@ -95,7 +102,7 @@ def warn(msg: str) -> None:
     warnings.append(msg)
 
 
-def parse_frontmatter(path: Path) -> dict | None:
+def parse_frontmatter(path: Path) -> Optional[dict]:
     """Extract YAML frontmatter from a SKILL.md file."""
     text = path.read_text(encoding="utf-8")
     if not text.startswith("---"):

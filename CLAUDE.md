@@ -12,6 +12,36 @@ Community-curated knowledge base for building on Cardano. This repo is a Claude 
 - `docs/DESIGN.md` — architectural decisions
 - `docs/CONTRIBUTING.md` — how to add sources, skills, refresh content, and the source-vetting policy
 
+## Commands
+
+| Purpose | Command | Needs |
+|---|---|---|
+| Validate skills + sources (the CI gate) | `python3 scripts/validate.py` | `pyyaml` |
+| Path-portability check alone | `python3 scripts/validate.py --paths-only` | nothing |
+| Fetch one source after editing its registry entry | `./scripts/fetch-docs.sh --source "Project Name"` | git |
+| Build the site | `cd website && npm ci && npm run build` | Node ≥18.17 |
+| PR policy gate (source vetting, skill naming) | `GITHUB_TOKEN=$(gh auth token) python3 scripts/check-pr-policy.py --base origin/main --head HEAD` | Python 3.10+ |
+| Supply-chain scan of a docs delta | `python3 scripts/scan-docs-delta.py --base origin/main --head HEAD` | Python 3.10+ |
+
+CI pins Python 3.12. `validate.py` deliberately runs on **any** Python 3 — the weekly
+refresh workflow gates on `--paths-only` without installing anything, so that file
+must stay free of PEP-604 (`X | Y`) annotations, which are evaluated at import and
+would take the module down before argparse sees the flag. The other two scripts do
+use them and therefore need 3.10+; on stock macOS (Python 3.9) they fail at import
+with a bare `TypeError`, which looks like a repo problem and is not one. A venv is
+the quickest fix:
+
+```bash
+python3.12 -m venv .venv && .venv/bin/pip install pyyaml   # .venv/ is gitignored
+```
+
+There is no test suite and no linter — `validate.py` is the whole gate, and it is
+what CI runs on every PR touching `skills/`, `registry/`, `scripts/` or `docs/`.
+
+`scripts/fetch-docs.sh` with no `--source` and `scripts/sync-sources.sh` hit the
+network and rewrite the whole vendored corpus. Never run them as a side effect of
+unrelated work.
+
 ## Documentation Sources
 
 The `docs/sources/` directory contains documentation extracted from the Cardano projects listed in `registry/sources.yaml`.

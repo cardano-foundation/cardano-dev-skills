@@ -9,8 +9,14 @@
 # proposes new pins — one commit per source in the refresh PR, so a bad
 # upstream delta can be reverted per source.
 #
-# A source with no entry here (e.g. newly added) fetches its branch tip;
-# the next refresh records its first pin.
+# A newly added source is pinned in the PR that registers it, by running
+# `fetch-docs.sh --source "<name>" --update-pins`. That merges into this
+# file rather than rewriting it, so it touches one line.
+#
+# A source with no entry here falls back to its branch tip. That fallback is
+# a safety net so a missing pin never breaks a fetch — not the intended path
+# for a new source: unpinned content has no recorded provenance, and every
+# fetch re-resolves it to whatever the tip happens to be at the time.
 "Adder": 9abc07b0fe45790f03bb85e2909251659a24117e
 "Aiken": 20b105bcdf4842f31f24e36a2b9b8013670765ff
 "Aiken Design Patterns": dab059406035ed30a9464211822b1e5520d21cfc

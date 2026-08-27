@@ -103,8 +103,12 @@ else
 
   NOW_EPOCH=$(date "+%s" 2>/dev/null || echo 0)
   is_num "${NOW_EPOCH}" || NOW_EPOCH=0
-  TOTAL_SOURCES=$(grep 'total_sources:' "$MANIFEST" 2>/dev/null | head -1 | sed 's/.*: *//')
-  TOTAL_FILES=$(grep 'total_files:' "$MANIFEST" 2>/dev/null | head -1 | sed 's/.*: *//')
+  # Same anchored, non-greedy shape as last_fetched above. These values carry no
+  # colons today, so the old `sed 's/.*: *//'` happened to work — but leaving two
+  # spellings of one job three lines apart invites the next reader to copy the
+  # wrong one, which is how the last_fetched bug survived as long as it did.
+  TOTAL_SOURCES=$(sed -n 's/^total_sources:[[:space:]]*\(.*\)/\1/p' "$MANIFEST" 2>/dev/null | head -1)
+  TOTAL_FILES=$(sed -n 's/^total_files:[[:space:]]*\(.*\)/\1/p' "$MANIFEST" 2>/dev/null | head -1)
 
   # Sanity check. Both values are guaranteed numeric by now, so the arithmetic
   # below cannot hit the unbound-variable path that used to abort the hook.

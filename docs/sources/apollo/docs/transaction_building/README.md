@@ -14,6 +14,26 @@ builder, err = builder.Sign()
 txId, err := builder.Submit()
 ```
 
+## Transaction-body set tags
+
+Apollo preserves its historical Conway body encoding by default: inputs (body
+key 0) are untagged arrays, while collateral, required signers, and reference
+inputs (keys 13, 14, and 18) use CBOR tag 258. Reconstructing hardware-wallet
+APIs commonly expose one set-tag choice for the entire body. Select Apollo's
+uniform untagged policy when the external signer must reproduce the exact body:
+
+```go
+builder := apollo.New(chainContext).
+    SetTransactionBodySetTagPolicy(
+        apollo.TransactionBodySetTagPolicyUntagged,
+    )
+```
+
+The policy applies only to the four set-valued transaction-body fields. It does
+not change witness-set or Plutus-data set tags. Changing the policy changes the
+encoded body, transaction ID, and every signature, so choose it before
+`Complete()` and give reconstructing signers the same choice.
+
 ## Sections in this chapter
 
 - [Inputs and payments](inputs_and_payments.md) — UTxOs, `PayToAddress`,

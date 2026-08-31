@@ -19,23 +19,23 @@
 # fetch re-resolves it to whatever the tip happens to be at the time.
 "Aiken": 20b105bcdf4842f31f24e36a2b9b8013670765ff
 "Aiken Design Patterns": dab059406035ed30a9464211822b1e5520d21cfc
-"Aiken Examples": 5bcde6d225e94587c68287615784ed5f3ceab141
+"Aiken Examples": bd8266cdf59742bcbd419fa31be46ec851b1dd8d
 "Aiken Stdlib": 41f3c823f8d36dc81c285f34c8c6e545e2fffbfd
 "Amaru": b2c72ea4801886811ef2d6b80311069e0d312b7b
 "Apollo": 84fe5a2fc90f093be69c4c28b3e9af0218142ca5
 "Blockfrost OpenAPI": 1ac5c028d7d7bbade7a4b89fec0d58cb11761cbe
 "Buildooor": 7551104ea29d5606c2dd00d17c7ff71a2fe28d29
-"CHaP": 2f7b3284bf0eaad106d5ff275dab9fdae8f1d167
+"CHaP": 4adf68c130b35c1f46fe3d67ab7ac0e1aaa25685
 "CIP-113 Programmable Tokens": 9db7e0629a1509cc9d41d069f0ef0ed251601173
 "CIP-113 Programmable Tokens Platform": e63fa0af433ee39b2069521c2dd7579e1c919f89
 "CIP-113 SDK (TypeScript)": 34ad1cabfccf416460ab795b041e82913f3424c2
 "CIPs": eb4510345f0ce7c014a7d83f85d43e86c537897f
-"Cardano Addresses": 75588b052ead9fcd4925506c95d29b686e28f036
-"Cardano CLI": eefdd5c0a70f88c768371c6860cac8c526161d71
+"Cardano Addresses": 8937164b89044a7e245835282eac7f67b199682c
+"Cardano CLI": b38438fd0977b678c495b9e60e9ef3940dbd6967
 "Cardano Connect with Wallet": 47ceba88338f19b576bf72251e8158a7883a5e45
 "Cardano Docs": bfee08919c6b3bcd484ca86f6e18f4e2e0eaf825
 "Cardano GraphQL": 156356d6f904b32c3b3c3f8e599af98abbd93fa9
-"Cardano Ledger": 15eee8cb0adfe94f8e26a7057b734b85ff8ee94e
+"Cardano Ledger": 9714940b3f6527633ba37e47b93342b882ff7e67
 "Cardano Ledger API Blaster": 5dab3c43f042b8735b6d067223baaa8d32ed28a1
 "Cardano Node Antithesis": 64024b9dfe73e552ae621526829074d74d484f7c
 "Cardano Node Wiki": 2b069655b5cacda7be6c2ac21a4fa159ec6a4c09
@@ -49,8 +49,8 @@
 "Developer Portal": 6a783993d7257c5a3d9e6378734d30b53003ae68
 "Dingo": 92052fdcf92ae219d3a15019dacfc41624341f40
 "Dolos": e7973d40bc93a840f7e6d061cae36c8b4b92cf5f
-"Evolution SDK": 2b6825ffaab4d37b5631708a1f60c10272444a1d
-"Evolution SDK Packages": 2b6825ffaab4d37b5631708a1f60c10272444a1d
+"Evolution SDK": 24b0f8b51eaacca16c84750899a7e98f6ba7487a
+"Evolution SDK Packages": 24b0f8b51eaacca16c84750899a7e98f6ba7487a
 "GovTool": 3284deefb627ce83c70370b797ad3a2636b3e204
 "Helios": 35440c890c128248f64196cd8394f87bf30de58c
 "Hydra": 59737ae56946d1acb57e3c1aa536e1ff3395285d
@@ -64,13 +64,13 @@
 "Ogmios": 435189aea2d9a047dc395a6f1cdef737d52f1cbe
 "OpShin": 870817746fecf13ac7d0bdea99ff3f35702c38ae
 "Oura": 8433b1049b250b1c1ccc174e5ee17d5963effe5c
-"Ouroboros Leios": 4a9867d7177e61cfea0dc6528999f3ab5761d0a6
+"Ouroboros Leios": e8594e1355c0c6d36ebb9886c8c8c47fa946046b
 "Pallas": 6537096b4d03b7388a4ef9f126b92b36de37e1f2
 "Pebble": 9f1ee2edb7d8a9e12093146bf0757118ac957ae1
 "Plinth": c3077e3665ffaea48bee5c7e177eb1cc0082dc75
 "Plutarch": 87e11994c45b6af4768e5b6146d9c94879e279b5
 "PyCardano": 3bc5677d4db6c5e49de11bffd302a7ffe4e6bcff
-"Pyth Lazer Cardano": a64101c9593647bf4700fc3ce3e4ccf68c9b1e32
+"Pyth Lazer Cardano": 465e8dcb5592c57b4909a6cb933d58d6d6b50a43
 "SanchoNet": b4ece78e1552ba4e61426fb4fa53aead0e18da4a
 "Scalus": ea3f939bdc3beb9e7390b4609c46420d3a53c8e6
 "Smart Contract Vulnerabilities": 0fe98a6fc0c08ea6b21361f2d46c5e6a0cd1922a
@@ -82,5 +82,5 @@
 "cardano-client-lib": 25777a012253c6f84e52b9d10006198cdb1a57dd
 "cardano-js-sdk": 0c0e700237ca524d8bd73054e3518fb182d09e46
 "gOuroboros": da9ce36567fbb99126d684131279521f3d5d5c19
-"haskell.nix": 08c78e70d59255bac50c9201efb7b189ef39e393
-"iohk-nix": 9ebcc963cc35bf8ba974a069186dbe101dfdf395
+"haskell.nix": 1c26232859a224d70834f849cd347e2102c0a2fe
+"iohk-nix": af463a46dbe9c6e2db6b2639c0f35f5689e0c3a8

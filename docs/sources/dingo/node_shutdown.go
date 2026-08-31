@@ -87,6 +87,13 @@ func (n *Node) configuredShutdownTimeout() time.Duration {
 }
 
 func (n *Node) shutdown() error {
+	// Run holds this gate until startup has either completed or rolled back.
+	// In particular, a signal can reach Stop while Run is still unwinding a
+	// failed startup; waiting here keeps the phase-ordered shutdown from
+	// concurrently closing a component the startup stack is stopping.
+	n.startupLifecycleMu.Lock()
+	defer n.startupLifecycleMu.Unlock()
+
 	shutdownStart := time.Now()
 	shutdownTimeout := n.configuredShutdownTimeout()
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
@@ -277,6 +284,7 @@ func (n *Node) shutdown() error {
 	// Phase 3: Flush state and close database
 	n.config.logger.Info("shutdown phase 3: flushing state")
 	phase3Start := time.Now()
+	ledgerStateDrainConfirmed := true
 
 	if n.ledgerState != nil {
 		n.config.logger.Info("closing ledger state")
@@ -286,6 +294,7 @@ func (n *Node) shutdown() error {
 			shutdownTimeout,
 			n.ledgerState.Close,
 		); closeErr != nil {
+			ledgerStateDrainConfirmed = false
 			err = errors.Join(
 				err,
 				fmt.Errorf("ledger state close: %w", closeErr),
@@ -317,21 +326,37 @@ func (n *Node) shutdown() error {
 	}
 
 	if n.db != nil {
-		n.config.logger.Info("closing database")
-		if closeErr := n.closeWithShutdownTimeout(
-			ctx,
-			"database",
-			shutdownTimeout,
-			n.db.Close,
-		); closeErr != nil {
+		if !ledgerStateDrainConfirmed {
+			n.config.logger.Error(
+				"skipping database close because ledger state drain was not confirmed",
+			)
 			err = errors.Join(
 				err,
-				fmt.Errorf("database close: %w", closeErr),
+				errors.New(
+					"database close skipped: ledger state drain unconfirmed",
+				),
 			)
+		} else {
+			n.config.logger.Info("closing database")
+			if closeErr := n.closeWithShutdownTimeout(
+				ctx,
+				"database",
+				shutdownTimeout,
+				n.db.Close,
+			); closeErr != nil {
+				err = errors.Join(
+					err,
+					fmt.Errorf("database close: %w", closeErr),
+				)
+			}
 		}
 	}
 	if n.pluginHost != nil {
-		if stopErr := n.pluginHost.Stop(ctx); stopErr != nil {
+		if !ledgerStateDrainConfirmed {
+			n.config.logger.Error(
+				"skipping plugin host shutdown because ledger state drain was not confirmed",
+			)
+		} else if stopErr := n.pluginHost.Stop(ctx); stopErr != nil {
 			err = errors.Join(
 				err,
 				fmt.Errorf("plugin host shutdown: %w", stopErr),

@@ -122,6 +122,7 @@ Dolos provides many, but not all of the Blockfrost endpoints. The following list
 | `/assets/{subject}`                        | Get asset information                                    |
 | `/assets/{subject}/addresses`              | Get addresses holding a specific asset                   |
 | `/assets/{subject}/transactions`           | Get transactions involving a specific asset              |
+| `/assets/{subject}/txs`                    | Alias of `/assets/{subject}/transactions` (hashes only)  |
 | `/blocks/latest`                           | Get latest block information                             |
 | `/blocks/latest/txs`                       | Get transactions for the latest block                    |
 | `/blocks/latest/txs/cbor`                  | Get transactions with CBOR data for the latest block     |
@@ -144,6 +145,7 @@ Dolos provides many, but not all of the Blockfrost endpoints. The following list
 | `/epochs/{epoch}/stakes/{pool_id}`         | Get epoch stake distribution for a specific pool         |
 | `/genesis`                                 | Get genesis information                                  |
 | `/governance/dreps/{drep_id}`              | Get DRep information                                     |
+| `/governance/proposals`                    | Get list of governance proposals                         |
 | `/metadata/txs/labels/{label}`             | Get metadata for transactions with a specific label      |
 | `/metadata/txs/labels/{label}/cbor`        | Get CBOR metadata for transactions with a specific label |
 | `/network`                                 | Get network information                                  |

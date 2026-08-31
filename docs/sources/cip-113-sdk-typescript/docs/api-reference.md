@@ -33,9 +33,9 @@ const protocol = CIP113.init({
 | Method | Description |
 |--------|-------------|
 | `compliance.init(substandardId, params)` | Initialize compliance infrastructure |
-| `compliance.freeze(params)` | Add address to blacklist |
-| `compliance.unfreeze(params)` | Remove address from blacklist |
-| `compliance.seize(params)` | Seize tokens from frozen address |
+| `compliance.freeze(params)` | Add address to blacklist. **`params.substandardId` is required** — no try-all fallback |
+| `compliance.unfreeze(params)` | Remove address from blacklist. **`params.substandardId` is required** — no try-all fallback |
+| `compliance.seize(params)` | Seize tokens from frozen address. **`params.substandardId` is required** — no try-all fallback |
 
 ### Runtime
 
@@ -259,3 +259,35 @@ const blacklistMint = scripts.buildBlacklistMint(txInput, adminPkh);
 | `EvoAssets` | Assets module |
 | `EvoTransactionHash` | TransactionHash module |
 | `EvoData` | Plutus Data module |
+
+## Third-party transfers: the output layout is the contract
+
+`thirdPartyTransfer` moves a holder's tokens **without the holder's signature**. It takes a
+different on-chain route from `transfer`: `programmable_logic_base` dispatches via
+`SpendViaThirdParty` to the standalone `third_party` validator, so a third-party transaction never
+loads the `transfer` reference script at all. The two paths share no redeemer.
+
+**The rule that is easy to get backwards**, and which fails with **no diagnostic at all** if you do:
+
+`third_party` walks programmable inputs and outputs **in lockstep**. For each input at the
+programmable-logic-base credential it takes the *next* output and requires that output to preserve
+the input's **address, datum and reference script**, with lovelace only ratcheting **up**. The
+amount seized is the **delta** between the pair.
+
+**So the destination — where the seized tokens actually go — cannot be one of those paired outputs.**
+It must sit among the *leading* outputs that `outputs_start_idx` tells the validator to skip; their
+tokens are still counted in the conservation check, but they are exempt from the pairing rule.
+
+```
+outputs[0 .. outputs_start_idx-1]   destinations   (skipped; tokens still counted)
+outputs[outputs_start_idx .. ]      one continuation per spent input, IN LEDGER ORDER
+```
+
+Two things follow that are not obvious:
+
+- **Continuations must be in LEDGER input order**, not the order you added them. The ledger sorts
+  inputs by `(tx id, index)`; the validator walks that order, so the outputs must match it.
+- **Getting the layout wrong encodes cleanly, submits, and dies at script evaluation with an EMPTY
+  TRACE LIST.** There is no message naming the layout, because the failure is a structural
+  `expect`, not a traced check. If you see an empty trace from `third_party`, suspect the pairing
+  before anything else.

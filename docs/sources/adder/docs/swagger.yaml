@@ -1,0 +1,170 @@
+basePath: /
+definitions:
+  push.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  push.TokenRequest:
+    properties:
+      fcmToken:
+        type: string
+    required:
+    - fcmToken
+    type: object
+  push.TokenResponse:
+    properties:
+      fcmToken:
+        type: string
+    type: object
+info:
+  contact:
+    email: support@blinklabs.io
+    name: Blink Labs
+    url: https://blinklabs.io
+  description: Adder API
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  title: Adder API
+  version: v1
+paths:
+  /events:
+    get:
+      description: Real-time pipeline event streaming. Automatically upgrades to WebSocket
+        if requested by the client, otherwise falls back to Server-Sent Events (SSE).
+        Supports filtering on event types.
+      parameters:
+      - description: Comma-separated list of event types to filter (e.g., input.block,input.transaction)
+        in: query
+        name: types
+        type: string
+      - default: true
+        description: Whether to replay recent events from the ring buffer on connection
+        in: query
+        name: replay
+        type: boolean
+      produces:
+      - text/event-stream
+      - application/json
+      responses:
+        "200":
+          description: Event Stream (SSE) or WebSocket Session
+          schema:
+            type: string
+      summary: Stream Blockchain Events
+  /healthcheck:
+    get:
+      description: Reports the health status of the running pipeline and registered
+        checkers. Returns 503 if any registered checker is unhealthy.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Healthy status response
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable response
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Healthcheck Endpoint
+  /ping:
+    get:
+      description: Returns a simple "pong" response to verify the API server is alive
+        and reachable.
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: pong
+          schema:
+            type: string
+      summary: Ping Endpoint
+  /v1/fcm:
+    post:
+      consumes:
+      - application/json
+      description: Store a new FCM token
+      parameters:
+      - description: FCM Token Request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/push.TokenRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/push.ErrorResponse'
+      summary: Store FCM Token
+  /v1/fcm/{token}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an FCM token by its value
+      parameters:
+      - description: FCM Token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/push.ErrorResponse'
+      summary: Delete FCM Token
+    get:
+      consumes:
+      - application/json
+      description: Get an FCM token by its value
+      parameters:
+      - description: FCM Token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/push.TokenResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/push.ErrorResponse'
+      summary: Get FCM Token
+  /v1/qrcode:
+    get:
+      description: Generates an interactive HTML page containing a QR code representing
+        the local API FCM endpoint. Used by the Adder Tray desktop application during
+        onboarding setup.
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: Interactive HTML Onboarding Page
+          schema:
+            type: string
+      summary: Generate QR Setup Page
+schemes:
+- http
+swagger: "2.0"

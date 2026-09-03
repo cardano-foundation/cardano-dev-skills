@@ -17,6 +17,7 @@
 # a safety net so a missing pin never breaks a fetch — not the intended path
 # for a new source: unpinned content has no recorded provenance, and every
 # fetch re-resolves it to whatever the tip happens to be at the time.
+"Adder": 9abc07b0fe45790f03bb85e2909251659a24117e
 "Aiken": 20b105bcdf4842f31f24e36a2b9b8013670765ff
 "Aiken BLS Signatures": 31fe5e6e0a1fa262c2d61579a41dae4cedf4eb61
 "Aiken Design Patterns": dab059406035ed30a9464211822b1e5520d21cfc

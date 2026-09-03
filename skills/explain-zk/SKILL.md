@@ -199,7 +199,8 @@ system, library, or figure that you have verified yourself over one described fr
 
 - `references/proof-systems.md` — SNARK verification: proof systems, the Groth16 shape, the pipeline, costs
 - `references/bls-primitives.md` — signatures + aggregation, VRF, KDF, and BBS+ credentials
-- Bundled: `docs/sources/developer-portal/.../smart-contracts/advanced/zero-knowledge.md` (landscape + app catalog),
+- Bundled: `docs/sources/developer-portal/developers/curriculum/smart-contracts/advanced/zero-knowledge.md`
+  (landscape + app catalog),
   `docs/sources/aiken-stdlib/aiken/crypto/bls12_381/` (the API), `docs/sources/cips/` (CIP-0381 / 0133 / 0109)
 - Named verifier and BLS libraries: the ZK/BLS section of `suggest-tooling` (ecosystem map)
 - Shared principles: `../shared/PRINCIPLES.md`

@@ -43,6 +43,7 @@ End result: the agent answers from current, project-authoritative sources instea
 | `governance-guide` | CIP-1694 governance, DRep, voting, treasury |
 | `explain-eutxo` | Cardano's UTxO model for newcomers |
 | `explain-cip` | Walk through a specific CIP |
+| `explain-zk` | Zero-knowledge and the BLS12-381 primitive family (proofs, signatures, VRF, KDF, BBS+) |
 | `suggest-tooling` | Recommend an SDK / framework given the use case |
 | `suggest-scalability` | Decide if a project needs L2, which approach, and which Hydra topology |
 

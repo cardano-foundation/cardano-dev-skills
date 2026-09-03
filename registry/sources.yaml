@@ -368,6 +368,49 @@
     - "**/*.ak"
   description: Aiken standard library - list, option, transaction helpers
 
+- name: Aiken BLS Signatures
+  repo: https://github.com/ilap/bls.git
+  docs_path: "."
+  format: aiken
+  format_overrides:
+    "**/*.md": markdown
+  category: smart-contracts
+  priority: medium
+  glob_patterns:
+    - README.md
+    - "lib/**/*.ak"
+  description: Aiken BLS12-381 signature library implementing the IETF draft (basic, augmented, proof-of-possession modes)
+
+- name: BLS12-381 Examples and Standards
+  repo: https://github.com/cardano-foundation/bls.git
+  docs_path: "."
+  format: markdown
+  format_overrides:
+    "**/*.ak": aiken
+  category: smart-contracts
+  priority: high
+  glob_patterns:
+    - README.md
+    - "tutorials/**/*.md"
+    - "standards/*.txt"
+    - "aiken/**/*.ak"
+  description: BLS12-381 tutorials, the IETF BLS signature and pairing-curve drafts, HKDF/PBKDF2/VRF RFCs, and Aiken examples for Groth16, KDF, VRF, and signature aggregation
+
+- name: Aiken ZKP Verifiers
+  repo: https://github.com/ADAOcommunity/zk.git
+  docs_path: "."
+  format: markdown
+  format_overrides:
+    "**/*.ak": aiken
+  category: smart-contracts
+  priority: medium
+  glob_patterns:
+    - README.md
+    - specification.md
+    - "zkp/docs/*.md"
+    - "zkp/lib/**/*.ak"
+  description: ADAO's Aiken ZKP verifier library — Groth16, PLONK, and Bulletproofs verifiers for Plutus V3, with protocol walkthroughs and on-chain verification tests
+
 - name: Aiken Examples
   repo: https://github.com/aiken-lang/aiken.git
   docs_path: examples

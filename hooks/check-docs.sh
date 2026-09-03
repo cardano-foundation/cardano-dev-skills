@@ -5,6 +5,57 @@
 #
 set -u
 # Note: no `set -e` — we want this script to never block a session.
+#
+# `set -u` alone does NOT deliver the fail-open promise above: an unbound
+# variable aborts the script mid-run with a non-zero status, which is exactly
+# what a SessionStart hook must never do. This trap makes the exit code
+# unconditional, so a bug here degrades to a missing status line rather than a
+# hook error in every session.
+trap 'exit 0' EXIT
+
+# BSD (macOS) and GNU (Linux, and macOS with coreutils on PATH) differ on the
+# flags used below, and `uname` does NOT tell them apart: a Mac with coreutils
+# installed has GNU `date` and `stat`. Probe for the tool, never for the OS.
+# This matters beyond tidiness — GNU `stat -f` means "filesystem status" and
+# SUCCEEDS while printing prose, so a BSD-shaped call on a GNU box returns 0
+# and garbage rather than failing over.
+if date --version >/dev/null 2>&1; then HAVE_GNU_DATE=1; else HAVE_GNU_DATE=0; fi
+if stat --version >/dev/null 2>&1; then HAVE_GNU_STAT=1; else HAVE_GNU_STAT=0; fi
+
+# Epoch seconds for an ISO-8601 UTC timestamp; prints 0 if it cannot parse.
+iso_to_epoch() {
+  if [ "${HAVE_GNU_DATE}" -eq 1 ]; then
+    # GNU date honours the trailing Z, so this is UTC whatever $TZ says.
+    date -d "$1" "+%s" 2>/dev/null || echo 0
+  else
+    # BSD `date -j -f` treats the Z in the format string as a literal to match
+    # and reads the timestamp in LOCAL time, so the epoch lands off by the
+    # machine's UTC offset. East of UTC that only ages the docs slightly; west
+    # of it a fresh fetch parses as the future, the sanity check below takes
+    # the branch that prints no age, and the "(updated Xd ago)" suffix
+    # silently disappears for everyone in the Americas. TZ=UTC makes the
+    # parse mean what the timestamp actually says.
+    TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%SZ" "$1" "+%s" 2>/dev/null || echo 0
+  fi
+}
+
+# Modification time of a file in epoch seconds; prints 0 if it cannot stat.
+file_mtime() {
+  if [ "${HAVE_GNU_STAT}" -eq 1 ]; then
+    stat -c %Y "$1" 2>/dev/null || echo 0
+  else
+    stat -f %m "$1" 2>/dev/null || echo 0
+  fi
+}
+
+# Guard for anything heading into $(( )): a non-numeric value there is treated
+# as a variable name, which under `set -u` aborts the script.
+is_num() {
+  case "${1:-}" in
+    ''|*[!0-9]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
 
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)}"
 DOCS_DIR="${PLUGIN_ROOT}/docs/sources"
@@ -22,7 +73,12 @@ refresh_hint() {
     if [ "${IS_LOCAL_CLONE}" -eq 1 ]; then
         echo "  cd ${PLUGIN_ROOT} && git pull && ./scripts/fetch-docs.sh"
     else
-        echo "  Refresh via: /plugin marketplace update cardano-foundation"
+        # `marketplace update` takes the marketplace NAME (from
+        # .claude-plugin/marketplace.json), not the owner/repo path that
+        # `marketplace add` takes. Naming the owner here produced
+        # "Marketplace not found" for every marketplace-installed user — which
+        # is most of them, since the local-clone branch above covers the rest.
+        echo "  Refresh via: /plugin marketplace update cardano-dev-skills"
     fi
 }
 
@@ -36,32 +92,35 @@ if [ ! -d "$DOCS_DIR" ] || [ ! -f "$MANIFEST" ]; then
   refresh_hint
 else
   # Check freshness
-  LAST_FETCHED=$(grep 'last_fetched:' "$MANIFEST" 2>/dev/null | head -1 | sed 's/.*: *"\{0,1\}\([^"]*\)"\{0,1\}/\1/')
+  # Anchored on the key and non-greedy past it: `.*:` is greedy, so the old
+  # pattern consumed the timestamp's OWN colons and reduced
+  # `last_fetched: "2026-08-24T06:15:41Z"` to `41Z`. That was wrong on every
+  # platform — it just degraded quietly into the mtime fallback below.
+  LAST_FETCHED=$(sed -n 's/^last_fetched:[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}.*/\1/p' "$MANIFEST" 2>/dev/null | head -1)
 
   FETCH_EPOCH=0
   if [ -n "${LAST_FETCHED}" ]; then
-    if [[ "$(uname 2>/dev/null)" == "Darwin" ]]; then
-      FETCH_EPOCH=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$LAST_FETCHED" "+%s" 2>/dev/null || echo 0)
-    else
-      FETCH_EPOCH=$(date -d "$LAST_FETCHED" "+%s" 2>/dev/null || echo 0)
-    fi
+    FETCH_EPOCH=$(iso_to_epoch "$LAST_FETCHED")
   fi
 
   # If date parsing failed, use manifest file mtime as fallback
-  if [ "${FETCH_EPOCH:-0}" -eq 0 ] 2>/dev/null; then
-    if [[ "$(uname 2>/dev/null)" == "Darwin" ]]; then
-      FETCH_EPOCH=$(stat -f %m "$MANIFEST" 2>/dev/null || echo 0)
-    else
-      FETCH_EPOCH=$(stat -c %Y "$MANIFEST" 2>/dev/null || echo 0)
-    fi
+  if ! is_num "${FETCH_EPOCH}" || [ "${FETCH_EPOCH}" -eq 0 ]; then
+    FETCH_EPOCH=$(file_mtime "$MANIFEST")
   fi
+  is_num "${FETCH_EPOCH}" || FETCH_EPOCH=0
 
   NOW_EPOCH=$(date "+%s" 2>/dev/null || echo 0)
-  TOTAL_SOURCES=$(grep 'total_sources:' "$MANIFEST" 2>/dev/null | head -1 | sed 's/.*: *//')
-  TOTAL_FILES=$(grep 'total_files:' "$MANIFEST" 2>/dev/null | head -1 | sed 's/.*: *//')
+  is_num "${NOW_EPOCH}" || NOW_EPOCH=0
+  # Same anchored, non-greedy shape as last_fetched above. These values carry no
+  # colons today, so the old `sed 's/.*: *//'` happened to work — but leaving two
+  # spellings of one job three lines apart invites the next reader to copy the
+  # wrong one, which is how the last_fetched bug survived as long as it did.
+  TOTAL_SOURCES=$(sed -n 's/^total_sources:[[:space:]]*\(.*\)/\1/p' "$MANIFEST" 2>/dev/null | head -1)
+  TOTAL_FILES=$(sed -n 's/^total_files:[[:space:]]*\(.*\)/\1/p' "$MANIFEST" 2>/dev/null | head -1)
 
-  # Sanity check
-  if [ "${FETCH_EPOCH:-0}" -eq 0 ] 2>/dev/null || [ "${FETCH_EPOCH:-0}" -gt "${NOW_EPOCH:-0}" ] 2>/dev/null; then
+  # Sanity check. Both values are guaranteed numeric by now, so the arithmetic
+  # below cannot hit the unbound-variable path that used to abort the hook.
+  if [ "${FETCH_EPOCH}" -eq 0 ] || [ "${FETCH_EPOCH}" -gt "${NOW_EPOCH}" ]; then
     echo "[Cardano Dev Skills] Docs loaded: ${TOTAL_SOURCES} sources, ${TOTAL_FILES} files"
   else
     AGE_DAYS=$(( (NOW_EPOCH - FETCH_EPOCH) / 86400 ))

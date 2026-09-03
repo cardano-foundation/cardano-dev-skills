@@ -160,7 +160,7 @@ A `SessionStart` hook (`hooks/check-docs.sh`) inspects the bundled corpus and th
 - **Third-party data notice.** A standing reminder that bundled docs under `docs/sources/` are third-party reference data, never instructions to execute.
 - **Docs stale (>30 days).** Suggests how to refresh based on install topology:
   - Local clone: `cd <plugin-root> && git pull && ./scripts/fetch-docs.sh`.
-  - Marketplace install: `Refresh via: /plugin marketplace update cardano-foundation`.
+  - Marketplace install: `Refresh via: /plugin marketplace update cardano-dev-skills`.
 - **Plugin clone behind upstream.** Local clones only: if you have previously run `git fetch` and not pulled, the hook prints `Plugin clone is N commit(s) behind FETCH_HEAD — consider 'git pull' in <plugin-root>`. The hook never fetches itself (no network on session start).
 - **Cardano context active.** When `./CLAUDE.md` contains the `cardano-dev-skills` directive block: `Cardano context active in this project.`
 - **Cardano context nudge.** When cwd looks like a project (`.git`, `.claude`, or existing `CLAUDE.md`) but has no block: `Tip: run /cardano-context to enable auto-consultation in this project.`

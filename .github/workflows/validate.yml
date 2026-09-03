@@ -10,6 +10,10 @@ on:
       - "registry/**"
       - "scripts/**"
       - "docs/**"
+      # hooks/** runs on every user's machine at SessionStart, and had no gate
+      # at all until its tests landed: PRs touching only hooks/ reported zero
+      # checks.
+      - "hooks/**"
   push:
     branches: [main]
     paths:
@@ -17,6 +21,10 @@ on:
       - "registry/**"
       - "scripts/**"
       - "docs/**"
+      # hooks/** runs on every user's machine at SessionStart, and had no gate
+      # at all until its tests landed: PRs touching only hooks/ reported zero
+      # checks.
+      - "hooks/**"
 
 jobs:
   validate:
@@ -33,3 +41,8 @@ jobs:
 
       - name: Validate skills and sources
         run: python scripts/validate.py
+
+      # Runs in the existing job on purpose — it needs no Python, no network and
+      # under a second, so it does not warrant a fourth workflow.
+      - name: Test SessionStart hook
+        run: ./hooks/test-check-docs.sh

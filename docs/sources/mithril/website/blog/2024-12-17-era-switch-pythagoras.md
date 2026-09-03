@@ -9,13 +9,13 @@ tags: [era, switch, thales, pythagoras]
 
 We have introduced the **Pythagoras era** in the Mithril networks. The switch to `Pythagoras` is a significant milestone that brings new features and improvements to the Mithril protocol.
 
-:::info Update 2025/02/09
+:::info[Update 2025/02/09]
 
 The `release-mainnet` network has succesfully switched to the `Pythagoras` era at epoch `539`!
 
 :::
 
-:::info Update 2025/01/31
+:::info[Update 2025/01/31]
 
 The transaction to activate the era switch to `Pythagoras` has been created on the `release-mainnet` network at epoch `537`.
 The era switch will be completed at the transition to epoch `539`.
@@ -39,7 +39,7 @@ All other versions are **not** compatible with the new era and must be updated.
 You can easily update your Mithril signer with this one-line command (it will be downloaded to the current directory by default; you can specify a custom folder with the `-p` option):
 
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/input-output-hk/mithril/refs/heads/main/mithril-install.sh | sh -s -- -c mithril-signer -d latest -p $(pwd)
+curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/input-output-hk/mithril/refs/heads/main/mithril-install.sh | sh -s -- -c mithril-signer -d latest -p "$(pwd)"
 ```
 
 :::

@@ -11,43 +11,6 @@ They are executed via `cargo test`.
 
 [Property testing](https://github.com/proptest-rs/proptest) is used to improve unit testing.
 
-### Traces testing
-
-OpenTelemetry and JSON traces should be treated as part of the external API.
-
-Use the trace compatibility checker to compare a known-good baseline run against a newer run:
-
-```
-make compare-trace-contract
-```
-
-For a local terminal-oriented compare run with the compact summary and latency bars:
-
-```
-make compare-trace-contract TRACE_COMPARE_SUMMARY_FILE=/dev/stdout
-```
-
-To refresh the checked-in run-until baseline for the current network, run:
-
-```
-make update-trace-contract
-```
-
-When `AMARU_TRACE=amaru=trace` is set, `make run-until` emits normalized trace JSONL on stdout,
-and `make update-trace-contract` compacts that run into a small contract JSON snapshot.
-When run locally, `make update-trace-contract` also prints a terminal-friendly summary with
-compact sections and latency bars for the refreshed contract.
-
-The lower-level comparison command remains available when needed:
-
-```
-node scripts/compare-traces contract.json candidate.log
-```
-
-CI compares the short traced preprod run output against a checked-in compact contract at
-`data/<network>/run-until-trace-contract.json` when that file exists.
-If no contract file is present for the current network, the trace contract check is skipped.
-
 ## End-to-end ledger state tests
 
 ### Running
@@ -55,8 +18,10 @@ If no contract file is present for the current network, the trace contract check
 To run Amaru until a target epoch, use:
 
 ```
-make RUN_UNTIL_TARGET_EPOCH=999 AMARU_MAX_EXTRA_LEDGER_SNAPSHOTS=all run-until
+./scripts/run-until release --epoch 999
 ```
+
+To run for a number of epochs from the ledger database's current starting epoch, use `--epochs 10` instead.
 
 Note that this requires a trace severity of at least INFO since the detection of the target is based on the traces.
 

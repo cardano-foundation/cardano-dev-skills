@@ -33,7 +33,7 @@ The system consists of three main components: signers, aggregators, and clients.
 
 - **Mithril signers** certify Cardano chain data by using a Mithril signing key. They must have access to both a trusted `cardano-node` and the Mithril signing key to operate.
 - **Mithril signing keys** are rotated every epoch and require certification by the Cardano KES key. Therefore, Mithril signers must have access to the KES key to register a signing key for each epoch.
-- **Cardano KES keys** are also used by the block-producing `cardano-node` and are typically located on the same machine that produces blocks. These keys must be evolved every 36 hours, although they can be rotated from a root key when needed. For more details, see [KES period documentation](https://github.com/input-output-hk/cardano-node-wiki/blob/main/docs/stake-pool-operations/7_KES_period.md).
+- **Cardano KES keys** are also used by the block-producing `cardano-node` and are typically located on the same machine that produces blocks. These keys must be evolved every 36 hours, although they can be rotated from a root key when needed. For more details, see [KES period documentation](https://github.com/IntersectMBO/cardano-node-wiki/blob/main/docs/stake-pool-operations/7_KES_period.md).
 
 :::info To do
 
@@ -114,11 +114,12 @@ For each asset, we first identify which part of the **CIA triad** (Confidentiali
 - The KES key is present only on the block-producing (BP) node but needs to be shared with both the `cardano-node` process and the `mithril-signer` process.
 - KES keys are needed by `mithril-signer` to sign a verification key along with an operational certificate that authenticates the key for this stake pool ID.
 - This signing happens at every epoch.
+
   - **Confidentiality**: Yes  
     Capturing KES private keys allows an attacker to impersonate a registered SPO on-chain and produce blocks on its behalf until the keys are rotated.
 
   - **Integrity**: Yes  
-    Rotating a compromised KES key is a time-consuming process that can be carried out even if the associated KES period has not fully passed. See [KES period docs](https://github.com/input-output-hk/cardano-node-wiki/blob/main/docs/stake-pool-operations/7_KES_period.md).
+    Rotating a compromised KES key is a time-consuming process that can be carried out even if the associated KES period has not fully passed. See [KES period docs](https://github.com/IntersectMBO/cardano-node-wiki/blob/main/docs/stake-pool-operations/7_KES_period.md).
 
   - **Availability**: Yes  
     If the KES key is unavailable, signing cannot proceed.
@@ -324,6 +325,7 @@ A DoS on the `mithril-aggregator`.
 Data integrity of the Cardano block producer’s on-disk database could be compromised either by the action of the Mithril signer or by an attacker with access to the signer.
 
 - **Assets at risk**:
+
   - [Block production](#block-production)
   - [Cardano chain database](#cardano-chain-database).
 

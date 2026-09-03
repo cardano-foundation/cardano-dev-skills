@@ -84,7 +84,20 @@ If a check misfires (e.g. a legitimately-named skill trips the brand heuristic),
   #   "**/*.yaml": openapi
 ```
 
-**Valid `format` values:** `markdown`, `mdx`, `rst`, `openapi`, `aiken`, `python`, `toml`
+**Valid `format` values:** `markdown`, `mdx`, `rst`, `openapi`, `aiken`, `python`, `toml`, `go`
+
+`python` and `go` mirror source files rather than prose, so agents read the API
+reference out of docstrings and doc comments. For those, scope `glob_patterns`
+to the importable public surface — Go's `internal/` cannot be imported by
+consumers, and `cmd/` holds CLI entry points, so neither belongs in a mirror.
+Test files and `testdata/` fixture directories are dropped automatically
+(`SKIP_FILE_SUFFIXES` and `SKIP_DIRS` in `scripts/_fetch_docs.py`), since
+`glob_patterns` is include-only and cannot express an exclusion.
+
+Never mirror an upstream `AGENTS.md` or `CLAUDE.md`. Bundled docs are read by
+agents on every consumer's machine, so upstream agent instructions are an
+injection vector; enumerate the markdown you want instead of globbing `*.md` at
+a repo root.
 
 **Valid `category` values:** `infrastructure`, `smart-contracts`, `sdk`, `standards`, `governance`, `scaling`, `testing`, `oracles`
 
@@ -96,13 +109,20 @@ If you need a new category or format, propose it in the PR — both are checked 
 python3 scripts/validate.py
 ```
 
-### 4. Fetch and verify locally
+### 4. Fetch and pin locally
 
 ```bash
-./scripts/fetch-docs.sh --source "Project Name"
+./scripts/fetch-docs.sh --source "Project Name" --update-pins
 ```
 
 Check that files were actually pulled (`docs/sources/<slug>/`) and that the count looks right.
+
+`--update-pins` records the upstream commit in `registry/pins.yaml`, and **a new source is
+pinned in the PR that registers it**. The pin is the only record of which upstream commit
+the mirrored content came from; without one the source re-resolves to whatever the branch
+tip is at fetch time, so what a reviewer approved and what later ships are not guaranteed
+to match. Despite the "auto-generated" banner, `--update-pins` merges into the file rather
+than rewriting it — a per-source run touches one line and leaves the others alone.
 
 ### 5. Open a PR
 
@@ -179,10 +199,9 @@ Instructions...
 
 ```bash
 python3 scripts/validate.py
-./scripts/update-doc-counts.sh    # refresh counts in README/CLAUDE
 ```
 
-Open a PR. CI runs validation + count-drift check.
+Open a PR. CI runs validation and the PR policy checks.
 
 ## Verifying executable claims
 
@@ -200,7 +219,7 @@ Docs (`CLAUDE.md`, `README.md`, `docs/DESIGN.md`, `docs/CONTRIBUTING.md`) must r
 | Change | Update these docs |
 |---|---|
 | New skill | README.md skills table; DESIGN.md if it changes the skill graph. Pages site skills catalog auto-regenerates on build. |
-| New source | Run `scripts/update-doc-counts.sh`; CONTRIBUTING.md only if introducing a new category or format. Pages site sources catalog auto-regenerates on build. |
+| New source | CONTRIBUTING.md only if introducing a new category or format. Pages site sources catalog auto-regenerates on build. |
 | New schema field | `registry/sources.yaml` header comment; CONTRIBUTING.md valid-values lists; DESIGN.md if architectural |
 | New script in `scripts/` | README.md if user-facing |
 | New hook | README.md "How to set the Cardano context" section; CLAUDE.md repo structure; `website/src/content/docs/how-it-works.md` |
@@ -212,15 +231,11 @@ Docs (`CLAUDE.md`, `README.md`, `docs/DESIGN.md`, `docs/CONTRIBUTING.md`) must r
 
 Pure internal tweaks (refactor a script, fix a typo in a skill body) don't trigger doc updates.
 
-### Auto-derived counts
-
-`scripts/update-doc-counts.sh` rewrites sentinels in CLAUDE.md and README.md from disk state. Sentinels look like `<!-- COUNT:skills -->15<!-- /COUNT:skills -->`. Run before pushing — CI runs `--check` and fails PRs on drift.
-
 ## Refreshing content
 
 The weekly workflow (`.github/workflows/refresh-docs.yml`) runs every Monday at 06:00 UTC, fetches every source's upstream branch tip, and opens a PR labeled `documentation, automated` with **one commit per changed source** (doc files + that source's line in `registry/pins.yaml` together), so a bad upstream delta can be reverted per source with a single `git revert`.
 
-Outside the weekly refresh, `fetch-docs.sh` checks out the **pinned commit** recorded in `registry/pins.yaml` — not the branch tip — so what ships is exactly what passed refresh-PR screening. Pins are auto-generated; never edit them by hand.
+Outside the weekly refresh, `fetch-docs.sh` checks out the **pinned commit** recorded in `registry/pins.yaml` — not the branch tip — so what ships is exactly what passed refresh-PR screening. Never hand-edit a pin: write it with `--update-pins` so the recorded sha and the fetched content always agree. A source with no pin falls back to its branch tip; that fallback keeps a fetch working, but it is not a substitute for pinning a source when you register it (see step 4).
 
 ### Supply-chain screening
 
@@ -231,6 +246,18 @@ Bundled docs are read by AI agents on every consumer's machine, so every change 
 3. **Advisory AI docs-delta review** (PR Policy workflow, rubric in `.github/docs-delta-review-prompt.md`): a non-agentic model call classifies each source's delta as plausible maintenance vs injection/poisoning and posts a sticky per-source verdict table. Advisory — it informs the human decision, never replaces it.
 
 A maintainer merges the refresh PR when the scan is green and the review raises nothing that needs a closer look. Run the scanner locally with `python3 scripts/scan-docs-delta.py --base origin/main`.
+
+### Path portability
+
+git aborts the **entire** checkout when a tree contains a path Windows cannot create — not just the offending file — so one badly named upstream doc locks every Windows user out of the repo. Upstream wiki exports hit this routinely (a page titled `cardano-node and DataPoints: demo` becomes a filename with a colon).
+
+`scripts/_fetch_docs.py` normalizes fetched paths per component: `< > : " | ? * \` and control characters become `-`, trailing dots/spaces are stripped, reserved device names (`CON`, `NUL`, `COM1`…) get a `_` prefix, and a name that collides with one already taken — including case-only duplicates, which a case-insensitive Windows filesystem cannot distinguish — gets a `-2`, `-3` suffix. Renames are printed as `RENAMED <source>: <old> -> <new>`.
+
+Backslash is in that set because it is a legal filename character on POSIX but a path separator on Windows — an upstream `notes\draft.md` breaks the checkout exactly like a colon does, while looking harmless in a Linux-side review.
+
+`scripts/validate.py` re-checks every tracked path and fails the build on a violation. It is the backstop for hand-added files; the refresh workflow also runs it inline as `--paths-only`, because a PR opened with `GITHUB_TOKEN` never triggers the `pull_request` validate workflow. `--paths-only` skips the skill and registry checks (a docs refresh must not be blocked by an unrelated skill error) and is stdlib-only, so that job needs no `setup-python` or `pip install`.
+
+Files added by hand must satisfy the same rules. Path length is checked too, as a warning above 200 characters — Windows' default `MAX_PATH` is 260 including the clone directory.
 
 To trigger manually:
 

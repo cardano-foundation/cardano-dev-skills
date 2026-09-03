@@ -99,10 +99,12 @@ Note that this guide works only on a Linux machine.
 :::
 
 - To operate a **Cardano node** as a **stake pool**, you need:
+
   - The pool's `operational certificate`
   - The pool's `KES secret key`
 
 - To access the file system of the **Cardano block-producing** node for **production** deployment (or of the **Cardano relay** node for **naive** deployment), you will need the following permissions:
+
   - Read rights on the `Database` folder (specified by the `--database-path` setting of the **Cardano node**)
   - Read and write rights on the `Inter Process Communication` file (typically defined by the `CARDANO_NODE_SOCKET_PATH` environment variable used to launch the **Cardano node**)
 
@@ -146,10 +148,10 @@ You can also fetch the minimum supported version for your network using the comm
 wget -q -O - https://raw.githubusercontent.com/IntersectMBO/mithril/main/networks.json | jq -r '."**YOUR_CARDANO_NETWORK**"."cardano-minimum-version"."mithril-signer"'
 ```
 
-Here is an example for `preprod`:
+Here is an example for `mainnet`:
 
 ```bash
-wget -q -O - https://raw.githubusercontent.com/IntersectMBO/mithril/main/networks.json | jq -r '."preprod"."cardano-minimum-version"."mithril-signer"'
+wget -q -O - https://raw.githubusercontent.com/IntersectMBO/mithril/main/networks.json | jq -r '."mainnet"."cardano-minimum-version"."mithril-signer"'
 ```
 
 :::
@@ -297,14 +299,14 @@ sudo mv mithril-signer /opt/mithril
 
 :::tip
 
-Here is an **example** set of values for **release-preprod** that will be used in this guide in the **tip** boxes to illustrate some commands:
+Here is an **example** set of values for **release-mainnet** that will be used in this guide in the **tip** boxes to illustrate some commands:
 
 - **YOUR_KES_SECRET_KEY_PATH**: `/cardano/keys/kes.skey`
 - **YOUR_OPERATIONAL_CERTIFICATE_PATH**: `/cardano/keys/node.cert`
-- **YOUR_CARDANO_NETWORK**: `preprod`
-- **YOUR_AGGREGATOR_ENDPOINT**: `https://aggregator.release-preprod.api.mithril.network/aggregator`
+- **YOUR_CARDANO_NETWORK**: `mainnet`
+- **YOUR_AGGREGATOR_ENDPOINT**: `https://aggregator.release-mainnet.api.mithril.network/aggregator`
 - **YOUR_ERA_READER_ADAPTER_TYPE**: `cardano-chain`
-- **YOUR_ERA_READER_ADAPTER_PARAMS**: `{"address": "addr_test1qpkyv2ws0deszm67t840sdnruqgr492n80g3y96xw3p2ksk6suj5musy6w8lsg3yjd09cnpgctc2qh386rtxphxt248qr0npnx", "verification_key": "5b35352c3232382c3134342c38372c3133382c3133362c34382c382c31342c3138372c38352c3134382c39372c3233322c3235352c3232392c33382c3234342c3234372c3230342c3139382c31332c33312c3232322c32352c3136342c35322c3130322c39312c3132302c3230382c3134375d"}`
+- **YOUR_ERA_READER_ADAPTER_PARAMS**: `{"address": "addr1qy72kwgm6kypyc5maw0h8mfagwag8wjnx6emgfnsnhqaml6gx7gg4tzplw9l32nsgclqax7stc4u6c5dn0ctljwscm2sqv0teg", "verification_key": "5b31312c3133342c3231352c37362c3134312c3232302c3131312c3135342c36332c3233302c3131342c31322c38372c37342c39342c3137322c3133322c32372c39362c3138362c3132362c3137382c31392c3131342c33302c3234332c36342c3134312c3131302c38332c38362c31395d"}`
 - **YOUR_RELAY_ENDPOINT**: `192.168.1.50`
 - **YOUR_RELAY_LISTENING_PORT**: `3132`
 - **YOUR_BLOCK_PRODUCER_INTERNAL_IP**: `192.168.1.75`
@@ -337,14 +339,14 @@ EOF'
 
 :::tip
 
-Here is an example of the aforementioned command created with the example set for `release-preprod`:
+Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
 sudo bash -c 'cat > /opt/mithril/mithril-signer.env << EOF
 KES_SECRET_KEY_PATH=/cardano/keys/kes.skey
 OPERATIONAL_CERTIFICATE_PATH=/cardano/keys/node.cert
-NETWORK=preprod
-AGGREGATOR_ENDPOINT=https://aggregator.release-preprod.api.mithril.network/aggregator
+NETWORK=mainnet
+AGGREGATOR_ENDPOINT=https://aggregator.release-mainnet.api.mithril.network/aggregator
 RUN_INTERVAL=60000
 DB_DIRECTORY=/cardano/db
 CARDANO_NODE_SOCKET_PATH=/cardano/ipc/node.socket
@@ -352,7 +354,7 @@ CARDANO_CLI_PATH=/app/bin/cardano-cli
 DATA_STORES_DIRECTORY=/opt/mithril/stores
 STORE_RETENTION_LIMIT=5
 ERA_READER_ADAPTER_TYPE=cardano-chain
-ERA_READER_ADAPTER_PARAMS={"address": "addr_test1qpkyv2ws0deszm67t840sdnruqgr492n80g3y96xw3p2ksk6suj5musy6w8lsg3yjd09cnpgctc2qh386rtxphxt248qr0npnx", "verification_key": "5b35352c3232382c3134342c38372c3133382c3133362c34382c382c31342c3138372c38352c3134382c39372c3233322c3235352c3232392c33382c3234342c3234372c3230342c3139382c31332c33312c3232322c32352c3136342c35322c3130322c39312c3132302c3230382c3134375d"}
+ERA_READER_ADAPTER_PARAMS={"address": "addr1qy72kwgm6kypyc5maw0h8mfagwag8wjnx6emgfnsnhqaml6gx7gg4tzplw9l32nsgclqax7stc4u6c5dn0ctljwscm2sqv0teg", "verification_key": "5b31312c3133342c3231352c37362c3134312c3232302c3131312c3135342c36332c3233302c3131342c31322c38372c37342c39342c3137322c3133322c32372c39362c3138362c3132362c3137382c31392c3131342c33302c3234332c36342c3134312c3131302c38332c38362c31395d"}
 RELAY_ENDPOINT=http://192.168.1.50:3132
 EOF'
 ```
@@ -380,14 +382,14 @@ EOF'
 
 :::tip
 
-Here is an example of the aforementioned command created with the example set for `release-preprod`:
+Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
 sudo bash -c 'cat > /opt/mithril/mithril-signer.env << EOF
 KES_SECRET_KEY_PATH=/cardano/keys/kes.skey
 OPERATIONAL_CERTIFICATE_PATH=/cardano/keys/node.cert
-NETWORK=preprod
-AGGREGATOR_ENDPOINT=https://aggregator.release-preprod.api.mithril.network/aggregator
+NETWORK=mainnet
+AGGREGATOR_ENDPOINT=https://aggregator.release-mainnet.api.mithril.network/aggregator
 RUN_INTERVAL=60000
 DB_DIRECTORY=/cardano/db
 CARDANO_NODE_SOCKET_PATH=/cardano/ipc/node.socket
@@ -395,7 +397,7 @@ CARDANO_CLI_PATH=/app/bin/cardano-cli
 DATA_STORES_DIRECTORY=/opt/mithril/stores
 STORE_RETENTION_LIMIT=5
 ERA_READER_ADAPTER_TYPE=cardano-chain
-ERA_READER_ADAPTER_PARAMS={"address": "addr_test1qpkyv2ws0deszm67t840sdnruqgr492n80g3y96xw3p2ksk6suj5musy6w8lsg3yjd09cnpgctc2qh386rtxphxt248qr0npnx", "verification_key": "5b35352c3232382c3134342c38372c3133382c3133362c34382c382c31342c3138372c38352c3134382c39372c3233322c3235352c3232392c33382c3234342c3234372c3230342c3139382c31332c33312c3232322c32352c3136342c35322c3130322c39312c3132302c3230382c3134375d"}
+ERA_READER_ADAPTER_PARAMS={"address": "addr1qy72kwgm6kypyc5maw0h8mfagwag8wjnx6emgfnsnhqaml6gx7gg4tzplw9l32nsgclqax7stc4u6c5dn0ctljwscm2sqv0teg", "verification_key": "5b31312c3133342c3231352c37362c3134312c3232302c3131312c3135342c36332c3233302c3131342c31322c38372c37342c39342c3137322c3133322c32372c39362c3138362c3132362c3137382c31392c3131342c33302c3234332c36342c3134312c3131302c38332c38362c31395d"}
 EOF'
 ```
 
@@ -546,6 +548,7 @@ sudo systemctl restart mithril-signer
 :::info
 
 - If you have already installed `Squid` via the `apt` package manager, we recommend that you delete it before manually building it from source by running the following commands:
+
   - `sudo systemctl stop squid`
   - `sudo apt remove squid`
   - `sudo apt autoremove`
@@ -681,7 +684,7 @@ EOF'
 
 :::tip
 
-Here is an example of the aforementioned command created with the example set for `release-preprod`:
+Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
 sudo bash -c 'cat > /etc/squid/squid.conf << EOF
@@ -865,7 +868,7 @@ sudo ufw allow from **YOUR_BLOCK_PRODUCER_INTERNAL_IP** to any port **YOUR_RELAY
 
 :::tip
 
-Here is an example of the aforementioned command created with the example set for `release-preprod`:
+Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
 sudo ufw allow from 192.168.1.75 to any port 3132 proto tcp
@@ -883,7 +886,7 @@ sudo service netfilter-persistent save
 
 :::tip
 
-Here is an example of the aforementioned command created with the example set for `release-preprod`:
+Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
 sudo iptables -A INPUT -s 192.168.1.75 -p tcp --dport 3132 -j ACCEPT
@@ -916,7 +919,7 @@ If you choose the **production** deployment, you will need to install and config
 
 **Which deployment should I use?**
 
-In this section, **production deployment** refers only to the recommended **two-machine deployment model** (Cardano block producer + Cardano relay), not to the maturity or production-readiness of the **DMQ** itself. The earlier warning that the DMQ setup is **not suitable for production use on mainnet** still applies.
+In this section, **production deployment** refers only to the recommended **two-machine deployment model** (Cardano block producer + Cardano relay), not to the maturity of the **DMQ** itself, which is currently in **beta**.
 
 On **testnet**, we recommend the **production** deployment model, but you can use the **naive** deployment for testing purposes only.
 
@@ -953,19 +956,19 @@ The Mithril signer must connect to the DMQ node socket that is on the **same mac
 
 :::tip
 
-Here is an **example** set of values for **pre-release-preview** that will be used in this guide in the **tip** boxes to illustrate some commands:
+Here is an **example** set of values for **release-mainnet** that will be used in this guide in the **tip** boxes to illustrate some commands:
 
 - **YOUR_DMQ_NODE_SOCKET_PATH**: `/dmq/ipc/node.socket`
 - **YOUR_CARDANO_NODE_SOCKET_PATH**: `/cardano/ipc/node.socket`
 - **YOUR_CARDANO_SHELLEY_GENESIS_FILE_PATH**: `/cardano/config/shelley-genesis.json`
-- **YOUR_CARDANO_NETWORK_MAGIC**: `2`
-- **YOUR_DMQ_NETWORK_MAGIC**: `2147483650`
+- **YOUR_CARDANO_NETWORK_MAGIC**: `764824073`
+- **YOUR_DMQ_NETWORK_MAGIC**: `2912307721`
 - **YOUR_DMQ_NODE_RELAY_INTERNAL_ADDRESS**: `192.168.1.30`
 - **YOUR_DMQ_NODE_RELAY_PUBLIC_ADDRESS**: `34.14.65.160`
 - **YOUR_DMQ_NODE_RELAY_PORT**: `6161`
 - **YOUR_DMQ_NODE_BLOCK_PRODUCER_INTERNAL_ADDRESS**: `192.168.1.60`
 - **YOUR_DMQ_NODE_BLOCK_PRODUCER_PORT**: `6161`
-- **YOUR_DMQ_BOOTSTRAP_PEER_ADDRESS**: `34.76.22.193`
+- **YOUR_DMQ_BOOTSTRAP_PEER_ADDRESS**: `35.233.75.24`
 - **YOUR_DMQ_BOOTSTRAP_PEER_PORT**: `6161`
 
 :::
@@ -974,11 +977,11 @@ Here is an **example** set of values for **pre-release-preview** that will be us
 
 :::tip
 
-As we are still in a testing stage, we only support the `pre-release-preview` network.
+The DMQ node is supported on the `release-mainnet`, `release-preprod` and `pre-release-preview` networks.
 
-You can use these parameters for the **pre-release-preview** network:
+You can use these parameters for all the supported networks:
 
-- **DMQ_RELEASE_URL**: `https://github.com/IntersectMBO/dmq-node/releases/download/0.6.0.0/dmq-node-linux.tar.gz`
+- **DMQ_RELEASE_URL**: `https://github.com/IntersectMBO/dmq-node/releases/download/0.7.0.0/dmq-node-linux.tar.gz`
 
 _These URLs may change in the future; please refer to this page for the latest released version of the DMQ node binary._
 
@@ -1030,7 +1033,7 @@ sudo chown cardano:cardano $(dirname **YOUR_DMQ_NODE_SOCKET_PATH**)
 
 :::tip
 
-Here is an example of the aforementioned command created with the example set for `pre-release-preview`:
+Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
 sudo mkdir -p $(dirname /dmq/ipc/node.socket)
@@ -1058,7 +1061,7 @@ bash -c 'cat > /opt/dmq/config-relay.json << EOF
         "Stdout MachineFormat",
         "PrometheusSimple suffix 127.0.0.1 12000"
       ],
-      "severity": "Debug"
+      "severity": "Info"
     }
   }
 }
@@ -1067,13 +1070,13 @@ EOF'
 
 :::tip
 
-Here is an example of the aforementioned command created with the example set for `pre-release-preview`:
+Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
 bash -c 'cat > /opt/dmq/config-relay.json << EOF
 {
-  "NetworkMagic": 2147483650,
-  "CardanoNetworkMagic": 2,
+  "NetworkMagic": 2912307721,
+  "CardanoNetworkMagic": 764824073,
   "CardanoNodeSocket": "/cardano/ipc/node.socket",
   "ShelleyGenesisFile": "/cardano/config/shelley-genesis.json",
   "PeerSharing": true,
@@ -1084,7 +1087,7 @@ bash -c 'cat > /opt/dmq/config-relay.json << EOF
         "Stdout MachineFormat",
         "PrometheusSimple suffix 127.0.0.1 12000"
       ],
-      "severity": "Debug"
+      "severity": "Info"
     }
   }
 }
@@ -1110,7 +1113,7 @@ bash -c 'cat > /opt/dmq/config-bp.json << EOF
         "Stdout MachineFormat",
         "PrometheusSimple suffix 127.0.0.1 12000"
       ],
-      "severity": "Debug"
+      "severity": "Info"
     }
   }
 }
@@ -1119,13 +1122,13 @@ EOF'
 
 :::tip
 
-Here is an example of the aforementioned command created with the example set for `pre-release-preview`:
+Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
 bash -c 'cat > /opt/dmq/config-bp.json << EOF
 {
-  "NetworkMagic": 2147483650,
-  "CardanoNetworkMagic": 2,
+  "NetworkMagic": 2912307721,
+  "CardanoNetworkMagic": 764824073,
   "CardanoNodeSocket": "/cardano/ipc/node.socket",
   "ShelleyGenesisFile": "/cardano/config/shelley-genesis.json",
   "PeerSharing": false,
@@ -1136,7 +1139,7 @@ bash -c 'cat > /opt/dmq/config-bp.json << EOF
         "Stdout MachineFormat",
         "PrometheusSimple suffix 127.0.0.1 12000"
       ],
-      "severity": "Debug"
+      "severity": "Info"
     }
   }
 }
@@ -1195,7 +1198,7 @@ EOF'
 
 :::tip
 
-Here is an example of the aforementioned command created with the example set for `pre-release-preview`:
+Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
 bash -c 'cat > /opt/dmq/topology-relay.json << EOF
@@ -1205,7 +1208,7 @@ bash -c 'cat > /opt/dmq/topology-relay.json << EOF
     {
       "accessPoints": [
         {
-          "address": "34.76.22.193",
+          "address": "35.233.75.24",
           "port": 6161,
           "valency": 1
         }
@@ -1261,7 +1264,7 @@ EOF'
 
 :::tip
 
-Here is an example of the aforementioned command created with the example set for `pre-release-preview`:
+Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
 bash -c 'cat > /opt/dmq/topology-bp.json << EOF
@@ -1325,7 +1328,7 @@ EOF'
 
 :::tip
 
-Here is an example of the aforementioned command created with the example set for `pre-release-preview`:
+Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
 sudo bash -c 'cat > /etc/systemd/system/dmq-relay.service << EOF
@@ -1399,7 +1402,7 @@ EOF'
 
 :::tip
 
-Here is an example of the aforementioned command created with the example set for `pre-release-preview`:
+Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
 sudo bash -c 'cat > /etc/systemd/system/dmq-bp.service << EOF
@@ -1466,7 +1469,7 @@ EOF'
 
 :::tip
 
-Here is an example of the aforementioned command created with the example set for `pre-release-preview`:
+Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
 sudo bash -c 'cat >> /opt/mithril/mithril-signer.env << EOF
@@ -1587,7 +1590,7 @@ PARTY_ID=**YOUR_PARTY_ID** AGGREGATOR_ENDPOINT=**YOUR_AGGREGATOR_ENDPOINT** ./ve
 Here is an example command:
 
 ```bash
-PARTY_ID=pool1hp72sauk0g0yqm4dzllz0pz6j93gewhllkzphn4hykkfmne43y AGGREGATOR_ENDPOINT=https://aggregator.release-preprod.api.mithril.network/aggregator ./verify_signer_registration.sh
+PARTY_ID=pool1hp72sauk0g0yqm4dzllz0pz6j93gewhllkzphn4hykkfmne43y AGGREGATOR_ENDPOINT=https://aggregator.release-mainnet.api.mithril.network/aggregator ./verify_signer_registration.sh
 ```
 
 :::
@@ -1628,10 +1631,10 @@ PARTY_ID=**YOUR_PARTY_ID** AGGREGATOR_ENDPOINT=**YOUR_AGGREGATOR_ENDPOINT** ./ve
 
 :::tip
 
-Here is an example of the aforementioned command created with the example set for `release-preprod`:
+Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
-PARTY_ID=pool1hp72sauk0g0yqm4dzllz0pz6j93gewhllkzphn4hykkfmne43y AGGREGATOR_ENDPOINT=https://aggregator.release-preprod.api.mithril.network/aggregator ./verify_signer_signature.sh
+PARTY_ID=pool1hp72sauk0g0yqm4dzllz0pz6j93gewhllkzphn4hykkfmne43y AGGREGATOR_ENDPOINT=https://aggregator.release-mainnet.api.mithril.network/aggregator ./verify_signer_signature.sh
 ```
 
 :::
@@ -1639,7 +1642,7 @@ PARTY_ID=pool1hp72sauk0g0yqm4dzllz0pz6j93gewhllkzphn4hykkfmne43y AGGREGATOR_ENDP
 If your signer is contributing, you should see this message:
 
 ```bash
->> Congrats, you have signed this certificate: https://aggregator.release-preprod.api.mithril.network/aggregator/certificate/el3p289b03a223244285b2ls10839846ae7a69f1e8362824a383f376f93f723f !
+>> Congrats, you have signed this certificate: https://aggregator.release-mainnet.api.mithril.network/aggregator/certificate/el3p289b03a223244285b2ls10839846ae7a69f1e8362824a383f376f93f723f !
 ```
 
 Otherwise, you should see this error message:

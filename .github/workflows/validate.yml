@@ -3,15 +3,20 @@ name: Validate Skills & Sources
 on:
   pull_request:
     paths:
+      # docs/** is included for the Windows path-portability check: an
+      # upstream doc named with a character Windows rejects breaks `git
+      # clone` for every Windows user (issue #36).
       - "skills/**"
       - "registry/**"
       - "scripts/**"
+      - "docs/**"
   push:
     branches: [main]
     paths:
       - "skills/**"
       - "registry/**"
       - "scripts/**"
+      - "docs/**"
 
 jobs:
   validate:

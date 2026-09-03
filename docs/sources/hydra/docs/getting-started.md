@@ -7,7 +7,7 @@ To get started quickly, we'll walk you through the standard demo setup, which in
 
 This tutorial uses [Docker](https://www.docker.com/get-started) to install the nodes, so ensure Docker is installed. If you want to explore alternative ways of running the tools, see a [variant of this tutorial](./getting-started-without-docker.md) or the [testnet tutorial](./tutorial/index.md), which uses pre-built binaries. The documentation pages on [installation](./installation) and [configuration](./configuration) provide more details.
 
-Additionally, the `hydra-tui` uses the HTTP/WebSocket API provided by the `hydra-node` behind the scenes. The [testnet tutorial](./tutorial/index.md) will show how to use this API using low-level commands, or you can see the [API reference](https://hydra.family/head-protocol/unstable/api-reference) for more details.
+Additionally, the `hydra-tui` uses the HTTP/WebSocket API provided by the `hydra-node` behind the scenes. The [testnet tutorial](./tutorial/index.md) will show how to use this API using low-level commands, or you can see the [API reference](/api-reference) for more details.
 
 <details>
 <summary>Video demonstration (a bit dated)</summary>
@@ -25,10 +25,14 @@ These instructions have been tested only on Linux environments (Ubuntu, NixOS). 
 All commands below are written as if executed from the `demo` folder in the project repository. Ensure you clone the repository, switch into the `demo` folder, and pull the latest Docker images:
 
 ```shell
-git clone git@github.com:cardano-scaling/hydra.git
+git clone --depth 1 git@github.com:cardano-scaling/hydra.git
 cd hydra/demo
 docker compose pull
 ```
+
+:::info Faster clone
+`--depth 1` fetches only the latest commit, which is all this tutorial needs and downloads a small fraction of the full repository. Drop the flag if you want the complete history.
+:::
 
 :::info Shortcut
 For convenience, we provide a script `./run-docker.sh`, which combines all the following steps. It also performs a few sanity checks to prevent potential issues.

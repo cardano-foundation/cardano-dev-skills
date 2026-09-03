@@ -1,0 +1,235 @@
+---
+title: Trix
+sidebar:
+    order: 2
+---
+import { Steps } from '@astrojs/starlight/components';
+
+Trix is a command-line interface (CLI) tool designed to help developers manage projects written in the Tx3 language. It provides commands for initializing new projects, checking code for errors, generating code bindings, and interacting with development networks.
+
+This documentation will guide you through installing Trix, setting up your first project, and using the available commands to build and manage your Tx3 projects.
+
+## Installation Requirements and Initial Setup
+
+<Steps>
+
+1. Using `tx3up` (Recommended):
+
+    `tx3up` is a tool installer that installs every tool for the Tx3 language, including Trix. It is the recommended way to install Trix as it ensures you have compatible versions of all necessary Tx3 tools. Follow the instructions on the [tx3up](./tx3up) to install `tx3up`, and then run:
+
+    ```sh
+    tx3up
+    ```
+
+</Steps>
+
+You can verify that Trix is installed correctly by running:
+
+```sh
+trix --help
+```
+
+To start a new Tx3 project, navigate to the directory where you want to create your project and run the `init` command:
+
+```sh
+trix init
+```
+
+The `init` command will interactively ask you for some details about your project, such as the name, owner scope, description, and version. It will also ask which language bindings you want to generate. Based on your input, it will create a `trix.toml` configuration file and a basic `main.tx3` file in your current directory.
+
+## Overview Commands
+
+The sections below describe the trix commands currently exposed by the CLI. For the most up-to-date flags and advanced options run `trix <command> --help`.
+
+Main commands:
+
+*   `trix init`: Initialize a new Tx3 project.
+*   `trix invoke`: Invoke a transaction using CShell.
+*   `trix devnet`: Start a local development network.
+*   `trix explore`: Explore a network using CShell.
+*   `trix use`: Add a published protocol as an interface.
+*   `trix codegen`: Generate code to interact with your protocol.
+*   `trix check`: Check a Tx3 package and its dependencies for errors.
+*   `trix inspect`: Inspect the intermediate representation of a transaction
+*   `trix test`: Run automated tests using test configuration files.
+*   `trix build`: Build a Tx3 file.
+*   `trix telemetry`: Manage telemetry settings.
+
+## Command Details
+
+### `trix init`
+
+Initialize a new Tx3 project in the current directory. Scaffolds `trix.toml`, `main.tx3`, and a sample test file.Use this to quickly create a correctly structured project so other trix commands (build, bindgen, test) work without manual configuration.
+
+Usage:
+
+```sh
+trix init [OPTIONS]
+```
+
+**Arguments:**
+
+- `-y`, `--yes` - Use default configuration and skip interactive prompts.
+
+### `trix invoke`
+
+Interactively invoke a transaction from your main Tx3 file against a running devnet. It uses CShell to assemble, sign and optionally submit the transaction. Useful for executing single transactions during development or scripting manual test steps.
+
+Usage:
+
+```sh
+trix invoke [OPTIONS]
+```
+
+**Options**:
+
+- `--args-json <JSON_STRING>`: Args for the TX3 transaction as a raw JSON string.
+- `--args-json-path <PATH>`: Path to a JSON file with arguments for the TX3 transaction.
+- `--skip-submit`: Skip submitting the transaction (useful for inspection).
+
+If no args are provided, `trix invoke` opens an interactive prompt for selecting a transaction and filling arguments.
+
+### `trix devnet`
+
+Start a local development network (Dolos) prepared with wallets and initial funds according to `devnet.toml` or the project profile.
+
+Note that running `tx3up` is required to prepare the environment before starting the devnet. For more detailed information on using the development network, please refer to the [Devnet Guide](../authoring/devnet).
+
+Usage:
+
+```sh
+trix devnet [OPTIONS]
+```
+
+**Options:**
+
+- `-b`, `--background`: Run the devnet as a background process (daemonize). When not backgrounded the command waits and prints the devnet process status.
+
+
+### `trix explore`
+
+Launch the CShell interactive explorer connected to devnet. It opens an interactive process for inspecting addresses, transactions and chain state. Useful for debugging and inspecting on-chain state while developing.
+
+Usage:
+
+```sh
+trix explore
+```
+
+### `trix use`
+
+Add a published protocol to the project as an *interface* — a dependency you can generate a client for with `trix codegen`. The protocol is pulled from the registry, its compiled interface is cached locally, and a pinned entry is written to the `[interfaces]` table of `trix.toml`.
+
+If no `trix.toml` is found in the current directory or any ancestor, `trix use` bootstraps a minimal consumer-shape project (a `trix.toml` with no `main.tx3`, no tests, no owner scope) and pins the interface into it. Pass `--no-init` to opt out — useful in CI where a missing project should fail loudly.
+
+Usage:
+
+```sh
+trix use <REFERENCE> [OPTIONS]
+```
+
+**Arguments:**
+
+- `<REFERENCE>`: Reference to pull, e.g. `acme/widget:0.1.0`. The version is optional and defaults to the `latest` tag; the resolved concrete version is pinned in `trix.toml`.
+
+**Options:**
+
+- `--alias <NAME>`: Local alias for this interface. Defaults to the reference's name.
+- `--force`: Replace an existing entry with the same alias.
+- `--dry-run`: Resolve and cache the artifact but do not modify `trix.toml`.
+- `--no-init`: Refuse to auto-bootstrap a project when no `trix.toml` is found; error instead.
+
+Protocols resolve against the default registry (`https://oci.tx3.land`) unless `trix.toml` declares a `[registry]` section with a different `url`.
+
+### `trix codegen`
+
+Generate code that can interact with your protocol by interpreting the interfaces defined by your Tx3 project. Code is generated from templates that use handlebars and can target multiple languages, including TypeScript, Rust, Go, and Python.
+
+Targets live in `trix.toml` under `[[codegen]]` entries, each pairing a `plugin` (`ts-client`, `rust-client`, `go-client`, or `python-client`) with an optional `output_dir`. `trix codegen` is the canonical way to add the first target: passing `--plugin <name>` appends a matching `[[codegen]]` entry to `trix.toml` (if one does not already exist) and then generates. Hand-editing `trix.toml` remains supported — useful for custom plugins or a bespoke `output_dir`. A client is generated for the project's own protocol and for every interface added with `trix use`.
+
+If no targets are configured and `--plugin` is not passed, `trix codegen` prompts interactively when run from a terminal. In non-interactive contexts it errors and points at `--plugin`.
+
+Usage:
+
+```sh
+trix codegen [OPTIONS]
+```
+
+**Options:**
+
+- `--plugin <NAME>`: Seed a `[[codegen]]` entry for this plugin (`ts-client` / `rust-client` / `go-client` / `python-client`) if one does not already exist, then generate. Unknown values fail with a suggestion before any codegen runs.
+- `--no-save`: Generate without persisting a newly-seeded `[[codegen]]` entry back to `trix.toml`. Intended for CI / scripted one-offs.
+
+### `trix check`
+
+Performs static analysis and validation of the current Tx3 package and its dependencies. Runs the Tx3 parser and analyzer and returns errors if any are found.
+
+Usage:
+
+```sh
+trix check
+```
+
+### `trix inspect`:
+
+Inspect the intermediate representation (TIR) of a transaction defined in your Tx3 project. This command outputs the TIR JSON for a specified transaction, allowing you to examine how Tx3 compiles your code.
+
+Usage:
+
+```sh
+trix inspect <COMMAND>
+```
+
+**Commands:**
+
+- `tir --tx <TX>`: Inspect the intermediate representation of a transaction `<TX>`.
+
+### `trix test`
+
+Run automated tests using test configuration files. This command executes predefined test scenarios that include wallet creation, transaction execution, and balance verification.
+
+Usage:
+
+```sh
+trix test <PATH>
+```
+
+**Arguments:**
+
+*   `<PATH>`: Path to the test TOML configuration file.
+
+The test configuration file provides a structured way to define test cases and verify the expected outcomes of executing tx3 code.
+
+For detailed information about test configuration format and examples, see the [Testing Guide](../authoring/testing).
+
+### `trix build`
+
+Build a Tx3 file from the root folder, generating the TIR (Transaction Intermediate Representation) and arguments for each transaction defined in the file.
+
+Usage:
+
+```sh
+trix build [OPTIONS]
+```
+
+**Options:**
+
+*   `-o`, `--output <OUTPUT>`: Path to save the build output to a JSON file. If omitted the JSON is printed to stdout.
+*   `-p`, `--profile <PROFILE>`: Select a profile (for example `devnet`, `preview`, `preprod`, `mainnet`) to resolve env files and argument values.
+
+
+### `trix telemetry`
+
+Manage telemetry settings for Trix. You can enable or disable telemetry data collection. Trix uses telemetry to help improve the tool by collecting anonymous usage data.|
+
+Usage:
+
+```sh
+trix telemetry <COMMAND>
+```
+
+**Commands:**
+
+*   `on` - Enable telemetry (anonymous usage data collection)
+*   `off` - Disable telemetry
+*   `status` - Show the current telemetry status

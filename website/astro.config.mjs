@@ -9,14 +9,17 @@ export default defineConfig({
     starlight({
       title: 'Cardano Dev Skills',
       description: 'Cardano dev knowledge, native in your AI coding agent.',
-      logo: {
-        src: './src/assets/logo.svg',
-        alt: 'Cardano Dev Skills',
-      },
       social: {
         github: 'https://github.com/cardano-foundation/cardano-dev-skills',
       },
       customCss: ['./src/styles/custom.css'],
+      // Both replacements exist for structure CSS cannot add: a stat row in the
+      // hero, and a wordmark beside the lockup in the header. SiteTitle imports
+      // the logo itself, which is why there is no `logo` key above.
+      components: {
+        Hero: './src/components/Hero.astro',
+        SiteTitle: './src/components/SiteTitle.astro',
+      },
       sidebar: [
         { label: 'Getting started', link: '/getting-started/' },
         { label: 'How it works', link: '/how-it-works/' },

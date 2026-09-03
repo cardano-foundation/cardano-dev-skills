@@ -81,11 +81,10 @@ Instructions...
 
 ```bash
 python3 scripts/validate.py
-./scripts/update-doc-counts.sh    # refresh counts in README/CLAUDE
 python3 scripts/check-pr-policy.py  # PR policy checks (vs origin/main)
 ```
 
-Open a PR. CI runs validation, the count-drift check, and the PR policy
+Open a PR. CI runs validation and the PR policy
 checks (mechanical vetting + an advisory AI scope review comment).
 
 ## Quality standards

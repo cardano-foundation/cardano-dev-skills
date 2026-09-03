@@ -1,0 +1,29 @@
+---
+/**
+ * Header mark, replacing Starlight's built-in.
+ *
+ * The horizontal lockup carries the Cardano identity and a mono wordmark
+ * carries this site's, rather than setting the full title beside a lockup that
+ * already reads "cardano". A replacement rather than a wrapper, because the
+ * wordmark has to sit inside the anchor.
+ *
+ * Presentation lives in src/styles/custom.css with the rest of the header, so
+ * `.site-title` has one definition. `siteTitleHref` already carries the
+ * configured base path and must not be prefixed again.
+ */
+import type { Props } from '@astrojs/starlight/props';
+import logo from '../assets/logo.svg';
+
+const { siteTitle, siteTitleHref } = Astro.props;
+
+// The lockup supplies the "Cardano" half, so the wordmark shows only what this
+// site adds. A title that does not start with it is shown whole.
+const wordmark = siteTitle.replace(/^cardano\s+/i, '');
+---
+
+{/* The link carries the full title as its accessible name, so the image and
+    the wordmark are both decorative to assistive technology. */}
+<a href={siteTitleHref} class="site-title sl-flex" aria-label={siteTitle}>
+  <img src={logo.src} alt="" width={logo.width} height={logo.height} />
+  <span class="site-title-mark site-eyebrow" aria-hidden="true">{wordmark}</span>
+</a>

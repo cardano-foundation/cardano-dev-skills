@@ -51,8 +51,10 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 
 | Name | Status | Adoption | Best For |
 |---|---|---|---|
-| **gouroboros** | Production | Low | Go backends, node communication. |
-| **apollo (Go)** | Production | Low | Go tx building. |
+| **gOuroboros** | Production | Low | Low-level building blocks: mini-protocol implementations, ledger types, CBOR codecs. Go counterpart to Pallas; not an app-dev tx builder. |
+| **Apollo** | Production | Low | Go tx building. Fluent builder with pluggable Blockfrost/Maestro/Ogmios/UTxORPC backends. |
+| **blockfrost-go** | Production | Low | Official Go client for the Blockfrost REST API; also IPFS and webhook signature verification. |
+| **UTxORPC Go SDK** | Production | Low | Provider-agnostic chain sync/query/submit over gRPC. Swap backends without rewriting calls. |
 
 ### C# / .NET
 
@@ -60,6 +62,23 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 |---|---|---|---|
 | **CardanoSharp** | Production | Low | .NET backends, Unity game development. |
 | **Chrysalis** | Experimental | Low | .NET Cardano integration. |
+
+### Haskell
+
+| Name | Status | Adoption | Best For |
+|---|---|---|---|
+| **cardano-ledger** (`cardano-ledger-api`, era packages) | Production | High (node/wallet/Hydra) | Off-chain txs in the same types the ledger validates. Pair with Aiken blueprints. |
+| **CHaP** | Production | High | Cabal index for Intersect Haskell packages that are not on Hackage. |
+| **haskell.nix** | Production | High (every Intersect Haskell repo) | Nix frontend: flakes, CHaP `inputMap`, `--sha256` on `source-repository-package`. |
+| **iohk-nix** | Production | High | Crypto overlays (`crypto`, `haskell-nix-crypto`) so `cardano-crypto-class` / `plutus-core` find libsodium-vrf, secp256k1, libblst. |
+| **cardano-api** | Production | High | Client façade over ledger/consensus/network when you do not want raw ledger types. |
+| **Atlas** | Maintenance unclear | Medium (historical) | PAB-style Haskell backend. Last commit 2026-02; not a registered source. |
+
+### Interface-driven (language-agnostic)
+
+| Name | Status | Adoption | Best For |
+|---|---|---|---|
+| **Tx3** | Beta (pre-1.0) | Low | A different model from the SDKs above: instead of building transactions imperatively in one language, you declare a protocol's transactions in a `.tx3` interface file (like an OpenAPI/ABI for UTxO protocols) and generate typed clients in TypeScript, Rust, Go, or Python. Fits teams shipping the same protocol across several languages, or publishing a protocol others integrate against. Toolchain: `trix` CLI, TII/TIR artifacts. By TxPipe. |
 
 ## Infrastructure - Data Providers
 
@@ -82,6 +101,7 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 | **cardano-node** | Production | Running a full Cardano node. Required for SPOs and self-hosted infra. |
 | **Dolos** | Experimental | Lightweight data-only node (no block production). Faster sync. |
 | **Amaru** | Experimental | Alternative node implementation in Rust. |
+| **Dingo** | Experimental | Alternative node implementation in Go, with UTxORPC, Blockfrost-compatible REST, and Mesh APIs served by the node itself. Block production is exercised on public testnets; its README rules out mainnet. |
 | **Mithril** | Production | Fast bootstrapping via snapshot certificates. Sync in minutes, not days. |
 
 ## Testing
@@ -107,12 +127,14 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 
 ## Scaling Solutions
 
-| Name | Type | Status | Best For |
+| Name | Type | Status | Best For / notes |
 |---|---|---|---|
-| **Hydra** | State channels (L2) | Production | High-frequency, low-latency off-chain transactions. |
-| **Mithril** | Snapshot certificates | Production | Fast chain sync, lightweight clients. |
-| **Partner Chains** | Sidechains | Experimental | Custom chains anchored to Cardano. |
-| **Input Endorsers** | L1 scaling | Research | Future L1 throughput improvements. |
+| **Hydra Head** | Isomorphic state channel (L2) | Production | A known, fixed set of parties transacting at high frequency among themselves, where all parties run a node and stay online. Same tx format and ledger rules as L1 (isomorphic). |
+| **Mithril** | Snapshot certificates | Production | Fast node bootstrap and light-client sync — not tx throughput. |
+| **Partner Chains** | Sidechains | Experimental | Custom app-specific chains anchored to Cardano. |
+| **Input Endorsers (Leios)** | L1 scaling | Research | Future L1 throughput improvements; not a tool you integrate today. |
+| **Midgard** | Optimistic rollup | Experimental | L2 without a fixed participant set. Frontier; **not a bundled source** — verify upstream, don't build production on it yet. |
+| **Gummiworm** | Validium-style L2 | Experimental | Off-chain data-availability L2. Not mainnet-ready; not bundled. |
 
 ## Zero-Knowledge & BLS12-381
 

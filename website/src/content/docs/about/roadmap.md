@@ -10,14 +10,14 @@ for) and **governance** (the lifecycle that keeps that content current).
 
 ### Shipped
 
-- 16 developer skills covering the common Cardano workflows: scaffolding,
+- Developer skills covering the common Cardano workflows: scaffolding,
   writing validators, security review, optimisation, building transactions,
   designing tokens, debugging, querying chain data, devnet setup, wallet
   integration, governance, and the conceptual primers (eUTxO, CIPs,
-  zero-knowledge, tooling).
+  tooling).
 - The `cardano-context` skill, which writes a durable per-project directive
   into `CLAUDE.md` so agents reliably consult bundled context.
-- 56 documentation sources mirrored locally — SDKs, languages, infra, CIPs,
+- Documentation sources mirrored locally — SDKs, languages, infra, CIPs,
   ledger specs — under `docs/sources/`.
 - A `SessionStart` hook (`hooks/check-docs.sh`) that reports doc freshness
   and surfaces the per-project directive nudge.
@@ -46,9 +46,6 @@ for) and **governance** (the lifecycle that keeps that content current).
   drift from reality.
 - **Schema validation.** CI runs `scripts/validate.py` on every PR
   touching `skills/**` or `registry/**`.
-- **Auto-derived counts.** `scripts/update-doc-counts.sh` rewrites sentinels
-  in `CLAUDE.md` and `README.md` from disk. CI runs `--check` to fail PRs
-  on drift.
 - **Source-vetting bar.** Explicit policy in `CONTRIBUTING.md`: last commit
   age, release/activity signal, archival status, fork canonicality.
 - **PR policy gate.** On PRs touching `skills/`, `registry/`, or

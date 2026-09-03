@@ -27,7 +27,7 @@
 #   name: Human-readable project name
 #   repo: GitHub clone URL
 #   docs_path: Path within repo containing documentation
-#   format: Primary format (markdown, mdx, rst, openapi, aiken, python, toml)
+#   format: Primary format (markdown, mdx, rst, openapi, aiken, python, toml, go)
 #   format_overrides: Per-glob format overrides (optional)
 #   category: infrastructure | smart-contracts | sdk | standards | governance | scaling | testing | oracles
 #   priority: high | medium | low
@@ -43,7 +43,7 @@
 # --- Core Infrastructure ---
 
 - name: Ogmios
-  repo: https://github.com/cardanosolutions/ogmios.git
+  repo: https://github.com/CardanoSolutions/ogmios.git
   docs_path: docs
   format: markdown
   category: infrastructure
@@ -108,6 +108,30 @@
     - "crates/**/README.md"
   description: Rust implementation of a Cardano node by PRAGMA — alternative to cardano-node, focused on diversification of consensus implementations
 
+# Dingo is pre-production by its own README: testnets and devnets only, not
+# mainnet. Mirrored for the operator, integrator, and embedding surfaces; the
+# `**/doc.go` glob carries each package's overview without its implementation.
+- name: Dingo
+  repo: https://github.com/blinklabs-io/dingo.git
+  docs_path: "."
+  format: go
+  category: infrastructure
+  priority: medium
+  glob_patterns:
+    - README.md
+    - DATABASE.md
+    - GENESIS_SYNC.md
+    - docs/dashboards/README.md
+    - database/plugin/PLUGIN_DEVELOPMENT.md
+    - "examples/**/*.md"
+    - "*.go"
+    - "**/doc.go"
+    - "config/**/*.go"
+    - "topology/**/*.go"
+    - "plugin/**/*.go"
+  description: Cardano node implementation in Go - Ouroboros consensus, tiered storage, and UTxO RPC / Blockfrost-compatible REST / Mesh APIs. Pre-production - testnets and devnets only
+  website: https://github.com/blinklabs-io/dingo
+
 - name: DB-Sync
   repo: https://github.com/IntersectMBO/cardano-db-sync.git
   docs_path: doc
@@ -117,7 +141,7 @@
   description: Official PostgreSQL chain indexer (resource-heavy)
 
 - name: Mithril
-  repo: https://github.com/input-output-hk/mithril.git
+  repo: https://github.com/IntersectMBO/mithril.git
   docs_path: docs
   format: markdown
   category: infrastructure
@@ -150,6 +174,60 @@
     - README.md
     - "**/README.md"
   description: Rust building blocks for Ouroboros/Cardano protocols
+
+# haskell.nix is IOG Haskell/Nix infra, not a Cardano protocol. It is
+# registered because it is the documented Nix consumer of CHaP (see the
+# CHaP README) and every Intersect/CF Haskell repo is a haskell.nix flake.
+# Flagged against the Cardano-native source test in issue #45.
+- name: haskell.nix
+  repo: https://github.com/input-output-hk/haskell.nix.git
+  docs_path: docs
+  format: markdown
+  category: infrastructure
+  priority: high
+  glob_patterns:
+    - "*.md"
+    - "tutorials/**/*.md"
+    - "template/**/*.md"
+    - "reference/**/*.md"
+  description: Nix infrastructure for Cabal/Haskell projects — flakes, inputMap for extra package indexes (CHaP), source-repository-package hashes. The Nix frontend used by Intersect Cardano Haskell repos.
+  website: https://input-output-hk.github.io/haskell.nix
+
+- name: iohk-nix
+  repo: https://github.com/input-output-hk/iohk-nix.git
+  docs_path: "."
+  format: markdown
+  category: infrastructure
+  priority: high
+  glob_patterns:
+    - README.md
+    - changelog.md
+  description: Shared Nix overlays for IOG/Intersect Cardano Haskell builds — libsodium-vrf, secp256k1, libblst, haskell.nix crypto helpers. Required to compile cardano-crypto-class and friends.
+
+# Go doc comments sit directly above the identifiers they describe, so mirroring
+# `.go` source gives agents the API reference (same rationale as `format: python`
+# for docstrings). `internal/` is excluded from every Go source below: the Go
+# compiler forbids importing it, so it is not an integration surface.
+- name: gOuroboros
+  repo: https://github.com/blinklabs-io/gouroboros.git
+  docs_path: "."
+  format: go
+  category: infrastructure
+  priority: medium
+  glob_patterns:
+    - README.md
+    - ARCHITECTURE.md
+    - DEVELOPMENT.md
+    - "protocol/**/*.md"
+    - consensus/README.md
+    - kes/README.md
+    - vrf/README.md
+    - "*.go"
+    - "ledger/*.go"
+    - "ledger/common/**/*.go"
+    - "examples/**/*.go"
+  description: Go building blocks for Ouroboros/Cardano protocols - mini-protocol implementations, ledger types, CBOR codecs
+  website: https://pkg.go.dev/github.com/blinklabs-io/gouroboros
 
 - name: Cardano Wallet
   repo: https://github.com/cardano-foundation/cardano-wallet.git
@@ -201,14 +279,18 @@
 
 - name: Yaci Store
   repo: https://github.com/bloxbean/yaci-store.git
-  docs_path: "."
-  format: markdown
+  # store.yaci.xyz is a Next.js App Router site inside this repo: pages are
+  # `page.mdx` under docs/app/docs/<version>/, so a `docs/**/*.md` glob matches
+  # none of it. Pinned to v2 deliberately — v1 is the legacy tree and vendoring
+  # both leaves an agent unable to tell current API guidance from superseded.
+  docs_path: docs/app/docs/v2
+  format: mdx
   category: infrastructure
   priority: medium
   glob_patterns:
-    - README.md
-    - "docs/**/*.md"
+    - "**/*.mdx"
   description: Modular Java indexer with Blockfrost-compatible APIs
+  website: https://store.yaci.xyz
 
 - name: Masumi
   repo: https://github.com/masumi-network/masumi-docs.git
@@ -332,16 +414,22 @@
     - "**/*.md"
   description: Official Aiken code examples and patterns
 
-- name: Plutus
+- name: Plinth
   repo: https://github.com/IntersectMBO/plutus.git
-  docs_path: doc
+  docs_path: doc/docusaurus
   format: markdown
   category: smart-contracts
   priority: medium
-  description: Original Haskell-based smart contract platform by IOG/Intersect
+  glob_patterns:
+    - "docs/**/*.md"
+    - "static/code/**/*.hs"
+    - "static/code/**/*.mjs"
+    - "static/code/**/*.uplc"
+    - "static/csv/**/*.csv"
+  description: Plinth (formerly PlutusTx) — Haskell eDSL for writing Plutus / Plutus Core smart contracts, from IOG/Intersect. Captures the user-guide prose plus the worked code examples the site embeds via LiteralInclude.
 
 - name: Helios
-  repo: https://github.com/Hyperion-BT/helios.git
+  repo: https://github.com/HeliosLang/compiler.git
   docs_path: "."
   format: markdown
   category: smart-contracts
@@ -352,7 +440,7 @@
   description: DSL with JS/TS SDK that compiles to UPLC in the browser. Smaller community than Aiken but actively maintained.
 
 - name: OpShin
-  repo: https://github.com/opshin/opshin.git
+  repo: https://github.com/OpShin/opshin.git
   docs_path: "."
   format: markdown
   category: smart-contracts
@@ -400,27 +488,20 @@
 
 - name: Plutarch
   repo: https://github.com/Plutonomicon/plutarch-plutus.git
+  # The guide lives in plutarch-docs/src, not docs/ — and Tricks/ moved under it.
+  # The previous `docs/**/*.md` + `Tricks/**/*.md` pair matched nothing, leaving a
+  # README-only snapshot while 70 pages sat upstream. docs_path stays at the repo
+  # root so the upstream README (the only place carrying installation, "Why
+  # Plutarch" and the benchmarks) is not shadowed by the guide's own one-line
+  # README stub — the guide has no install section of its own.
   docs_path: "."
   format: markdown
   category: smart-contracts
   priority: medium
   glob_patterns:
     - README.md
-    - "docs/**/*.md"
-    - "Tricks/**/*.md"
+    - "plutarch-docs/src/**/*.md"
   description: Typed Haskell eDSL for highly optimized UPLC
-
-- name: Plu-ts
-  repo: https://github.com/HarmonicLabs/plu-ts.git
-  docs_path: "."
-  format: markdown
-  category: smart-contracts
-  priority: medium
-  glob_patterns:
-    - README.md
-    - "docs/**/*.md"
-    - "packages/**/README.md"
-  description: TypeScript eDSL for on-chain and off-chain
 
 - name: Scalus
   repo: https://github.com/scalus3/scalus.git
@@ -434,7 +515,7 @@
   description: Scala 3 on-chain and off-chain platform
 
 - name: Cardano Use Case Templates
-  repo: https://github.com/cardano-foundation/cardano-template-and-ecosystem-monitoring.git
+  repo: https://github.com/cardano-foundation/cardano-templates.git
   docs_path: "."
   format: markdown
   format_overrides:
@@ -447,7 +528,7 @@
     - "**/*.ak"
     - "**/*.ts"
     - "**/*.java"
-  description: 19 generic blockchain use-case templates implemented across Aiken (on-chain) and Mesh/Evolution/cardano-client-lib (off-chain). Foundation reference set.
+  description: Generic blockchain use-case templates implemented across Aiken (on-chain) and Mesh/Evolution/cardano-client-lib (off-chain). Foundation reference set.
 
 - name: CIP-113 Programmable Tokens
   repo: https://github.com/cardano-foundation/cip113-programmable-tokens.git
@@ -455,12 +536,23 @@
   format: markdown
   category: smart-contracts
   priority: medium
+  # Upstream restructured: documentation/ sits at the repo root, not under
+  # src/programmable-tokens-onchain-aiken/, and neither RFI-REVIEW-SUMMARY.md
+  # nor the src/**/README.md paths still exist — every pattern but the root
+  # README matched nothing.
+  #
+  # `documentation/0*.md` covers the numbered guide series and keeps covering it
+  # as upstream adds to it. It deliberately does NOT cover
+  # `documentation/cip113-substandard-upgrade-guide.md`, whose "How to use this
+  # document" section is written in the imperative to an AI agent performing the
+  # upgrade. The content is benign, but bundled docs are read as data and never
+  # as instructions (DESIGN Decision 13), and scan-docs-delta.py blocks on it.
+  # Including it is a maintainer call — see the PR that introduced this comment.
   glob_patterns:
     - README.md
-    - RFI-REVIEW-SUMMARY.md
-    - src/programmable-tokens-onchain-aiken/README.md
-    - "src/programmable-tokens-onchain-aiken/documentation/**/*.md"
-    - src/programmable-tokens-offchain-java/README.md
+    - CONTRACT_SURFACE_CHANGES.md
+    - "documentation/0*.md"
+    - documentation/cip113-api-changes-post-audit.md
   description: Reference implementation for programmable token standard
 
 - name: CIP-113 Programmable Tokens Platform
@@ -547,15 +639,62 @@
 
 - name: cardano-client-lib
   repo: https://github.com/bloxbean/cardano-client-lib.git
+  # The docs site (cardano-client.dev) is a Next.js app inside this repo and
+  # every page is .mdx under docs/content — a `docs/**/*.md` glob matches none
+  # of it and silently yields a README-only snapshot.
+  docs_path: docs/content
+  format: mdx
+  category: sdk
+  priority: medium
+  glob_patterns:
+    - "**/*.mdx"
+  description: Java client library by BloxBean
+  website: https://cardano-client.dev
+
+- name: Apollo
+  repo: https://github.com/Salvionied/apollo.git
   docs_path: "."
-  format: markdown
+  format: go
+  category: sdk
+  priority: medium
+  # NB: upstream's readme filename is lowercase; glob matching is case-sensitive.
+  glob_patterns:
+    - readme.md
+    - "docs/**/*.md"
+    - "*.go"
+    - "backend/**/*.go"
+    - "plutusencoder/**/*.go"
+    - "constants/**/*.go"
+  description: Pure Go transaction builder - fluent tx construction, Plutus datum encoding, pluggable chain backends (use the /v2 module path)
+  website: https://pkg.go.dev/github.com/Salvionied/apollo/v2
+
+- name: blockfrost-go
+  repo: https://github.com/blockfrost/blockfrost-go.git
+  docs_path: "."
+  format: go
   category: sdk
   priority: medium
   glob_patterns:
     - README.md
-    - "docs/**/*.md"
-    - "examples/**/*.md"
-  description: Java client library by BloxBean
+    - "*.go"
+    - "example/**/*.go"
+  description: Official Go client for the Blockfrost API - typed endpoint wrappers, IPFS, webhook verification
+  website: https://pkg.go.dev/github.com/blockfrost/blockfrost-go
+
+- name: UTxORPC Go SDK
+  repo: https://github.com/utxorpc/go-sdk.git
+  docs_path: "."
+  format: go
+  category: sdk
+  priority: medium
+  glob_patterns:
+    - README.md
+    - "*.go"
+    - "cardano/**/*.go"
+    - "v1alpha/**/*.go"
+    - "examples/**/*.go"
+  description: Go SDK for the UTxORPC interface - provider-agnostic chain sync, query, and submit over gRPC
+  website: https://utxorpc.org
 
 - name: Buildooor
   repo: https://github.com/HarmonicLabs/buildooor.git
@@ -598,10 +737,14 @@
   format: markdown
   category: sdk
   priority: high
+  # This repo has no docs/ tree and no packages/ dir: the documentation is the
+  # per-package READMEs (core/, react/, html/) alongside the root one. Both
+  # previous tree globs matched nothing. Scoped one level deep on purpose — a
+  # recursive `**/README.md` also pulls in vendored dependency READMEs such as
+  # html/highlight/README.md, which documents Highlight.js, not this library.
   glob_patterns:
     - README.md
-    - "docs/**/*.md"
-    - "packages/**/README.md"
+    - "*/README.md"
   description: Official Cardano Foundation library + React hooks for CIP-30 wallet integration in web dApps
 
 - name: Cardano Addresses
@@ -616,6 +759,31 @@
     - core/README.md
     - command-line/README.md
   description: Address derivation library — Shelley/Byron/Icarus address formats, key encodings, and CLI for offline key management
+
+- name: CHaP
+  repo: https://github.com/IntersectMBO/cardano-haskell-packages.git
+  docs_path: "."
+  format: markdown
+  category: sdk
+  priority: high
+  glob_patterns:
+    - README.md
+  description: Cardano Haskell package repository — Cabal index for Intersect packages that are not on Hackage (cardano-ledger, plutus-tx, cardano-api, …). Documents the repository stanza, index-state pinning, and haskell.nix inputMap.
+  website: https://chap.intersectmbo.org/
+
+- name: Tx3
+  repo: https://github.com/tx3-lang/docs.git
+  docs_path: "."
+  format: mdx
+  format_overrides:
+    "**/*.md": markdown
+  category: sdk
+  priority: medium
+  glob_patterns:
+    - "**/*.mdx"
+    - "**/*.md"
+  description: Interface-description DSL for UTxO protocols plus toolchain (TxPipe) — authors declare a protocol's transactions in `.tx3` files; consumers generate typed clients (TypeScript, Rust, Go, Python) via the `trix` CLI. Ships TII/TIR interface artifacts and Cardano-specific language bindings.
+  website: https://docs.txpipe.io/tx3
 
 # --- Testing & DevNets ---
 
@@ -641,6 +809,31 @@
     - README.md
     - "docs/**/*.md"
   description: Cardano-specific assets for the Antithesis deterministic-simulation testing platform — primarily for node operators and protocol engineers
+
+# Lean-blaster is a general Lean4 SMT backend, not a Cardano protocol.
+# Registered because CardanoLedgerApiBlaster's README treats it as the
+# solver, and its own README is the only authored #blaster user guide.
+# Flagged against the Cardano-native source test (issue #35 / #49).
+- name: Lean Blaster
+  repo: https://github.com/input-output-hk/Lean-blaster.git
+  docs_path: "."
+  format: markdown
+  category: testing
+  priority: low
+  glob_patterns:
+    - README.md
+  description: Lean4 SMT backend (Z3) used to discharge theorems about Cardano validators; command/tactic #blaster
+  website: https://input-output-hk.github.io/Lean-blaster/
+
+- name: Cardano Ledger API Blaster
+  repo: https://github.com/input-output-hk/CardanoLedgerApiBlaster.git
+  docs_path: "."
+  format: markdown
+  category: testing
+  priority: medium
+  glob_patterns:
+    - README.md
+  description: Lean4 model of Plutus V1–V3 script-context types and ledger-rule predicates; how-to for importing compiled UPLC and discharging validator properties
 
 # --- Governance (Conway Era) ---
 
@@ -732,6 +925,25 @@
     - "charli3_odv_client/**/*.py"
   description: Python consumer SDK for Charli3 pull oracle - request feeds, build aggregation transactions, collect multisig signatures
 
+- name: Pyth Lazer Cardano
+  repo: https://github.com/pyth-network/pyth-crosschain.git
+  docs_path: "."
+  format: aiken
+  format_overrides:
+    "**/*.md": markdown
+    "**/*.mdx": mdx
+  category: oracles
+  priority: medium
+  glob_patterns:
+    - "lazer/contracts/cardano/*.md"
+    - "lazer/contracts/cardano/validators/**/*.ak"
+    - "lazer/contracts/cardano/lib/**/*.ak"
+    # Enumerated page: if upstream moves/renames it, this matches nothing and the
+    # guide silently drops from the bundle - watch refresh PR diffs for its deletion.
+    - "apps/developer-hub/content/docs/price-feeds/pro/integrate-as-consumer/cardano.mdx"
+  description: Pyth Pro (Lazer) pull oracle on Cardano - first-principles eUTxO design doc (state NFT, zero-withdrawal verification), Aiken contracts, consumer integration guide
+  website: https://docs.pyth.network/price-feeds/pro
+
 # --- Standards & Portals ---
 
 - name: CIPs
@@ -780,8 +992,6 @@
 # =============================================================================
 
 # --- Smart Contract Languages (candidates) ---
-
-# Helios promoted to active sources on 2026-05-14 — see Hyperion-BT/helios above.
 
 # - name: Marlowe
 #   repo: https://github.com/input-output-hk/marlowe-cardano.git

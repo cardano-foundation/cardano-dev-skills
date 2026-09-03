@@ -2,7 +2,7 @@
 
 When scaffolding a new Cardano project, picking the use case up front is more useful than picking only a stack. The use case decides the datum shape, the redeemer shape, what the validator checks, and what the off-chain code has to do. The stack decision (Mesh / Evolution / PyCardano / cardano-client-lib) sits on top of that and is mostly about which language the team writes.
 
-This file lists 21 reference use cases derived from `docs/sources/cardano-use-case-templates/`. They come from the research paper "Smart Contract Languages: A Comparative Analysis" (Bartoletti et al., 2024) and are implemented for Cardano by the Cardano Foundation.
+This file lists the reference use cases derived from `docs/sources/cardano-use-case-templates/`. They come from the research paper "Smart Contract Languages: A Comparative Analysis" (Bartoletti et al., 2024) and are implemented for Cardano by the Cardano Foundation.
 
 ## Curated vs agent-generated
 

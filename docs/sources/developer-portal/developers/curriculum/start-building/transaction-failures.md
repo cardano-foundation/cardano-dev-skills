@@ -12,7 +12,7 @@ Transactions fail, and on Cardano they fail in a small number of well-defined wa
 The ledger validates a transaction in two phases, and the phase a failure lands in decides what it costs you.
 
 - **Phase 1** checks structure: the inputs exist, the value balances (inputs equal outputs plus fee), signatures are present, and the fee is sufficient. A phase-1 failure is rejected for free, the transaction never makes it on-chain.
-- **Phase 2** runs the Plutus scripts. It only happens if phase 1 passed. A phase-2 failure (a validator returns false, or exhausts its budget) is the one case where a *submitted* transaction costs you: the node consumes your [collateral](/docs/developers/curriculum/smart-contracts/lock-and-spend#collateral). A transaction that passes both phases never loses collateral.
+- **Phase 2** runs the Plutus scripts. It only happens if phase 1 passed. A phase-2 failure (a validator returns false, or exhausts its budget) is the one case where a *submitted* transaction costs you: the node consumes your [collateral](/docs/developers/curriculum/fundamentals/core-concepts/fees#collateral). A transaction that passes both phases never loses collateral.
 
 The split exists for an economic reason. An invalid transaction never reaches the chain, so it never pays a fee, which means the work of rejecting it is unpaid; if that work were unbounded, flooding nodes with expensive-to-reject transactions would be a cheap attack. Phase 1 is the bounded, inexpensive gate that protects the node. Phase 2 is where the expensive script work lives, and its failures land on-chain and consume collateral precisely so that heavy validation work is always paid for. The [Cardano Blueprint's validity page](https://cardano-scaling.github.io/cardano-blueprint/ledger/state-transition/validity.html) walks through the full argument.
 
@@ -34,7 +34,7 @@ The transaction is well-formed but the node rejects it. The full list of node re
 - **`BadInputsUTxO`** (phase 1): a chosen UTXO is already spent. Either you read **stale** state (the indexer had not caught up) or another transaction **contended** for the same UTXO (a second browser tab, a double-clicked submit, or a concurrent backend build). This is the UTXO model's characteristic race: inputs are discrete and consumed exactly once.
 - **`OutsideValidityIntervalUTxO`** (phase 1): the transaction's validity window has passed before it landed. Rebuild with a fresh window.
 - **`ValueNotConservedUTxO`** / **`FeeTooSmallUTxO`** (phase 1): the balance or the fee is wrong, almost always a building bug rather than a transient condition.
-- **Script failure** (phase 2): a validator returned false or ran out of budget. Collateral is consumed. This is a logic problem, in the validator or in the datum/redeemer you supplied, not something a retry fixes. Reproduce it locally with the [testing](/docs/developers/curriculum/smart-contracts/testing) tools before resubmitting.
+- **Script failure** (phase 2): a validator returned false or ran out of budget. Collateral is consumed. This is a logic problem, in the validator or in the datum/redeemer you supplied, not something a retry fixes. Reproduce it locally with an [emulator or devnet](/docs/developers/curriculum/start-building/local-testing) before resubmitting; if the bug is in the validator itself, see [testing validators](/docs/developers/curriculum/smart-contracts/testing).
 
 ## Congestion and the mempool
 
@@ -73,4 +73,5 @@ The important subtlety: `BadInputsUTxO` from indexer lag *looks* transient but a
 
 - [Resilient submission](/docs/developers/curriculum/start-building/transaction-building#resilient-submission-retry-safe): the retry-safe pattern in code
 - [Submitting transactions](/docs/developers/curriculum/start-building/query-the-chain#submitting-transactions): the full rejection-code reference
-- [Collateral](/docs/developers/curriculum/smart-contracts/lock-and-spend#collateral): how phase-2 failures are paid for
+- [Collateral](/docs/developers/curriculum/fundamentals/core-concepts/fees#collateral): how phase-2 failures are paid for
+- [Mint Tokens & NFTs](/docs/developers/curriculum/native-tokens/overview): the next module, custom assets in the transactions you can now debug

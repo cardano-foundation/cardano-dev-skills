@@ -1,0 +1,20 @@
+---
+title: Consuming Protocols
+sidebar:
+  label: Introduction
+  order: 0
+pagefind: false
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+This section is for **application developers** integrating an existing Tx3 protocol. The recommended workflow is codegen: pull a published protocol into your project with `trix use`, generate a typed client with `trix codegen`, and call one typed method per transaction from your application code. At runtime that client speaks the Transaction Resolver Protocol (TRP) to a backend that turns each invocation into an unsigned transaction ready to be signed and submitted.
+
+If instead you're authoring the protocol itself, see [Authoring Protocols](/tx3/authoring).
+
+<CardGrid>
+  <LinkCard title="Quick Start" href="/tx3/consuming/quick-start" description="Step-by-step walkthrough from `trix use` to a submitted transaction, tabbed across TypeScript, Rust, Go, and Python." />
+  <LinkCard title="Codegen" href="/tx3/consuming/codegen" description="Add protocols with `trix use` and generate typed clients with `trix codegen` in TypeScript, Rust, Go, or Python." />
+  <LinkCard title="SDKs" href="/tx3/consuming/sdks" description="Directory of the supported runtime SDKs — repositories, package registries, and install commands per language." />
+  <LinkCard title="Dynamic Usage" href="/tx3/consuming/dynamic-usage" description="The untyped SDK surface — load a protocol at runtime and address transactions by name, for when codegen isn't an option." />
+</CardGrid>

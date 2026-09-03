@@ -6,7 +6,7 @@ Community-curated knowledge base for building on Cardano. This repo is a Claude 
 
 - `registry/sources.yaml` — canonical list of Cardano projects and their documentation sources
 - `registry/pins.yaml` — auto-generated upstream commit pins (each source fetches its last-vetted commit, not the branch tip)
-- `skills/` — <!-- COUNT:skills -->16<!-- /COUNT:skills --> developer skills (flat layout — each skill is `skills/<name>/SKILL.md`)
+- `skills/` — developer skills (flat layout — each skill is `skills/<name>/SKILL.md`)
 - `scripts/` — validation, fetch, sync, and scaffolding tooling
 - `hooks/` — session-level hooks (freshness check; prompt-time context injection planned)
 - `docs/DESIGN.md` — architectural decisions
@@ -14,7 +14,7 @@ Community-curated knowledge base for building on Cardano. This repo is a Claude 
 
 ## Documentation Sources
 
-The `docs/sources/` directory contains documentation extracted from <!-- COUNT:sources -->59<!-- /COUNT:sources --> Cardano projects.
+The `docs/sources/` directory contains documentation extracted from the Cardano projects listed in `registry/sources.yaml`.
 When a skill or user needs to look up SDK APIs, CIP specs, or tool docs, search here first:
 
 ```
@@ -23,7 +23,7 @@ docs/sources/mesh-sdk/                      # Mesh SDK API docs
 docs/sources/evolution-sdk/                 # Evolution SDK docs
 docs/sources/cips/                          # All CIP proposals
 docs/sources/ogmios/                        # Ogmios WebSocket bridge
-docs/sources/cardano-use-case-templates/    # 21 Foundation use-case templates
+docs/sources/cardano-use-case-templates/    # Foundation use-case templates
 ...
 ```
 
@@ -59,6 +59,10 @@ Required sections: When to use, When NOT to use, Key principles, Workflow.
 - Include trade-offs and decision criteria
 - Prescriptiveness scales with risk (strict for security, flexible for exploration)
 - No hardcoded paths — use relative references
+- Every doc is a living artifact: rewrite it to read as a clean one-shot final version.
+  No changelogs, no "correction to an earlier note", no "previously this said" callouts,
+  no narration of what changed. Git tracks the history. (Documenting that *external*
+  guidance is stale — a deprecated API, an archived repo — is content, not a changelog.)
 
 ## Documentation Governance
 
@@ -69,10 +73,6 @@ Docs must reflect current state. When you change something **observable from out
 The canonical change→docs matrix lives in `docs/CONTRIBUTING.md` (§Documentation
 governance) — consult it whenever a change is externally observable (per the rule above)
 to see which docs to update in the same PR.
-
-### Auto-derived counts
-
-`scripts/update-doc-counts.sh` rewrites count sentinels in CLAUDE.md and README.md from disk state. Sentinels look like `<!-- COUNT:skills -->16<!-- /COUNT:skills -->` and are invisible in rendered output. CI runs the script in `--check` mode on every PR — drift fails the build. Run the script locally before pushing.
 
 ### Source-vetting bar
 

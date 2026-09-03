@@ -63,7 +63,7 @@ On JVM, Scalus provides the full Scala developer experience: compiler plugin, tr
 
 ## Versioning and stability
 
-Starting with 1.0.0-M1, `scalus-core`, `scalus-cardano-ledger`, and `scalus-bloxbean-cardano-client-lib` form the stable API surface, checked with [MiMa](https://github.com/lightbend-labs/mima) on every build. Most APIs will remain binary compatible across the 1.x line; some parts will likely still see breaking changes in 1.x releases, always following a deprecation cycle. `scalus-testkit` is best-effort, and `*.internal` packages and compiler internals carry no compatibility promise. Upgrading from 0.18.x? See the [migration guide](https://scalus.org/docs/get-started/migrating-to-1.0).
+Starting with 1.0.0-M1, `scalus-core`, `scalus-cardano-ledger`, and `scalus-bloxbean-cardano-client-lib` form the stable API surface, checked with [MiMa](https://github.com/lightbend-labs/mima) on every build. Most APIs will remain binary compatible across the 1.x line; some parts will likely still see breaking changes in 1.x releases, always following a deprecation cycle. `scalus-testkit` is best-effort, and `*.internal` packages and compiler internals carry no compatibility promise (concretely: `scalus.compiler.sir.lowering`, `scalus.compiler.sir.linking`, `scalus.compiler.intrinsics`, `scalus.uplc.builtin.internal` and `scalus.uplc.internal` are exempt from the MiMa check; see `mimaBinaryIssueFilters` in build.sbt). Upgrading from 0.18.x? See the [migration guide](https://scalus.org/docs/get-started/migrating-to-1.0).
 
 ---
 
@@ -123,12 +123,12 @@ Next steps:
 
 ### Scala / sbt
 
-Use the latest published Scalus version. Maven Central currently lists `1.0.0-M2`.
+Use the latest published Scalus version. Maven Central currently lists `1.0.0`.
 
 `project/plugins.sbt`:
 
 ```scala
-addSbtPlugin("org.scalus" % "scalus-sbt-plugin" % "1.0.0-M2")
+addSbtPlugin("org.scalus" % "scalus-sbt-plugin" % "1.0.0")
 ```
 
 `build.sbt`:
@@ -136,7 +136,7 @@ addSbtPlugin("org.scalus" % "scalus-sbt-plugin" % "1.0.0-M2")
 ```scala
 scalaVersion := "3.3.8"
 
-val scalusVersion = "1.0.0-M2"
+val scalusVersion = "1.0.0"
 
 addCompilerPlugin(
   "org.scalus" % "scalus-plugin" % scalusVersion cross CrossVersion.full

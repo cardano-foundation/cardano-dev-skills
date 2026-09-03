@@ -1,0 +1,171 @@
+---
+title: Tx3up
+sidebar:
+    order: 1
+---
+import { Steps } from '@astrojs/starlight/components';
+
+`tx3up` is a command-line tool designed to simplify the installation and management of the `tx3` toolchain. Its main purpose is to provide a convenient way for users to get started with `tx3` and keep their toolchain updated.
+
+It solves the problem of manually downloading and configuring `tx3` components by automating the process.
+
+The tool is primarily created for developers and users who want to use the `tx3` programming language and its associated tools.
+
+## Installation
+
+You can download the appropriate binary for your operating system directly from the [latest releases page on the tx3up](https://github.com/tx3-lang/tx3up/releases).
+
+To verify that `tx3up` is installed correctly, open your terminal and run:
+
+```sh
+tx3up --version
+```
+
+This command should display the version of the `tx3up` installer.
+
+### Initial Setup
+
+Once `tx3up` is installed, you can use it to install the `tx3` toolchain. Running `tx3up` without any subcommands will perform a default installation of the `stable` channel and set it as the default.
+
+```sh
+tx3up
+```
+
+This will download and install the latest stable versions of the `tx3` toolchain components into a `.tx3` directory in your user's home or local data directory and configure your system's PATH to include the installed binaries.
+
+## Commands Overview
+
+*   `tx3up install`: Installs the tx3 toolchain or specific tools.
+*   `tx3up default`: Sets the default channel for the tx3 toolchain.
+*   `tx3up show`: Shows information about the installed tx3 tools.
+
+## Command Details
+
+### `tx3up install`
+
+Installs the `tx3` toolchain or specific tools. If no tool is specified, it installs all available tools for the current channel. You can optionally specify a version for a specific tool.
+
+```bash
+tx3up install [tool] [version]
+```
+
+**Available Options:**
+
+*   `tool`: (Optional) The name of the specific tool to install (e.g., `trix`, `tx3-lsp`, `dolos`, `cshell`). If omitted, all tools for the channel are installed.
+*   `version`: (Optional) The specific version of the tool to install. If omitted, the latest version is installed.
+
+**Examples:**
+
+Install the entire `stable` toolchain:
+
+```bash
+tx3up install
+```
+
+Install only the `trix` tool:
+
+```bash
+tx3up install trix
+```
+
+Install a specific version of the `dolos` tool:
+
+```bash
+tx3up install dolos 0.21.1
+```
+
+### `tx3up default`
+
+Sets the default channel for the `tx3` toolchain. This command creates a symlink from the `.tx3/default` directory to the specified channel's directory, effectively making the binaries in that channel the default ones accessible in your PATH.
+
+```bash
+tx3up default [channel]
+```
+
+**Available Options:**
+
+*   `channel`: (Optional) The name of the channel to set as default. Defaults to `stable`.
+
+**Examples:**
+
+Set the `stable` channel as default:
+
+```bash
+tx3up default stable
+```
+
+### `tx3up show`
+
+Displays information about the installed `tx3` tools, including their binary path, GitHub repository, and installed version.
+
+```bash
+tx3up show [tool]
+```
+
+**Available Options:**
+
+*   `tool`: (Optional) The name of a specific tool to show information for. If omitted, information for all installed tools is displayed.
+
+**Examples:**
+
+Show information for all installed tools:
+
+```bash
+tx3up show
+```
+
+Show information specifically for the `trix` tool:
+
+```bash
+tx3up show trix
+```
+
+## Common Workflows
+
+<Steps>
+
+1. Initial Toolchain Setup:
+
+    Install the default `stable` toolchain and set it as default.
+
+    ```bash
+    tx3up
+    ```
+
+    This is the simplest way to get started and installs all necessary components.
+
+2. Installing a Specific Tool:
+
+    If you only need a particular tool from the toolchain, you can install it individually.
+
+    ```bash
+    tx3up install [tool_name]
+    ```
+
+    Replace `[tool_name]` with the name of the tool you want to install (e.g., `trix`).
+
+3. Switching Default Channels:
+
+    If you have multiple channels installed (e.g., `stable` and `beta`), you can easily switch between them.
+
+    ```bash
+    tx3up default [channel_name]
+    ```
+
+    Replace `[channel_name]` with the name of the channel you want to use as default (e.g., `beta`). This updates the symlink to point to the desired channel's binaries.
+
+4. Checking Installed Tool Versions:
+
+    To see which versions of the tools are currently installed and their details.
+
+    ```bash
+    tx3up show
+    ```
+
+    Or for a specific tool:
+
+    ```bash
+    tx3up show [tool_name]
+    ```
+
+</Steps>

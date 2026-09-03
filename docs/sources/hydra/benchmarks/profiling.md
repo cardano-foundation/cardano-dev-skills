@@ -8,7 +8,7 @@ This tutorial explains how to profile Hydra scripts and is intended for contribu
 
 ## Overview
 
-For every pull request and the latest `master` branch, we compute typical transaction costs in terms of size, memory, and CPU usage of the Hydra protocol transactions on Cardano. You can view the latest results [here](https://hydra.family/head-protocol/benchmarks/transaction-cost).
+For every pull request and the latest `master` branch, we compute typical transaction costs in terms of size, memory, and CPU usage of the Hydra protocol transactions on Cardano. You can view the latest results [here](./transaction-cost.md).
 
 Such benchmarks provide a comprehensive overview of the constraints for a given transaction, including maximum transaction size and percent of maximum memory and CPU budget. For a detailed assessment, we analyze _all_ scripts that run within a given transaction.
 
@@ -41,7 +41,7 @@ Here, isolate the transaction for `5` parties by replacing the list passed to `m
 
 ## Compiling a script for profiling
 
-The `increment` transaction utilizes the `vDeposit` and `vHead` validator scripts. To enable profiling, add the following directive to the modules [`Hydra.Contract.Deposit`](pathname:///haddock/hydra-plutus/Hydra-Contract-Deposit.html) and [`Hydra.Contract.Head`](pathname:///haddock/hydra-plutus/Hydra-Contract-Head.html):
+The `increment` transaction utilizes the `vDeposit` and `vHead` validator scripts. To enable profiling, add the following directive to the modules [`Hydra.Contract.Deposit`](pathname:///haddocks/hydra-plutus/Hydra-Contract-Deposit.html) and [`Hydra.Contract.Head`](pathname:///haddocks/hydra-plutus/Hydra-Contract-Head.html):
 
 ```
 {-# OPTIONS_GHC -fplugin-opt Plinth.Plugin:profile-all #-}
@@ -50,7 +50,7 @@ The `increment` transaction utilizes the `vDeposit` and `vHead` validator script
 ## Acquiring an executable script
 
 You can achieve this using
-[`prepareTxScripts`](pathname:///haddock/hydra-tx/Hydra-Ledger-Cardano-Evaluate.html#v:prepareTxScripts).
+[`prepareTxScripts`](pathname:///haddocks/hydra-tx/Hydra-Ledger-Cardano-Evaluate.html#v:prepareTxScripts).
 To acquire and save the fully applied scripts from the transaction onto disk, run:
 
 ```haskell
@@ -91,7 +91,7 @@ cat logs | traceToStacks | flamegraph.pl > cpu.svg
 cat logs | traceToStacks --column 2 | flamegraph.pl > mem.svg
 ```
 
-Here's an example of a memory profile for a `5` party `collectCom` (kept as a historical illustration; the `collectCom` transaction itself has been removed since [ADR-33](../adr/2026-03-10_033-directly-open-head.md)):
+Here's an example of a memory profile for a `5` party `collectCom` (kept as a historical illustration; the `collectCom` transaction itself has been removed since [ADR-33](/adr/33)):
 
 ![](profile-mem.svg)
 

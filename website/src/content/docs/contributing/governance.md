@@ -20,20 +20,6 @@ describe it in the same PR. The authoritative change→docs matrix lives in
 Grep the repo for the thing you're changing — file name, count, label,
 terminology. If it appears in any doc, update it.
 
-## Auto-derived counts
-
-`scripts/update-doc-counts.sh` rewrites count sentinels in `CLAUDE.md` and
-`README.md` from disk state. Sentinels look like
-`<!-- COUNT:skills -->15<!-- /COUNT:skills -->` and are invisible in
-rendered output.
-
-CI runs the script in `--check` mode on every PR — drift fails the build.
-Run the script locally before pushing:
-
-```bash
-./scripts/update-doc-counts.sh
-```
-
 ## Source-vetting bar
 
 New sources must be actively maintained — recent commits, a release or activity

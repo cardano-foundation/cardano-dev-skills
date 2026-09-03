@@ -45,7 +45,7 @@ Both stacks consume the same `plutus.json`, so switching later is moderate-cost 
 
 ## Enterprise / JVM constraints
 
-If the organisation mandates JVM for backend services (common in fintech, government, or established enterprises), stack 4 is the only option. cardano-client-lib is mature, has Spring Boot integration, and fits naturally into existing JVM CI/CD. Trade-off: smaller community than the TypeScript options, fewer end-to-end tutorials. The bundled docs at `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/` are the authoritative reference.
+If the organisation mandates JVM for backend services (common in fintech, government, or established enterprises), stack 4 is the only option. cardano-client-lib is mature, has Spring Boot integration, and fits naturally into existing JVM CI/CD. Trade-off: smaller community than the TypeScript options, fewer end-to-end tutorials. Start from `${CLAUDE_SKILL_DIR}/../../skills/build-transaction/references/cclib-quicktx.md` for the QuickTx API, and read a complete worked program under `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-use-case-templates/<use-case>/offchain/ccl-java/`. The mirrored upstream docs at `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/` are the API reference.
 
 ## Python data and scripting
 
@@ -64,7 +64,7 @@ These languages and SDKs exist and are used in production by specific teams. The
 - **Scalus** — Scala 3 on-chain and off-chain. Powerful for Scala teams but still evolving; small developer base. Use directly if your team is already deep in Scala.
 - **OpShin** — Python that compiles to UPLC. Works, but tooling and ecosystem are smaller than Aiken's. Pick if a Python-on-chain story is a hard requirement.
 - **Plutarch** — typed Haskell eDSL for highly optimised UPLC. Best raw performance, but steepest learning curve and a Haskell-only team requirement.
-- **Plu-ts** — TypeScript eDSL for on-chain and off-chain. Interesting for keeping one language across the stack, but smaller community than Aiken + Evolution/Mesh.
+- **Pebble** — Harmonic Labs' TypeScript-family on-chain language (successor of Plu-ts; same repo, renamed). Interesting for keeping one language across the stack, but smaller community than Aiken + Evolution/Mesh.
 - **Plutus (original Haskell)** — the historical on-chain language. Functional and production-proven, but Aiken has surpassed it in developer experience for new projects. Pick Plutus only if maintaining an existing Plutus codebase.
 - **Helios** — DSL with browser-side compilation. Niche; smaller ecosystem than Aiken.
 - **Marlowe** — domain-specific language for financial contracts. Use only if you are building a structured financial contract that fits Marlowe's model.

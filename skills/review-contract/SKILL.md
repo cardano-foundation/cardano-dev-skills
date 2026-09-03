@@ -59,7 +59,7 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken/` - Aiken language docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken-design-patterns/` - Aiken design patterns
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/smart-contract-vulnerabilities/` - Smart contract vulnerability reference
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/plutus/` - Plutus docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/plinth/` - Plinth (PlutusTx) docs
 
 ### Step 3: Check against the vulnerability checklist
 
@@ -72,21 +72,49 @@ Go through every item in the vulnerability checklist (see References below). For
 Key checks by contract type:
 
 **Spending validators:**
-- Double satisfaction: Are inputs uniquely identified?
-- Datum hijacking: Is the output datum validated?
-- Value preservation: Are output values checked?
-- Signer checks: Are required signers validated?
-- Datum transitions: Are state transitions constrained?
-- Output ordering: Are outputs found by address/value, not index?
+- Double satisfaction: Is each input bound to its own output (tagging, or one script input per tx)?
+- Datum hijacking: Is the continuing output's *full address* pinned, not just its datum?
+- UTxO authentication: Are protocol UTxOs identified by token, not by address?
+- Value preservation: Are output values checked, and is only the expected asset set allowed?
+- Signer checks: Are required signers validated on every branch, including the fallback?
+- Datum transitions: Are immutable fields asserted equal across the transition?
+- Output ordering: Are outputs found by predicate, or by unverified index?
 
 **Minting policies:**
-- Infinite minting: Is minting quantity constrained?
-- NFT authentication: Is the NFT tied to a UTxO for uniqueness?
-- Unchecked quantity: Is the exact mint amount validated?
+- Infinite minting: Is the quantity constrained across the *whole policy*, not one asset name?
+- One-shot uniqueness: Is the policy parameterized by a consumed `OutputReference`?
+- Burn path: Are negative quantities an explicit decision?
 
-**Staking validators:**
-- Withdrawal validation bypass (withdraw-zero attack)
-- Insufficient staking control
+**Stake scripts (`withdraw` / `publish` handlers):**
+- Withdrawal validation bypass: does the spender pin the *specific* stake script hash?
+- Insufficient staking control: does `withdraw` constrain where rewards go, and `publish` restrict certificates?
+
+### Step 3b: Decide whether the design/operational pass applies
+
+`references/design-and-operational-risks.md` covers five concerns that are **not**
+vulnerabilities: hardcoded addresses, collateral assumptions, script hash mismatch,
+Plutus version confusion, and redeemer size. They never belong in the findings table.
+
+Read the user's request to decide what they actually want:
+
+- **Security review only** ("is this safe?", "find vulnerabilities", "audit this") --
+  work the vulnerability checklist. When you finish, tell the user the design and
+  operational pass exists and ask whether they want it. Do not run it uninvited and do
+  not pad the report with it.
+- **Deployment or readiness framing** ("are we ready for mainnet?", "review before we
+  deploy", "check the deployment") -- both apply. Run the vulnerability checklist and
+  the design/operational pass, and say up front that you are doing both.
+- **Explicitly operational** ("check our parameterization", "is our Plutus version
+  right?") -- run the design/operational pass. Offer the security review as well, since
+  a request framed operationally often wants exploitability checked too.
+
+When both are in scope, keep them visually separate in the output (see Step 6). If a
+design/operational concern turns out to be concretely exploitable, it stops being an
+observation: report it as a finding under whichever vulnerability class it actually
+falls into, and cite the exploit.
+
+Several entries correlate across the two documents and carry **Related** links --
+follow them rather than treating the split as a hard wall.
 
 ### Step 4: Language-specific checks
 
@@ -139,9 +167,19 @@ For each finding, provide:
 
 End with a summary table and overall risk assessment.
 
+If you also ran the design/operational pass, put it **after** the findings under its own
+heading -- "Design and operational observations" -- with no severity labels and no
+entries in the findings summary table. Say plainly that these are not vulnerabilities.
+Mixing them into the severity-ranked list is what makes a reviewer look like they are
+padding, and it buries the findings that matter.
+
+If you did not run that pass, close with one line telling the user it is available and
+what it covers, so they can ask for it.
+
 ## References
 
-- `references/vulnerability-checklist.md` -- The 26 eUTxO vulnerability patterns with detection and mitigation guidance
+- `references/vulnerability-checklist.md` -- 32 eUTxO exploit classes with detection and mitigation guidance; this is the source of findings
+- `references/design-and-operational-risks.md` -- 5 design, deployment, and compatibility concerns that are *not* vulnerabilities; report as observations only
 - Search `${CLAUDE_SKILL_DIR}/../../docs/sources/` for protocol specifications, design documents, and architecture notes
 - Aiken standard library documentation at https://aiken-lang.github.io/stdlib/
 - Cardano CIPs for relevant standards (CIP-57 for Plutus blueprints, CIP-68 for token metadata)

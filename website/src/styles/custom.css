@@ -1,200 +1,633 @@
 /* Cardano Dev Skills — Starlight theme overrides.
  *
- * Visual language modelled on the Cardano developer portal
- * (developers.cardano.org): Cardano Blue (#0033AD) on generous white space,
- * clean Inter typography, soft rounded cards, minimal shadows. Light mode is
- * the primary aesthetic; dark mode is a blue-tinted deep navy.
+ * The Cardano 2026 identity: navy and cream, self-hosted Chivo on a light
+ * weight scale, amber accents, hairline borders. Token names match the
+ * developer portal's `--site-*` vocabulary so the two repositories share one
+ * language.
+ *
+ * Two conventions carried over from the portal:
+ *
+ *   1. Channel tokens for alpha. Write `rgb(var(--site-color-navy-rgb) / 0.5)`
+ *      rather than an rgba() literal that detaches from the palette.
+ *   2. No raw font weights. Every weight references a token.
+ *
+ * Starlight is pinned at 0.29.3 and sets `scopedStyleStrategy: 'where'`, so its
+ * component-scoped selectors compile to specificity 0,1,0 — the same as a bare
+ * class here. Where a rule overrides a Starlight component, it is qualified by
+ * an ancestor so the cascade is settled by specificity rather than bundle order.
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+/* Brand fonts, the same variable files cardano.org serves: one file per style,
+   each carrying the whole 100–900 axis. The URLs are relative because the site
+   is served from a base path, which a root-absolute /fonts/… would miss. */
+@font-face {
+  font-family: 'Chivo';
+  src: url('../assets/fonts/Chivo-VariableFont_wght.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Chivo';
+  src: url('../assets/fonts/Chivo-Italic-VariableFont_wght.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Chivo Mono';
+  src: url('../assets/fonts/ChivoMono-VariableFont_wght.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ---- Brand tokens ------------------------------------------------------ */
+/* Theme-invariant: the palette, the type scale, and the card surface. */
 
 :root {
-  /* Cardano Blue accent ramp */
-  --cf-blue: #0033ad;
-  --cf-blue-bright: #1a54d8;
-  --cf-blue-deep: #002280;
+  /* The rest of each stack is the fallback for glyphs Chivo does not carry,
+     such as the ada sign. Chivo Mono is the label face for eyebrows and chip
+     CTAs; code keeps a conventional editor stack, so the two are separate. */
+  --site-font-family-base: 'Chivo', system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, Cantarell,
+    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+  --site-font-family-mono-label: 'Chivo Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --site-font-family-mono-code: 'SF Mono', 'Fira Code', Consolas, ui-monospace, monospace;
 
-  --sl-color-accent-low: #0a1b47;
-  --sl-color-accent: #0033ad;
-  --sl-color-accent-high: #b8ccff;
+  /* The brand ships no Chivo cut heavier than Medium, so the scale stops at
+     500 and nothing on the site is bolder. Display is the hero; heading drives
+     h1–h3. */
+  --site-font-weight-display: 200;
+  --site-font-weight-heading: 300;
+  --site-font-weight-normal: 400;
+  --site-font-weight-semibold: 500;
 
-  /* Typography */
-  --sl-font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --sl-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* Colours that get composed with alpha carry an -rgb twin (see convention 1
+     above); add one alongside its hex when a new colour needs it. */
+  --site-color-cream: #fffaf3;
+  --site-color-cream-rgb: 255 250 243;
+  --site-color-navy: #000629;
+  --site-color-navy-rgb: 0 6 41;
+  --site-color-brand-blue: #0033ad;
+  --site-color-amber: #ffb122;
+  --site-color-ink: #111425;
+  --site-color-ink-muted: #5f6b85;
 
-  /* Slightly rounder corners site-wide */
-  --cf-radius: 12px;
+  /* Cards are navy with light text in both themes, so they carry
+     theme-invariant semantic tokens rather than per-theme rules. Their text is
+     pure white rather than cream: over navy, cream's warmth reads as a tint. */
+  --site-color-card-surface: var(--site-color-navy);
+  --site-color-card-text: #ffffff;
+  --site-color-card-text-rgb: 255 255 255;
+  --site-color-card-text-muted: rgb(var(--site-color-card-text-rgb) / 0.72);
+  --site-color-card-accent: var(--site-color-amber);
+  --site-color-card-border: rgb(255 255 255 / 0.08);
+
+  --site-radius-card: 12px;
+
+  --sl-font: var(--site-font-family-base);
+  --sl-font-mono: var(--site-font-family-mono-code);
 }
 
-/* ---- Dark mode — blue-tinted deep navy --------------------------------- */
-:root[data-theme='dark'] {
-  --sl-color-bg: #070b16;
-  --sl-color-bg-nav: #070b16;
-  --sl-color-bg-sidebar: #070b16;
-  --sl-color-bg-inline-code: #141b2e;
-  --sl-color-bg-accent: #0d1832;
+/* ---- Dark theme -------------------------------------------------------- */
+/* Starlight is dark-first: bare :root is its dark palette and
+   [data-theme='light'] overrides it. Every token set here is restated in the
+   light block, since one declared only here would keep its dark value wherever
+   Starlight's own light block does not happen to cover it. */
 
-  --sl-color-text: #e6ebf5;
-  --sl-color-text-accent: #8fb2ff;
-  --sl-color-text-invert: #070b16;
+:root {
+  /* The page is #111425 — the same value as light-mode ink. Navy stays
+     reserved for the header, hero and cards, which is what keeps dark mode
+     from reading as one flat sheet. */
+  --sl-color-bg: #111425;
+  --sl-color-black: #111425;
+  --sl-color-bg-nav: #1a1c2c;
+  --sl-color-bg-sidebar: #111425;
+  --sl-color-bg-inline-code: rgb(255 255 255 / 0.08);
 
-  --sl-color-gray-1: #eef2fb;
-  --sl-color-gray-2: #c4cde0;
-  --sl-color-gray-3: #94a0bc;
-  --sl-color-gray-4: #65728f;
-  --sl-color-gray-5: #2a3450;
-  --sl-color-gray-6: #131a2c;
-  --sl-color-gray-7: #0d1322;
+  --sl-color-white: var(--site-color-cream);
+  --sl-color-gray-1: rgb(var(--site-color-cream-rgb) / 0.93);
+  --sl-color-gray-2: rgb(var(--site-color-cream-rgb) / 0.78);
+  --sl-color-gray-3: rgb(var(--site-color-cream-rgb) / 0.6);
+  --sl-color-gray-4: rgb(var(--site-color-cream-rgb) / 0.45);
+  --sl-color-gray-5: #2a2e42;
+  --sl-color-gray-6: #1a1c2c;
+  --sl-color-gray-7: #15182a;
 
-  --sl-color-hairline: #1c2740;
-  --sl-color-hairline-light: #28344f;
-  --sl-color-hairline-shade: #111a2e;
+  /* Brand blue is too dark to read as a link on #111425, so dark mode rides
+     the portal's lightened primary ramp instead. */
+  --sl-color-accent-low: #0a1230;
+  --sl-color-accent: #6684ce;
+  --sl-color-accent-high: #b0bfe7;
+
+  --sl-color-text: var(--sl-color-gray-2);
+  --sl-color-text-accent: #8aa0db;
+  --sl-color-text-invert: var(--site-color-navy);
+  --sl-color-bg-accent: var(--sl-color-accent);
+
+  --sl-color-hairline: var(--site-color-card-border);
+  --sl-color-hairline-light: rgb(255 255 255 / 0.12);
+  --sl-color-hairline-shade: rgb(255 255 255 / 0.06);
+
+  /* Focus rings follow the surface: amber on dark, navy on cream. Dark
+     surfaces inside the light theme re-declare this on their container. */
+  --site-focus-ring: var(--site-color-amber);
 }
 
-/* ---- Light mode — white + Cardano Blue (primary aesthetic) ------------- */
+/* ---- Light theme ------------------------------------------------------- */
+/* Starlight inverts its own scale here: --sl-color-white becomes the darkest
+   text and --sl-color-black becomes the page. Following that is what keeps
+   every component reading those two tokens correct. */
+
 :root[data-theme='light'] {
-  --sl-color-bg: #ffffff;
-  --sl-color-bg-nav: #ffffff;
-  --sl-color-bg-sidebar: #f6f8fc;
-  --sl-color-bg-inline-code: #eef2fb;
-  --sl-color-bg-accent: #eaf0fd;
+  --sl-color-bg: var(--site-color-cream);
+  --sl-color-black: var(--site-color-cream);
+  --sl-color-bg-nav: #f5f1e9;
+  --sl-color-bg-sidebar: var(--site-color-cream);
+  --sl-color-bg-inline-code: rgb(var(--site-color-navy-rgb) / 0.06);
 
-  --sl-color-text: #0d1b2a;
-  --sl-color-text-accent: #0033ad;
-  --sl-color-text-invert: #ffffff;
+  --sl-color-white: var(--site-color-ink);
+  --sl-color-gray-1: #1b1f33;
+  --sl-color-gray-2: #2e3448;
+  --sl-color-gray-3: var(--site-color-ink-muted);
+  --sl-color-gray-4: #8a93a8;
+  --sl-color-gray-5: #c9cdd9;
+  --sl-color-gray-6: #e8e4dc;
+  --sl-color-gray-7: #f5f1e9;
 
-  --sl-color-gray-1: #0d1b2a;
-  --sl-color-gray-2: #33415c;
-  --sl-color-gray-3: #54627d;
-  --sl-color-gray-4: #8794ab;
-  --sl-color-gray-5: #d3dbe9;
-  --sl-color-gray-6: #eaeff7;
-  --sl-color-gray-7: #f4f7fc;
+  --sl-color-accent-low: #e3e9f7;
+  --sl-color-accent: var(--site-color-brand-blue);
+  --sl-color-accent-high: #002479;
 
-  --sl-color-hairline: #e2e8f2;
-  --sl-color-hairline-light: #eaeff7;
-  --sl-color-hairline-shade: #d3dbe9;
+  --sl-color-text: var(--sl-color-gray-2);
+  --sl-color-text-accent: var(--site-color-brand-blue);
+  --sl-color-text-invert: var(--site-color-cream);
+  --sl-color-bg-accent: var(--sl-color-accent);
+
+  --sl-color-hairline: rgb(var(--site-color-navy-rgb) / 0.12);
+  --sl-color-hairline-light: rgb(var(--site-color-navy-rgb) / 0.08);
+  --sl-color-hairline-shade: rgb(var(--site-color-navy-rgb) / 0.1);
+
+  --site-focus-ring: var(--site-color-navy);
 }
 
-/* ---- Brand mark in the header ------------------------------------------ */
+/* ---- Base type --------------------------------------------------------- */
+
+/* Form controls do not inherit font-family: the browser's own stylesheet sets
+   them to Arial, which opts every button and select out of Chivo. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+.sl-markdown-content :is(h1, h2, h3) {
+  font-weight: var(--site-font-weight-heading);
+  letter-spacing: -0.01em;
+}
+
+/* Chivo Light reads weak below roughly 24px, so the minor heading levels stay
+   on the body weight. */
+.sl-markdown-content :is(h4, h5, h6) {
+  font-weight: var(--site-font-weight-normal);
+}
+
+.sl-markdown-content :is(strong, b) {
+  font-weight: var(--site-font-weight-semibold);
+}
+
+/* Uppercase Chivo Mono label, shared by the header wordmark, the hero stat
+   labels and the card eyebrows. */
+.site-eyebrow {
+  font-family: var(--site-font-family-mono-label);
+  font-weight: var(--site-font-weight-normal);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: var(--sl-text-2xs);
+  line-height: 1;
+}
+
+/* ---- Header ------------------------------------------------------------ */
+/* Navy in both themes, as on the portal, so a single white lockup serves both
+   and no dark variant is needed.
+ *
+ * Light mode still dresses the header's controls for a light bar, so each one
+ * is corrected individually below. Redefining the grey ramp on `.header`
+ * instead would be shorter, but the search dialog is a descendant of the
+ * header and would inherit it, holding the modal dark in light mode. */
+
+header.header {
+  background-color: var(--site-color-navy);
+  border-bottom: 1px solid var(--site-color-card-border);
+}
+
+.header {
+  --site-focus-ring: var(--site-color-amber);
+}
+
+.header button[data-open-modal] {
+  color: rgb(var(--site-color-cream-rgb) / 0.75);
+}
+
+.header button[data-open-modal] kbd {
+  background-color: rgb(255 255 255 / 0.14);
+  color: rgb(var(--site-color-cream-rgb) / 0.8);
+}
+
+/* Starlight only gives the search trigger its pill shape at this breakpoint;
+   below it the control is a bare icon and needs no surface. */
+@media (min-width: 50rem) {
+  .header button[data-open-modal] {
+    background-color: rgb(255 255 255 / 0.1);
+    border-color: rgb(255 255 255 / 0.14);
+  }
+
+  .header button[data-open-modal]:hover {
+    background-color: rgb(255 255 255 / 0.16);
+    border-color: rgb(255 255 255 / 0.28);
+    color: var(--site-color-cream);
+  }
+}
+
+.header .social-icons a {
+  color: rgb(var(--site-color-cream-rgb) / 0.75);
+}
+
+.header .social-icons a:hover {
+  color: var(--site-color-cream);
+}
+
+.header .social-icons::after {
+  border-inline-end-color: var(--site-color-card-border);
+}
+
+/* Theme select: a bare label/select pair with no class of its own. Its
+   dropdown panel paints with --sl-color-bg-nav, pinned to navy here so the
+   open list matches the bar it drops from. */
+.header .right-group label {
+  --sl-color-bg-nav: var(--site-color-navy);
+  --sl-color-gray-1: var(--site-color-cream);
+  color: rgb(var(--site-color-cream-rgb) / 0.75);
+}
+
+.header .right-group label:hover {
+  color: var(--site-color-cream);
+}
+
+/* SiteTitle is replaced, so these are the only rules sizing the mark. The
+   lockup is a 5:1 horizontal mark, so it needs the width ceiling that the
+   default square logo did not: at the desktop nav height it would otherwise
+   run to about 200px and crowd the search field. */
+.site-title {
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 .site-title img {
-  border-radius: 8px;
+  height: calc(var(--sl-nav-height) - 2 * var(--sl-nav-pad-y));
+  width: auto;
+  max-width: min(9.5rem, 42vw);
+  object-fit: contain;
+  object-position: 0 50%;
+}
+
+/* Larger and heavier than .site-eyebrow so it reads as the other half of the
+   mark rather than as a caption beside it. */
+.site-title-mark {
+  font-size: var(--sl-text-sm);
+  font-weight: var(--site-font-weight-semibold);
+  letter-spacing: 0.06em;
+  color: var(--site-color-cream);
+  padding-inline-start: 0.75rem;
+  border-inline-start: 1px solid var(--site-color-card-border);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---- Splash hero ------------------------------------------------------- */
-/* Soft Cardano-blue banner behind the hero, echoing the dev portal. */
+/* A navy band in both themes, like the header: the artwork is opaque, so it
+   sets the surface in light mode too and every colour below is unconditional.
+ *
+ * Starlight nests the hero inside .content-panel, whose top padding would
+ * otherwise show a strip of page background between the header and the band —
+ * visible in dark mode, where the two surfaces differ. `data-has-hero` is a
+ * bare attribute Starlight sets on <html> for splash pages only, so removing
+ * the padding through it leaves the docs pages alone. */
+
+:root[data-has-hero] .content-panel {
+  padding-top: 0;
+}
+
 .hero {
+  --site-focus-ring: var(--site-color-amber);
   position: relative;
-  padding-block: clamp(2rem, 6vw, 4.5rem);
-  border-radius: var(--cf-radius);
-  background:
-    radial-gradient(120% 120% at 50% -20%, rgba(0, 51, 173, 0.16), transparent 60%),
-    radial-gradient(90% 90% at 100% 0%, rgba(26, 84, 216, 0.10), transparent 55%);
+  isolation: isolate;
+  padding-block: clamp(4rem, 9vw, 7.5rem);
+  /* Bleed past the splash container so the band spans the viewport, then push
+     the copy back to the container's own edge. */
+  margin-inline: calc(50% - 50vw);
+  padding-inline: max(var(--sl-nav-pad-x), calc(50vw - var(--sl-content-width) / 2 - 1rem));
+  background-color: var(--site-color-navy);
+  border-bottom: 1px solid var(--site-color-card-border);
 }
 
-:root[data-theme='dark'] .hero {
-  background:
-    radial-gradient(120% 120% at 50% -20%, rgba(43, 108, 255, 0.22), transparent 60%),
-    radial-gradient(90% 90% at 100% 0%, rgba(0, 51, 173, 0.25), transparent 55%);
+/* The artwork occupies the right of the band and fades out towards the middle,
+   so the headline sits on flat navy instead of over the spheres.
+ *
+ * It is a sized element rather than a background on .hero because the image is
+ * within a few percent of the band's own aspect ratio: `cover` scales it to the
+ * full width, which leaves background-position no room to pan it sideways.
+ *
+ * The mask gradient uses a literal #000 because a mask reads the alpha channel,
+ * so the colour is a channel value rather than a paint. */
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: -1;
+  width: 62%;
+  background: url('../assets/spheres.webp') center right / cover no-repeat;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
 }
 
+/* Below the wide breakpoint the copy runs the full width, so the artwork drops
+   back to a texture rather than clearing a column for it. */
+@media (max-width: 50rem) {
+  .hero::before {
+    width: 100%;
+    opacity: 0.4;
+  }
+}
+
+/* Starlight's Hero is replaced, so its scoped rules for .stack and .copy are
+   never bundled and these are the only definitions. One column, unlike the
+   portal's two: its hero title is four words, this one is a full sentence. */
+.hero .stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: clamp(1.75rem, 3vw, 2.5rem);
+  text-align: start;
+}
+
+.hero .copy {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.25rem;
+}
+
+.hero .actions {
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Chivo ExtraLight display type, in sentence case: the portal sets its hero
+   titles uppercase, but those run to three or four words and this is a full
+   sentence. */
 .hero h1 {
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.05;
-  background: linear-gradient(180deg, var(--sl-color-text), var(--cf-blue));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-:root[data-theme='dark'] .hero h1 {
-  background: linear-gradient(180deg, #ffffff, #8fb2ff);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-size: clamp(2.25rem, 5.5vw, 4rem);
+  font-weight: var(--site-font-weight-display);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  color: var(--site-color-cream);
+  max-width: 18ch;
 }
 
 .hero .tagline {
-  color: var(--sl-color-gray-2);
-  font-size: clamp(1.05rem, 2vw, 1.35rem);
-  line-height: 1.5;
+  font-size: clamp(1rem, 1.4vw, 1.125rem);
+  line-height: 1.55;
+  color: rgb(var(--site-color-card-text-rgb) / 0.82);
+  max-width: 46ch;
 }
 
-/* ---- Hero call-to-action buttons --------------------------------------- */
-.sl-link-button.primary {
-  background: var(--cf-blue);
-  border-color: var(--cf-blue);
-  color: #ffffff;
-  border-radius: 999px;
-  font-weight: 600;
-  box-shadow: 0 6px 18px -8px rgba(0, 51, 173, 0.7);
-  transition: background-color 0.15s ease, transform 0.15s ease;
+/* Counts come from src/data/counts.json, written by scripts/build-catalogs.mjs
+   so they cannot drift from the registry. */
+.hero-stats {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.sl-link-button.primary:hover {
-  background: var(--cf-blue-deep);
-  border-color: var(--cf-blue-deep);
-  transform: translateY(-1px);
+.hero-stats li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
 }
 
-.sl-link-button.minimal,
-.sl-link-button.secondary {
-  border-radius: 999px;
-  border: 1px solid var(--sl-color-hairline-shade);
-  color: var(--sl-color-text-accent);
-  font-weight: 600;
+.hero-stat-value {
+  font-size: 1.5rem;
+  font-weight: var(--site-font-weight-display);
+  line-height: 1;
+  color: var(--site-color-cream);
 }
 
-.sl-link-button.minimal:hover,
-.sl-link-button.secondary:hover {
-  border-color: var(--cf-blue);
-  background: var(--sl-color-bg-accent);
+.hero-stat-label {
+  color: rgb(var(--site-color-card-text-rgb) / 0.6);
 }
 
-/* ---- Card grid (homepage) ---------------------------------------------- */
-.card {
-  border: 1px solid var(--sl-color-hairline);
-  border-radius: var(--cf-radius);
-  background: var(--sl-color-bg);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+/* Separator dot. Its trailing margin matches the list's gap so the dot sits
+   centred in the space between two stats. */
+.hero-stats li + li::before {
+  content: '';
+  align-self: center;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  margin-inline-end: 1.25rem;
 }
 
-.card:hover {
-  border-color: var(--cf-blue);
-  box-shadow: 0 12px 30px -18px rgba(0, 51, 173, 0.55);
+/* Amber square with navy glyphs, and a ghost sibling that inverts on hover.
+   The ghost is matched by exclusion so it covers Starlight's `secondary` and
+   `minimal` variants alike — `minimal` also needs the padding restored, which
+   this selector outranks. */
+.hero .sl-link-button {
+  font-family: var(--site-font-family-mono-label);
+  font-weight: var(--site-font-weight-normal);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: var(--sl-text-sm);
+  border-radius: 4px;
+  padding: 0.75rem 1.25rem;
+  transition: transform 0.25s ease, background-color 0.25s ease, color 0.25s ease,
+    border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.hero .sl-link-button.primary {
+  background: var(--site-color-amber);
+  border-color: var(--site-color-amber);
+  color: var(--site-color-navy);
+}
+
+.hero .sl-link-button.primary:hover {
   transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgb(var(--site-color-navy-rgb) / 0.35);
+  color: var(--site-color-navy);
 }
 
-.card .icon {
-  color: var(--cf-blue);
-  background: var(--sl-color-bg-accent);
-  border-color: transparent;
+.hero .sl-link-button:not(.primary) {
+  background: transparent;
+  border: 1px solid var(--site-color-cream);
+  color: var(--site-color-cream);
+  padding-inline: 1.25rem;
 }
 
-:root[data-theme='dark'] .card .icon {
-  color: #8fb2ff;
+.hero .sl-link-button:not(.primary):hover {
+  transform: translateY(-2px);
+  background: var(--site-color-cream);
+  border-color: var(--site-color-cream);
+  color: var(--site-color-navy);
 }
 
-.card .title {
-  font-weight: 700;
+/* ---- Landing cards ----------------------------------------------------- */
+/* Navy surface in both themes, with a mono eyebrow in place of the coloured
+   icon chip Starlight's Card rotates through by position. */
+
+.card-grid {
+  gap: 1.25rem;
+  margin-top: clamp(2rem, 5vw, 3.5rem);
 }
 
-/* ---- Links ------------------------------------------------------------- */
+.card-grid .card {
+  --site-focus-ring: var(--site-color-amber);
+  background: var(--site-color-card-surface);
+  border: 1px solid var(--site-color-card-border);
+  border-radius: var(--site-radius-card);
+  color: var(--site-color-card-text);
+  padding: 1.75rem;
+  gap: 0.5rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+/* Shadows are navy-channel throughout, never black. */
+.card-grid .card:hover {
+  transform: translateY(-6px);
+  border-color: rgb(255 255 255 / 0.16);
+  box-shadow: 0 24px 64px rgb(var(--site-color-navy-rgb) / 0.25);
+}
+
+/* The eyebrow is passed through Card's `title` prop (see index.mdx), so the
+   heading row stacks rather than centring a single line. */
+.card-grid .card .title {
+  color: var(--site-color-card-text);
+  font-weight: var(--site-font-weight-heading);
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  align-items: flex-start;
+  line-height: 1.2;
+}
+
+.card-grid .card .card-eyebrow {
+  display: block;
+  color: var(--site-color-card-accent);
+  margin-bottom: 0.6rem;
+}
+
+.card-grid .card .body {
+  color: var(--site-color-card-text-muted);
+  font-size: var(--sl-text-sm);
+  line-height: 1.6;
+}
+
+.card-grid .card a {
+  color: var(--site-color-card-text);
+  text-decoration-color: rgb(var(--site-color-card-text-rgb) / 0.4);
+}
+
+.card-grid .card a:hover {
+  color: var(--site-color-card-accent);
+}
+
+/* ---- Docs chrome ------------------------------------------------------- */
+
+/* PageTitle renders outside the markdown body, so it misses the heading rules
+   above and would keep Starlight's weight 600. Qualified on the splash
+   attribute so it cannot reach the hero's own h1, which shares the id. */
+:root:not([data-has-hero]) h1#_top {
+  font-weight: var(--site-font-weight-heading);
+  letter-spacing: -0.01em;
+}
+
 .sl-markdown-content a:not(:where(.not-content *)) {
   color: var(--sl-color-text-accent);
   text-underline-offset: 0.2em;
 }
 
-/* ---- Focus states ------------------------------------------------------ */
+/* Sidebar: a quiet rail on the page background. Starlight sets the whole tree
+   semibold, so it resets to the body weight and only the top-level entries —
+   which carry `.large`, whether link or group label — keep weight, giving two
+   readable tiers. */
+.sidebar-content {
+  font-weight: var(--site-font-weight-normal);
+}
+
+.sidebar-content .large {
+  font-weight: var(--site-font-weight-semibold);
+}
+
+.sidebar-content a {
+  border-radius: 8px;
+}
+
+.sidebar-content a[aria-current='page'] {
+  background-color: var(--sl-color-accent-low);
+  color: var(--sl-color-text-accent);
+  font-weight: var(--site-font-weight-semibold);
+}
+
+/* On the dark page the accent wash is too strong for a rail, so the current
+   page is marked by a light tint instead. */
+:root:not([data-theme='light']) .sidebar-content a[aria-current='page'] {
+  background-color: rgb(255 255 255 / 0.06);
+  color: var(--sl-color-white);
+}
+
+starlight-toc a[aria-current='true'] {
+  color: var(--sl-color-text-accent);
+  font-weight: var(--site-font-weight-semibold);
+  border-inline-start-color: var(--sl-color-text-accent);
+}
+
+.pagination-links a {
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: var(--site-radius-card);
+  box-shadow: none;
+}
+
+.pagination-links a:hover {
+  border-color: var(--sl-color-text-accent);
+}
+
+.pagination-links svg {
+  color: var(--sl-color-text-accent);
+}
+
+.expressive-code .frame {
+  border-radius: var(--site-radius-card);
+}
+
 :focus-visible {
-  outline: 2px solid var(--cf-blue);
+  outline: 2px solid var(--site-focus-ring);
   outline-offset: 2px;
 }
 
-/* ---- Auto-catalog tables ----------------------------------------------- */
-/* Keep identifiers in the first column on one line so long descriptions don't
- * squash skill/source names to one character per row. */
+/* ---- Generated catalog tables ------------------------------------------ */
+/* The skills and sources pages are wide three-column tables. Keeping the
+   identifiers on one line stops a long description column from squashing the
+   names to one character per row. */
+
 .sl-markdown-content table td code,
 .sl-markdown-content table th code {
   white-space: nowrap;
@@ -203,4 +636,13 @@
 .sl-markdown-content table th:first-child,
 .sl-markdown-content table td:first-child {
   min-width: 14ch;
+}
+
+.sl-markdown-content table th {
+  font-family: var(--site-font-family-mono-label);
+  font-weight: var(--site-font-weight-normal);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--sl-text-2xs);
+  color: var(--sl-color-gray-3);
 }

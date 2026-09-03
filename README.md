@@ -12,7 +12,7 @@ Training data on Cardano drifts fast. Conway era changed governance, Aiken synta
 
 This plugin solves that by shipping:
 
-- **Authoritative bundled docs** from <!-- COUNT:sources -->59<!-- /COUNT:sources --> active Cardano projects (auto-refreshed weekly from upstream).
+- **Authoritative bundled docs** from active Cardano projects (auto-refreshed weekly from upstream).
 - **Behavioral skills** that encode common workflows: scaffolding, writing validators, building transactions, governance, optimization, debugging.
 - **Hooks that auto-consult bundled context** before the agent reaches for training data or the web.
 
@@ -20,8 +20,8 @@ End result: the agent answers from current, project-authoritative sources instea
 
 ## What's inside
 
-- **<!-- COUNT:skills -->16<!-- /COUNT:skills --> developer skills** — each a focused workflow
-- **<!-- COUNT:sources -->59<!-- /COUNT:sources --> documentation sources** — bundled locally under `docs/sources/`, auto-refreshed weekly via GitHub Actions
+- **Developer skills** — each a focused workflow
+- **Documentation sources** — bundled locally under `docs/sources/`, auto-refreshed weekly via GitHub Actions
 - **Hooks** — `SessionStart` reports doc freshness; a `UserPromptSubmit` auto-consultation hook is in development
 
 ### Skills
@@ -44,6 +44,7 @@ End result: the agent answers from current, project-authoritative sources instea
 | `explain-cip` | Walk through a specific CIP |
 | `explain-zk` | Zero-knowledge and the BLS12-381 primitive family (proofs, signatures, VRF, KDF, BBS+) |
 | `suggest-tooling` | Recommend an SDK / framework given the use case |
+| `suggest-scalability` | Decide if a project needs L2, which approach, and which Hydra topology |
 
 ## What we add (and don't)
 
@@ -67,6 +68,26 @@ In any Claude Code session:
 ```
 
 Installed once, active in every Claude Code session in any directory. Verify with `/plugin list`.
+
+Run the two commands in that order. Adding the marketplace first is what registers
+it; going straight to `/plugin install` makes the client resolve the repository
+itself, which can fall back to an SSH URL and fail with
+`git@github.com: Permission denied (publickey)` even though this repository is
+public and clones fine over HTTPS.
+
+### Claude Cowork (desktop, web, mobile)
+
+Cowork uses the same plugin format, so this marketplace works there unchanged.
+
+1. Open **Customize** and go to the **Plugins** tab.
+2. Under **Personal plugins**, click **+**, then **Add marketplace**.
+3. Choose **Add from a repository** and enter:
+   `https://github.com/cardano-foundation/cardano-dev-skills`
+4. Install **cardano-dev-skills** from the marketplace once it syncs.
+
+The skills are the same ones listed above. Note that Cowork syncs the whole
+repository, and `docs/sources/` is roughly 30 MB of bundled documentation — the
+first sync is not instant.
 
 ### Codex / other agents
 
@@ -103,7 +124,7 @@ What it does:
 
 The plugin also tries to set the context automatically. In a Claude Code session:
 
-1. **Session start.** A `SessionStart` hook reports doc freshness — you'll see `[Cardano Dev Skills] Docs loaded: 56 sources, ...` at the top of every session in any directory.
+1. **Session start.** A `SessionStart` hook reports doc freshness — you'll see `[Cardano Dev Skills] Docs loaded: <n> sources, ...` at the top of every session in any directory.
 2. **Skill matching.** When you ask a question that matches a skill's trigger phrases (e.g. *"review my validator"*, *"scaffold a Cardano project"*), the agent auto-invokes that skill.
 3. **Doc consultation** *(in development).* A `UserPromptSubmit` hook scans your prompt for Cardano-specific keywords (`aiken`, `plutus`, `cip-XXXX`, `ogmios`, `drep`, …) and reminds the agent to consult bundled docs before training data or the web.
 
@@ -119,7 +140,7 @@ We're tracking which prompts fail to auto-consult so the keyword set + skill tri
 
 ## Bundled documentation
 
-<!-- COUNT:sources -->59<!-- /COUNT:sources --> Cardano projects mirrored locally. Auto-refreshed every Monday at 06:00 UTC via GitHub Actions — the workflow opens a PR; maintainers review and merge.
+Every project in `registry/sources.yaml` is mirrored locally. Auto-refreshed every Monday at 06:00 UTC via GitHub Actions — the workflow opens a PR; maintainers review and merge.
 
 Manual refresh:
 
@@ -159,7 +180,6 @@ Quick validation:
 python3 scripts/validate.py        # schema + format checks
 python3 scripts/check-pr-policy.py # PR policy checks vs origin/main (CI runs these + an AI scope review)
 python3 scripts/scan-docs-delta.py # security scan of docs/sources/ changes (CI runs it as a blocking check)
-./scripts/update-doc-counts.sh     # refresh count placeholders in docs (CI runs --check)
 ```
 
 ## Feedback

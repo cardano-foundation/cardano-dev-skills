@@ -1,9 +1,12 @@
 ---
 title: Cardano dev knowledge, native in your AI coding agent
-description: 56 documentation sources, 15 developer skills, hooks that auto-consult bundled context — for Claude Code, Codex, and any agent that reads Markdown.
+# The blurb is both the meta description and the hero tagline; the anchor keeps
+# the two from drifting apart. Counts stay out of it — the hero renders those
+# from the registry so they cannot go stale.
+description: &blurb Documentation sources, developer skills, and hooks that auto-consult bundled context — for Claude Code, Codex, and any agent that reads Markdown.
 template: splash
 hero:
-  tagline: 56 documentation sources, 15 developer skills, hooks that auto-consult bundled context — for Claude Code, Codex, and any agent that reads Markdown.
+  tagline: *blurb
   actions:
     - text: Get started
       link: /cardano-dev-skills/getting-started/
@@ -12,27 +15,34 @@ hero:
     - text: View on GitHub
       link: https://github.com/cardano-foundation/cardano-dev-skills
       icon: external
-      variant: minimal
+      variant: secondary
 ---
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
-<CardGrid stagger>
-  <Card title="Skills" icon="open-book">
+{/* Card renders `title` with set:html and places it before its slot, so the
+    eyebrow has to travel with the title — written into the card body it would
+    land under the heading instead of above it. Ampersands need escaping here
+    for the same reason. */}
+export const cardTitle = (eyebrow, title) =>
+  `<span class="card-eyebrow site-eyebrow">${eyebrow}</span>${title}`;
+
+<CardGrid>
+  <Card title={cardTitle('Workflows', 'Skills')}>
     Focused workflow guides for the common Cardano dev tasks — scaffolding,
     writing validators, building transactions, governance, optimisation,
     debugging. [Browse skills](/cardano-dev-skills/skills/).
   </Card>
-  <Card title="Bundled docs" icon="document">
-    56 upstream Cardano projects mirrored locally and auto-refreshed weekly —
+  <Card title={cardTitle('Context', 'Bundled docs')}>
+    Upstream Cardano projects mirrored locally and auto-refreshed weekly —
     SDKs, languages, infra, CIPs, ledger specs. [Browse sources](/cardano-dev-skills/sources/).
   </Card>
-  <Card title="Hooks + context" icon="rocket">
+  <Card title={cardTitle('Integration', 'Hooks + context')}>
     Per-project directive, skill auto-matching, and session-level freshness
     signals — so agents reach for bundled context before training data.
     [How it works](/cardano-dev-skills/how-it-works/).
   </Card>
-  <Card title="Open & extensible" icon="setting">
+  <Card title={cardTitle('Governance', 'Open &amp; extensible')}>
     Apache-2.0, community-curated, governance-first. Add a source, ship a
     skill, propose a category. [Contribute](/cardano-dev-skills/contributing/).
   </Card>

@@ -1,0 +1,100 @@
+---
+title: Codegen
+sidebar:
+  order: 2
+---
+
+import { Aside } from "@astrojs/starlight/components"
+
+Codegen is the primary way to integrate a Tx3 protocol into an application. You declare the protocols you depend on, run `trix codegen`, and get typed client code that drives transactions through one of the runtime SDKs — no string-keyed transaction names, no untyped arguments. This page covers the full workflow; the [Quick Start](/tx3/consuming/quick-start) walks it end to end.
+
+## Adding a protocol with `trix use`
+
+`trix use` pulls a published protocol from a registry and records it in your `trix.toml` as an **interface** — a dependency you generate a client for:
+
+```sh
+trix use acme/transfer
+```
+
+This resolves the reference, downloads the protocol's compiled interface (`.tii`), caches it locally, and pins a concrete entry into `trix.toml`:
+
+```toml
+[interfaces.transfer]
+ref = "acme/transfer:0.1.3"
+digest = "sha256:1f3a…"
+```
+
+- **`ref`** is the resolved, concrete version. Even if you ran `trix use acme/transfer` without a version, the mutable `latest` tag is resolved to a fixed version at `use` time.
+- **`digest`** is the OCI manifest digest of the exact artifact, so codegen is reproducible across machines and CI.
+
+Protocols resolve against the default registry, `https://oci.tx3.land`. To point at a different one, add a `[registry]` section:
+
+```toml
+[registry]
+url = "https://registry.example.com"
+```
+
+You can declare as many interfaces as you need; `trix codegen` generates a client for each. To repin an interface to a newer release, run `trix use` again with `--force`. See the [`trix use`](/tx3/tooling/trix#trix-use) command reference for all flags.
+
+## Supported targets
+
+| Plugin | Output | Runtime SDK it depends on |
+|---|---|---|
+| `ts-client` | TypeScript (ESM) module | [`tx3-sdk` on npm](https://www.npmjs.com/package/tx3-sdk) |
+| `rust-client` | Rust module | [`tx3-sdk` on crates.io](https://crates.io/crates/tx3-sdk) |
+| `go-client` | Go package | [`github.com/tx3-lang/go-sdk/sdk` on pkg.go.dev](https://pkg.go.dev/github.com/tx3-lang/go-sdk/sdk) |
+| `python-client` | Python package | [`tx3-sdk` on PyPI](https://pypi.org/project/tx3-sdk/) |
+
+For the runtime API itself, see the [SDKs page](/tx3/consuming/sdks).
+
+## Configuring codegen
+
+Codegen targets are declared per project in `trix.toml` under `[[codegen]]`. Each entry pairs one target language with one output directory:
+
+```toml
+[[codegen]]
+plugin = "ts-client"
+output_dir = "src/gen"
+
+[[codegen]]
+plugin = "rust-client"
+output_dir = "crates/protocol/src/gen"
+```
+
+`output_dir` is optional — when omitted it defaults to `.tx3/codegen/<plugin>/`. Running `trix codegen` writes every declared `[[codegen]]` entry in one pass.
+
+## What gets generated
+
+`trix codegen` generates a typed client for **every protocol in the project** — the project's own authored protocol plus each interface added with `trix use`. Output is laid out one subdirectory per protocol:
+
+```
+src/gen/
+├── <project-name>/   # your own protocol
+└── transfer/         # the `transfer` interface
+```
+
+The subdirectory is always named after the protocol, so the path a client lands at never depends on how many interfaces you declared. Each generated module:
+
+- **embeds the compiled interface** — transactions, parties, and profiles are baked in at codegen time, so the generated client needs no `.tii` file at runtime;
+- **exposes one typed method per transaction**, with argument and return shapes derived from the protocol's type declarations.
+
+The generated client is intended to be **checked into source control** alongside the application that consumes it. Re-run `trix codegen` whenever you `trix use` a newer interface version; treat the output like a lockfile, not a transient build artifact.
+
+## When you can't run codegen
+
+Codegen is the recommended path, but it isn't always available — an ad-hoc script, a generic tool that handles arbitrary protocols, or a service that loads a protocol chosen at runtime. In those cases the runtime SDK can load a `.tii` directly and address transactions by string name, trading the typed surface for flexibility. See [Dynamic Usage](/tx3/consuming/dynamic-usage).
+
+## Framework integrations
+
+For TypeScript projects, build-time plugins generate clients on the fly during your normal bundle/dev cycle, so you don't need to commit generated code:
+
+- [`vite-plugin-tx3`](https://www.npmjs.com/package/vite-plugin-tx3) — Vite plugin
+- [`rollup-plugin-tx3`](https://www.npmjs.com/package/rollup-plugin-tx3) — Rollup plugin
+- [`next-tx3`](https://www.npmjs.com/package/next-tx3) — Next.js integration
+- [`install-tx3-nextjs`](https://www.npmjs.com/package/install-tx3-nextjs) — scaffolder for a Next.js + Tx3 starter
+
+These are additive — they call the same codegen pipeline `trix codegen` invokes, just driven by your bundler.
+
+## Reference
+
+For full CLI flag coverage, see the [`trix use`](/tx3/tooling/trix#trix-use) and [`trix codegen`](/tx3/tooling/trix#trix-codegen) command references.

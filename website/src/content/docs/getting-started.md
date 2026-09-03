@@ -1,9 +1,9 @@
 ---
 title: Getting started
-description: Install Cardano Dev Skills as a Claude Code plugin, a Codex skill set, or as a standalone Markdown reference.
+description: Install Cardano Dev Skills as a Claude Code plugin, a Claude Cowork plugin, a Codex skill set, or as a standalone Markdown reference.
 ---
 
-Cardano Dev Skills works in three modes. Pick the one that matches your agent.
+Cardano Dev Skills works in four modes. Pick the one that matches your agent.
 
 ## Claude Code (recommended)
 
@@ -19,6 +19,26 @@ Installed once, active in every Claude Code session in any directory. Verify wit
 ```
 /plugin list
 ```
+
+Run the two commands in that order. Adding the marketplace first is what
+registers it; going straight to `/plugin install` makes the client resolve the
+repository itself, which can fall back to an SSH URL and fail with
+`git@github.com: Permission denied (publickey)` even though this repository is
+public and clones fine over HTTPS.
+
+## Claude Cowork (desktop, web, mobile)
+
+Cowork uses the same plugin format, so this marketplace works there unchanged.
+
+1. Open **Customize** and go to the **Plugins** tab.
+2. Under **Personal plugins**, click **+**, then **Add marketplace**.
+3. Choose **Add from a repository** and enter:
+   `https://github.com/cardano-foundation/cardano-dev-skills`
+4. Install **cardano-dev-skills** from the marketplace once it syncs.
+
+You get the same skills as the Claude Code plugin. Cowork syncs the whole
+repository, and `docs/sources/` is roughly 30 MB of bundled documentation, so
+the first sync is not instant.
 
 ## Install the per-project directive
 

@@ -31,7 +31,7 @@ if [ ! -d "$DOCS_DIR" ] || [ ! -f "$MANIFEST" ]; then
   echo "[Cardano Dev Skills] Documentation sources not found."
   echo ""
   echo "The skills plugin works but will produce better results with local docs."
-  echo "To fetch all 55 Cardano documentation sources (~23MB), run:"
+  echo "To fetch the bundled Cardano documentation sources, run:"
   echo ""
   refresh_hint
 else

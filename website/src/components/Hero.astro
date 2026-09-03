@@ -1,0 +1,60 @@
+---
+/**
+ * Splash hero, replacing Starlight's built-in.
+ *
+ * Frontmatter has no field for the stat row, and the default component emits a
+ * fixed structure, so this replaces it rather than wrapping it.
+ *
+ * Kept from the original: the `_top` id, which the skip link and table of
+ * contents both target; the `set:html` on title and tagline, either of which
+ * may contain markup; and the action mapping, so `hero.actions` keeps its
+ * documented behaviour including raw-SVG icons.
+ *
+ * Dropped: the `hero.image` variants. This site's hero is typographic, and the
+ * artwork is a background on the band (see custom.css).
+ */
+import type { Props } from '@astrojs/starlight/props';
+import { LinkButton } from '@astrojs/starlight/components';
+import counts from '../data/counts.json';
+
+const { data } = Astro.props.entry;
+const { title = data.title, tagline, actions = [] } = data.hero || {};
+
+const stats = [
+  { value: counts.sources, label: 'Sources' },
+  { value: counts.skills, label: 'Skills' },
+];
+---
+
+<div class="hero">
+  <div class="sl-flex stack">
+    <div class="sl-flex copy">
+      <h1 id="_top" data-page-title set:html={title} />
+      {tagline && <div class="tagline" set:html={tagline} />}
+      <ul class="hero-stats">
+        {
+          stats.map(({ value, label }) => (
+            <li>
+              <span class="hero-stat-value">{value}</span>
+              <span class="hero-stat-label site-eyebrow">{label}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+    {
+      actions.length > 0 && (
+        <div class="sl-flex actions">
+          {actions.map(
+            ({ attrs: { class: className, ...attrs } = {}, icon, link: href, text, variant }) => (
+              <LinkButton {href} {variant} icon={icon?.name} class:list={[className]} {...attrs}>
+                {text}
+                {icon?.html && <Fragment set:html={icon.html} />}
+              </LinkButton>
+            )
+          )}
+        </div>
+      )
+    }
+  </div>
+</div>

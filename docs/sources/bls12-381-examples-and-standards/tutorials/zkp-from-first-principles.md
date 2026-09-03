@@ -1,8 +1,8 @@
 # Zero Knowledge Proof from first principles
 
-> **Installment 1 of 5.** This article introduces the mathematical intuition behind zk-SNARKs, walks through the simplest possible non-trivial circuit, and shows how to generate and verify a Groth16 proof end-to-end on Cardano using nothing but first-principles code. No black boxes, no hand-waving — every intermediate value can be printed and inspected.
+> **Installment 1 of 6.** This article introduces the mathematical intuition behind zk-SNARKs, walks through the simplest possible non-trivial circuit, and shows how to generate and verify a Groth16 proof end-to-end on Cardano using nothing but first-principles code. No black boxes, no hand-waving — every intermediate value can be printed and inspected.
 >
-> In **Installment 2** we will explore the engineering optimizations that turn this slow-but-transparent pipeline into a production prover (FFT, Pippenger MSM, sparse matrices, trusted-setup ceremonies), survey competing proof systems (PLONK, Bulletproofs++, JOLT, STARKs, VM approaches), and map the trade-offs. In **Installment 3** we will show how the optimized prover can be used to prove ownership of cryptographic keys and how to marry this capability with Cardano addresses. In **Installment 4** we will apply the full production stack to **selective disclosure** — the pattern where a credential holder proves they satisfy a predicate (`age ≥ 21`, `country ∈ approved set`) without revealing any field values or their blockchain address. In the **fifth and final installment** we will look at what embracing a **zkVM** could gain us: the ability to prove arbitrary program execution without hand-writing circuits, and how that might reshape the developer experience for privacy-preserving applications on Cardano.
+> In **Installment 2** we will explore the engineering optimizations that turn this slow-but-transparent pipeline into a production prover (FFT, Pippenger MSM, sparse matrices, trusted-setup ceremonies), survey competing proof systems (PLONK, Bulletproofs++, JOLT, STARKs, VM approaches), and map the trade-offs. In **Installment 3** we will show how the optimized prover can be used to prove ownership of cryptographic keys and how to marry this capability with Cardano addresses. In **Installment 4** we will apply the full production stack to **selective disclosure** — the pattern where a credential holder proves they satisfy a predicate (`age ≥ 21`, `country ∈ approved set`) without revealing any field values or their blockchain address. In **Installment 5** we will look at what embracing a **zkVM** could gain us: the ability to prove arbitrary program execution without hand-writing circuits, and how that might reshape the developer experience for privacy-preserving applications on Cardano. In **Installment 6** we will survey **quantum-resistant ZKP systems** — especially lattice-based constructions — that aim to replace the elliptic-curve assumptions Groth16 relies on with post-quantum hard problems, and map the trade-offs against the pairing-based baseline we have built here.
 
 ---
 
@@ -35,7 +35,7 @@ Traditional cryptography offers encryption and signatures, but nothing that solv
 
 Zero-knowledge proofs (ZKPs) do exactly that. A ZKP is a mathematical object — a short string of bytes — that convinces any verifier that a statement is true, while giving the verifier zero information about the evidence that makes it true.
 
-The most practical and widely deployed family of ZKPs today is called **zk-SNARKs**: *Zero-Knowledge Succinct Non-Interactive Arguments of Knowledge*. "Succinct" means the proof is tiny (a few hundred bytes). "Non-interactive" means the prover sends a single message; no back-and-forth challenge protocol is needed. "Argument of knowledge" means the proof does not just show that a solution exists — it shows that the prover actually *knows* one.
+The most practical and widely deployed family of ZKPs today is called **zk-SNARKs**: *Zero-Knowledge Succinct Non-Interactive Arguments of Knowledge*. "Succinct" means the proof is tiny (hopefully a few hundred bytes or so). "Non-interactive" means the prover sends a single message; no back-and-forth challenge protocol is needed. "Argument of knowledge" means the proof does not just show that a solution exists — it shows that the prover actually *knows* one.
 
 This article focuses on **Groth16**, the fastest and most compact zk-SNARK construction in production today. A Groth16 proof is 192 bytes. Verification requires only three elliptic-curve pairings. Crucially, these costs are **constant**: whether the circuit has 5 constraints or 5 million, the proof is always 192 bytes and verification always takes exactly three pairings. The size of the problem affects only the prover's work (which grows with the circuit), never the proof size or the verifier's effort. And since Cardano's Plutus V3 already exposes **BLS12-381** pairing primitives natively, Groth16 verification can run inside an Aiken smart contract with no protocol changes.
 
@@ -56,8 +56,8 @@ Groth's construction — now universally called **Groth16** — achieves somethi
 
 - **Proof size:** exactly **3 curve points** (2 in G1, 1 in G2). Compressed: **192 bytes**.
 - **Verification cost:** **3 pairings** and a handful of multi-scalar multiplications in G1. On modern hardware: a few milliseconds.
-- **CRS size:** The *Common Reference String* is the complete set of public parameters that both prover and verifier share — it includes the SRS power tables (`τⁱ·G₁`, `τⁱ·G₂`) plus the circuit-specific fixed points (`α·G₁`, `β·G₂`, `γ·G₂`, `δ·G₂`). In Groth16, the CRS grows linearly with the circuit size, but the *verifying key* (the subset the verifier needs) is constant-size for a given circuit.
-- **Security:** perfect zero-knowledge and computationally sound knowledge extraction under the standard q-PKE and q-SDH assumptions on pairing-friendly curves.
+- **CRS size:** The *Common Reference String* — also called the *Structured Reference String* (SRS); these two names refer to the same artifact — is the complete set of public parameters that both prover and verifier share. Without a CRS, the prover would have to send the full QAP polynomials to the verifier (destroying succinctness) and the polynomials would leak the witness (destroying zero-knowledge). The CRS solves both problems: it encodes the polynomials "in the exponent" on the curve, so the prover can evaluate them efficiently without revealing the underlying values. The CRS is produced by the trusted setup ceremony (introduced below); in Groth16, it grows linearly with the circuit size, but the *verifying key* (the subset the verifier needs) is constant-size for a given circuit.
+- **Security:** perfect zero-knowledge and computationally sound knowledge extraction under the standard q-PKE and q-SDH assumptions on pairing-friendly curves. Here `q` is the *degree of the QAP polynomials*, which equals the number of constraints in the circuit — for our 5-constraint SumOfProducts example, `q = 5` (we need powers `τ⁰` through `τ⁴`). The **q-PKE** (*q-Polynomial Knowledge Exponent*) assumption says that given the CRS points `g^{τ^i}` for `i = 0, ..., q`, it is hard to produce `g^{P(τ)}` for a polynomial `P` of degree ≤ `q` *unless* `P(τ)` can be built by combining the CRS points you already have — in other words, you cannot conjure up a new curve point that the CRS does not already "contain." This is what makes the trusted setup secure: the ceremony creates the CRS, and once the raw scalars (`τ`, `α`, `β`, ...) are destroyed, nobody can fabricate additional valid CRS points. The **q-SDH** (*q-Strong Diffie-Hellman*) assumption says that given `g, g^s, g^{s²}, ..., g^{s^q}` for an unknown `s`, it is hard to produce `(c, g^{1/(s+c)})` for any new `c` — this prevents an attacker from forging a valid pairing equation without knowing the trapdoor.
 
 These numbers are not merely good — they are **optimal** for the pairing-based model. No scheme with the same trust assumptions can have asymptotically smaller proofs or faster verification. This is why Groth16 became the engine behind Zcash's shielded transactions, Filecoin's replication proofs, and dozens of other production systems.
 
@@ -106,7 +106,7 @@ There is one more constraint: each R1CS row can express only a *quadratic* relat
 
 ## A 5-constraint "hello world"
 
-Our repository already contains a 3-gate multiplication chain (`multiplier.circom`) that proves `a = x1·x2·x3·x4`. To make the pedagogical step slightly richer, we introduce a 5-constraint circuit that proves a *sum of pairwise products*. This is the same circuit we already saw when introducing the R1CS matrices — now we will trace it through every stage of the Groth16 pipeline, from R1CS to QAP to proof to verification. Let us start with the concrete problem.
+Our repository already contains a 3-gate multiplication chain (`multiplier.circom`) that proves `a = x1·x2·x3·x4`. To make the pedagogical step slightly richer, we introduce a 5-constraint circuit that proves a *sum of pairwise products*. Let us start with the concrete problem.
 
 **The equation.** We have eight secret numbers that must satisfy:
 
@@ -138,7 +138,7 @@ w =  [  1,   100,  1, 2, 3, 4, 5, 6, 7, 8,  2, 12, 30, 56 ]
 
 Note the first entry is the constant `1` (present in every R1CS witness), and `out = 100` is the public output that the verifier knows.
 
-We write circuits in **Circom** — think of it as the assembly language for R1CS: it compiles directly to constraint matrices with no hidden abstractions, which is why we use it throughout this tutorial. This circuit has 8 private inputs, 4 intermediate wires, and 1 public output. In R1CS form it yields 5 constraints — four multiplication gates plus one addition gate (which R1CS also encodes as a constraint). The source lives in [`groth16-prover/circom/SumOfProducts/sum_of_products.circom`](https://github.com/cardano-foundation/bls/blob/main/groth16-prover/circom/SumOfProducts/sum_of_products.circom):
+We write circuits in **Circom** — think of it as the assembly language for R1CS: it compiles directly to constraint matrices with no hidden abstractions, which is why we use it throughout this tutorial. This circuit has 8 private inputs, 4 intermediate wires, and 1 public output. In R1CS form it yields 5 constraints — four multiplication gates plus one addition gate (which R1CS also encodes as a constraint). The source lives in [`circom/SumOfProducts/sum_of_products.circom`](https://github.com/cardano-foundation/bls/blob/main/circom/SumOfProducts/sum_of_products.circom):
 
 ```circom
 pragma circom 2.0.0;
@@ -162,7 +162,7 @@ template SumOfProducts() {
 component main = SumOfProducts();
 ```
 
-The prover's job is to come up with a solution to the equation. Here the prover chose [`input.json`](https://github.com/cardano-foundation/bls/blob/main/groth16-prover/circom/SumOfProducts/input.json) — the eight numbers that satisfy the circuit:
+The prover's job is to come up with a solution to the equation. Here the prover chose [`input.json`](https://github.com/cardano-foundation/bls/blob/main/circom/SumOfProducts/input.json) — the eight numbers that satisfy the circuit:
 
 ```json
 { "a": "1", "b": "2", "c": "3", "d": "4",
@@ -201,7 +201,7 @@ r(x) = Σ a_i · v_i(x)
 o(x) = Σ a_i · w_i(x)
 ```
 
-**Concrete example for constraint 1** (`t2 = c·d`, at point `x = 1`). To see how this works, let us first recall the R1CS matrices from the hello-world section. Each constraint picks two wires on the left and right, and one on the output:
+**Concrete example: all five constraints.** To see how this works, let us first recall the R1CS matrices from the hello-world section. Each constraint picks two wires on the left and right, and one on the output:
 
 ```
 Constraint 0:  L[0] picks a (col 2),  R[0] picks b (col 3),  O[0] picks t1 (col 10)
@@ -236,7 +236,33 @@ O[3]  = [  0    0  0  0  0  0  0  0  0  0   0  0  0  1 ]    picks t4
 O[4]  = [  0    1  0  0  0  0  0  0  0  0   0  0  0  0 ]    picks out
 ```
 
-The QAP transformation builds, for each wire `i`, three polynomials `u_i(x)`, `v_i(x)`, `w_i(x)` that reproduce these matrix columns at the constraint points. For our 5-constraint circuit with constraint points `{0, 1, 2, 3, 4}`, the Lagrange basis polynomial `L_1(x)` equals `1` at `x = 1` and `0` at the other four points. Because wire 4 (`c`) appears on the left side of constraint 1 only, `u_4(x) = L_1(x)`. Similarly, `v_5(x) = L_1(x)` for wire 5 (`d`), and `w_11(x) = L_1(x)` for wire 11 (`t2`). Evaluating at `x = 1`:
+The QAP transformation builds, for each wire `i`, three polynomials `u_i(x)`, `v_i(x)`, `w_i(x)` that reproduce these matrix columns at the constraint points — the x-values where each constraint is evaluated (one point per constraint, so `{0, 1, 2, 3, 4}` for our 5-constraint circuit). The Lagrange basis polynomial `L_0(x)` equals `1` at `x = 0` and `0` at the other four points. Its explicit expanded form is:
+
+```
+L_0(x) = (x−1)(x−2)(x−3)(x−4) / (0−1)(0−2)(0−3)(0−4)
+        = (x−1)(x−2)(x−3)(x−4) / 24
+        = (x⁴ − 10x³ + 35x² − 50x + 24) / 24
+```
+
+For constraint 0 (`t1 = a·b`), wire 2 (`a`) appears on the left, wire 3 (`b`) on the right, and wire 10 (`t1`) on the output. So:
+
+```
+u_2(x) = L_0(x)    v_3(x) = L_0(x)    w_10(x) = L_0(x)
+```
+
+Evaluating at `x = 0`:
+
+```
+u_2(0) = 1    v_3(0) = 1    w_10(0) = 1
+
+l(0) = ... + a_2 · u_2(0) + ... = ... + 1 · 1 + ... = 1    (picks a = 1)
+r(0) = ... + a_3 · v_3(0) + ... = ... + 2 · 1 + ... = 2    (picks b = 2)
+o(0) = ... + a_10 · w_10(0) + ... = ... + 2 · 1 + ... = 2  (picks t1 = 2)
+
+l(0) · r(0) = 1 · 2 = 2 = o(0)  ✓
+```
+
+The same pattern holds for constraint 1 (`t2 = c·d`, at point `x = 1`). The Lagrange basis polynomial `L_1(x)` equals `1` at `x = 1` and `0` at the other four points. Because wire 4 (`c`) appears on the left side of constraint 1 only, `u_4(x) = L_1(x)`. Similarly, `v_5(x) = L_1(x)` for wire 5 (`d`), and `w_11(x) = L_1(x)` for wire 11 (`t2`). Evaluating at `x = 1`:
 
 ```
 u_4(1) = 1   (by definition of Lagrange basis L_1(x))
@@ -274,6 +300,10 @@ h(x) = c₀ + c₁·x + c₂·x² + c₃·x³
 
 where the coefficients `c₀, c₁, c₂, c₃` are elements of the scalar field Fr (large 253-bit numbers). The prover evaluates this polynomial at the secret point `τ` to obtain the scalar `h(τ)` that appears in proof element `C`. We will see the exact numerical coefficients in Step 1.11.
 
+The verifier never sees `h(x)` or even `h(τ)` directly — it only sees `h(τ)·T(τ)/δ·G1` baked into proof element `C` as a single curve point. So how can the verifier be sure the prover computed the right `h`? The answer is: **the verifier does not need to trust the prover at all — the pairing equation itself is the check.** The pairing equation `e(A, B) = e(α·G1, β·G2) · e(C, δ·G2) · e(V, γ·G2)` encodes the algebraic relationship `l(τ)·r(τ) − o(τ) = h(τ)·T(τ)` in the exponent. If the prover puts in a wrong `h(τ)`, the two sides of the equation will not match, and the pairing check will fail. The prover cannot nudge `h(τ)` independently because all the proof elements (`A`, `B`, `C`) are algebraically locked together through the trusted setup parameters (`α`, `β`, `δ`) — changing one without knowing `τ` would break the others. This is the power of the "hidden in the exponent" trick: the verifier checks the *consequence* of the computation (the pairing equation), not the computation itself.
+
+To be precise about who uses `τ`: **neither the prover nor the verifier ever uses `τ` directly during proof generation or verification.** `τ` only appears during the trusted setup ceremony, where it is used to build the SRS power tables (`τⁱ·G1`, `τⁱ·G2`) and then destroyed. After that, `τ` is gone forever. The prover uses the SRS to evaluate polynomials "in the exponent" (e.g., `l(τ)·G1` is already a curve point in the SRS — the prover just takes a linear combination of these pre-computed points). The verifier never even touches the SRS — it only uses the verifying key (`α·G1`, `β·G2`, `γ·G2`, `δ·G2`, `Ψ_V_G1`), which are also curve points derived from the ceremony. Both sides of the pairing equation are curve points, not scalars. The pairing `e` checks the *relationship* between these points using bilinearity — `e(g^a, g^b) = e(g, g)^{a·b}` — without anyone ever learning `a` or `b`. This is why `τ` can remain secret while the math still works.
+
 This is also what makes Groth16 an *argument of knowledge* rather than a mere proof of existence: to produce the correct `h(τ)`, the prover must have actually computed the correct quotient polynomial, which in turn requires knowing the actual witness values. A prover who does not know a valid witness cannot fabricate a convincing `h(τ)` — the pairing check will fail. Moreover, the quotient `h(x)` is derived from the circuit's own QAP polynomials, so computing the correct `h(τ)` requires satisfying the exact constraint structure that both parties agreed on. In other words, the inclusion of `h(τ)` in the proof is what convinces the verifier that the prover genuinely *knows* a solution to *this specific circuit*, not merely that some solution to some problem exists.
 
 If `h(x)` exists (i.e., the division has zero remainder), the constraints are satisfied. This is the core mathematical check that Groth16 performs — not by evaluating at every point, but by evaluating at a single secret point `τ`.
@@ -299,7 +329,7 @@ where `G1` and `G2` are base points on the BLS12-381 curve. The scalar `τ` itse
 
 **Why is this necessary?** The SRS lets the prover evaluate polynomials at the secret point `τ` without learning `τ` itself — it works "in the exponent" on the curve. Without the SRS, the prover would have to send the full QAP polynomials to the verifier (destroying succinctness) and the polynomials would leak the witness (destroying zero-knowledge). And if `τ` were known — even if the SRS were otherwise correct — an attacker could pick any fake witness and compute a `h(τ)` that makes the pairing equation balance, forging a valid-looking proof for a false statement. We walk through both failure modes in detail in [The Groth16 workflow at a glance](#the-groth16-workflow-at-a-glance).
 
-In our pedagogical `Implementation 1` ([`groth16-prover/src/r1cs.rs`](https://github.com/cardano-foundation/bls/blob/main/groth16-prover/src/r1cs.rs) and [`src/bin/print_toxic_waste.rs`](https://github.com/cardano-foundation/bls/blob/main/groth16-prover/src/bin/print_toxic_waste.rs)), we use small deterministic scalars so that every intermediate value is reproducible:
+In our pedagogical `Implementation 1` ([`clis/trusted-setup/src/r1cs.rs`](https://github.com/cardano-foundation/bls/blob/main/clis/trusted-setup/src/r1cs.rs) and [`groth16-prover/src/bin/print_toxic_waste.rs`](https://github.com/cardano-foundation/bls/blob/main/groth16-prover/src/bin/print_toxic_waste.rs)), we use small deterministic scalars so that every intermediate value is reproducible:
 
 | Parameter | Value | Role | Knowledge | Risk if leaked |
 |-----------|-------|------|-----------|----------------|
@@ -404,7 +434,9 @@ flowchart TB
     Check -->|Invalid| Reject
 ```
 
-**This works — but it is useless.** Without an SRS, the prover cannot evaluate polynomials at a secret point efficiently (no power table). The prover must send the full QAP polynomials to the verifier, who must recompute everything from scratch. The proof is no longer succinct — it is as large as the circuit itself. And there is no zero-knowledge: the polynomials encode the witness. This is not a proof system; it is just a complex way of restating the problem.
+**Vulnerability:** No SRS means no power table, so the prover cannot evaluate polynomials at a secret point efficiently. The prover must send the *full QAP polynomials* to the verifier, who must recompute everything from scratch.
+
+**Why it fails:** The proof is as large as the circuit itself (no succinctness), and the polynomials encode the witness directly (no zero-knowledge). This is not a proof system — it is just a complex way of restating the problem.
 
 ### Still insecure Groth16: public setup
 
@@ -450,15 +482,15 @@ flowchart TB
     Check -->|Invalid| Reject
 ```
 
-**This looks great — but it is completely broken.** Because `τ = 6` is public, anyone can compute `T(τ) = 720` directly. An attacker can pick a *fake* witness — say, `a=100, b=100, c=100, d=100, e=100, f=100, g=100, h=100` — which does not satisfy the real constraints, and then choose `h(τ)` to make the equation balance:
+**Vulnerability:** `τ` is public. Anyone can compute `T(τ) = 720` directly and evaluate the SRS power tables without restriction.
+
+**Attack:** An attacker picks a *fake* witness — say, `a=100, b=100, c=100, d=100, e=100, f=100, g=100, h=100` — which does not satisfy the real constraints, and then solves for `h(τ)` to make the equation balance:
 
 ```
 h(τ) = (l(τ)·r(τ) − o(τ)) / T(τ)
 ```
 
-The attacker builds proof elements `A, B, C` using the *legitimate* SRS points (which are public) and their chosen `h(τ)`. The verifier's pairing check will pass — because the equation is algebraically satisfied at `τ` — even though the witness violates the actual circuit constraints at every other point.
-
-**The secret evaluation point `τ` is the entire security foundation of Groth16.** If it is known, the proof system becomes a forgery factory. The trusted setup ceremony is the mechanism that creates `τ`, embeds it into curve points, and then destroys it.
+The attacker builds proof elements `A, B, C` using the *legitimate* SRS points (which are public) and their chosen `h(τ)`. The verifier's pairing check will pass — because the equation is algebraically satisfied at `τ` — even though the witness violates the actual circuit constraints at every other point. **The secret evaluation point `τ` is the entire security foundation of Groth16.** If it is known, the proof system becomes a forgery factory.
 
 ### Secure Groth16: trusted setup
 
@@ -505,6 +537,8 @@ flowchart TB
     Check -->|Invalid| Reject
 ```
 
+**Security guarantee:** `N` participants contribute independent randomness to produce `τ`. As long as **at least one** participant was honest and destroyed their contribution, `τ` is unrecoverable — even if all other `N-1` participants collude. This is the 1-of-N trust model: you do not need to trust every participant, only that *at least one* is honest.
+
 **What each box means:**
 
 | Box | Role | What it does |
@@ -517,7 +551,7 @@ flowchart TB
 | **Smart Contract** | On-chain | Receives `π` + public inputs, reconstructs the public-input commitment `V`, and runs the pairing check. |
 | **Proof π** | Cross-layer | 192 bytes: three curve points `A, B, C`. Sent in the transaction redeemer. |
 
-**Key insight: the secret never crosses the boundary.** The prover knows the witness but never reveals it. The verifier never sees the witness but is mathematically certain the constraints were satisfied. The randomness that created the SRS was destroyed long before any proof was generated. This is the architecture that makes zero-knowledge possible.
+**Why it works:** The ceremony solves all three problems simultaneously. The power table `τⁱ·G₁, τⁱ·G₂` gives the prover efficient polynomial evaluation (succinctness). The curve points hide `τ` "in the exponent" so the prover never sees the raw scalar (zero-knowledge). And because `τ` is destroyed, no one can compute `h(τ)` for a fake witness (soundness). The secret never crosses the boundary: the prover knows the witness but never reveals it, the verifier checks the proof without learning the witness, and the randomness that created the SRS was destroyed long before any proof was generated.
 
 ### Summary: why each layer matters
 
@@ -576,37 +610,40 @@ git clone https://github.com/cardano-foundation/bls.git
 cd bls
 ```
 
-Run any step in isolation:
+Run any step in isolation (set `REPO` to the path where you cloned the repo):
 
 ```bash
-cd groth16-prover
-cargo run --bin print_r1cs -- sumofproducts
-cargo run --bin print_qap -- sumofproducts
-cargo run --bin print_proof_a -- sumofproducts
+REPO=/path/to/bls
+cd $REPO/groth16-prover
+cargo run --features bins --bin print_r1cs -- sumofproducts
+cargo run --features bins --bin print_qap -- sumofproducts
+cargo run --features bins --bin print_proof_a -- sumofproducts
 ...
 ```
 
 To see the full pipeline for the new `SumOfProducts` circuit:
 
 ```bash
+REPO=/path/to/bls
+
 # 1. Compile the circuit
-cd groth16-prover/circom/SumOfProducts
+cd $REPO/circom/SumOfProducts
 circom sum_of_products.circom --r1cs --wasm --sym --prime bls12381
 
 # 2. Generate the witness (snarkjs, temporary)
 snarkjs wtns calculate sum_of_products.wasm input.json witness.wtns
 
 # 3. Dev ceremony → pk + vk
-cd ../../cli
-cargo run --release -- ceremony-dev \
-  --circuit ../circom/SumOfProducts/sum_of_products.r1cs \
+$REPO/clis/trusted-setup/target/release/trusted-setup ceremony-dev \
+  --circuit $REPO/circom/SumOfProducts/sum_of_products.r1cs \
   --proving-key /tmp/sum_of_products.pk \
   --verifying-key /tmp/sum_of_products.vk
 
 # 4. Prove
+cd $REPO/clis/groth16
 cargo run --release -- prove \
-  --circuit ../circom/SumOfProducts/sum_of_products.r1cs \
-  --witness ../circom/SumOfProducts/witness.wtns \
+  --circuit $REPO/circom/SumOfProducts/sum_of_products.r1cs \
+  --witness $REPO/circom/SumOfProducts/witness.wtns \
   --proving-key /tmp/sum_of_products.pk \
   --out /tmp/proof.bin
 
@@ -689,7 +726,7 @@ All other entries are zero.
 
 ```bash
 cd groth16-prover
-cargo run --bin print_r1cs -- sumofproducts
+cargo run --features bins --bin print_r1cs -- sumofproducts
 ```
 
 **Actual output:**
@@ -907,7 +944,7 @@ T(x) = (x−0)(x−1)(x−2)(x−3)(x−4) = x⁵ − 10x⁴ + 35x³ − 50x² +
 **Running the code:**
 
 ```bash
-cargo run --bin print_qap -- sumofproducts
+cargo run --features bins --bin print_qap -- sumofproducts
 ```
 
 **Actual output (excerpt):**
@@ -1110,7 +1147,7 @@ This is the key scalar that appears in SRS3. The base scalar for SRS3 is `T(τ)/
 **Running the code:**
 
 ```bash
-cargo run --bin print_srs -- sumofproducts
+cargo run --features bins --bin print_srs -- sumofproducts
 ```
 
 **Actual output (excerpt):**
@@ -1313,7 +1350,7 @@ This also matches exactly. ✓
 **Running the code:**
 
 ```bash
-cargo run --bin print_psi -- sumofproducts
+cargo run --features bins --bin print_psi -- sumofproducts
 ```
 
 **Actual output (excerpt):**
@@ -1443,7 +1480,7 @@ Evaluating at the constraint points:
 **Running the code:**
 
 ```bash
-cargo run --bin print_witness_polys -- sumofproducts
+cargo run --features bins --bin print_witness_polys -- sumofproducts
 ```
 
 **Actual output:**
@@ -1505,7 +1542,7 @@ For the SumOfProducts circuit, the division `p(x) / T(x)` yields a degree-3 quot
 **Running the code:**
 
 ```bash
-cargo run --bin print_quotient -- sumofproducts
+cargo run --features bins --bin print_quotient -- sumofproducts
 ```
 
 **Actual output:**
@@ -1562,7 +1599,7 @@ A = (l(τ) + α) · G1
 **Running the code:**
 
 ```bash
-cargo run --bin print_proof_a -- sumofproducts
+cargo run --features bins --bin print_proof_a -- sumofproducts
 ```
 
 **Actual output (excerpt):**
@@ -1604,7 +1641,7 @@ B = (r(τ) + β) · G2
 **Running the code:**
 
 ```bash
-cargo run --bin print_proof_b -- sumofproducts
+cargo run --features bins --bin print_proof_b -- sumofproducts
 ```
 
 **Actual output:**
@@ -1661,7 +1698,7 @@ C_scalar = 242011731577505494520528033114704457712417934617819866873555347845870
 **Running the code:**
 
 ```bash
-cargo run --bin print_proof_c -- sumofproducts
+cargo run --features bins --bin print_proof_c -- sumofproducts
 ```
 
 **Actual output (excerpt):**
@@ -1723,7 +1760,7 @@ V = 1·(105/11) + 100·(15/11)
 **Running the code:**
 
 ```bash
-cargo run --bin print_public_input -- sumofproducts
+cargo run --features bins --bin print_public_input -- sumofproducts
 ```
 
 **Actual output:**
@@ -1795,7 +1832,7 @@ which is exactly the Groth16 verification equation. The library confirms this wi
 **Running the code:**
 
 ```bash
-cargo run --bin print_pairing -- sumofproducts
+cargo run --features bins --bin print_pairing -- sumofproducts
 ```
 
 **Actual output (excerpt):**
@@ -1827,7 +1864,7 @@ The scalar arithmetic balances via the bilinearity property. The actual pairing 
 >
 > This is the essence of Groth16: a 192-byte proof that hides arbitrarily large secrets while convincing any verifier of their validity.
 
-> **From toy circuits to real keys.** The `SumOfProducts` circuit is intentionally tiny — it exists only to make every intermediate value printable. If you want to see the same pipeline applied to a production-grade use case, the companion article [**"Proving Cardano address ownership via ZKP"**](proving-cardano-address-ownership-via-zkp.md) walks through a ~1.97M-constraint Ed25519 ownership circuit. It derives a real Cardano payment key using the `cardano-address` CLI (mnemonic → root key → payment key), feeds it into the Groth16 prover, and includes automated positive/negative security tests showing that forged ownership proofs are rejected.
+> **From toy circuits to real keys.** The `SumOfProducts` circuit is intentionally tiny — it exists only to make every intermediate value printable. If you want to see the same pipeline applied to a production-grade use case, the companion article [**"Proving Cardano address ownership via ZKP"**](proving-cardano-address-ownership-via-zkp.md) walks through a ~1.97M-constraint Ed25519 ownership circuit. It derives a real Cardano payment key using the `cardano-address` CLI (mnemonic → root key → payment key), feeds it into the Groth16 prover, and includes automated positive/negative security tests showing that forged ownership proofs are rejected. The same walkthrough also covers the **Nova step-chain variant** of this circuit — 255 × 7.7K-constraint steps proven incrementally via the standalone `clis/nova` CLI — for the case where the monolithic ceremony is too heavy.
 
 ---
 
@@ -1863,8 +1900,19 @@ In the fourth installment we will apply the full production Groth16 pipeline to 
 
 ### Installment 5 — Embracing zkVMs
 
-In the fifth and final installment we will look at what embracing a **zkVM** could gain us. Instead of hand-writing R1CS circuits in a domain-specific language, a zkVM lets developers prove the correct execution of arbitrary programs — written in familiar languages like Rust or C — by compiling them to a zero-knowledge virtual machine. We will explore the trade-offs (larger proof sizes, different security assumptions) and discuss how this paradigm might reshape the developer experience for privacy-preserving applications on Cardano.
+In the fifth installment we will look at what embracing a **zkVM** could gain us. Instead of hand-writing R1CS circuits in a domain-specific language, a zkVM lets developers prove the correct execution of arbitrary programs — written in familiar languages like Rust or C — by compiling them to a zero-knowledge virtual machine. We will explore the trade-offs (larger proof sizes, different security assumptions) and discuss how this paradigm might reshape the developer experience for privacy-preserving applications on Cardano.
 
-The code for all five installments is available in the [cardano-foundation/bls](https://github.com/cardano-foundation/bls) repository.
+### Installment 6 — Quantum-resistant ZKP systems
+
+Groth16 and the pairing-based constructions we have explored rely on the hardness of the discrete logarithm problem on elliptic curves — a problem that a fault-tolerant quantum computer would destroy via Shor's algorithm. In the sixth installment we will survey **quantum-resistant ZKP systems**, with a focus on **lattice-based** constructions that derive their security from hard lattice problems (Learning With Errors, Short Integer Solution) rather than pairings. We will examine:
+
+- **Lattice-based SNARKs** and their proof-size / verification-cost trade-offs compared to Groth16
+- **Transparent proof systems** (STARKs, Bulletproofs++) as a different post-quantum path that avoids trusted setups entirely
+- **Hybrid approaches** that combine pairing-based and lattice-based techniques
+- The practical question: *when will lattice ZKPs be production-ready on Cardano, and what will we gain or lose in the transition?*
+
+This installment will map the full landscape from the pairing-based baseline we have built here to the post-quantum frontier, so that builders can make informed choices about which proof system fits their threat model.
+
+The code for all six installments is available in the [cardano-foundation/bls](https://github.com/cardano-foundation/bls) repository.
 
 Stay tuned for the next ZKP installment!

@@ -15,6 +15,7 @@
 - [Step-by-step key derivation with cardano-address](#step-by-step-key-derivation-with-cardano-address)
 - [Generate the circuit witness input](#generate-the-circuit-witness-input)
 - [Full Groth16 pipeline](#full-groth16-pipeline)
+- [Nova step-chain variant](#nova-step-chain-variant)
 - [Security test: positive and negative cases](#security-test-positive-and-negative-cases)
 
 ---
@@ -40,7 +41,7 @@ This walkthrough assumes two tools are installed:
 | `cardano-address` | [IntersectMBO/cardano-addresses releases](https://github.com/IntersectMBO/cardano-addresses/releases) | Derives real Cardano keys from a mnemonic (CIP-1852) |
 | `bech32` (CLI) | [IntersectMBO/bech32 releases](https://github.com/IntersectMBO/bech32/releases) | Decode bech32 key files into hex for the Python helper |
 
-The `groth16-prover` CLI is already built from the first-principles article (`cargo build --release` in `groth16-prover/cli/`), and `snarkjs` is assumed to be in `PATH`.
+The `groth16` CLI (`clis/groth16`) and the `trusted-setup` CLI (`clis/trusted-setup`) are already built (e.g. `cargo build --release` in each), and `snarkjs` is assumed to be in `PATH`. The trusted-setup ceremony lives in the standalone `trusted-setup` CLI; the `groth16` CLI covers only prove/verify/export-vk.
 
 ---
 
@@ -49,7 +50,7 @@ The `groth16-prover` CLI is already built from the first-principles article (`ca
 The `cardano-address` CLI implements the exact derivation path used by Daedalus, Yoroi, and Lace. We follow it step by step so the resulting keys are **mainnet-compatible**.
 
 ```bash
-cd groth16-prover/circom/CardanoKeyOwnership
+cd circom/CardanoKeyOwnership
 
 # (a) Generate a 15-word recovery phrase
 cardano-address recovery-phrase generate --size 15 > phrase.prv
@@ -112,16 +113,16 @@ snarkjs wtns calculate \
   witness_ownership.wtns
 
 # 2. Dev ceremony (sparse — mandatory for this circuit size)
-cd ../../cli
-cargo run --release -- ceremony-dev --sparse \
-  --circuit ../circom/CardanoKeyOwnership/cardano_ed25519_ownership.r1cs \
+cd ../../clis/groth16
+../../clis/trusted-setup/target/release/trusted-setup ceremony-dev --sparse \
+  --circuit ../../circom/CardanoKeyOwnership/cardano_ed25519_ownership.r1cs \
   --proving-key /tmp/cardano_ownership.pk \
   --verifying-key /tmp/cardano_ownership.vk
 
 # 3. Prove
 cargo run --release -- prove --sparse \
-  --circuit ../circom/CardanoKeyOwnership/cardano_ed25519_ownership.r1cs \
-  --witness ../circom/CardanoKeyOwnership/witness_ownership.wtns \
+  --circuit ../../circom/CardanoKeyOwnership/cardano_ed25519_ownership.r1cs \
+  --witness ../../circom/CardanoKeyOwnership/witness_ownership.wtns \
   --proving-key /tmp/cardano_ownership.pk \
   --out /tmp/cardano_ownership_proof.bin
 
@@ -143,6 +144,16 @@ cargo run --release -- verify \
 
 ---
 
+## Nova step-chain variant
+
+The same ownership statement can also be proven with **Nova IVC**: [`cardano_ed25519_ownership_nova.circom`](../circom/CardanoKeyOwnership/cardano_ed25519_ownership_nova.circom) decomposes the base-point scalar multiplication into **255 identical steps** of 7,724 constraints each, and the standalone [`nova` CLI](../clis/nova/) (`nova params / ceremony / fold / verify`) proves them incrementally, binding the state chain with a BLAKE2b512 transcript. Each step is a standard Groth16 proof over the same BLS12-381 stack, so no new cryptographic machinery is involved.
+
+Compared with the monolithic flow above, the ceremony drops from ~8 min to ~3 s and the proving key from 1.2 GB to 5 MB, with per-step memory instead of the ~4.5 GiB peak. The trade-off is that the step chain is inherently sequential and `nova verify` is still O(N) — it re-checks every step proof. The constant-size Relaxed-R1CS folding + compression SNARK (O(1) bundle, one pairing check) is the roadmap item tracked in the [`nova-prover`](../nova-prover/) crate.
+
+The full step-by-step flow — building the CLI, compiling the step circuit, the iterative step-witness generation that makes the chain invariant hold by construction, and the `nova params / ceremony / fold / verify` run with expected output — is in [`circom/CardanoKeyOwnership/README.md`](../circom/CardanoKeyOwnership/README.md) §End-to-end flow — Nova step-chain, together with a pre-Nova vs Nova benchmark table.
+
+---
+
 ## Security test: positive and negative cases
 
 Groth16's soundness guarantee means **no one can forge a proof for a public key they do not own**. We verify this empirically with two tests included in the repository.
@@ -161,7 +172,7 @@ Groth16's soundness guarantee means **no one can forge a proof for a public key 
 The repository includes a shell script that automates both tests end-to-end:
 
 ```bash
-cd groth16-prover/circom/CardanoKeyOwnership
+cd circom/CardanoKeyOwnership
 ./test_cardano_address_e2e.sh
 ```
 

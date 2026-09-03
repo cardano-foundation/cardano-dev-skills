@@ -10,6 +10,7 @@
 7. [KDF using Aiken primitives, also BLS12-381](#kdf-using-aiken-primitives)
 8. [Linear and non-linear equations](#solving-easy-linear-and-non-linear-equations-using-BLS12-381-curve-primitives)
 9. [Groth16 with Aiken BLS12-381](#groth16-with-bls12-381-curve-primitives)
+10. [Nova IVC step-chain with BLS12-381](#nova-ivc-step-chain-with-bls12-381)
 
 ## High level introduction
 
@@ -331,7 +332,7 @@ The implementation of signature aggregation case using [aiken primitves](https:/
 
 ## BLS12-381 curve primitives in aiken
 
-The curve primitives and low-level operations are available through [Aiken BLS12-381 CLI](./cli/README.md)
+The curve primitives and low-level operations are available through the [Aiken BLS12-381 CLI](./clis/bls12-381/README.md) (`clis/bls12-381`): key generation, signatures, scalar and point arithmetic, compress/uncompress, and pairing.
 
 ## VRF using BLS12-381 curve primitives
 
@@ -417,8 +418,16 @@ Both pairing outputs are identical, confirming that `xy = 26` holds — without 
 ## Groth16 with BLS12-381 curve primitives
 
 The system was introduced in [seminal paper](https://eprint.iacr.org/2016/260.pdf).
-Groth16 prover with circom adapter written in Rust is [here](./groth16-prover/). It contains CLI too.
+Groth16 prover with circom adapter written in Rust is [here](./groth16-prover/), with its command-line interface in [`clis/groth16`](./clis/groth16/).
 Groth16 verifier written in Aiken is [here](./aiken/groth16/).
+
+## Nova IVC step-chain with BLS12-381
+
+Nova-based Incremental Verifiable Computation (IVC) splits a long computation into `N` identical **step circuits**, each proving `state_{i+1} = f(step_i, state_i)`, and proves every step incrementally — keeping ceremony cost and per-step memory tied to the step size rather than to the total computation. The step-chain POC proves each step as a standalone Groth16 proof and binds the state chain with a BLAKE2b512 transcript; each step proof is individually verifiable.
+
+The Nova IVC command-line interface is [here](./clis/nova/) (`clis/nova`, `nova params / ceremony / fold / verify`), with the underlying IVC logic in the [`nova-prover`](./nova-prover/) crate, which also holds the design doc, the Relaxed-R1CS folding + compression SNARK roadmap, and the benchmarks. The steps reuse the classical Groth16 stack ([`groth16-prover`](./groth16-prover/)).
+
+The post-quantum research track — lattice-based folding as the PQ counterpart of the Nova stack — lives in the [`lattice-prover`](./lattice-prover/) crate (findings, design, and sources; no code yet). Lova is the first implementation, with LatticeFold, ProtogaLattice, and IBM Toolkit approaches planned.
 
 <details>
 <summary><b>Simplest end-to-end workflow (click to expand)</b></summary>
@@ -435,7 +444,7 @@ Below is the minimal path from a Circom circuit to an on-chain Aiken verifier, w
 **Command:**
 
 ```bash
-cd groth16-prover/circom/SimpleExample
+cd circom/SimpleExample
 circom multiplier.circom --r1cs --wasm --prime bls12381
 ```
 
@@ -449,7 +458,7 @@ circom multiplier.circom --r1cs --wasm --prime bls12381
 
 ### 2. Trusted-setup ceremony (choose your path)
 
-The CLI supports **two ceremony modes** that produce the **same** `.pk` / `.vk` binary format. The prover and verifier are agnostic to which path was used.
+The `trusted-setup` CLI (`clis/trusted-setup`) supports **two ceremony modes** that produce the **same** `.pk` / `.vk` binary format. The prover and verifier are agnostic to which path was used.
 
 #### Option A: Dev ceremony (`ceremony-dev`) — fastest, for testing/CI
 
@@ -458,9 +467,9 @@ The CLI supports **two ceremony modes** that produce the **same** `.pk` / `.vk` 
 **Command:**
 
 ```bash
-cd groth16-prover/cli
+cd clis/trusted-setup
 cargo run --release -- ceremony-dev \
-  --circuit ../circom/SimpleExample/multiplier.r1cs \
+  --circuit ../../circom/SimpleExample/multiplier.r1cs \
   --proving-key /tmp/multiplier.pk \
   --verifying-key /tmp/multiplier.vk
 ```
@@ -479,9 +488,9 @@ cargo run --release -- ceremony-dev \
 
 ```bash
 # 1. Initialize the circuit-specific accumulator (coordinator or first participant)
-cd groth16-prover/cli
+cd clis/trusted-setup
 cargo run --release -- phase2 new \
-  --circuit ../circom/SimpleExample/multiplier.r1cs \
+  --circuit ../../circom/SimpleExample/multiplier.r1cs \
   --srs /path/to/pot14_final.ptau \
   --zkey /tmp/multiplier_0000.zkey
 
@@ -545,7 +554,7 @@ snarkjs wtns calculate multiplier.wasm input.json witness.wtns
 
 ---
 
-### 4. Generate the proof (groth16-prover CLI)
+### 4. Generate the proof (groth16 CLI)
 
 **Inputs:**
 - `multiplier.r1cs` — constraint system from step 1
@@ -555,10 +564,10 @@ snarkjs wtns calculate multiplier.wasm input.json witness.wtns
 **Command:**
 
 ```bash
-cd groth16-prover/cli
+cd clis/groth16
 cargo run --release -- prove \
-  --circuit ../circom/SimpleExample/multiplier.r1cs \
-  --witness ../circom/SimpleExample/witness.wtns \
+  --circuit ../../circom/SimpleExample/multiplier.r1cs \
+  --witness ../../circom/SimpleExample/witness.wtns \
   --proving-key /tmp/multiplier.pk \
   --out /tmp/proof.bin
 ```

@@ -8,7 +8,10 @@ docs/CONTRIBUTING.md:
   1. Source vetting: every NEW entry in registry/sources.yaml must point to a
      GitHub repo that is not archived, pushed to within 6 months, and shows a
      release or issue/PR activity within 3 months (checked live via the
-     GitHub API).
+     GitHub API). A document-of-record source may waive the recency/activity
+     rules by carrying a `vetting_exception` reason string; the grant for
+     that waiver is enforced by scripts/validate.py (VETTING_EXCEPTIONS), the
+     archived and fork checks still apply, and the waiver prints as a warning.
   2. Skill naming: a NEW skill named after a registered source/project brand
      fails (skills are task-oriented: build-transaction, connect-wallet, ...).
      Non-verb-first names produce a warning.
@@ -61,7 +64,7 @@ TASK_VERBS = {
     "build", "connect", "debug", "design", "explain", "optimize", "query",
     "review", "scaffold", "setup", "suggest", "write", "create", "deploy",
     "migrate", "test", "audit", "monetize", "integrate", "generate", "choose",
-    "plan", "estimate", "monitor", "govern", "governance", "stake",
+    "plan", "estimate", "monitor", "govern", "governance", "stake", "assess",
 }
 
 # Filename patterns that smell like marketing-only pages rather than
@@ -162,24 +165,53 @@ def vet_source(entry: dict) -> None:
     """Apply the CONTRIBUTING.md source-vetting bar to one new entry."""
     name = entry.get("name", "<unnamed>")
     parsed = parse_github_repo(entry.get("repo", ""))
+    slug = f"{parsed[0]}/{parsed[1]}" if parsed else None
+    where = f"source `{name}` ({slug})" if slug else f"source `{name}`"
+
+    # A `vetting_exception` on the registry entry waives the recency/activity
+    # rules (1-2) for document-of-record sources — repos that change only when
+    # the document they mirror does (e.g. the Cardano Constitution, amended
+    # on-chain), where commit cadence says nothing about health. The archived
+    # (rule 3) and fork (rule 4) checks still apply, and the waiver is
+    # surfaced as a warning so it is never silent.
+    #
+    # Whether the waiver was GRANTED is not decided here. This script runs
+    # from the base branch (see .github/workflows/pr-policy.yml), so an
+    # allowlist in it could only be extended ahead of the PR that needs it.
+    # The grant lives in VETTING_EXCEPTIONS in scripts/validate.py, which runs
+    # from the PR head, so a source and its grant land in one reviewed PR and
+    # the `validate` check fails an ungranted or malformed field. Here a
+    # malformed field simply earns no waiver.
+    exception = entry.get("vetting_exception")
+    waived = isinstance(exception, str) and bool(exception.strip())
+    if waived:
+        warn(f"{where}: recency/activity vetting (rules 1-2) waived by "
+             "registry vetting_exception (grant enforced by "
+             f"scripts/validate.py) — {' '.join(exception.split())}")
+
     if not parsed:
         warn(f"source `{name}`: repo is not a github.com URL — "
              "vetting bar must be verified manually in the PR")
         return
-    owner, repo = parsed
-    slug = f"{owner}/{repo}"
 
     info = gh_api(f"/repos/{slug}")
     if not isinstance(info, dict) or "archived" not in info:
-        warn(f"source `{name}` ({slug}): could not query the GitHub API — "
+        warn(f"{where}: could not query the GitHub API — "
              "verify the vetting bar manually (archived? last commit? activity?)")
         return
 
     now = datetime.now(timezone.utc)
 
     if info.get("archived"):
-        fail(f"source `{name}` ({slug}): repository is ARCHIVED — "
+        fail(f"{where}: repository is ARCHIVED — "
              "fails vetting rule 3 (no archived/deprecated/sunset sources)")
+
+    if waived:
+        if info.get("fork"):
+            warn(f"{where}: repo is a fork — vetting rule 4 "
+                 "requires justifying in the PR that this is the maintained "
+                 "canonical")
+        return
 
     pushed_at = info.get("pushed_at")
     if pushed_at and now - parse_iso(pushed_at) > MAX_PUSH_AGE:

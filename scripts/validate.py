@@ -51,6 +51,17 @@ VALID_FORMATS = {"markdown", "mdx", "rst", "openapi", "aiken", "python", "toml",
                  "go"}
 VALID_PRIORITIES = {"high", "medium", "low"}
 
+# Vetting-waiver policy. A `vetting_exception` on a registry entry waives the
+# recency/activity rules (1-2) of the source-vetting bar for document-of-
+# record repos, where commit cadence says nothing about health. Waiving the
+# bar is a security decision, so it requires an explicit entry here, reviewed
+# in the same PR that adds it — a reason string alone is self-service.
+# Keyed name -> owner/repo: `name` is contributor-chosen free text, so a
+# name-only grant would follow an entry to whatever upstream it is later
+# repointed at. The waiver takes effect in scripts/check-pr-policy.py.
+VETTING_EXCEPTIONS: dict[str, str] = {
+}
+
 # Tool-grant policy. `allowed-tools` entries are PRE-APPROVED (they skip the
 # user's permission prompt for one turn), so widening this set is a security
 # decision, not a convenience. Skills needing more than the read-only base
@@ -290,7 +301,31 @@ def validate_sources() -> None:
         if repo and not repo.startswith("https://"):
             warn(f"{prefix}: repo URL doesn't start with https://")
 
+        if "vetting_exception" in src:
+            check_vetting_exception(prefix, name, repo, src["vetting_exception"])
+
         check_snapshot_matches_globs(prefix, name, src)
+
+
+def check_vetting_exception(prefix: str, name: str, repo: str, reason) -> None:
+    """A `vetting_exception` is valid only when granted in VETTING_EXCEPTIONS
+    for this name AND this repo, and carries a non-empty reason."""
+    granted = VETTING_EXCEPTIONS.get(name)
+    if granted is None:
+        error(f"{prefix}: carries vetting_exception but is not granted one in "
+              "VETTING_EXCEPTIONS in scripts/validate.py — waiving the "
+              "maintenance bar is a reviewed code change, not a registry field")
+        return
+    # GitHub owner/repo slugs are case-insensitive.
+    slug = (repo or "").removeprefix("https://github.com/").rstrip("/")
+    if slug.endswith(".git"):
+        slug = slug[:-4]
+    if slug.lower() != granted.lower():
+        error(f"{prefix}: vetting_exception was granted for {granted}, not "
+              f"{slug or repo!r} — repointing a waived entry needs the grant "
+              "updated in the same PR")
+    if not (isinstance(reason, str) and reason.strip()):
+        error(f"{prefix}: vetting_exception must be a non-empty reason string")
 
 
 def validate_path_portability() -> int:

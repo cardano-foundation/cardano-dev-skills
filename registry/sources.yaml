@@ -22,6 +22,10 @@
 #   3. No archived / deprecated / sunset banner
 #   4. For forks: pick the maintained canonical (e.g. Evolution SDK, not the
 #      dead Lucid Evolution).
+#   Document-of-record repos may waive 1-2 via `vetting_exception`, which also
+#   requires a grant in VETTING_EXCEPTIONS in scripts/validate.py, added in
+#   the same PR (see the schema below and docs/CONTRIBUTING.md); 3-4 always
+#   hold.
 #
 # Schema:
 #   name: Human-readable project name
@@ -35,6 +39,12 @@
 #   glob_patterns: File patterns to include (optional, defaults to all matching format)
 #   description: Short description of the project (optional)
 #   website: Project website URL (optional)
+#   vetting_exception: Reason string waiving vetting rules 1-2 (optional) — for
+#                      document-of-record repos that change only when the
+#                      document they mirror does; rules 3-4 still apply. The
+#                      source must also be granted the waiver in
+#                      VETTING_EXCEPTIONS in scripts/validate.py, in the
+#                      same PR; the field alone fails the validate check
 
 # =============================================================================
 # INDEXED SOURCES

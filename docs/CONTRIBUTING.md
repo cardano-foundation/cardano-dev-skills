@@ -44,6 +44,10 @@ Before adding any new entry to `registry/sources.yaml`, verify the upstream repo
 
 If signals are ambiguous (e.g. low commit frequency but a stable mature library; deprecation notice with unclear successor), flag it in the PR rather than guess.
 
+**Document-of-record exception.** Rules 1–2 measure maintenance cadence, which is meaningless for a repo whose only job is to mirror a document that changes rarely by design (e.g. the Cardano Constitution, amended only by on-chain governance action). Waiving them takes two things in the same PR, and both are required: the registry entry carries a `vetting_exception` reason string, **and** the source is granted the waiver in `VETTING_EXCEPTIONS` in `scripts/validate.py`, mapped to the repo it was granted for. An entry carrying the field without a matching grant fails the `validate` check. The reason must explain why cadence is uninformative *and* what does guarantee currency (for the Constitution: the on-chain anchor hash). With the grant in place the policy check waives rules 1–2 for that source (rules 3–4 still apply) and surfaces the waiver as a warning in the PR check output.
+
+The grant is what makes the waiver a decision rather than a default. A reason string alone is self-service — any entry could carry one, and the maintenance bar would stop applying to it before anyone had to agree. Naming the source in the script makes granting a waiver a code change a maintainer reviews alongside the source it covers, the same shape as `ALLOWED_TOOLS_EXCEPTIONS` in the same file. The grant records the repo as well as the name, so repointing a waived entry at a different upstream re-enters vetting instead of inheriting the waiver.
+
 The same bar applies to the candidate entries at the bottom of `registry/sources.yaml` — don't promote a candidate without re-vetting against this bar.
 
 ## Automated PR policy checks
@@ -82,6 +86,8 @@ If a check misfires (e.g. a legitimately-named skill trips the brand heuristic),
   #   - "**/*.md"
   # format_overrides:
   #   "**/*.yaml": openapi
+  # vetting_exception: >-             # document-of-record repos only, granted
+  #   why cadence is uninformative     # in VETTING_EXCEPTIONS in validate.py
 ```
 
 **Valid `format` values:** `markdown`, `mdx`, `rst`, `openapi`, `aiken`, `python`, `toml`, `go`

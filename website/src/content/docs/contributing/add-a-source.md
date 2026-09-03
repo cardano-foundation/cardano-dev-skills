@@ -23,6 +23,25 @@ If signals are ambiguous (e.g. low commit frequency but a stable mature
 library; deprecation notice with unclear successor), flag it in the PR
 rather than guess.
 
+Rules 1–2 measure maintenance cadence, which is meaningless for a repo whose
+only job is to mirror a document that changes rarely by design (e.g. the
+Cardano Constitution, amended only by on-chain governance action). Waiving them
+for such a document-of-record source takes two things in the same PR, and both
+are required: the registry entry carries a `vetting_exception` reason string
+saying why cadence is uninformative and what does guarantee currency, **and**
+the source is granted the waiver in `VETTING_EXCEPTIONS` in
+`scripts/validate.py`, mapped to the repo it was granted for. An entry carrying
+the field without a matching grant fails the `validate` check. With both in
+place the policy check waives rules 1–2 for it (rules 3–4 still apply) and
+surfaces the waiver as a warning in the PR check output.
+
+The grant is what keeps the waiver a decision rather than a default: a reason
+string alone is self-service, while naming the source in the script makes
+granting one a code change a maintainer reviews alongside the source it covers
+— the same shape as `ALLOWED_TOOLS_EXCEPTIONS` in the same file. Recording the
+repo too means repointing a waived entry at a different upstream re-enters
+vetting rather than inheriting the waiver.
+
 The same bar applies to the candidate entries at the bottom of
 `registry/sources.yaml` — don't promote a candidate without re-vetting.
 

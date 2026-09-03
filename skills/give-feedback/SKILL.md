@@ -98,7 +98,9 @@ disclosure irreversible.
 
 ### Step 4: Send
 
-The body goes through stdin in a quoted heredoc, so nothing needs shell quoting:
+The body goes through stdin in a quoted heredoc, so it needs no shell quoting. The title
+is substituted into a double-quoted string, so it is one line of plain text with `` ` ``,
+`$`, `"` and `\` removed before substitution:
 
 ```bash
 gh issue create -R cardano-foundation/cardano-dev-skills \

@@ -18,10 +18,14 @@
 #
 # SOURCE-VETTING BAR (all must hold):
 #   1. Last commit < 6 months old
-#   2. >=1 release tag OR active issue/PR activity in the last 3 months
+#   2. >=1 release tag OR issue/PR activity OR a push in the last 3 months
 #   3. No archived / deprecated / sunset banner
 #   4. For forks: pick the maintained canonical (e.g. Evolution SDK, not the
 #      dead Lucid Evolution).
+#   Document-of-record repos may waive 1-2 via `vetting_exception`, which also
+#   requires a grant in VETTING_EXCEPTIONS in scripts/validate.py, added in
+#   the same PR (see the schema below and docs/CONTRIBUTING.md); 3-4 always
+#   hold.
 #
 # Schema:
 #   name: Human-readable project name
@@ -35,6 +39,12 @@
 #   glob_patterns: File patterns to include (optional, defaults to all matching format)
 #   description: Short description of the project (optional)
 #   website: Project website URL (optional)
+#   vetting_exception: Reason string waiving vetting rules 1-2 (optional) — for
+#                      document-of-record repos that change only when the
+#                      document they mirror does; rules 3-4 still apply. The
+#                      source must also be granted the waiver in
+#                      VETTING_EXCEPTIONS in scripts/validate.py, in the
+#                      same PR; the field alone fails the validate check
 
 # =============================================================================
 # INDEXED SOURCES
@@ -384,6 +394,49 @@
     - "**/*.ak"
   description: Aiken standard library - list, option, transaction helpers
 
+- name: Aiken BLS Signatures
+  repo: https://github.com/ilap/bls.git
+  docs_path: "."
+  format: aiken
+  format_overrides:
+    "**/*.md": markdown
+  category: smart-contracts
+  priority: medium
+  glob_patterns:
+    - README.md
+    - "lib/**/*.ak"
+  description: Aiken BLS12-381 signature library implementing the IETF draft (basic, augmented, proof-of-possession modes)
+
+- name: BLS12-381 Examples and Standards
+  repo: https://github.com/cardano-foundation/bls.git
+  docs_path: "."
+  format: markdown
+  format_overrides:
+    "**/*.ak": aiken
+  category: smart-contracts
+  priority: high
+  glob_patterns:
+    - README.md
+    - "tutorials/**/*.md"
+    - "standards/*.txt"
+    - "aiken/**/*.ak"
+  description: BLS12-381 tutorials, the IETF BLS signature and pairing-curve drafts, HKDF/PBKDF2/VRF RFCs, and Aiken examples for Groth16, KDF, VRF, and signature aggregation
+
+- name: Aiken ZKP Verifiers
+  repo: https://github.com/ADAOcommunity/zk.git
+  docs_path: "."
+  format: markdown
+  format_overrides:
+    "**/*.ak": aiken
+  category: smart-contracts
+  priority: medium
+  glob_patterns:
+    - README.md
+    - specification.md
+    - "zkp/docs/*.md"
+    - "zkp/lib/**/*.ak"
+  description: ADAO's Aiken ZKP verifier library — Groth16, PLONK, and Bulletproofs verifiers for Plutus V3, with protocol walkthroughs and on-chain verification tests
+
 - name: Aiken Examples
   repo: https://github.com/aiken-lang/aiken.git
   docs_path: examples
@@ -471,14 +524,19 @@
 
 - name: Plutarch
   repo: https://github.com/Plutonomicon/plutarch-plutus.git
+  # The guide lives in plutarch-docs/src, not docs/ — and Tricks/ moved under it.
+  # The previous `docs/**/*.md` + `Tricks/**/*.md` pair matched nothing, leaving a
+  # README-only snapshot while 70 pages sat upstream. docs_path stays at the repo
+  # root so the upstream README (the only place carrying installation, "Why
+  # Plutarch" and the benchmarks) is not shadowed by the guide's own one-line
+  # README stub — the guide has no install section of its own.
   docs_path: "."
   format: markdown
   category: smart-contracts
   priority: medium
   glob_patterns:
     - README.md
-    - "docs/**/*.md"
-    - "Tricks/**/*.md"
+    - "plutarch-docs/src/**/*.md"
   description: Typed Haskell eDSL for highly optimized UPLC
 
 - name: Scalus
@@ -715,10 +773,14 @@
   format: markdown
   category: sdk
   priority: high
+  # This repo has no docs/ tree and no packages/ dir: the documentation is the
+  # per-package READMEs (core/, react/, html/) alongside the root one. Both
+  # previous tree globs matched nothing. Scoped one level deep on purpose — a
+  # recursive `**/README.md` also pulls in vendored dependency READMEs such as
+  # html/highlight/README.md, which documents Highlight.js, not this library.
   glob_patterns:
     - README.md
-    - "docs/**/*.md"
-    - "packages/**/README.md"
+    - "*/README.md"
   description: Official Cardano Foundation library + React hooks for CIP-30 wallet integration in web dApps
 
 - name: Cardano Addresses

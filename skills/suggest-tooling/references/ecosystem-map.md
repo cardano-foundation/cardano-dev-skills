@@ -137,6 +137,34 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 | **Midgard** | Optimistic rollup | Experimental | L2 without a fixed participant set. Frontier; **not a bundled source** — verify upstream, don't build production on it yet. |
 | **Gummiworm** | Validium-style L2 | Experimental | Off-chain data-availability L2. Not mainnet-ready; not bundled. |
 
+## Zero-Knowledge & BLS12-381
+
+On-chain proof verification and the wider BLS12-381 primitive family. The BLS12-381 builtins sit on
+the audited `blst` library; the higher-level libraries below are open source and, per the developer
+portal, none are audited. For the concepts and working examples, use the `explain-zk` skill. Notes
+below carry only facts (language, license) and a project's own stated caveats.
+
+### Proof systems: circuit frontends, verifiers, toolkits
+
+| Name | Language | Notes |
+|---|---|---|
+| **cardano-foundation/bls** | Aiken | Apache-2.0. Generic Groth16 verifier plus BLS signature / VRF / KDF examples; proving steps cross-checked against an independent SageMath implementation. Bundled as a source: `docs/sources/bls12-381-examples-and-standards/`, including the IETF drafts and RFCs under `standards/`. |
+| **gnark-cardano** | Go | gnark circuit to a tested Aiken Groth16 verifier; the most automated path. |
+| **snarkjs-cardano** | TS/JS | Circom (Groth16 / PLONK) adapted to BLS12-381 output for Plutus verifiers. |
+| **plutus-halo2-verifier-gen** | Rust to Plinth/Aiken | Generates Halo2 / KZG verifiers; the path for verifying Midnight proofs. |
+| **plutus-plonk-example** | Plutus | End-to-end PLONK verifier with published cost benchmarks. |
+| **ak-381** (Modulo-P) | Aiken | Groth16 verifier with Circom conversion scripts; the repository ships no license. |
+| **adaocommunity/zk** | Aiken | Apache-2.0. Groth16, PLONK, and Bulletproofs (range proof) verifiers for Plutus V3, with protocol walkthroughs and negative-path tests; the README emphasises educational/demonstrative use, states PLONK is still being optimized to fit resource limits, and marks Bulletproofs early-stage; no external audit. Bundled as a source: `docs/sources/aiken-zkp-verifiers/`. |
+| **ZeroJ** (bloxbean) | Java | Full Java ZK pipeline with generated Plutus V3 verifiers; the authors state the code is AI-generated and not for production. |
+
+### BLS-family libraries and learning
+
+| Name | Language | Notes |
+|---|---|---|
+| **ilap/bls** | Aiken | Apache-2.0. IETF BLS signatures with the three modes (basic / aug / pop). Bundled as a source: `docs/sources/aiken-bls-signatures/`. |
+| **lambdasistemi/cardano-bbs** | Aiken | BBS+ selective-disclosure / anonymous credentials. |
+| **ZK-from-zero-on-Cardano** | eBook + Aiken | Catalyst Fund 14; the README marks its status "in progress". A Circom-to-Aiken walkthrough ending in a password-locked UTxO. |
+
 ## Wallet Connectors
 
 | Name | Type | Status | Best For |

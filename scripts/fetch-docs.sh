@@ -8,9 +8,13 @@
 # Usage:
 #   ./scripts/fetch-docs.sh                    # fetch all sources at pinned commits
 #   ./scripts/fetch-docs.sh --source Aiken     # fetch a single source
+#   ./scripts/fetch-docs.sh --source Aiken --update-pins
+#                                              # fetch one source at its branch
+#                                              # tip and record its pin (new
+#                                              # source); other pins are kept
 #   ./scripts/fetch-docs.sh --update-pins --manifest-out /tmp/manifest.json
-#                                              # weekly refresh: fetch branch
-#                                              # tips, rewrite registry/pins.yaml
+#                                              # weekly refresh: fetch all
+#                                              # branch tips, merge new pins
 #
 # Requires: python3, git
 #

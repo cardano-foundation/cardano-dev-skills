@@ -132,6 +132,12 @@ than rewriting it — a per-source run touches one line and leaves the others al
 python3 scripts/validate.py
 ```
 
+Needs `pyyaml`, which is the only Python prerequisite in this repo; every script here
+runs on Python 3.9+, the version stock macOS ships. `--paths-only` runs the Windows
+path-portability check alone and needs no dependencies at all — keep that true when
+editing `validate.py`, since the weekly refresh workflow gates on it without
+installing anything, and CI runs that mode on 3.9 to catch it if it stops being true.
+
 ### 5. Open a PR
 
 CI runs validation automatically. The weekly refresh workflow picks up the new source on its next Monday run.

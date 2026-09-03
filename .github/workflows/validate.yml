@@ -32,6 +32,18 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # `--paths-only` promises to run with nothing installed, on whatever
+      # python3 is already there, which is what the weekly refresh gates on.
+      # Running it here on the oldest supported interpreter is what keeps that
+      # a fact rather than an intention: the rest of the job is 3.12, where
+      # 3.10-only syntax and a missing dependency both pass unnoticed.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: "--paths-only runs on a bare interpreter"
+        run: python scripts/validate.py --paths-only
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

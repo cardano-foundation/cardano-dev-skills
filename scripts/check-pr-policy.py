@@ -189,24 +189,8 @@ def vet_source(entry: dict) -> None:
     """Apply the CONTRIBUTING.md source-vetting bar to one new entry."""
     name = entry.get("name", "<unnamed>")
     parsed = parse_github_repo(entry.get("repo", ""))
-    if not parsed:
-        warn(f"source `{name}`: repo is not a github.com URL — "
-             "vetting bar must be verified manually in the PR")
-        return
-    owner, repo = parsed
-    slug = f"{owner}/{repo}"
-
-    info = gh_api(f"/repos/{slug}")
-    if not isinstance(info, dict) or "archived" not in info:
-        warn(f"source `{name}` ({slug}): could not query the GitHub API — "
-             "verify the vetting bar manually (archived? last commit? activity?)")
-        return
-
-    now = datetime.now(timezone.utc)
-
-    if info.get("archived"):
-        fail(f"source `{name}` ({slug}): repository is ARCHIVED — "
-             "fails vetting rule 3 (no archived/deprecated/sunset sources)")
+    slug = f"{parsed[0]}/{parsed[1]}" if parsed else None
+    where = f"source `{name}` ({slug})" if slug else f"source `{name}`"
 
     # A `vetting_exception` on the registry entry waives the recency/activity
     # rules (1-2) for document-of-record sources — repos that change only when
@@ -215,36 +199,57 @@ def vet_source(entry: dict) -> None:
     # (rule 3) and fork (rule 4) checks still apply, and a granted waiver is
     # surfaced as a warning so it is never silent.
     #
-    # A waiver that was not granted does not suppress anything: the entry is
-    # still judged by the ordinary bar below, so one CI run reports both the
-    # misuse and whatever the source would have failed on anyway.
+    # Whether a waiver was granted is a local question — it depends on the
+    # allowlist and the entry, not on the network — so it is settled here,
+    # before any API call. Deciding it later would mean a rate-limited or
+    # offline run (which returns early below) never reports the misuse, and a
+    # gate that an API hiccup switches off is not a gate.
+    #
+    # A waiver that was not granted suppresses nothing: the entry is still
+    # judged by the ordinary bar, so one run reports both the misuse and
+    # whatever the source would have failed on anyway.
     exception = entry.get("vetting_exception")
     waived = False
     if exception is not None:
         granted_repo = VETTING_EXCEPTION_ALLOWLIST.get(name)
         if granted_repo is None:
-            fail(f"source `{name}` ({slug}): carries vetting_exception but is "
-                 "not named in VETTING_EXCEPTION_ALLOWLIST in "
-                 "scripts/check-pr-policy.py. Waiving the maintenance bar is a "
-                 "reviewed code change, not a registry field — grant it there "
-                 "in its own PR first, then register the source.")
-        elif granted_repo != slug:
-            fail(f"source `{name}` ({slug}): vetting_exception was granted for "
-                 f"{granted_repo}, not this repo. Repointing a waived entry "
-                 "needs the grant in scripts/check-pr-policy.py updated in the "
-                 "same review.")
+            fail(f"{where}: carries vetting_exception but is not named in "
+                 "VETTING_EXCEPTION_ALLOWLIST in scripts/check-pr-policy.py. "
+                 "Waiving the maintenance bar is a reviewed code change, not "
+                 "a registry field — grant it there in its own PR first, then "
+                 "register the source.")
+        elif slug is None or granted_repo.lower() != slug.lower():
+            fail(f"{where}: vetting_exception was granted for {granted_repo}, "
+                 "not this repo. Repointing a waived entry needs the grant in "
+                 "scripts/check-pr-policy.py updated in the same review.")
         elif not (isinstance(exception, str) and exception.strip()):
-            fail(f"source `{name}` ({slug}): vetting_exception must be a "
-                 "non-empty reason string")
+            fail(f"{where}: vetting_exception must be a non-empty reason "
+                 "string")
         else:
             waived = True
-            warn(f"source `{name}` ({slug}): recency/activity vetting "
-                 f"(rules 1-2) waived by registry vetting_exception — "
-                 f"{' '.join(exception.split())}")
+            warn(f"{where}: recency/activity vetting (rules 1-2) waived by "
+                 f"registry vetting_exception — {' '.join(exception.split())}")
+
+    if not parsed:
+        warn(f"source `{name}`: repo is not a github.com URL — "
+             "vetting bar must be verified manually in the PR")
+        return
+
+    info = gh_api(f"/repos/{slug}")
+    if not isinstance(info, dict) or "archived" not in info:
+        warn(f"{where}: could not query the GitHub API — "
+             "verify the vetting bar manually (archived? last commit? activity?)")
+        return
+
+    now = datetime.now(timezone.utc)
+
+    if info.get("archived"):
+        fail(f"{where}: repository is ARCHIVED — "
+             "fails vetting rule 3 (no archived/deprecated/sunset sources)")
 
     if waived:
         if info.get("fork"):
-            warn(f"source `{name}` ({slug}): repo is a fork — vetting rule 4 "
+            warn(f"{where}: repo is a fork — vetting rule 4 "
                  "requires justifying in the PR that this is the maintained "
                  "canonical")
         return

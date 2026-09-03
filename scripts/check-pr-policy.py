@@ -85,10 +85,10 @@ GENERIC_BRAND_WORDS = {
 # Task verbs seen across the existing skill set; new skills should normally
 # start with one (warning only — the convention, not a hard rule).
 TASK_VERBS = {
-    "assess", "build", "connect", "debug", "design", "explain", "optimize",
-    "query", "review", "scaffold", "setup", "suggest", "write", "create",
-    "deploy", "migrate", "test", "audit", "monetize", "integrate", "generate",
-    "choose", "plan", "estimate", "monitor", "govern", "governance", "stake",
+    "build", "connect", "debug", "design", "explain", "optimize", "query",
+    "review", "scaffold", "setup", "suggest", "write", "create", "deploy",
+    "migrate", "test", "audit", "monetize", "integrate", "generate", "choose",
+    "plan", "estimate", "monitor", "govern", "governance", "stake", "assess",
 }
 
 # Filename patterns that smell like marketing-only pages rather than

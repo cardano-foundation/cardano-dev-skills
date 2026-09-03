@@ -47,7 +47,7 @@ for) and **governance** (the lifecycle that keeps that content current).
 - **Schema validation.** CI runs `scripts/validate.py` on every PR
   touching `skills/**` or `registry/**`.
 - **Source-vetting bar.** Explicit policy in `CONTRIBUTING.md`: last commit
-  age, release/activity signal, archival status, fork canonicality.
+  age, archival status, fork canonicality.
 - **PR policy gate.** On PRs touching `skills/`, `registry/`, or
   `docs/sources/`: mechanical checks enforce the vetting bar live against
   the GitHub API and fail brand-named skills, while an AI scope reviewer

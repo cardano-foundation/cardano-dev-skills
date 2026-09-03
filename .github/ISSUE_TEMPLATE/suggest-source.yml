@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Before opening this issue, please check the source-vetting policy in [docs/CONTRIBUTING.md](../blob/main/docs/CONTRIBUTING.md#source-vetting-policy). Sources that don't pass the maintenance bar (active, not archived, has releases or recent activity) will be declined.
+        Before opening this issue, please check the source-vetting policy in [docs/CONTRIBUTING.md](../blob/main/docs/CONTRIBUTING.md#source-vetting-policy). Sources that don't pass the maintenance bar (pushed to in the last 6 months, not archived) will be declined.
   - type: input
     id: name
     attributes:
@@ -51,8 +51,6 @@ body:
       description: From the source-vetting policy.
       options:
         - label: Last commit is less than 6 months old
-          required: true
-        - label: At least 1 release tag OR issue/PR activity OR a push in the last 3 months
           required: true
         - label: No archived / deprecated / sunset banner
           required: true

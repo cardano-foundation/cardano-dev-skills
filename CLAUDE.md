@@ -77,7 +77,7 @@ to see which docs to update in the same PR.
 ### Source-vetting bar
 
 Before adding to `registry/sources.yaml`, meet the maintenance bar in `docs/CONTRIBUTING.md`
-(commit recency, release/activity signal, no archival banner, fork canonicality) and the
+(commit recency, no archival banner, fork canonicality) and the
 two-part scope test (Cardano-native + developer-integration surface). That doc is
 canonical — don't restate the bar here.
 

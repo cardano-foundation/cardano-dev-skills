@@ -22,8 +22,10 @@
 #   3. No archived / deprecated / sunset banner
 #   4. For forks: pick the maintained canonical (e.g. Evolution SDK, not the
 #      dead Lucid Evolution).
-#   Document-of-record repos may waive 1-2 via `vetting_exception` (see the
-#   schema below and docs/CONTRIBUTING.md); 3-4 always hold.
+#   Document-of-record repos may waive 1-2 via `vetting_exception`, which also
+#   requires an entry in VETTING_EXCEPTION_ALLOWLIST in
+#   scripts/check-pr-policy.py (see the schema below and
+#   docs/CONTRIBUTING.md); 3-4 always hold.
 #
 # Schema:
 #   name: Human-readable project name
@@ -39,7 +41,11 @@
 #   website: Project website URL (optional)
 #   vetting_exception: Reason string waiving vetting rules 1-2 (optional) — for
 #                      document-of-record repos that change only when the
-#                      document they mirror does; rules 3-4 still apply
+#                      document they mirror does; rules 3-4 still apply. The
+#                      source must also be granted the waiver in
+#                      VETTING_EXCEPTION_ALLOWLIST in
+#                      scripts/check-pr-policy.py, which is merged to main
+#                      ahead of the entry; the field alone fails the check
 
 # =============================================================================
 # INDEXED SOURCES

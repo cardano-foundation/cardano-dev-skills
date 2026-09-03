@@ -8,9 +8,11 @@ docs/CONTRIBUTING.md:
   1. Source vetting: every NEW entry in registry/sources.yaml must point to a
      GitHub repo that is not archived, pushed to within 6 months, and shows a
      release or issue/PR activity within 3 months (checked live via the
-     GitHub API). An entry may carry a `vetting_exception` reason string that
-     waives the recency/activity rules for document-of-record sources; the
-     archived and fork checks still apply, and the waiver prints as a warning.
+     GitHub API). A document-of-record source may waive the recency/activity
+     rules by carrying a `vetting_exception` reason string AND being granted
+     one in VETTING_EXCEPTION_ALLOWLIST below (name -> repo); the archived and
+     fork checks still apply, the waiver prints as a warning, and an ungranted
+     exception fails without suppressing the ordinary checks.
   2. Skill naming: a NEW skill named after a registered source/project brand
      fails (skills are task-oriented: build-transaction, connect-wallet, ...).
      Non-verb-first names produce a warning.
@@ -50,6 +52,29 @@ DOCS_DIR = "docs/sources"
 
 MAX_PUSH_AGE = timedelta(days=183)   # "last commit < 6 months"
 MAX_ACTIVITY_AGE = timedelta(days=92)  # "activity in the last 3 months"
+
+# Sources permitted to carry a `vetting_exception`, mapped to the upstream the
+# waiver was granted for. The field waives vetting rules 1-2 for documents of
+# record, so granting one is a reviewed code change rather than a config line a
+# contributor can add to their own entry: the source must be named here, and
+# point at the recorded repo, as well as carrying a reason string. Mirrors the
+# ALLOWED_TOOLS_EXCEPTIONS pattern in scripts/validate.py.
+#
+# The grant is keyed on the repo as well as the name because a `name` is
+# contributor-chosen free text, and is also what main() uses to decide which
+# entries are new — so a name-only grant would be inherited by whatever repo an
+# entry is later repointed at.
+#
+# CI runs the base branch's copy of this script (see .github/workflows/
+# pr-policy.yml), so a grant only takes effect once it is on `main`: it lands in
+# its own PR, ahead of the one registering the source.
+VETTING_EXCEPTION_ALLOWLIST = {
+    # Intersect's mirror of record for the on-chain Cardano Constitution. It
+    # changes only when the Constitution is amended by governance action, so
+    # commit cadence measures nothing; currency is verified against the
+    # on-chain anchor hash instead. Registered by a follow-up PR.
+    "Cardano Constitution": "IntersectMBO/cardano-constitution",
+}
 
 # First words of source names that are generic, not brands — a skill name
 # containing one of these is not evidence of a brand-named skill.
@@ -187,17 +212,37 @@ def vet_source(entry: dict) -> None:
     # rules (1-2) for document-of-record sources — repos that change only when
     # the document they mirror does (e.g. the Cardano Constitution, amended
     # on-chain), where commit cadence says nothing about health. The archived
-    # (rule 3) and fork (rule 4) checks above/below still apply, and the
-    # waiver is surfaced as a warning so it is never silent.
+    # (rule 3) and fork (rule 4) checks still apply, and a granted waiver is
+    # surfaced as a warning so it is never silent.
+    #
+    # A waiver that was not granted does not suppress anything: the entry is
+    # still judged by the ordinary bar below, so one CI run reports both the
+    # misuse and whatever the source would have failed on anyway.
     exception = entry.get("vetting_exception")
+    waived = False
     if exception is not None:
-        if not (isinstance(exception, str) and exception.strip()):
+        granted_repo = VETTING_EXCEPTION_ALLOWLIST.get(name)
+        if granted_repo is None:
+            fail(f"source `{name}` ({slug}): carries vetting_exception but is "
+                 "not named in VETTING_EXCEPTION_ALLOWLIST in "
+                 "scripts/check-pr-policy.py. Waiving the maintenance bar is a "
+                 "reviewed code change, not a registry field — grant it there "
+                 "in its own PR first, then register the source.")
+        elif granted_repo != slug:
+            fail(f"source `{name}` ({slug}): vetting_exception was granted for "
+                 f"{granted_repo}, not this repo. Repointing a waived entry "
+                 "needs the grant in scripts/check-pr-policy.py updated in the "
+                 "same review.")
+        elif not (isinstance(exception, str) and exception.strip()):
             fail(f"source `{name}` ({slug}): vetting_exception must be a "
                  "non-empty reason string")
         else:
+            waived = True
             warn(f"source `{name}` ({slug}): recency/activity vetting "
                  f"(rules 1-2) waived by registry vetting_exception — "
                  f"{' '.join(exception.split())}")
+
+    if waived:
         if info.get("fork"):
             warn(f"source `{name}` ({slug}): repo is a fork — vetting rule 4 "
                  "requires justifying in the PR that this is the maintained "

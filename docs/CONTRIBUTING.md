@@ -44,7 +44,16 @@ Before adding any new entry to `registry/sources.yaml`, verify the upstream repo
 
 If signals are ambiguous (e.g. low commit frequency but a stable mature library; deprecation notice with unclear successor), flag it in the PR rather than guess.
 
-**Document-of-record exception.** Rules 1–2 measure maintenance cadence, which is meaningless for a repo whose only job is to mirror a document that changes rarely by design (e.g. the Cardano Constitution, amended only by on-chain governance action). For such a source, set a `vetting_exception` field on the registry entry with a one-sentence reason; the policy check then waives rules 1–2 for it (rules 3–4 still apply) and surfaces the waiver as a warning in the PR check output. The reason must explain why cadence is uninformative *and* what does guarantee currency (for the Constitution: the on-chain anchor hash).
+**Document-of-record exception.** Rules 1–2 measure maintenance cadence, which is meaningless for a repo whose only job is to mirror a document that changes rarely by design (e.g. the Cardano Constitution, amended only by on-chain governance action). Waiving them takes two things, and both are required: the registry entry carries a `vetting_exception` reason string, **and** the source is named in `VETTING_EXCEPTION_ALLOWLIST` in `scripts/check-pr-policy.py`, mapped to the repo the waiver was granted for. A source carrying the field without a matching grant fails the check. The reason must explain why cadence is uninformative *and* what does guarantee currency (for the Constitution: the on-chain anchor hash); with the grant in place the check waives rules 1–2 for that source (rules 3–4 still apply) and surfaces the waiver as a warning in the PR check output.
+
+The allowlist is what makes the waiver a decision rather than a default. A reason string alone is self-service — any entry could carry one, and the maintenance bar would stop applying to it before anyone had to agree. Naming the source in the script makes granting a waiver a code change a maintainer reviews, the same shape as `ALLOWED_TOOLS_EXCEPTIONS` in `scripts/validate.py`. The grant records the repo as well as the name, so repointing a waived entry at a different upstream re-enters vetting instead of inheriting the waiver.
+
+**Granting a waiver takes two PRs, in order.** The policy workflow runs on `pull_request_target` and checks out the *base* branch, so it reads your `sources.yaml` from the PR but the script — and therefore the allowlist — from `main`. An allowlist entry added in the same PR as the source is invisible to the check evaluating it, and that PR fails. So:
+
+1. **Grant PR** — adds the name and repo to `VETTING_EXCEPTION_ALLOWLIST`, and nothing else. Its whole diff is "we are waiving the maintenance bar for this source, and here is why."
+2. **Source PR** — adds the registry entry with its `vetting_exception` reason, once the grant is on `main`.
+
+This is the cost of not letting a contributor edit the rules that judge their own PR, and it is the point: the grant is reviewed on its own terms rather than buried in a source addition.
 
 The same bar applies to the candidate entries at the bottom of `registry/sources.yaml` — don't promote a candidate without re-vetting against this bar.
 
@@ -84,8 +93,8 @@ If a check misfires (e.g. a legitimately-named skill trips the brand heuristic),
   #   - "**/*.md"
   # format_overrides:
   #   "**/*.yaml": openapi
-  # vetting_exception: >-        # document-of-record repos only — see the
-  #   one-sentence reason         # vetting policy above
+  # vetting_exception: >-             # document-of-record repos only, and
+  #   why cadence is uninformative     # only once granted in the allowlist
 ```
 
 **Valid `format` values:** `markdown`, `mdx`, `rst`, `openapi`, `aiken`, `python`, `toml`, `go`

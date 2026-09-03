@@ -18,27 +18,19 @@ Community-curated knowledge base for building on Cardano. This repo is a Claude 
 |---|---|---|
 | Validate skills + sources (the CI gate) | `python3 scripts/validate.py` | `pyyaml` |
 | Path-portability check alone | `python3 scripts/validate.py --paths-only` | nothing |
-| Fetch one source after editing its registry entry | `./scripts/fetch-docs.sh --source "Project Name"` | git |
+| Test the SessionStart hook | `./hooks/test-check-docs.sh` | nothing |
+| Fetch one source after editing its registry entry | `./scripts/fetch-docs.sh --source "Project Name" --update-pins` | `python3`, git |
 | Build the site | `cd website && npm ci && npm run build` | Node ≥18.17 |
-| PR policy gate (source vetting, skill naming) | `GITHUB_TOKEN=$(gh auth token) python3 scripts/check-pr-policy.py --base origin/main --head HEAD` | Python 3.10+ |
-| Supply-chain scan of a docs delta | `python3 scripts/scan-docs-delta.py --base origin/main --head HEAD` | Python 3.10+ |
+| PR policy gate (source vetting, skill naming) | `GITHUB_TOKEN=$(gh auth token) python3 scripts/check-pr-policy.py --base origin/main --head HEAD` | `pyyaml` |
+| Supply-chain scan of a docs delta | `python3 scripts/scan-docs-delta.py --base origin/main --head HEAD` | nothing |
 
-CI pins Python 3.12. `validate.py` deliberately runs on **any** Python 3 — the weekly
-refresh workflow gates on `--paths-only` without installing anything, so that file
-must stay free of PEP-604 (`X | Y`) annotations, which are evaluated at import and
-would take the module down before argparse sees the flag. CI enforces this by running
-`--paths-only` on 3.9 before it installs anything, because the rule had already been
-broken twice while a comment was the only thing guarding it. The other two scripts do
-use them and therefore need 3.10+; on stock macOS (Python 3.9) they fail at import
-with a bare `TypeError`, which looks like a repo problem and is not one. A venv is
-the quickest fix:
-
-```bash
-python3.12 -m venv .venv && .venv/bin/pip install pyyaml   # .venv/ is gitignored
-```
+Every script runs on Python 3.9+, the version stock macOS ships; CI pins 3.12 for the
+main job and runs `--paths-only` on 3.9. `pip install pyyaml` is the only Python
+prerequisite anywhere, and `validate.py` says so when the module is missing. The token
+on the policy row is optional — it only raises the GitHub API rate limit.
 
 There is no linter. `validate.py` is the gate CI runs on every PR touching
-`skills/`, `registry/`, `scripts/` or `docs/`.
+`skills/`, `registry/`, `scripts/`, `docs/` or `hooks/`.
 
 `scripts/fetch-docs.sh` with no `--source` and `scripts/sync-sources.sh` hit the
 network and rewrite the whole vendored corpus. Never run them as a side effect of

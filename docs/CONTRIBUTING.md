@@ -132,18 +132,11 @@ than rewriting it — a per-source run touches one line and leaves the others al
 python3 scripts/validate.py
 ```
 
-Needs `pyyaml`, and runs on any Python 3 (CI pins 3.12). `--paths-only` runs the
-Windows path-portability check alone and needs no dependencies at all — keep that
-true when editing `validate.py`, since the weekly refresh workflow gates on it
-without installing anything.
-
-`scripts/check-pr-policy.py` and `scripts/scan-docs-delta.py` do require **Python
-3.10+**. On stock macOS (3.9) they fail at import with a bare `TypeError` about
-`|` — that is the interpreter, not your change:
-
-```bash
-python3.12 -m venv .venv && .venv/bin/pip install pyyaml
-```
+Needs `pyyaml`, which is the only Python prerequisite in this repo; every script here
+runs on Python 3.9+, the version stock macOS ships. `--paths-only` runs the Windows
+path-portability check alone and needs no dependencies at all — keep that true when
+editing `validate.py`, since the weekly refresh workflow gates on it without
+installing anything, and CI runs that mode on 3.9 to catch it if it stops being true.
 
 ### 5. Open a PR
 

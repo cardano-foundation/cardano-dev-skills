@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """Validate cardano-dev-skills repo: SKILL.md files and sources.yaml."""
 
+# Annotations are never evaluated with this import, so `X | Y` costs nothing at
+# import time and this file runs on 3.9 — which matters because `--paths-only`
+# below must work on whatever python3 a contributor happens to have. The other
+# scripts in this directory carry it for the same reason.
+from __future__ import annotations
+
 import argparse
 import subprocess
 import sys
 import re
 from pathlib import Path
-from typing import Optional
 
-# Only the skill/registry checks need pyyaml. `--paths-only` must stay
-# runnable on a bare python3 so the refresh workflow can gate on path
-# portability without installing anything.
-#
-# That also means NO PEP-604 (`X | Y`) annotations in this file: they are
-# evaluated at import time, so one of them takes the whole module down before
-# argparse ever sees --paths-only. macOS ships Python 3.9, where this failed
-# with a bare `TypeError: unsupported operand type(s) for |` and no hint that
-# the interpreter, not the repo, was the problem. Use typing.Optional here.
+# Only the skill/registry checks need pyyaml. `--paths-only` must stay runnable
+# on a bare python3 with nothing installed, so the refresh workflow can gate on
+# path portability without a setup step. `validate.yml` runs that mode on the
+# oldest supported interpreter to keep both halves of that true.
 try:
     import yaml
 except ModuleNotFoundError:
@@ -102,7 +102,7 @@ def warn(msg: str) -> None:
     warnings.append(msg)
 
 
-def parse_frontmatter(path: Path) -> Optional[dict]:
+def parse_frontmatter(path: Path) -> dict | None:
     """Extract YAML frontmatter from a SKILL.md file."""
     text = path.read_text(encoding="utf-8")
     if not text.startswith("---"):
@@ -237,7 +237,7 @@ def check_snapshot_matches_globs(prefix: str, name: str, src: dict) -> None:
     )
 
 
-def load_pinned_names() -> Optional[set[str]]:
+def load_pinned_names() -> set[str] | None:
     """Source names pinned in registry/pins.yaml, parsed by the same function
     scripts/fetch-docs.sh uses, so what validates here is what a fetch will
     actually honor. Returns None if the file is malformed (already reported),

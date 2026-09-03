@@ -32,13 +32,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # `--paths-only` promises to run on a bare python3 with no dependencies
-      # installed, which is what the weekly refresh gates on. That promise was
-      # only ever a comment: CI runs 3.12, where a PEP-604 annotation is legal,
-      # so nothing noticed when one was added — while macOS ships 3.9, where it
-      # takes the whole module down at import before argparse sees the flag.
-      # Pin the oldest interpreter the promise covers, and it stops being a
-      # promise anyone can break silently.
+      # `--paths-only` promises to run with nothing installed, on whatever
+      # python3 is already there, which is what the weekly refresh gates on.
+      # Running it here on the oldest supported interpreter is what keeps that
+      # a fact rather than an intention: the rest of the job is 3.12, where
+      # 3.10-only syntax and a missing dependency both pass unnoticed.
       - uses: actions/setup-python@v5
         with:
           python-version: "3.9"

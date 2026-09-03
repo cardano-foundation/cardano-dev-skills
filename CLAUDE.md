@@ -35,7 +35,7 @@ Use `Read` and `Grep` tools to search these directories for accurate, up-to-date
 - SKILL.md files must be under 500 lines; deep content goes in `references/` (one level deep only)
 - Skill names are kebab-case, max 64 characters; directory name matches `name:` field
 - `registry/sources.yaml` is the single source of truth for documentation sources
-- Skills are self-contained — work with `Read` / `Grep` / `Glob` only, no external service dependencies
+- Skills are self-contained — work with `Read` / `Grep` / `Glob` only, no external service dependencies. The one exception is `give-feedback`, which files a GitHub issue via `gh` after the user approves the draft; see DESIGN.md Decision 14 for why that boundary is drawn where it is
 - When referencing documentation, guide the user to search or read rather than pasting specs
 
 ## Skill Format

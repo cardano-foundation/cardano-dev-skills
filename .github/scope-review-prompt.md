@@ -47,6 +47,12 @@ the same reasoning to comparable projects (payment protocols, indexers).
   by itself, a path to acceptance** — whether the repo wants a new task
   skill is an editorial decision that starts with a discussion, not a
   rename (per CONTRIBUTING: open a discussion before writing code).
+- **Plugin meta-skills are the recorded exception, not project-specific
+  skills.** A meta-skill acts on the plugin itself rather than teaching a
+  Cardano workflow — either by configuring the environment it runs in
+  (`cardano-context`, DESIGN.md Decision 12) or by carrying information back
+  to its maintainers (`give-feedback`, Decision 14). Do not flag either, or
+  a change to either, under the project-specific rule.
 - **A skill teaching a specific project requires that project as a
   registered source.** Spec-level detail (endpoints, request bodies, datum
   schemas) belongs in `docs/sources/` where the weekly refresh keeps it
@@ -58,6 +64,12 @@ the same reasoning to comparable projects (payment protocols, indexers).
   from external URLs, handle mnemonics/private keys beyond warning about
   them, send data to external services, or that embeds promotional claims
   (revenue figures, success rates) as decision criteria.
+  One carve-out, already decided: `give-feedback` files a GitHub issue via
+  `gh` to this repository, after showing the user the exact body and getting
+  their approval (DESIGN.md Decision 14). Do not flag that path as an
+  external-service violation. Do flag any *new* outward path, any widening
+  of it to another destination, and any change that weakens the
+  show-the-draft-and-ask gate.
 - Skills teach categories generically and read as neutral community
   contributions: no branded promotion, no grant/treasury framing.
 - **Structural reasons — always cite them.** When a PR contains a

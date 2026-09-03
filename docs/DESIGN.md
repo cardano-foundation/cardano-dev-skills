@@ -33,6 +33,8 @@ This document captures the architectural decisions behind `cardano-dev-skills`. 
 
 **Decision:** Skills must work using only `Read`, `Grep`, and `Glob`. No external service dependencies, no proprietary tool calls.
 
+**One exception, recorded:** `give-feedback` (Decision 14) sends an issue to GitHub through `gh`. It is the only skill whose *purpose* is an outward action, and it degrades to showing the user a draft and a link when `gh` is absent — so the guarantee below (a skill produces useful output regardless of what else is installed) still holds.
+
 **Why:**
 - Skills should produce useful guidance regardless of what other tools the user has connected.
 - Skills that depend on a specific MCP server, API, or service break for any user who hasn't installed that specific thing.
@@ -147,7 +149,7 @@ These additions follow the principle: ship small, observe, iterate.
 
 **The layers:**
 
-0. **Tool-grant policy** (`scripts/validate.py`): `allowed-tools` is a one-turn pre-approval in Claude Code, not a restriction, so the base grant is `Read Grep Glob`, anything wider needs a reviewed exception entry, and every skill must disallow `WebFetch`/`WebSearch` (skills are self-contained). Advisory-only skills additionally disallow `Bash`/`Edit`/`Write`, containing injection blast radius during the turn untrusted docs are read.
+0. **Tool-grant policy** (`scripts/validate.py`): `allowed-tools` is a one-turn pre-approval in Claude Code, not a restriction, so the base grant is `Read Grep Glob`, anything wider needs a reviewed exception entry, and every skill must disallow `WebFetch`/`WebSearch` (banning the undirected network; `give-feedback`'s approved `gh` call is the one outward path, Decision 14). Advisory-only skills additionally disallow `Bash`/`Edit`/`Write`, containing injection blast radius during the turn untrusted docs are read.
 1. **Fetch-time sanitization** (`scripts/_fetch_docs.py`): strips zero-width/bidi characters everywhere and HTML comments + `<script>` from markup — deletes the hidden-text injection class instead of trying to detect it.
 2. **Mechanical delta scanner** (`scripts/scan-docs-delta.py`, blocking check in the PR Policy workflow): pattern-level screening of changed lines only — injection phrasing, pipe-to-shell, swapped bech32 addresses, changed install commands, new domains per source.
 3. **Advisory AI docs-delta review** (PR Policy workflow): reuses the non-agentic scope-review harness with a supply-chain rubric (`.github/docs-delta-review-prompt.md`) to catch what patterns can't — plausible address swaps, typosquats, injection phrased as documentation. Advisory per this repo's discipline: only mechanical checks go red.
@@ -158,3 +160,21 @@ These additions follow the principle: ship small, observe, iterate.
 **Trust boundary stated plainly:** the screening narrows the window between "upstream compromised" and "detected", it does not close it. A maintainer merges every refresh PR; the layers exist to make that human's review tractable (a per-source verdict table instead of an unreviewable 300-file diff), not to replace it. The mechanical scanner is the blocking gate; the AI docs-delta review is advisory only, because it reads attacker-influenced content and can be steered.
 
 **Rejected:** full manual review of refresh diffs (doesn't scale — the pre-guardrail rubber stamp was the evidence); per-source refresh PRs (10× PR noise for isolation that per-source commits already provide); blanket `context: fork`/tool restriction on all skills (breaks builder skills whose job is writing code in the same turn).
+
+## Decision 14: Feedback channel is GitHub Issues, agent-mediated
+
+**Decision:** Feedback about the skills and bundled docs goes to GitHub Issues on this repository, drafted by the `give-feedback` skill from the conversation it is in, shown to the user, and filed with `gh` after one approval under the user's own GitHub account. No feedback server or endpoint (Decision 1); Discussions are disabled; the existing issue forms remain the manual path.
+
+**Why agent-mediated:** the agent holds the context at the moment a doc fails or helps (the path, what was asked, what happened), and that context is gone by the time a human would open a form. Praise is collected as deliberately as defects: it tells maintainers what to keep.
+
+**The gate is the chat ask, not a tool grant.** The skill keeps the base `Read Grep Glob` grant and runs `gh` under the host's normal permissions. A skill grant would cover only the invoking turn while the user's yes arrives in the next one, and other hosts ignore the field; showing the draft and asking once is the safeguard that holds in every host and permission mode. When `gh` is missing or fails, the draft on screen plus the new-issue link is the fallback.
+
+**Activation is by trigger phrase only, for now.** The skill fires when the user asks — "send feedback", "this doc is wrong", `/give-feedback`. Adding a sentence to the `cardano-context` block would make the agent offer a draft unprompted, which is a materially different thing: the block lands in `CLAUDE.md`, is re-injected every turn, and applies in every project indefinitely, so its reach is every installed user rather than one invocation. That sentence is deferred until there are real issues to judge it by — the question it turns on is what volume and quality agent-drafted feedback actually produces, which no amount of review settles in advance. A SessionStart banner was rejected outright: it scrolls out of reach.
+
+**This widens the meta-skill category; it does not fit the existing one.** Decision 12 recognises a meta-skill by four tests: it modifies the user's *environment*, is run explicitly once per project, is idempotent on re-run, and distributes its effect via git. `give-feedback` meets none of them — it sends data outward rather than changing anything local, runs once per finding rather than once per project, is deliberately anti-idempotent ("send once; never retry after a success"), and distributes nothing. So `cardano-context` is a grandfather, not a precedent, and the category needs a second test rather than a stretched first one:
+
+> A meta-skill acts on the plugin itself rather than teaching a Cardano workflow — either by configuring the environment the plugin runs in, or by carrying information back to its maintainers. Both kinds need a decision recorded here before they are added.
+
+**Trust boundary stated plainly:** this is the first skill with a network egress path, and it reaches it through `Bash` + `gh` rather than through the `WebFetch`/`WebSearch` ban that Decision 13 layer 0 imposes — a ban whose stated purpose is keeping a poisoned doc read during a skill turn from reaching out. Bundled docs are untrusted by design (Decision 13), and a skill turn that has read one could in principle shape what lands in a public issue under the user's name. The human-reads-the-draft gate is a real mitigation and it is the reason this ships, but it narrows the window, it does not close it: "bias toward sending", "ask once", and "do not re-confirm" are all tuned to reduce exactly the friction that gate depends on, and the scrub list is a blocklist written by the same model that would be under influence. What makes it acceptable is the shape of the action — one fixed repository, no arbitrary URL, a body the user has read, and a host permission prompt that re-displays that body before anything is sent.
+
+**Rejected:** a hosted endpoint (a runtime to operate, anonymous submissions); pre-authorized silent filing via a `CLAUDE.md` token (public issues under the user's name with no human reading the draft); prefilled issue-form links as a fallback (GitHub truncates long query values); an auth check and duplicate search before sending (friction for a job maintainers do in seconds); granting the skill `Bash(gh:*)` in `allowed-tools` (pre-approval would spend the user's consent a turn before they give it).

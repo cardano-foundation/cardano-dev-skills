@@ -7,7 +7,7 @@ docs/CONTRIBUTING.md:
 
   1. Source vetting: every NEW entry in registry/sources.yaml must point to a
      GitHub repo that is not archived, pushed to within 6 months, and shows a
-     release or issue/PR activity within 3 months (checked live via the
+     release, issue/PR activity, or push within 3 months (checked live via the
      GitHub API). A document-of-record source may waive the recency/activity
      rules by carrying a `vetting_exception` reason string; the grant for
      that waiver is enforced by scripts/validate.py (VETTING_EXCEPTIONS), the
@@ -222,8 +222,13 @@ def vet_source(entry: dict) -> None:
         warn(f"source `{name}` ({slug}): repo is a fork — vetting rule 4 "
              "requires justifying in the PR that this is the maintained canonical")
 
-    # Rule 2: ≥1 release tag OR issue/PR activity in the last 3 months.
-    # Check GitHub Releases first, then plain git tags — the written bar
+    # Rule 2: ≥1 release tag OR issue/PR activity OR a push in the last 3 months.
+    # A push inside the window is the same evidence of maintenance as a
+    # release or an issue; small example and standards repositories never
+    # accumulate either. It is already fetched, so check it first.
+    if pushed_at and now - parse_iso(pushed_at) <= MAX_ACTIVITY_AGE:
+        return
+    # Then GitHub Releases, then plain git tags — the written bar
     # says "release tag", and many maintained repos tag without cutting
     # GitHub Releases.
     releases = gh_api(f"/repos/{slug}/releases?per_page=1")
@@ -238,8 +243,8 @@ def vet_source(entry: dict) -> None:
         updated = issues[0].get("updated_at")
         if updated and now - parse_iso(updated) <= MAX_ACTIVITY_AGE:
             return
-    fail(f"source `{name}` ({slug}): no release tag and no issue/PR activity "
-         "in the last 3 months — fails vetting rule 2")
+    fail(f"source `{name}` ({slug}): no release tag, no issue/PR activity, "
+         "and no push in the last 3 months — fails vetting rule 2")
 
 
 # -------------------------------------------------------------------- skills

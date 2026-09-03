@@ -38,7 +38,7 @@ If you're unsure whether something fits, open a discussion before writing code.
 Before adding any new entry to `registry/sources.yaml`, verify the upstream repo is actively maintained:
 
 1. **Last commit < 6 months old**
-2. **≥1 release tag OR active issue/PR activity in the last 3 months**
+2. **≥1 release tag OR issue/PR activity OR a push in the last 3 months**
 3. **No archived / deprecated / sunset banner** in README or repo settings
 4. **For forks**, pick the maintained canonical (concrete example: Evolution SDK is the live fork of dead Lucid Evolution — always prefer the live one)
 

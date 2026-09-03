@@ -18,7 +18,7 @@
 #
 # SOURCE-VETTING BAR (all must hold):
 #   1. Last commit < 6 months old
-#   2. >=1 release tag OR active issue/PR activity in the last 3 months
+#   2. >=1 release tag OR issue/PR activity OR a push in the last 3 months
 #   3. No archived / deprecated / sunset banner
 #   4. For forks: pick the maintained canonical (e.g. Evolution SDK, not the
 #      dead Lucid Evolution).

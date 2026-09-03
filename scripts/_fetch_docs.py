@@ -490,8 +490,10 @@ def main():
     parser.add_argument('tmp_dir')
     parser.add_argument('source_filter', nargs='?', default='')
     parser.add_argument('--update-pins', action='store_true',
-                        help="fetch branch tips and rewrite pins.yaml with "
-                             "the new upstream commits (weekly refresh mode)")
+                        help="fetch branch tips and merge the resulting pins "
+                             "into pins.yaml, keeping pins for sources not "
+                             "fetched this run (weekly refresh; with a source "
+                             "filter, pins one new source)")
     parser.add_argument('--pins-file', default=None,
                         help="pins file path (default: pins.yaml next to "
                              "sources.yaml)")

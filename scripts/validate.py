@@ -294,7 +294,7 @@ def check_vetting_exception(prefix: str, name: str, repo: str, reason) -> None:
               "maintenance bar is a reviewed code change, not a registry field")
         return
     # GitHub owner/repo slugs are case-insensitive.
-    slug = repo.removeprefix("https://github.com/").rstrip("/")
+    slug = (repo or "").removeprefix("https://github.com/").rstrip("/")
     if slug.endswith(".git"):
         slug = slug[:-4]
     if slug.lower() != granted.lower():

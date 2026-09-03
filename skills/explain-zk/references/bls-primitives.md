@@ -2,8 +2,8 @@
 
 The signature / VRF / KDF / credential half of `explain-zk`. Proof verification lives in
 `proof-systems.md`. Everything here composes from the same operations — scalar multiplication, point
-addition, hash-to-curve, and the pairing check — exposed through `aiken/crypto/bls12_381/g1` and
-`/g2`, with the raw builtins under `aiken/builtin`.
+addition, hash-to-curve, and the pairing check — exposed through the `g1`, `g2`, `scalar`, and `pairing`
+modules under `aiken/crypto/bls12_381/`, with the raw builtins under `aiken/builtin`.
 
 This reference describes what each primitive does and how to choose between them. It deliberately
 carries no cryptographic code: these APIs change between library versions, and a subtly wrong snippet
@@ -18,9 +18,10 @@ generator. Signing is a hash-to-curve followed by another scalar multiplication:
 directly to a curve point, then multiply that point by the secret.
 
 Two conventions matter. **Points cross the datum/redeemer boundary compressed** — 48 bytes in G1, 96
-in G2 — so anything stored on-chain is compressed first. And by the minimal-public-key-size
-convention, **public keys live in G1** (small, long-lived, held in datums) while **signatures live in
-G2** (larger, transient).
+in G2 — so anything stored on-chain is compressed first. And for BLS signatures, by the
+minimal-public-key-size convention, **public keys live in G1** (small, long-lived, held in datums)
+while **signatures live in G2** (larger, transient). The VRF example below and BBS+ both put the
+public key in G2; the placement belongs to the scheme.
 
 Every hash-to-curve takes a **domain separation tag**: a public string mixed into the hash so that a
 hash computed for a signature can never collide with one computed for a VRF or any other protocol,
@@ -86,8 +87,10 @@ with a proof anyone can check against the public key. Three properties do the wo
 **non-interactivity** (one published tuple, no challenge rounds).
 
 An ECVRF over BLS12-381 runs in pure Aiken, so the proof can be checked inside a validator rather than
-trusted from an oracle. The usual API is four operations: derive a key pair from a secret, prove an
-input, verify a proof, and extract the output hash from a proof.
+trusted from an oracle. It follows the RFC 9381 construction, but the RFC's ciphersuites cover P-256 and
+Edwards25519 only, so this is a non-standard suite, not one that interoperates with a standard VRF. The
+usual API is four operations: derive a key pair from a secret, prove an input, verify a proof, and
+extract the output hash from a proof.
 
 What it buys you on-chain:
 
@@ -132,8 +135,9 @@ a zero-knowledge proof, so two showings cannot be linked to each other or to iss
 On-chain it takes the shape described in the main skill: the issuer's public key and the credential's
 attribute schema sit in the datum as the trust anchor, the proof travels in the redeemer with its
 disclosed indices and values, and the challenge nonce is derived from the UTxO being spent so a proof
-lifted from one transaction is useless in another. Proof size is constant regardless of how many
-attributes the credential carries, and the dominant cost is a few pairings.
+lifted from one transaction is useless in another. The signature is constant-size; the proof grows by
+one scalar per undisclosed attribute. The pairing count stays constant, while the point arithmetic
+grows with the attribute count.
 
 BBS+ has the fewest Aiken implementations of the family — treat it as the least settled of these
 primitives and confirm the current landscape before depending on it.
@@ -145,7 +149,8 @@ Everything below is bundled, so check the source rather than relying on any summ
 - **The normative spec**: `docs/sources/bls12-381-examples-and-standards/standards/draft-irtf-cfrg-bls-signature-06.txt`
   — the definitive statement of the three modes, of aggregate verification, and of `FastAggregateVerify`.
   Read this before relying on any claim about which mode fits which aggregation pattern.
-  Alongside it: RFC 5869 (HKDF), RFC 8018 (PBKDF2), RFC 9381 (VRF).
+  Alongside it: RFC 5869 (HKDF), RFC 8018 (PBKDF2), RFC 9381 (the VRF construction; no BLS12-381
+  ciphersuite).
 - **A real implementation**: `docs/sources/aiken-bls-signatures/lib/bls/` — `g1/basic.ak`, `g1/aug.ak`,
   and `g1/pop.ak` are the three modes in Aiken.
 - **Worked examples**: `docs/sources/bls12-381-examples-and-standards/aiken/` — Groth16, KDF, VRF, a Nova
@@ -154,5 +159,8 @@ Everything below is bundled, so check the source rather than relying on any summ
   works one end to end. (`tutorials/bls12-381-basics.md` is upstream a stub pointing at a blog post —
   the primitives it covered are the subject of this reference.)
 - **The stdlib API**: `docs/sources/aiken-stdlib/aiken/crypto/bls12_381/` for the current `g1` / `g2` /
-  `scalar` functions.
+  `scalar` / `pairing` functions.
+- **The walkthrough this reference condenses**:
+  `docs/sources/developer-portal/developers/curriculum/smart-contracts/advanced/bls-primitives.md`,
+  signatures, VRF, KDF, and BBS+ with code.
 - Named verifier and BLS libraries: the ZK/BLS section of `suggest-tooling/references/ecosystem-map.md`.

@@ -93,8 +93,10 @@ Almost every verifier is the same pattern:
 - The validator **decompresses** the points, runs the protocol's **pairing equation** via the
   BLS12-381 builtins, and returns a `Bool`.
 
-Points cross the datum/redeemer boundary **compressed** (G1 is 48 bytes, G2 is 96 bytes). By
-convention keys live in G1 (long-lived, small) and signatures in G2 (transient, larger).
+Points cross the datum/redeemer boundary **compressed** (G1 is 48 bytes, G2 is 96 bytes). For BLS
+signatures the minimal-public-key-size convention puts keys in G1 (long-lived, small) and signatures
+in G2 (transient, larger). The VRF example and BBS+ put the public key in G2 instead, so take the
+placement from the scheme, not from this sentence.
 
 ## Workflow
 
@@ -110,8 +112,10 @@ lightest tool; see `references/proof-systems.md`.
 
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/developer-portal/developers/curriculum/smart-contracts/advanced/zero-knowledge.md`
   — the landscape, what shipped when, and the catalog of real verifiers and apps
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/developer-portal/developers/curriculum/smart-contracts/advanced/bls-primitives.md`
+  — the signature / VRF / KDF / BBS+ walkthrough with code, the companion to `references/bls-primitives.md`
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken-stdlib/aiken/crypto/bls12_381/`
-  — the actual `g1`, `g2`, and `scalar` module APIs
+  — the actual `g1`, `g2`, `scalar`, and `pairing` module APIs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/bls12-381-examples-and-standards/`
   — tutorials, worked Aiken examples, and `standards/` with the IETF BLS signature draft and the
   HKDF / PBKDF2 / VRF RFCs. Prefer these specs over any summary for security-relevant claims.
@@ -119,7 +123,8 @@ lightest tool; see `references/proof-systems.md`.
   — a working Aiken implementation of the three BLS signing modes
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken-zkp-verifiers/`
   — Groth16, PLONK, and Bulletproofs (range proof) verifiers in Aiken, with the protocol math
-  worked step by step under `zkp/docs/`
+  worked step by step under `zkp/docs/`; its README says the PLONK verifier is still being optimised
+  to fit resource limits and marks Bulletproofs early-stage
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cips/CIP-0381/`, `CIP-0133/`, `CIP-0109/`
   — the builtins these all rest on
 
@@ -139,7 +144,7 @@ datum is converted with the stdlib's scalar constructor before it is passed in.
 API and a working implementation first:
 
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/aiken-stdlib/aiken/crypto/bls12_381/` for the exact
-  `g1`, `g2`, and `scalar` functions and their present signatures
+  `g1`, `g2`, `scalar`, and `pairing` functions and their present signatures
 - the verifier and library implementations listed in the ZK/BLS section of `suggest-tooling`
 - the bundled ZK page for which projects are doing this today
 
@@ -200,7 +205,8 @@ system, library, or figure that you have verified yourself over one described fr
 - `references/proof-systems.md` — SNARK verification: proof systems, the Groth16 shape, the pipeline, costs
 - `references/bls-primitives.md` — signatures + aggregation, VRF, KDF, and BBS+ credentials
 - Bundled: `docs/sources/developer-portal/developers/curriculum/smart-contracts/advanced/zero-knowledge.md`
-  (landscape + app catalog),
+  (landscape + app catalog), `docs/sources/developer-portal/developers/curriculum/smart-contracts/advanced/bls-primitives.md`
+  (signatures / VRF / KDF / BBS+ with code),
   `docs/sources/aiken-stdlib/aiken/crypto/bls12_381/` (the API), `docs/sources/cips/` (CIP-0381 / 0133 / 0109)
 - Named verifier and BLS libraries: the ZK/BLS section of `suggest-tooling` (ecosystem map)
 - Shared principles: `../shared/PRINCIPLES.md`

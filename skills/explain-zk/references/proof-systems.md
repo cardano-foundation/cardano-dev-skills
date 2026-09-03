@@ -51,7 +51,9 @@ of public inputs**, so keep them few and commit bulky data with a single hash.
 
 Read a real implementation rather than reconstructing one. One is bundled:
 `docs/sources/aiken-zkp-verifiers/` carries Groth16, PLONK, and Bulletproofs verifiers in Aiken with
-protocol walkthroughs under `zkp/docs/`. Others are listed in the ZK/BLS section of the ecosystem map.
+protocol walkthroughs under `zkp/docs/`; its README says the PLONK verifier is still being optimised to
+fit resource limits and marks Bulletproofs early-stage. Others are listed in the ZK/BLS section of the
+ecosystem map.
 
 ## The circuit-to-Aiken pipeline
 
@@ -70,9 +72,9 @@ The end-to-end steps:
 4. Compress the verification key and proof to Cardano's compressed-point format.
 5. The Aiken validator verifies the proof as its spending condition.
 
-For the whole path worked end to end — circuit to Aiken verifier, with the password example — the
-`ZK-from-zero-on-Cardano` eBook is the most complete written walkthrough. Generic verifier
-implementations are in the ZK/BLS ecosystem map.
+The `ZK-from-zero-on-Cardano` eBook walks the whole path — circuit to Aiken verifier, with the password
+example. It is not bundled and its README marks it in progress; the ecosystem map has the link. Generic
+verifier implementations are in the ZK/BLS ecosystem map.
 
 ## The builtins and the CIPs
 

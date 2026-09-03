@@ -76,9 +76,11 @@ ALLOWED_TOOLS_EXCEPTIONS = {
     # Bash is scoped to `pwd` (used to resolve the project root).
     "cardano-context": {"Edit", "Write", "Bash(pwd)"},
 }
-# Skills are self-contained (Read/Grep/Glob over bundled docs), so no skill
-# turn ever needs network access. Requiring these keeps a poisoned doc read
-# during a skill turn from reaching out.
+# Skills read bundled docs with Read/Grep/Glob, so no skill turn needs the
+# agent to fetch a URL of its own. Requiring these keeps a poisoned doc read
+# during a skill turn from reaching out. This bans the *undirected* network:
+# `give-feedback` still reaches GitHub, but only through `gh` with a fixed
+# repository and a draft the user has read and approved (DESIGN Decision 14).
 REQUIRED_DISALLOWED_TOOLS = {"WebFetch", "WebSearch"}
 
 errors: list[str] = []

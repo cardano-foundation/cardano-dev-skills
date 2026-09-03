@@ -116,7 +116,7 @@ Even with the plugin installed globally, Claude sometimes answers Cardano questi
 What it does:
 
 - Writes a version-tagged block into the project's `CLAUDE.md` (default `./CLAUDE.md`). Claude Code re-injects `CLAUDE.md` into every conversation turn, so the directive survives compaction and applies on every new session.
-- The block tells Claude to treat training data as potentially stale for Cardano, to bias toward invoking `cardano-dev-skills:*` skills, to search `${CLAUDE_PLUGIN_ROOT}/docs/sources/` before falling back on memory, to cite what it used, and to offer the `give-feedback` skill when a skill or doc turns out wrong or notably helpful.
+- The block tells Claude to treat training data as potentially stale for Cardano, to bias toward invoking `cardano-dev-skills:*` skills, to search `${CLAUDE_PLUGIN_ROOT}/docs/sources/` before falling back on memory, and to cite what it used.
 - Commit `CLAUDE.md` and teammates inherit the directive on clone.
 - Re-running is safe: same version is a no-op; older versions are atomically replaced.
 

@@ -78,7 +78,8 @@ Agent: <Claude Code | Codex | Cursor | other>
 ### Step 1: Gather
 
 From the conversation, not from a round of questions: the exact path (Glob or Grep under
-`${CLAUDE_SKILL_DIR}/..` to confirm it), what was asked, what the skill or doc said, what
+`${CLAUDE_SKILL_DIR}/../..` to confirm it — the repo root, so that both `skills/` and
+`docs/sources/` are reachable), what was asked, what the skill or doc said, what
 happened, and what would have helped.
 
 ### Step 2: Scrub
@@ -88,8 +89,12 @@ Apply principle 1 to the title and the body.
 ### Step 3: Draft and ask once
 
 In one message: the title, the label, and the body in a fenced block, then "Ready to
-send this to cardano-foundation/cardano-dev-skills under your GitHub account. OK, or want
-to tweak it?"
+file this as a **public** issue on cardano-foundation/cardano-dev-skills, under your
+GitHub account. OK, or want to tweak it?"
+
+Say public every time. The repository is public, the draft is built from a working
+session that may not be, and visibility — not authorship — is what makes an accidental
+disclosure irreversible.
 
 ### Step 4: Send
 

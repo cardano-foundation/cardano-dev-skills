@@ -22,9 +22,8 @@ What it does:
   session.
 - Instructs the agent to treat training data as potentially stale for
   Cardano, to bias toward invoking `cardano-dev-skills:*` skills, to search
-  `${CLAUDE_PLUGIN_ROOT}/docs/sources/` before falling back on memory, to
-  cite what it used, and to offer the `give-feedback` skill when a skill or
-  doc turns out wrong or notably helpful.
+  `${CLAUDE_PLUGIN_ROOT}/docs/sources/` before falling back on memory, and to
+  cite what it used.
 - Commit `CLAUDE.md` and teammates inherit the directive on clone.
 - Re-running is safe: same version is a no-op; older versions are
   atomically replaced.

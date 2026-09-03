@@ -26,7 +26,9 @@ Community-curated knowledge base for building on Cardano. This repo is a Claude 
 CI pins Python 3.12. `validate.py` deliberately runs on **any** Python 3 — the weekly
 refresh workflow gates on `--paths-only` without installing anything, so that file
 must stay free of PEP-604 (`X | Y`) annotations, which are evaluated at import and
-would take the module down before argparse sees the flag. The other two scripts do
+would take the module down before argparse sees the flag. CI enforces this by running
+`--paths-only` on 3.9 before it installs anything, because the rule had already been
+broken twice while a comment was the only thing guarding it. The other two scripts do
 use them and therefore need 3.10+; on stock macOS (Python 3.9) they fail at import
 with a bare `TypeError`, which looks like a repo problem and is not one. A venv is
 the quickest fix:
@@ -35,8 +37,8 @@ the quickest fix:
 python3.12 -m venv .venv && .venv/bin/pip install pyyaml   # .venv/ is gitignored
 ```
 
-There is no test suite and no linter — `validate.py` is the whole gate, and it is
-what CI runs on every PR touching `skills/`, `registry/`, `scripts/` or `docs/`.
+There is no linter. `validate.py` is the gate CI runs on every PR touching
+`skills/`, `registry/`, `scripts/` or `docs/`.
 
 `scripts/fetch-docs.sh` with no `--source` and `scripts/sync-sources.sh` hit the
 network and rewrite the whole vendored corpus. Never run them as a side effect of

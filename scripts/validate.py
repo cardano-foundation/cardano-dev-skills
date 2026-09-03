@@ -237,7 +237,7 @@ def check_snapshot_matches_globs(prefix: str, name: str, src: dict) -> None:
     )
 
 
-def load_pinned_names() -> set[str] | None:
+def load_pinned_names() -> Optional[set[str]]:
     """Source names pinned in registry/pins.yaml, parsed by the same function
     scripts/fetch-docs.sh uses, so what validates here is what a fetch will
     actually honor. Returns None if the file is malformed (already reported),

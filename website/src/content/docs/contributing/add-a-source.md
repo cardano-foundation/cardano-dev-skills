@@ -26,30 +26,21 @@ rather than guess.
 Rules 1–2 measure maintenance cadence, which is meaningless for a repo whose
 only job is to mirror a document that changes rarely by design (e.g. the
 Cardano Constitution, amended only by on-chain governance action). Waiving them
-for such a document-of-record source takes two things, and both are required:
-the registry entry carries a `vetting_exception` reason string saying why
-cadence is uninformative and what does guarantee currency, **and** the source is
-named in `VETTING_EXCEPTION_ALLOWLIST` in `scripts/check-pr-policy.py`, mapped
-to the repo the waiver was granted for. An entry carrying the field without a
-matching grant fails the check. With both in place the policy check waives
-rules 1–2 for it (rules 3–4 still apply) and surfaces the waiver as a warning in
-the PR check output.
+for such a document-of-record source takes two things in the same PR, and both
+are required: the registry entry carries a `vetting_exception` reason string
+saying why cadence is uninformative and what does guarantee currency, **and**
+the source is granted the waiver in `VETTING_EXCEPTIONS` in
+`scripts/validate.py`, mapped to the repo it was granted for. An entry carrying
+the field without a matching grant fails the `validate` check. With both in
+place the policy check waives rules 1–2 for it (rules 3–4 still apply) and
+surfaces the waiver as a warning in the PR check output.
 
-The allowlist is what keeps the waiver a decision rather than a default: a
-reason string alone is self-service, while naming the source in the script makes
-granting one a code change a maintainer reviews — the same shape as
-`ALLOWED_TOOLS_EXCEPTIONS` in `scripts/validate.py`. Recording the repo too
-means repointing a waived entry at a different upstream re-enters vetting rather
-than inheriting the waiver.
-
-**Granting a waiver takes two PRs, in order.** The policy workflow runs on
-`pull_request_target` and checks out the *base* branch, so it reads your
-`sources.yaml` from the PR but the script — and therefore the allowlist — from
-`main`. An allowlist entry added in the same PR as the source is invisible to
-the check evaluating it, and that PR fails. Open the grant PR first (allowlist
-only), then the source PR once it has merged. That is the cost of not letting a
-contributor edit the rules that judge their own PR, and it is the point: the
-grant gets reviewed on its own terms.
+The grant is what keeps the waiver a decision rather than a default: a reason
+string alone is self-service, while naming the source in the script makes
+granting one a code change a maintainer reviews alongside the source it covers
+— the same shape as `ALLOWED_TOOLS_EXCEPTIONS` in the same file. Recording the
+repo too means repointing a waived entry at a different upstream re-enters
+vetting rather than inheriting the waiver.
 
 The same bar applies to the candidate entries at the bottom of
 `registry/sources.yaml` — don't promote a candidate without re-vetting.

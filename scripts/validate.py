@@ -18,6 +18,7 @@ except ModuleNotFoundError:
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILLS_DIR = REPO_ROOT / "skills"
 SOURCES_FILE = REPO_ROOT / "registry" / "sources.yaml"
+PINS_FILE = REPO_ROOT / "registry" / "pins.yaml"
 DOCS_SOURCES_DIR = REPO_ROOT / "docs" / "sources"
 
 MAX_SKILL_LINES = 500
@@ -216,6 +217,20 @@ def check_snapshot_matches_globs(prefix: str, name: str, src: dict) -> None:
     )
 
 
+def load_pinned_names() -> set[str] | None:
+    """Source names pinned in registry/pins.yaml, parsed by the same function
+    scripts/fetch-docs.sh uses, so what validates here is what a fetch will
+    actually honor. Returns None if the file is malformed (already reported),
+    so callers skip per-source pin checks instead of cascading them."""
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from _fetch_docs import load_pins
+    try:
+        return set(load_pins(str(PINS_FILE)))
+    except SystemExit as e:  # load_pins reports a malformed pin line this way
+        error(str(e))
+        return None
+
+
 def validate_sources() -> None:
     """Validate registry/sources.yaml."""
     if not SOURCES_FILE.exists():
@@ -234,6 +249,7 @@ def validate_sources() -> None:
         return
 
     names_seen = set()
+    pinned = load_pinned_names()
     for i, src in enumerate(sources):
         if not isinstance(src, dict):
             error(f"{SOURCES_FILE}[{i}]: expected a mapping, got {type(src).__name__}")
@@ -250,6 +266,13 @@ def validate_sources() -> None:
         if name in names_seen:
             error(f"{prefix}: duplicate source name '{name}'")
         names_seen.add(name)
+
+        # A source with no pin fetches its branch tip, bypassing refresh-PR
+        # screening. The registering PR carries the pin (CONTRIBUTING step 3).
+        if pinned is not None and name and name not in pinned:
+            error(f"{prefix}: no pin in registry/pins.yaml — run "
+                  f"./scripts/fetch-docs.sh --source \"{name}\" --update-pins "
+                  f"and commit the pin with the source")
 
         fmt = src.get("format")
         if fmt and fmt not in VALID_FORMATS:

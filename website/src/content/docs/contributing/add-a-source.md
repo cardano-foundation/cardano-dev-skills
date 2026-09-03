@@ -68,13 +68,7 @@ are read by agents, so upstream agent instructions are an injection vector.
 If you need a new category or format, propose it in the PR — both are
 checked by `scripts/validate.py` against an explicit allow-list.
 
-## 3. Validate
-
-```bash
-python3 scripts/validate.py
-```
-
-## 4. Fetch and pin locally
+## 3. Fetch and pin locally
 
 ```bash
 ./scripts/fetch-docs.sh --source "Project Name" --update-pins
@@ -89,6 +83,13 @@ which upstream commit the mirrored content came from; without one the source
 re-resolves to whatever the branch tip is at fetch time. Despite the
 "auto-generated" banner, `--update-pins` merges into the file rather than
 rewriting it, so a per-source run touches one line.
+`validate.py` fails a registered source that has no pin.
+
+## 4. Validate
+
+```bash
+python3 scripts/validate.py
+```
 
 ## 5. Open a PR
 

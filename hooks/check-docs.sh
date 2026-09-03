@@ -25,9 +25,17 @@ if stat --version >/dev/null 2>&1; then HAVE_GNU_STAT=1; else HAVE_GNU_STAT=0; f
 # Epoch seconds for an ISO-8601 UTC timestamp; prints 0 if it cannot parse.
 iso_to_epoch() {
   if [ "${HAVE_GNU_DATE}" -eq 1 ]; then
+    # GNU date honours the trailing Z, so this is UTC whatever $TZ says.
     date -d "$1" "+%s" 2>/dev/null || echo 0
   else
-    date -j -f "%Y-%m-%dT%H:%M:%SZ" "$1" "+%s" 2>/dev/null || echo 0
+    # BSD `date -j -f` treats the Z in the format string as a literal to match
+    # and reads the timestamp in LOCAL time, so the epoch lands off by the
+    # machine's UTC offset. East of UTC that only ages the docs slightly; west
+    # of it a fresh fetch parses as the future, the sanity check below takes
+    # the branch that prints no age, and the "(updated Xd ago)" suffix
+    # silently disappears for everyone in the Americas. TZ=UTC makes the
+    # parse mean what the timestamp actually says.
+    TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%SZ" "$1" "+%s" 2>/dev/null || echo 0
   fi
 }
 

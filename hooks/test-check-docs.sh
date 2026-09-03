@@ -20,8 +20,14 @@ HOOK="$(cd "$(dirname "$0")" && pwd)/check-docs.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 
-REAL_DATE="$(command -v date)"
-REAL_STAT="$(command -v stat)"
+# Exported because the shims below are separate /bin/sh processes: an
+# unexported REAL_DATE expands to the empty string inside them, so every
+# shimmed call fails and the hook falls all the way through to epoch 0. Cases 8
+# and 9 still passed like that, because they assert only exit 0 and the absence
+# of the unbound-variable abort, and neither needs the shim to work — the split
+# they exist to cover was never actually exercised.
+export REAL_DATE="$(command -v date)"
+export REAL_STAT="$(command -v stat)"
 
 pass=0
 fail=0
@@ -71,20 +77,34 @@ make_root() {  # make_root <name> <last_fetched-line>
 # be either flavour. They validate the ISO shape themselves and exit 1 otherwise,
 # so an unparseable timestamp fails the way the real tool fails rather than
 # falling through to a flag the host reads as something else entirely.
+# The two flavours differ in more than flag spelling: GNU `date -d` honours the
+# trailing Z and returns UTC, while BSD `date -j -f` matches the Z as a literal
+# and reads the timestamp in LOCAL time. Reproducing that difference is the
+# point — a shim that parsed both the same way could not fail on the TZ bug.
 if "${REAL_DATE}" --version >/dev/null 2>&1; then
-  HOST_ISO_EPOCH='"${REAL_DATE}" -d "$1" +%s'
+  ISO_EPOCH_UTC='"${REAL_DATE}" -d "$1" +%s'
+  # Drop the Z so GNU date stops honouring it: that is BSD's behaviour.
+  ISO_EPOCH_LOCAL='"${REAL_DATE}" -d "$(iso_naive "$1")" +%s'
   HOST_MTIME='"${REAL_STAT}" -c %Y "$1"'
 else
-  HOST_ISO_EPOCH='"${REAL_DATE}" -j -f "%Y-%m-%dT%H:%M:%SZ" "$1" +%s'
+  ISO_EPOCH_UTC='TZ=UTC "${REAL_DATE}" -j -f "%Y-%m-%dT%H:%M:%SZ" "$1" +%s'
+  ISO_EPOCH_LOCAL='"${REAL_DATE}" -j -f "%Y-%m-%dT%H:%M:%SZ" "$1" +%s'
   HOST_MTIME='"${REAL_STAT}" -f %m "$1"'
 fi
 
 write_shims() {  # write_shims <dir> <flavour>
-  local d="$1" flavour="$2"
+  local d="$1" flavour="$2" iso_epoch
+  case "${flavour}" in
+    gnu) iso_epoch="${ISO_EPOCH_UTC}" ;;
+    *)   iso_epoch="${ISO_EPOCH_LOCAL}" ;;
+  esac
   mkdir -p "${d}"
   cat > "${d}/date" <<EOF
 #!/bin/sh
-iso_epoch() { ${HOST_ISO_EPOCH}; }
+# "2020-01-01T00:00:00Z" -> "2020-01-01 00:00:00", i.e. no timezone at all,
+# which a parser then reads in local time.
+iso_naive() { t="\${1%Z}"; printf '%s %s' "\${t%%T*}" "\${t#*T}"; }
+iso_epoch() { ${iso_epoch}; }
 is_iso() {
   case "\$1" in
     [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) return 0 ;;
@@ -181,6 +201,21 @@ run_hook "${root}" "${TMP}/gnu"
 root="$(make_root bsd 'last_fetched: "2020-01-01T00:00:00Z"')"
 run_hook "${root}" "${TMP}/bsd"
 [ "${RC}" -eq 0 ] && ! contains "${OUT}" "unbound variable"; check "BSD date/stat exits 0, no unbound variable" $?
+
+# 10. THE TZ REGRESSION GUARD. BSD `date -j -f` reads the timestamp in local
+#     time, so west of UTC a fetch from minutes ago parses as the future, the
+#     sanity branch fires, and "(updated Xd ago)" vanishes from the status
+#     line — the same silent degradation as the greedy sed, in a different
+#     spelling. Only the hook's TZ=UTC keeps this correct. Fails against a
+#     hook without it, on either host, because the BSD shim reproduces the
+#     local-time read rather than the flag spelling alone.
+root="$(make_root tzwest "last_fetched: \"${NOW_ISO}\"")"
+OLD_TZ="${TZ-}"
+export TZ=America/Los_Angeles
+run_hook "${root}" "${TMP}/bsd"
+if [ -n "${OLD_TZ}" ]; then export TZ="${OLD_TZ}"; else unset TZ; fi
+contains "${OUT}" "updated" && [ "${RC}" -eq 0 ]
+check "fresh fetch keeps its age west of UTC (BSD parses local time)" $?
 
 # ------------------------------------------------------------------------
 

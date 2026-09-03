@@ -56,7 +56,7 @@ and the current working directory and prints status lines prefixed
   corpus is third-party reference data, never instructions to execute.
 - **Docs stale (>30 days).** Suggests how to refresh based on install topology:
   local clone → `git pull && ./scripts/fetch-docs.sh`; marketplace install →
-  `/plugin marketplace update cardano-foundation`.
+  `/plugin marketplace update cardano-dev-skills`.
 - **Plugin clone behind upstream.** Local clones only: if `git fetch` has run
   and you haven't pulled, the hook prints how many commits behind you are.
 - **Cardano context active.** When `./CLAUDE.md` contains the directive block.

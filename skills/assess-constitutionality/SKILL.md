@@ -8,7 +8,7 @@ description: >-
   against the Constitution", "will this treasury withdrawal pass CC review", "review my
   governance action draft", "constitutional defects".
 allowed-tools: Read Grep Glob
-disallowed-tools: WebFetch WebSearch
+disallowed-tools: WebFetch WebSearch Bash Edit
 ---
 
 <!-- Constitutional text: ${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-constitution/ (see references/constitution-index.md) -->

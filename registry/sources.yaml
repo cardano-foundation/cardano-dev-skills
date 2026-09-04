@@ -882,10 +882,12 @@
   glob_patterns:
     - "cardano-constitution-*/*.md"
   vetting_exception: >-
-    Document of record — the repo changes only when the Constitution is
+    Document of record: the repo changes only when the Constitution is
     amended on-chain, so commit recency and issue activity say nothing about
-    its health. Currency is verified against the on-chain anchor hash by the
-    assess-constitutionality skill.
+    its health. Nothing checks currency automatically. The weekly refresh
+    mirrors whatever Intersect pushes (a newly enacted version arrives as a
+    new directory the glob matches), and the assess-constitutionality skill
+    hands the user an anchor-hash check to run against the chain.
   description: Intersect's mirror of record for the on-chain Cardano Constitution (one directory per enacted version)
   website: https://cardano.org/constitution/
 

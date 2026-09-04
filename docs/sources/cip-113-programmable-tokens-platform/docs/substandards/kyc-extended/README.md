@@ -11,7 +11,7 @@ A short, non-technical walk-through of the **extended KYC** substandard.
 > The recipient must also be on a list of verified wallets, otherwise the
 > transfer is rejected.
 
-This matches use cases such as travel-rule compliance, security tokens with
+This matches use cases such as travel-rule compliance, RWA tokens with
 investor allowlists, or stablecoins restricted to a known counterparty set.
 
 The extension is **purely additive**: every basic-KYC mechanism still applies

@@ -1,20 +1,54 @@
 # Apollo Documentation
 
-Documentation for the Apollo transaction building library for Cardano.
+Apollo is a pure Go library for building Cardano transactions. Ledger types,
+CBOR, scripts, addresses, and transaction bodies come from
+[gouroboros](https://github.com/blinklabs-io/gouroboros). HD wallets come from
+[bursa](https://github.com/blinklabs-io/bursa). Plutus data encoding can use
+[plutigo](https://github.com/blinklabs-io/plutigo) directly or Apollo's
+[struct-tag encoder](plutusencoder/README.md).
 
-## Sections
+The module path is `github.com/Salvionied/apollo/v2`. Apollo v2 requires Go
+1.25.13 or newer — the `go` directive in `go.mod` is a hard floor.
 
-- **[Plutus V3 Support](plutus_v3_support/README.md)** — Plutus V3 scripts, reference inputs, cost models, and data structures.
-- **[Data Attachment](data_attachment/README.md)** — Attaching Plutus datums (hash and inline) and reference scripts to transaction outputs; CLI parity for datum and reference script flags.
-- **[Staking Functionalities](staking_functionalities/README.md)** — Stake key registration and deregistration, pool and vote (DRep) delegation, combined certificates, and reward withdrawals; CLI parity for stake-address and withdrawal flags.
-- **[Conway Governance](conway_governance/README.md)** — DRep registration/retirement/update, constitutional committee key authorization and resignation, casting votes, submitting governance action proposals, and treasury donations; CLI parity for `conway governance` commands and CIP-1694.
-- **[v1 to v2 migration](v2_migration/MIGRATION.md)** — Import, type, and builder API changes for users upgrading from Apollo v1.
-- **[SundaeSwap fork migration](sundaeswap-fork-migration.md)** — A focused checklist for applications moving from the SundaeSwap fork.
+## Start here
 
-The command comparisons were written against **cardano-cli 10.14.0.0**. During
-the Apollo v2 release review, the latest
-[upstream release](https://github.com/IntersectMBO/cardano-cli/releases) was
-11.0.0.0. The examples have not yet been fully revalidated against that
-release, so treat parity statements as historical until that review is
-complete. API details and examples are based on the Apollo codebase (see
-[AGENTS.md](../AGENTS.md) for build and test commands).
+- **[Install and first transaction](getting_started/README.md)** — `go get`, a
+  Blockfrost payment, and the `Complete` → `Sign` → `Submit` loop.
+- **[Fluent builder and errors](getting_started/fluent_api.md)** — chaining
+  methods that cannot fail, and why `Complete()` is where stored errors surface.
+- **[Chain backends](backends/README.md)** — Blockfrost, Ogmios/Kupo,
+  UTxO RPC, the in-memory `fixed` backend, and the cache wrapper.
+
+## Build transactions
+
+- **[Builder overview](transaction_building/README.md)**
+- **[Wallets and signing](wallets/README.md)**
+- **[Coin selection (MACS)](coin_selection/README.md)**
+- **[Fees and collateral](fees_and_collateral/README.md)**
+- **[Plutus encoder](plutusencoder/README.md)**
+- **[Validation and pitfalls](validation/README.md)** — behaviors the compiler
+  will not catch when upgrading from v1.
+
+## Domain guides
+
+These pages include method signatures, examples, and cardano-cli comparisons
+written against **cardano-cli 10.14.0.0**. The latest upstream CLI release at
+the time of the v2 review was 11.0.0.0; treat parity statements as historical
+until that review is complete.
+
+- **[Plutus V3 Support](plutus_v3_support/README.md)**
+- **[Data Attachment](data_attachment/README.md)**
+- **[Staking Functionalities](staking_functionalities/README.md)**
+- **[Conway Governance](conway_governance/README.md)**
+
+## Migration
+
+- **[v1 to v2](v2_migration/MIGRATION.md)**
+
+## Other references
+
+- [GitHub README](https://github.com/Salvionied/apollo/blob/master/README.md) —
+  short landing page and install snippet.
+- [Changelog](https://github.com/Salvionied/apollo/blob/master/CHANGELOG.md)
+- [pkg.go.dev](https://pkg.go.dev/github.com/Salvionied/apollo/v2)
+- [Apollo Discord](https://discord.gg/MH4CmJcg49)

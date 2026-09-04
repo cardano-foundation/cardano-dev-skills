@@ -14,7 +14,7 @@ Cross-cutting safety and engineering principles that apply to all skills.
 - **Validators must explicitly fail.** In Aiken, use `expect` to enforce patterns and `fail` for explicit rejection. Never silently succeed.
 - **Minimize on-chain logic.** Move complex computation off-chain. Validators should verify, not compute.
 - **Version your datum schemas.** Include a version field in datums so contracts can evolve without breaking existing UTxOs.
-- **Prefer reference scripts (CIP-33).** Attach scripts as reference inputs to avoid including them in every transaction, reducing costs.
+- **Reach for reference scripts (CIP-33) when they pay for themselves, not by default.** A validator travels in the transaction's witness set; attaching it inline is the normal way to spend from a script, and it needs no setup. Publishing the script into a UTxO's `script_ref` so later transactions cite it costs an extra transaction and an extra min-UTxO deposit, and only repays that once a large script (roughly >4 KB) is spent by many transactions. Do not treat publishing as a prerequisite for spending — Cardano has no script deployment step. Note this is distinct from CIP-31 reference *inputs*, which let a transaction read a UTxO's datum without spending it.
 
 ## Transactions
 

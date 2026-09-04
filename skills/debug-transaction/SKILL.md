@@ -71,6 +71,8 @@ Ask the user for:
 Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/` - Evolution SDK docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/mesh-sdk/` - Mesh SDK docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/pycardano/` - PyCardano docs
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/` - cardano-client-lib docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-node-wiki/` - Cardano node wiki
 
 ### Step 3: Identify the Error Category

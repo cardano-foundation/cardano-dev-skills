@@ -1,0 +1,185 @@
+// Copyright 2025 Blink Labs Software
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package chainsync
+
+import (
+	"encoding/hex"
+	"fmt"
+	"math/big"
+
+	"github.com/SundaeSwap-finance/kugo"
+	"github.com/blinklabs-io/adder/internal/logging"
+	"github.com/blinklabs-io/gouroboros/cbor"
+	"github.com/blinklabs-io/gouroboros/ledger"
+	"github.com/blinklabs-io/gouroboros/ledger/common"
+	"github.com/blinklabs-io/plutigo/data"
+	utxorpc "github.com/utxorpc/go-codegen/utxorpc/v1alpha/cardano"
+)
+
+// ResolvedTransactionOutput represents a concrete implementation of the TransactionOutput interface
+type ResolvedTransactionOutput struct {
+	AddressField common.Address                                  `json:"address"`
+	AssetsField  *common.MultiAsset[common.MultiAssetTypeOutput] `json:"assets,omitempty"`
+	AmountField  uint64                                          `json:"amount"`
+}
+
+func ExtractAssetDetailsFromMatch(
+	match kugo.Match,
+) (common.MultiAsset[common.MultiAssetTypeOutput], uint64, error) {
+	logger := logging.GetLoggerForComponent("input.chainsync")
+	// Initialize the map that will store the assets
+	assetsMap := map[common.Blake2b224]map[cbor.ByteString]common.MultiAssetTypeOutput{}
+	totalLovelace := uint64(0)
+
+	// Iterate over all policies (asset types) in the Value map
+	for policyId, assets := range match.Value {
+		// Decode policyId if not ADA
+		policyIdBytes, err := hex.DecodeString(policyId)
+		if err != nil {
+			logger.Debug(
+				"PolicyId is not a valid hex string",
+				"policy_id",
+				policyId,
+			)
+			policyIdBytes = []byte(policyId)
+		}
+		policyBlake := common.NewBlake2b224(policyIdBytes)
+
+		// Prepare the map for this policy's assets
+		policyAssets := make(map[cbor.ByteString]common.MultiAssetTypeOutput)
+
+		// Iterate over all assets within this policyId
+		for assetName, amount := range assets {
+			// Check if this is the ADA (lovelace) asset
+			if policyId == "ada" && assetName == "lovelace" {
+				totalLovelace = amount.Uint64()
+				logger.Debug("Found ADA (lovelace)", "amount", totalLovelace)
+				continue // Skip adding "lovelace" to assetsMap, as it is handled separately
+			}
+
+			// Kupo returns asset names as hex; decode so JSON gets correct name (UTF-8) and nameHex
+			assetNameBytes := []byte(assetName)
+			if decoded, err := hex.DecodeString(assetName); err == nil && len(decoded) > 0 {
+				assetNameBytes = decoded
+			}
+			byteStringAssetName := cbor.NewByteString(assetNameBytes)
+			policyAssets[byteStringAssetName] = amount.BigInt()
+			logger.Debug(
+				"Get policyId, assetName, assetAmount from match.Value",
+				"policy_id",
+				policyId,
+				"asset_name",
+				assetName,
+				"amount",
+				amount,
+			)
+		}
+
+		// Only add non-empty policyAssets to the assetsMap
+		if len(policyAssets) > 0 {
+			assetsMap[policyBlake] = policyAssets
+		}
+	}
+
+	assets := common.NewMultiAsset(assetsMap)
+	return assets, totalLovelace, nil
+}
+
+func NewResolvedTransactionOutput(
+	match kugo.Match,
+) (ledger.TransactionOutput, error) {
+	logger := logging.GetLoggerForComponent("input.chainsync")
+	// Get common.Address from base58 or bech32 string
+	addr, err := common.NewAddress(match.Address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert base58 to bech32: %w", err)
+	}
+
+	assets, amount, err := ExtractAssetDetailsFromMatch(match)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to extract asset details from match: %w",
+			err,
+		)
+	}
+
+	logger.Debug(
+		"ResolvedTransactionOutput",
+		"address",
+		addr,
+		"amount",
+		amount,
+		"assets",
+		assets,
+	)
+	return &ResolvedTransactionOutput{
+		AddressField: addr,
+		AmountField:  amount,
+		// return assets if there are any, otherwise return nil
+		AssetsField: func() *common.MultiAsset[common.MultiAssetTypeOutput] {
+			if len(assets.Policies()) > 0 {
+				return &assets
+			}
+			return nil
+		}(),
+	}, nil
+}
+
+func (txOut ResolvedTransactionOutput) Address() common.Address {
+	return txOut.AddressField
+}
+
+func (txOut ResolvedTransactionOutput) Amount() *big.Int {
+	return new(big.Int).SetUint64(txOut.AmountField)
+}
+
+func (txOut ResolvedTransactionOutput) Assets() *common.MultiAsset[common.MultiAssetTypeOutput] {
+	return txOut.AssetsField
+}
+
+func (txOut ResolvedTransactionOutput) Datum() *common.Datum {
+	// Placeholder for Datum serialization
+	return nil
+}
+
+func (txOut ResolvedTransactionOutput) DatumHash() *common.Blake2b256 {
+	// Placeholder for DatumHash serialization
+	return nil
+}
+
+func (txOut ResolvedTransactionOutput) ScriptRef() common.Script {
+	// Placeholder for script ref
+	return nil
+}
+
+func (txOut ResolvedTransactionOutput) Cbor() []byte {
+	// Placeholder for CBOR serialization
+	return []byte{}
+}
+
+func (txOut ResolvedTransactionOutput) Utxorpc() (*utxorpc.TxOutput, error) {
+	// Placeholder for UTXO RPC representation
+	return &utxorpc.TxOutput{}, nil
+}
+
+func (txOut ResolvedTransactionOutput) ToPlutusData() data.PlutusData {
+	// Placeholder for PlutusData representation
+	return nil
+}
+
+func (txOut ResolvedTransactionOutput) String() string {
+	// Placeholder for string representation
+	return ""
+}

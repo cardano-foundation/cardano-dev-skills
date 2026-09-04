@@ -18,6 +18,8 @@ except ModuleNotFoundError:
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILLS_DIR = REPO_ROOT / "skills"
 SOURCES_FILE = REPO_ROOT / "registry" / "sources.yaml"
+PINS_FILE = REPO_ROOT / "registry" / "pins.yaml"
+DOCS_SOURCES_DIR = REPO_ROOT / "docs" / "sources"
 
 MAX_SKILL_LINES = 500
 MAX_NAME_LEN = 64
@@ -49,6 +51,17 @@ VALID_FORMATS = {"markdown", "mdx", "rst", "openapi", "aiken", "python", "toml",
                  "go"}
 VALID_PRIORITIES = {"high", "medium", "low"}
 
+# Vetting-waiver policy. A `vetting_exception` on a registry entry waives the
+# recency/activity rules (1-2) of the source-vetting bar for document-of-
+# record repos, where commit cadence says nothing about health. Waiving the
+# bar is a security decision, so it requires an explicit entry here, reviewed
+# in the same PR that adds it — a reason string alone is self-service.
+# Keyed name -> owner/repo: `name` is contributor-chosen free text, so a
+# name-only grant would follow an entry to whatever upstream it is later
+# repointed at. The waiver takes effect in scripts/check-pr-policy.py.
+VETTING_EXCEPTIONS: dict[str, str] = {
+}
+
 # Tool-grant policy. `allowed-tools` entries are PRE-APPROVED (they skip the
 # user's permission prompt for one turn), so widening this set is a security
 # decision, not a convenience. Skills needing more than the read-only base
@@ -63,9 +76,11 @@ ALLOWED_TOOLS_EXCEPTIONS = {
     # Bash is scoped to `pwd` (used to resolve the project root).
     "cardano-context": {"Edit", "Write", "Bash(pwd)"},
 }
-# Skills are self-contained (Read/Grep/Glob over bundled docs), so no skill
-# turn ever needs network access. Requiring these keeps a poisoned doc read
-# during a skill turn from reaching out.
+# Skills read bundled docs with Read/Grep/Glob, so no skill turn needs the
+# agent to fetch a URL of its own. Requiring these keeps a poisoned doc read
+# during a skill turn from reaching out. This bans the *undirected* network:
+# `give-feedback` still reaches GitHub, but only through `gh` with a fixed
+# repository and a draft the user has read and approved (DESIGN Decision 14).
 REQUIRED_DISALLOWED_TOOLS = {"WebFetch", "WebSearch"}
 
 errors: list[str] = []
@@ -177,6 +192,58 @@ def validate_skill(skill_dir: Path) -> None:
                 warn(f"{ref_file}: unexpected file type in references/")
 
 
+def check_snapshot_matches_globs(prefix: str, name: str, src: dict) -> None:
+    """Flag a source whose glob patterns appear to match nothing upstream.
+
+    `glob_patterns` is include-only and silent: a pattern matching zero files
+    produces exactly the same snapshot as a project that genuinely ships one
+    README, so a mis-specified pattern can sit undetected indefinitely. That is
+    how `cardano-client-lib` and `Yaci Store` each spent months vendored as a
+    README while their real documentation — 66 and 85 pages — sat behind a
+    `docs/**/*.md` glob against upstreams whose pages are all `.mdx`.
+
+    The signal used here is intent versus result: a recursive glob says the
+    source expects a documentation *tree*, so a snapshot holding at most a
+    README means the pattern did not find it. Warn rather than error — a source
+    can legitimately be mid-migration upstream, and this check must never block
+    a refresh on its own.
+    """
+    globs = [str(p) for p in (src.get("glob_patterns") or [])]
+    tree_globs = [p for p in globs if "**" in p]
+    if not (name and tree_globs):
+        return
+
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    snapshot = DOCS_SOURCES_DIR / slug
+    if not snapshot.is_dir():
+        return
+
+    file_count = sum(1 for p in snapshot.rglob("*") if p.is_file())
+    if file_count > 1:
+        return
+
+    warn(
+        f"{prefix}: requests a documentation tree ({', '.join(tree_globs)}) "
+        f"but docs/sources/{slug}/ holds {file_count} file(s) — the pattern "
+        f"probably matches nothing upstream. Check the file extension "
+        f"(.md vs .mdx) and the directory the docs actually live in."
+    )
+
+
+def load_pinned_names() -> set[str] | None:
+    """Source names pinned in registry/pins.yaml, parsed by the same function
+    scripts/fetch-docs.sh uses, so what validates here is what a fetch will
+    actually honor. Returns None if the file is malformed (already reported),
+    so callers skip per-source pin checks instead of cascading them."""
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from _fetch_docs import load_pins
+    try:
+        return set(load_pins(str(PINS_FILE)))
+    except SystemExit as e:  # load_pins reports a malformed pin line this way
+        error(str(e))
+        return None
+
+
 def validate_sources() -> None:
     """Validate registry/sources.yaml."""
     if not SOURCES_FILE.exists():
@@ -195,6 +262,7 @@ def validate_sources() -> None:
         return
 
     names_seen = set()
+    pinned = load_pinned_names()
     for i, src in enumerate(sources):
         if not isinstance(src, dict):
             error(f"{SOURCES_FILE}[{i}]: expected a mapping, got {type(src).__name__}")
@@ -212,6 +280,13 @@ def validate_sources() -> None:
             error(f"{prefix}: duplicate source name '{name}'")
         names_seen.add(name)
 
+        # A source with no pin fetches its branch tip, bypassing refresh-PR
+        # screening. The registering PR carries the pin (CONTRIBUTING step 3).
+        if pinned is not None and name and name not in pinned:
+            error(f"{prefix}: no pin in registry/pins.yaml — run "
+                  f"./scripts/fetch-docs.sh --source \"{name}\" --update-pins "
+                  f"and commit the pin with the source")
+
         fmt = src.get("format")
         if fmt and fmt not in VALID_FORMATS:
             error(f"{prefix}: invalid format '{fmt}' (valid: {VALID_FORMATS})")
@@ -227,6 +302,32 @@ def validate_sources() -> None:
         repo = src.get("repo", "")
         if repo and not repo.startswith("https://"):
             warn(f"{prefix}: repo URL doesn't start with https://")
+
+        if "vetting_exception" in src:
+            check_vetting_exception(prefix, name, repo, src["vetting_exception"])
+
+        check_snapshot_matches_globs(prefix, name, src)
+
+
+def check_vetting_exception(prefix: str, name: str, repo: str, reason) -> None:
+    """A `vetting_exception` is valid only when granted in VETTING_EXCEPTIONS
+    for this name AND this repo, and carries a non-empty reason."""
+    granted = VETTING_EXCEPTIONS.get(name)
+    if granted is None:
+        error(f"{prefix}: carries vetting_exception but is not granted one in "
+              "VETTING_EXCEPTIONS in scripts/validate.py — waiving the "
+              "maintenance bar is a reviewed code change, not a registry field")
+        return
+    # GitHub owner/repo slugs are case-insensitive.
+    slug = (repo or "").removeprefix("https://github.com/").rstrip("/")
+    if slug.endswith(".git"):
+        slug = slug[:-4]
+    if slug.lower() != granted.lower():
+        error(f"{prefix}: vetting_exception was granted for {granted}, not "
+              f"{slug or repo!r} — repointing a waived entry needs the grant "
+              "updated in the same PR")
+    if not (isinstance(reason, str) and reason.strip()):
+        error(f"{prefix}: vetting_exception must be a non-empty reason string")
 
 
 def validate_path_portability() -> int:

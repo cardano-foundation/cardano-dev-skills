@@ -111,6 +111,7 @@ For a deeper walkthrough of the on-chain design, see the [on-chain repository's 
 - **Frontend:** Node.js 18+ (20+ recommended), npm or yarn, Blockfrost API key
 - **Backend:** Java 17+, Gradle
 - **Substandards:** [Aiken](https://aiken-lang.org/installation-instructions) v1.1.13+
+- **Local devnet (optional):** Docker and [Yaci DevKit](https://github.com/bloxbean/yaci-devkit), exposing yaci-store on port 8080
 
 ### Frontend
 
@@ -144,6 +145,100 @@ aiken check
 ```
 
 For detailed setup, testing, and deployment instructions, see the respective README files in each subdirectory.
+
+### Local devnet (Yaci DevKit)
+
+> **Port assignment matters.** The backend embeds yaci-store and runs on Spring's
+> default port **8080**, so the DevKit's own Blockfrost-compatible API must be
+> exposed on **8081** or the two clash. The `devnet` profile already expects this
+> (`blockfrost.url: http://localhost:8081/api/v1/`). Configure the DevKit
+> accordingly before starting either process.
+
+#### 1. Deploy the protocol
+
+A local devnet needs the protocol deployed once — the bootstrap transaction mints
+the protocol-params, registry and issuance-template NFTs and registers the three
+withdraw-0 reward accounts. From `src/programmable-tokens-offchain-java`:
+
+```bash
+export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home
+export CARDANO_BACKEND_URL=http://localhost:8081/api/v1/   # must match where yaci-store listens
+export CARDANO_BACKEND_KEY=dummy                           # ignored by yaci-store
+export CARDANO_NETWORK_MAGIC=42
+
+# Fund the admin account from the devkit genesis account
+./gradlew test --tests '*DevnetFundingTest*'
+
+# Deploy; the run registers itself in the bootstrap config
+BOOTSTRAP_OUT=src/main/resources/protocol-bootstraps-devnet.json \
+  ./gradlew test --tests '*PreviewProtocolDeploymentMintTest.deploy'
+```
+
+The deploy logs the new transaction hash — you need it in step 2.
+
+`protocol-bootstraps-devnet.json` is an **array** keyed by transaction hash, and
+the deploy merges into it rather than overwriting, so earlier deployments stay
+resolvable for tokens already issued against them. Without `BOOTSTRAP_OUT` the
+handoff goes to `build/bootstrap-params.json` and nothing under
+`src/main/resources` is touched.
+
+#### 2. Run the backend
+
+Create `.envDevnet` alongside the existing `.env`:
+
+```bash
+export SPRING_PROFILES_ACTIVE=devnet
+
+export WALLET_MNEMONIC="<24-word mnemonic funded on the devnet>"
+
+# DevKit node (n2c/n2n socket relay), NOT the Blockfrost-compatible port
+export STORE_CARDANO_HOST=localhost
+export STORE_CARDANO_PORT=3001
+
+# Any non-empty value — yaci-store ignores the project id
+export BLOCKFROST_KEY=dummy
+
+# The deployment to activate, from step 1
+export PROGRAMMABLE_TOKEN_DEFAULT_TXHASH=<txHash from the deploy log>
+
+# Optional — these already default to the values shown
+export DB_URL=jdbc:postgresql://localhost:5432/cip113
+export DB_USERNAME=cardano
+export DB_PASSWORD=password
+export KERI_URL=http://localhost:3901
+export KERI_BOOT_URL=http://localhost:3903
+```
+
+```bash
+source .envDevnet && ./gradlew bootRun
+```
+
+Unlike the preview profile, devnet needs **no** `STORE_CARDANO_SYNCSTARTBLOCKHASH`
+or `STORE_CARDANO_SYNCSTARTSLOT`: it syncs from genesis using the DevKit genesis
+files bundled at `src/main/resources/devkit/`, and the profile pins
+`protocol-magic: 42`.
+
+If `PROGRAMMABLE_TOKEN_DEFAULT_TXHASH` does not take effect, set it explicitly
+instead — the property is camel-cased, which environment-variable binding does not
+always resolve:
+
+```bash
+./gradlew bootRun --args='--programmable.token.default.txHash=<txHash>'
+```
+
+#### Resetting
+
+A DevKit restart wipes the chain, so re-run **both** commands from step 1
+afterwards and update the txHash:
+
+```bash
+docker restart <yaci-devkit-container>   # wait ~45s for the node to come back
+```
+
+The same two deployment commands work against preview or preprod: drop the
+`CARDANO_*` overrides (they default to Blockfrost preview), set
+`BLOCKFROST_KEY_PREVIEW`, and point `BOOTSTRAP_OUT` at
+`protocol-bootstraps-preview.json`.
 
 ---
 

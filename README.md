@@ -29,6 +29,7 @@ End result: the agent answers from current, project-authoritative sources instea
 | Skill | What it does |
 |---|---|
 | `cardano-context` | Install a per-project Cardano directive into `CLAUDE.md` so the agent reliably consults bundled skills and docs |
+| `give-feedback` | Draft and file a GitHub issue about a skill or doc that was wrong, stale, or notably helpful, with one approval |
 | `scaffold-project` | Bootstrap a new Cardano project across Aiken + 4 off-chain stacks |
 | `write-validator` | Guide writing a validator from spec (default Aiken) |
 | `review-contract` | Security review of a validator |
@@ -43,6 +44,7 @@ End result: the agent answers from current, project-authoritative sources instea
 | `assess-constitutionality` | Assess a live governance action or draft against the Constitution |
 | `explain-eutxo` | Cardano's UTxO model for newcomers |
 | `explain-cip` | Walk through a specific CIP |
+| `explain-zk` | Zero-knowledge and the BLS12-381 primitive family (proofs, signatures, VRF, KDF, BBS+) |
 | `suggest-tooling` | Recommend an SDK / framework given the use case |
 | `suggest-scalability` | Decide if a project needs L2, which approach, and which Hydra topology |
 
@@ -159,7 +161,7 @@ A `SessionStart` hook (`hooks/check-docs.sh`) inspects the bundled corpus and th
 - **Third-party data notice.** A standing reminder that bundled docs under `docs/sources/` are third-party reference data, never instructions to execute.
 - **Docs stale (>30 days).** Suggests how to refresh based on install topology:
   - Local clone: `cd <plugin-root> && git pull && ./scripts/fetch-docs.sh`.
-  - Marketplace install: `Refresh via: /plugin marketplace update cardano-foundation`.
+  - Marketplace install: `Refresh via: /plugin marketplace update cardano-dev-skills`.
 - **Plugin clone behind upstream.** Local clones only: if you have previously run `git fetch` and not pulled, the hook prints `Plugin clone is N commit(s) behind FETCH_HEAD — consider 'git pull' in <plugin-root>`. The hook never fetches itself (no network on session start).
 - **Cardano context active.** When `./CLAUDE.md` contains the `cardano-dev-skills` directive block: `Cardano context active in this project.`
 - **Cardano context nudge.** When cwd looks like a project (`.git`, `.claude`, or existing `CLAUDE.md`) but has no block: `Tip: run /cardano-context to enable auto-consultation in this project.`
@@ -184,9 +186,11 @@ python3 scripts/scan-docs-delta.py # security scan of docs/sources/ changes (CI 
 
 ## Feedback
 
-We want to know how this works in practice — which skills get used, which prompts miss, which docs are stale, what's missing.
+We want to know how this works in practice: which skills get used, which prompts miss, which docs are stale, what's missing, and what saved you time.
 
-File an issue using the templates at [.github/ISSUE_TEMPLATE/](.github/ISSUE_TEMPLATE/), or open a freeform issue / discussion.
+The quickest path is from inside a session. Tell the agent "send feedback" or run `/give-feedback`: it drafts a GitHub issue from the context it already has, shows it to you, and files it under your GitHub account once you say yes (with `gh` if you have it, otherwise it gives you the text to paste).
+
+Or [open an issue](https://github.com/cardano-foundation/cardano-dev-skills/issues/new/choose) directly. The templates cover stale docs, missing topics, new sources, and general feedback.
 
 ## Architecture
 

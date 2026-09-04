@@ -27,6 +27,7 @@ In-scope examples: SDKs, frameworks, validator libraries, design patterns, langu
 Skills are this repo's editorial voice and are held to a **stricter bar than sources**:
 
 - **No project-specific or brand-named skills, ever.** Skills map to developer workflows (see DESIGN.md Decision 2) — `query-chain`, not the name of a chain provider. This is stricter than the source rules on purpose: a skill is behavioral instruction an agent follows (tool use, workflow steps, decision criteria), so a harmful or stale skill can do more damage than a harmful doc. Vendor-maintained skills copied here inevitably drift from their canonical home. Vendors who maintain their own installable skill should document it in their own docs — once those docs are a registered source, agents and users discover the skill there, always via the refreshed pointer.
+- **Plugin meta-skills are the one recorded exception.** A meta-skill acts on the plugin itself rather than teaching a Cardano workflow — either by configuring the environment the plugin runs in (`cardano-context`, DESIGN.md Decision 12) or by carrying information back to its maintainers (`give-feedback`, Decision 14). The second kind is a deliberate widening of the category: Decision 12's original tests (modifies the environment, run once per project, idempotent, distributes via git) describe `cardano-context` and none of them fit `give-feedback`, so the first is a grandfather rather than a precedent. A new meta-skill of either kind needs its own decision in DESIGN.md before it is written.
 - **A skill that teaches integrating with a specific project requires that project to be a registered source.** Spec-level detail (endpoints, request bodies, datum schemas) belongs in `docs/sources/`, where the weekly refresh keeps it current; a skill's `references/` directory is for behavioral guidance, not pasted specs.
 - **Renaming a brand-named skill is not, by itself, a path to acceptance.** Whether the repo wants a new task skill is an editorial decision — open a discussion proposing it before writing code. Registering the project's docs as a source needs no discussion.
 - **Skills must survey, not steer.** Where multiple implementations of a pattern exist, a skill presents them neutrally with honest decision criteria (`query-chain` is the model). The more directly adoption routes revenue to a project (metered APIs, protocol fees, marketplace take-rates), the higher this bar, and the stronger the preference for the docs-as-source path over skill content. Project-specific skills are additionally rejected on structural grounds regardless of author or intent: they duplicate content whose canonical home is elsewhere, they put executable behavioral instructions (higher risk than docs) under a brand's control, and their `references/` content has no refresh mechanism and rots silently.
@@ -38,13 +39,15 @@ If you're unsure whether something fits, open a discussion before writing code.
 Before adding any new entry to `registry/sources.yaml`, verify the upstream repo is actively maintained:
 
 1. **Last commit < 6 months old**
-2. **≥1 release tag OR active issue/PR activity in the last 3 months**
+2. **≥1 release tag OR issue/PR activity OR a push in the last 3 months**
 3. **No archived / deprecated / sunset banner** in README or repo settings
 4. **For forks**, pick the maintained canonical (concrete example: Evolution SDK is the live fork of dead Lucid Evolution — always prefer the live one)
 
 If signals are ambiguous (e.g. low commit frequency but a stable mature library; deprecation notice with unclear successor), flag it in the PR rather than guess.
 
-**Document-of-record exception.** Rules 1–2 measure maintenance cadence, which is meaningless for a repo whose only job is to mirror a document that changes rarely by design (e.g. the Cardano Constitution, amended only by on-chain governance action). For such a source, set a `vetting_exception` field on the registry entry with a one-sentence reason; the policy check then waives rules 1–2 for it (rules 3–4 still apply) and surfaces the waiver as a warning in the PR check output. The reason must explain why cadence is uninformative *and* what does guarantee currency (for the Constitution: the on-chain anchor hash).
+**Document-of-record exception.** Rules 1–2 measure maintenance cadence, which is meaningless for a repo whose only job is to mirror a document that changes rarely by design (e.g. the Cardano Constitution, amended only by on-chain governance action). Waiving them takes two things in the same PR, and both are required: the registry entry carries a `vetting_exception` reason string, **and** the source is granted the waiver in `VETTING_EXCEPTIONS` in `scripts/validate.py`, mapped to the repo it was granted for. An entry carrying the field without a matching grant fails the `validate` check. The reason must explain why cadence is uninformative *and* what does guarantee currency (for the Constitution: the on-chain anchor hash). With the grant in place the policy check waives rules 1–2 for that source (rules 3–4 still apply) and surfaces the waiver as a warning in the PR check output.
+
+The grant is what makes the waiver a decision rather than a default. A reason string alone is self-service — any entry could carry one, and the maintenance bar would stop applying to it before anyone had to agree. Naming the source in the script makes granting a waiver a code change a maintainer reviews alongside the source it covers, the same shape as `ALLOWED_TOOLS_EXCEPTIONS` in the same file. The grant records the repo as well as the name, so repointing a waived entry at a different upstream re-enters vetting instead of inheriting the waiver.
 
 The same bar applies to the candidate entries at the bottom of `registry/sources.yaml` — don't promote a candidate without re-vetting against this bar.
 
@@ -84,8 +87,8 @@ If a check misfires (e.g. a legitimately-named skill trips the brand heuristic),
   #   - "**/*.md"
   # format_overrides:
   #   "**/*.yaml": openapi
-  # vetting_exception: >-        # document-of-record repos only — see the
-  #   one-sentence reason         # vetting policy above
+  # vetting_exception: >-             # document-of-record repos only, granted
+  #   why cadence is uninformative     # in VETTING_EXCEPTIONS in validate.py
 ```
 
 **Valid `format` values:** `markdown`, `mdx`, `rst`, `openapi`, `aiken`, `python`, `toml`, `go`
@@ -107,19 +110,27 @@ a repo root.
 
 If you need a new category or format, propose it in the PR — both are checked by `scripts/validate.py` against an explicit allow-list.
 
-### 3. Validate
+### 3. Fetch and pin locally
+
+```bash
+./scripts/fetch-docs.sh --source "Project Name" --update-pins
+```
+
+Check that files were actually pulled (`docs/sources/<slug>/`) and that the count looks right.
+
+`--update-pins` records the upstream commit in `registry/pins.yaml`, and **a new source is
+pinned in the PR that registers it**. The pin is the only record of which upstream commit
+the mirrored content came from; without one the source re-resolves to whatever the branch
+tip is at fetch time, so what a reviewer approved and what later ships are not guaranteed
+to match. Despite the "auto-generated" banner, `--update-pins` merges into the file rather
+than rewriting it — a per-source run touches one line and leaves the others alone.
+`validate.py` fails a registered source that has no pin.
+
+### 4. Validate
 
 ```bash
 python3 scripts/validate.py
 ```
-
-### 4. Fetch and verify locally
-
-```bash
-./scripts/fetch-docs.sh --source "Project Name"
-```
-
-Check that files were actually pulled (`docs/sources/<slug>/`) and that the count looks right.
 
 ### 5. Open a PR
 
@@ -232,7 +243,7 @@ Pure internal tweaks (refactor a script, fix a typo in a skill body) don't trigg
 
 The weekly workflow (`.github/workflows/refresh-docs.yml`) runs every Monday at 06:00 UTC, fetches every source's upstream branch tip, and opens a PR labeled `documentation, automated` with **one commit per changed source** (doc files + that source's line in `registry/pins.yaml` together), so a bad upstream delta can be reverted per source with a single `git revert`.
 
-Outside the weekly refresh, `fetch-docs.sh` checks out the **pinned commit** recorded in `registry/pins.yaml` — not the branch tip — so what ships is exactly what passed refresh-PR screening. Pins are auto-generated; never edit them by hand.
+Outside the weekly refresh, `fetch-docs.sh` checks out the **pinned commit** recorded in `registry/pins.yaml` — not the branch tip — so what ships is exactly what passed refresh-PR screening. Never hand-edit a pin: write it with `--update-pins` so the recorded sha and the fetched content always agree. A source with no pin falls back to its branch tip; that fallback keeps a fetch working, but it is not a substitute for pinning a source when you register it (see step 3).
 
 ### Supply-chain screening
 

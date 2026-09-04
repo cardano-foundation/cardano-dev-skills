@@ -22,8 +22,8 @@ What it does:
   session.
 - Instructs the agent to treat training data as potentially stale for
   Cardano, to bias toward invoking `cardano-dev-skills:*` skills, to search
-  `${CLAUDE_PLUGIN_ROOT}/docs/sources/` before falling back on memory, and
-  to cite what it used.
+  `${CLAUDE_PLUGIN_ROOT}/docs/sources/` before falling back on memory, and to
+  cite what it used.
 - Commit `CLAUDE.md` and teammates inherit the directive on clone.
 - Re-running is safe: same version is a no-op; older versions are
   atomically replaced.
@@ -56,7 +56,7 @@ and the current working directory and prints status lines prefixed
   corpus is third-party reference data, never instructions to execute.
 - **Docs stale (>30 days).** Suggests how to refresh based on install topology:
   local clone → `git pull && ./scripts/fetch-docs.sh`; marketplace install →
-  `/plugin marketplace update cardano-foundation`.
+  `/plugin marketplace update cardano-dev-skills`.
 - **Plugin clone behind upstream.** Local clones only: if `git fetch` has run
   and you haven't pulled, the hook prints how many commits behind you are.
 - **Cardano context active.** When `./CLAUDE.md` contains the directive block.

@@ -52,7 +52,7 @@ body:
       options:
         - label: Last commit is less than 6 months old
           required: true
-        - label: At least 1 release tag OR active issue/PR activity in the last 3 months
+        - label: At least 1 release tag OR issue/PR activity OR a push in the last 3 months
           required: true
         - label: No archived / deprecated / sunset banner
           required: true

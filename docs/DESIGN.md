@@ -94,6 +94,7 @@ This document captures the architectural decisions behind `cardano-dev-skills`. 
 **Planned (tracked, not built)** — live status is on the [roadmap](../website/src/content/docs/about/roadmap.md); the design intent for each:
 - `UserPromptSubmit` hook that auto-injects "consult bundled docs first" guidance on Cardano-keyword-matched prompts, with local usage telemetry under `~/.cardano-dev-skills/usage.log`.
 - PR-time source-build check: when `registry/sources.yaml` changes, CI fetches the touched source(s) and verifies the clone + glob patterns produce files.
+- Stale-source report: the vetting bar (push within 6 months, archived, fork) runs only on new entries at PR time. Run it over every registered source weekly and surface failures as a report, never a block; removal stays a maintainer decision.
 
 These additions follow the principle: ship small, observe, iterate.
 

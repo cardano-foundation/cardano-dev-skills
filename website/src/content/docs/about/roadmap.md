@@ -59,6 +59,10 @@ for) and **governance** (the lifecycle that keeps that content current).
 - **PR-time source-build check.** When `registry/sources.yaml` changes,
   CI fetches the touched source(s) and verifies the clone + glob patterns
   produce files. Catches dead repos and bad globs before they land.
+- **Stale-source report.** The vetting bar (push within 6 months, archived,
+  fork) runs only on new entries at PR time. Run it over every registered
+  source weekly and surface failures as a report, never a block; removal
+  stays a maintainer decision.
 - **Cross-tool compatibility surface.** Codex and other agent harnesses
   consume the same skill files via `.agents/skills` symlinks. As the
   Agent Skills standard evolves, we follow it.

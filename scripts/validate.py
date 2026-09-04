@@ -52,10 +52,10 @@ VALID_FORMATS = {"markdown", "mdx", "rst", "openapi", "aiken", "python", "toml",
 VALID_PRIORITIES = {"high", "medium", "low"}
 
 # Vetting-waiver policy. A `vetting_exception` on a registry entry waives the
-# recency/activity rules (1-2) of the source-vetting bar for document-of-
-# record repos, where commit cadence says nothing about health. Waiving the
-# bar is a security decision, so it requires an explicit entry here, reviewed
-# in the same PR that adds it — a reason string alone is self-service.
+# recency rule of the source-vetting bar for document-of-record repos, where
+# commit cadence says nothing about health. Waiving the bar is a security
+# decision, so it requires an explicit entry here, reviewed in the same PR
+# that adds it — a reason string alone is self-service.
 # Keyed name -> owner/repo: `name` is contributor-chosen free text, so a
 # name-only grant would follow an entry to whatever upstream it is later
 # repointed at. The waiver takes effect in scripts/check-pr-policy.py.

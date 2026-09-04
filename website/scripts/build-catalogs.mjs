@@ -403,8 +403,7 @@ function buildSourcesPage(sources) {
   lines.push('## Maintenance bar');
   lines.push('');
   lines.push(
-    'Every entry must satisfy: last commit < 6 months old; ≥1 release tag ' +
-      'or active issue/PR activity in the last 3 months; no archived / ' +
+    'Every entry must satisfy: last commit < 6 months old; no archived / ' +
       'deprecated / sunset banner; for forks, the maintained canonical. See ' +
       '[Governance](/cardano-dev-skills/contributing/governance/) for the ' +
       'full policy.',

@@ -47,7 +47,7 @@ for) and **governance** (the lifecycle that keeps that content current).
 - **Schema validation.** CI runs `scripts/validate.py` on every PR
   touching `skills/**` or `registry/**`.
 - **Source-vetting bar.** Explicit policy in `CONTRIBUTING.md`: last commit
-  age, release/activity signal, archival status, fork canonicality.
+  age, archival status, fork canonicality.
 - **PR policy gate.** On PRs touching `skills/`, `registry/`, or
   `docs/sources/`: mechanical checks enforce the vetting bar live against
   the GitHub API and fail brand-named skills, while an AI scope reviewer
@@ -59,6 +59,10 @@ for) and **governance** (the lifecycle that keeps that content current).
 - **PR-time source-build check.** When `registry/sources.yaml` changes,
   CI fetches the touched source(s) and verifies the clone + glob patterns
   produce files. Catches dead repos and bad globs before they land.
+- **Stale-source report.** The vetting bar (push within 6 months, archived,
+  fork) runs only on new entries at PR time. Run it over every registered
+  source weekly and surface failures as a report, never a block; removal
+  stays a maintainer decision.
 - **Cross-tool compatibility surface.** Codex and other agent harnesses
   consume the same skill files via `.agents/skills` symlinks. As the
   Agent Skills standard evolves, we follow it.

@@ -30,6 +30,20 @@ const (
 	StakeDeposit   = 2_000_000
 )
 
+// TransactionBodySetTagPolicy controls CBOR tag 258 on set-valued Conway
+// transaction-body fields. It does not affect witness-set or Plutus-data sets.
+type TransactionBodySetTagPolicy uint8
+
+const (
+	// TransactionBodySetTagPolicyLegacy preserves Apollo's historical encoding:
+	// inputs are untagged while collateral, required signers, and reference
+	// inputs use CBOR tag 258.
+	TransactionBodySetTagPolicyLegacy TransactionBodySetTagPolicy = iota
+	// TransactionBodySetTagPolicyUntagged encodes every set-valued Conway body
+	// field as an untagged array.
+	TransactionBodySetTagPolicyUntagged
+)
+
 // ErrPlutusV4RequiresDijkstra reports that an operation needs a Dijkstra-era
 // transaction witness set, while Apollo currently builds Conway transactions.
 var ErrPlutusV4RequiresDijkstra = errors.New("plutus V4 requires Dijkstra transaction support; Apollo currently builds Conway transactions")
@@ -92,6 +106,7 @@ type Apollo struct {
 	estimateExUnits            bool
 	forceFee                   bool
 	coinSelector               CoinSelector
+	bodySetTagPolicy           TransactionBodySetTagPolicy
 	err                        error
 }
 
@@ -310,6 +325,27 @@ func (a *Apollo) SetFeePadding(padding int64) *Apollo {
 // choose inputs. When unset, the package default selector is used.
 func (a *Apollo) SetCoinSelector(selector CoinSelector) *Apollo {
 	a.coinSelector = selector
+	return a
+}
+
+// SetTransactionBodySetTagPolicy selects the CBOR set-tag policy for Conway
+// transaction-body inputs, collateral, required signers, and reference inputs.
+// The default is TransactionBodySetTagPolicyLegacy for byte compatibility with
+// earlier Apollo releases. Selecting another policy changes the transaction ID
+// and therefore every signature.
+func (a *Apollo) SetTransactionBodySetTagPolicy(
+	policy TransactionBodySetTagPolicy,
+) *Apollo {
+	switch policy {
+	case TransactionBodySetTagPolicyLegacy,
+		TransactionBodySetTagPolicyUntagged:
+		a.bodySetTagPolicy = policy
+	default:
+		a.setErrOnce(fmt.Errorf(
+			"SetTransactionBodySetTagPolicy: unsupported policy %d",
+			policy,
+		))
+	}
 	return a
 }
 
@@ -1174,6 +1210,7 @@ func (a *Apollo) Clone() *Apollo {
 		treasuryDonation:           a.treasuryDonation,
 		estimateExUnits:            a.estimateExUnits,
 		coinSelector:               a.coinSelector,
+		bodySetTagPolicy:           a.bodySetTagPolicy,
 		wallet:                     a.wallet,
 		evaluationWitnessProviders: append([]EvaluationWitnessProvider(nil), a.evaluationWitnessProviders...),
 		err:                        a.err,
@@ -2804,6 +2841,12 @@ func (a *Apollo) buildBody(
 	}
 
 	inputSet := conway.NewConwayTransactionInputSet(txInputs)
+	// The current gouroboros constructor always creates an untagged input set.
+	// Apollo therefore supports its historical mixed policy and a uniform
+	// untagged policy. A uniform tagged policy would first require a supported
+	// gouroboros API for selecting tag use on ConwayTransactionInputSet.
+	useTagOnNonInputBodySets :=
+		a.bodySetTagPolicy == TransactionBodySetTagPolicyLegacy
 
 	body := conway.ConwayTransactionBody{
 		TxInputs:  inputSet,
@@ -2829,12 +2872,18 @@ func (a *Apollo) buildBody(
 
 	// Required signers
 	if len(a.requiredSigners) > 0 {
-		body.TxRequiredSigners = cbor.NewSetType(a.requiredSigners, true)
+		body.TxRequiredSigners = cbor.NewSetType(
+			a.requiredSigners,
+			useTagOnNonInputBodySets,
+		)
 	}
 
 	// Reference inputs
 	if len(a.referenceInputs) > 0 {
-		body.TxReferenceInputs = cbor.NewSetType(a.referenceInputs, true)
+		body.TxReferenceInputs = cbor.NewSetType(
+			a.referenceInputs,
+			useTagOnNonInputBodySets,
+		)
 	}
 
 	// Certificates
@@ -2885,7 +2934,10 @@ func (a *Apollo) buildBody(
 				OutputIndex: idx,
 			})
 		}
-		body.TxCollateral = cbor.NewSetType(collInputs, true)
+		body.TxCollateral = cbor.NewSetType(
+			collInputs,
+			useTagOnNonInputBodySets,
+		)
 		if a.totalCollateral > 0 {
 			body.TxTotalCollateral = uint64(a.totalCollateral)
 		}

@@ -70,7 +70,9 @@ Instructions...
 - [ ] Description includes trigger phrases
 - [ ] Has "When to use", "When NOT to use", "Key principles", "Workflow"
       sections
-- [ ] No MCP dependency (no `search_docs` references)
+- [ ] No external service dependency — the skill delivers its output with
+      `Read` / `Grep` / `Glob` alone; an optional hosted transport is allowed
+      only under DESIGN.md Decision 15
 - [ ] Deep content in `references/`, one level only — no nested
       subdirectories
 - [ ] No mention of specific deployed dApps; teach categories generically

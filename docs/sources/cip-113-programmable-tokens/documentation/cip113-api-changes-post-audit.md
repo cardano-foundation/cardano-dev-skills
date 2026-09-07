@@ -779,7 +779,7 @@ index simply fails — no security is delegated to the index.
 - A wrong index fails the params-NFT authentication `expect`, so the whole
   transaction fails — there is no silent misbehaviour.
 - `issuance_mint`'s delegation check is unaffected: it still locates the
-  coordination UTxO by NFT membership with fail-safe semantics (no coordination
+  protocol-params UTxO by NFT membership with fail-safe semantics (no coordination
   UTxO ⇒ local custody), so it takes no params index.
 
 ---
@@ -869,14 +869,14 @@ type ProgrammableLogicGlobalParams {
   transfer_cred: Credential,    // 2 — the transfer validator (SpendViaTransfer)
   third_party_cred: Credential, // 3 — the third_party validator (SpendViaThirdParty)
   unfracking_cred: Credential,  // 4 — the unfracking validator (SpendViaUnfracking)
-  upgrade_cred: Credential,     // 5 — upgrade authority (coordination_spend only)
+  upgrade_cred: Credential,     // 5 — upgrade authority (protocol_params_spend only)
 }
 ```
 
 The three credentials PLB reads on its per-input dispatch sit at indices 2-4
 (ordered by how often each arm runs); the coldest `upgrade_cred` is last.
 `third_party_cred` is new. All four delegate credentials are swappable in
-place; `coordination_spend` guards each mutable one with the same
+place; `protocol_params_spend` guards each mutable one with the same
 `is_28_byte_credential` one-way-brick check. (The type keeps its historical
 name `ProgrammableLogicGlobalParams` — it is the protocol-params datum, not
 tied to any one validator.)

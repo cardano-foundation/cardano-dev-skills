@@ -106,9 +106,9 @@ The diagram above shows the **core CIP-113 standard** (Token Custody, Delegate V
 | `transfer` | Stake (withdraw) | `params_policy` | Transfer validator (the hot path). Validates ordinary transfers: checks registry proofs, invokes the policy's transfer logic, enforces value containment. |
 | `third_party` | Stake (withdraw) | `params_policy` | Standalone third-party-transfer (seize / clawback / freeze-enforcement) validator. Enforces the custody/conservation invariants and invokes the subject policy's third-party transfer logic. |
 | `unfracking` | Stake (withdraw) | `params_policy` | Standalone unfracking validator (Finding 17): holder-driven, same-owner restructuring of PLB UTxOs for one policy; invokes the policy's unfracking hook. |
-| `protocol_params_mint` | Mint | `utxo_ref`, `coordination_addr_hash` | One-shot mint of the protocol parameters NFT. |
-| `coordination_spend` | Spend | `_nonce` | Guards the coordination UTxO (protocol-params NFT); enforces structural upgrade rails, authorised by the datum's upgrade authority. |
-| `upgrade_multisig` | Stake (withdraw) | `signers`, `threshold` | Reference upgrade authority: M-of-N multisig approval for `coordination_spend`'s trampoline. |
+| `protocol_params_mint` | Mint | `utxo_ref`, `params_spend_addr_hash` | One-shot mint of the protocol parameters NFT. |
+| `protocol_params_spend` | Spend | `_nonce` | Guards the protocol-params UTxO (protocol-params NFT); enforces structural upgrade rails, authorised by the datum's upgrade authority. |
+| `upgrade_multisig` | Stake (withdraw) | `signers`, `threshold` | Reference upgrade authority: M-of-N multisig approval for `protocol_params_spend`'s trampoline. |
 | `registry_mint` | Mint | `utxo_ref`, `issuance_cbor_hex_cs`, `registry_spend_cred` | Manages the sorted linked list of registered token policies. |
 | `registry_spend` | Spend | `protocol_params_cs` | Guards registry node UTxOs; only allows spending when `registry_mint` is active. |
 | `issuance_mint` | Mint | `programmable_logic_base`, `registry_node_cs`, `minting_logic_cred`, `params_policy` | Mints/burns programmable tokens. Parameterized per token type. |
@@ -118,7 +118,7 @@ Substandard validators (transfer logic, denylist management, etc.) live in the [
 
 ### Base-to-Delegate Dispatch
 
-The `programmable_logic_base` validator is intentionally minimal — a **dispatcher**. It is parameterized only by the protocol-params NFT policy — its one permanent anchor — and on every spend reads the CURRENT delegate credential out of the coordination datum (located via that NFT among the reference inputs) before verifying that delegate's withdraw-0 is present in the transaction's withdrawals. Its redeemer, `BaseSpendRedeemer`, selects which delegate authorises the spend and witnesses the exact index of that delegate in the (ledger-sorted) withdrawal map:
+The `programmable_logic_base` validator is intentionally minimal — a **dispatcher**. It is parameterized only by the protocol-params NFT policy — its one permanent anchor — and on every spend reads the CURRENT delegate credential out of the protocol-params datum (located via that NFT among the reference inputs) before verifying that delegate's withdraw-0 is present in the transaction's withdrawals. Its redeemer, `BaseSpendRedeemer`, selects which delegate authorises the spend and witnesses the exact index of that delegate in the (ledger-sorted) withdrawal map:
 
 - `SpendViaTransfer` → delegate to the `transfer` validator (ordinary transfers); PLB requires the `transfer_cred` (params datum field 2).
 - `SpendViaThirdParty` → delegate to the `third_party` validator (seize / clawback); PLB requires the `third_party_cred` (params datum field 3).
@@ -157,7 +157,7 @@ validator programmable_logic_base(params_policy: PolicyId) {
 
 This pattern is critical for performance: spending validators run once *per input*, but stake validators (via withdrawals) run only once *per transaction*. Since the delegate contains the expensive registry lookups and transfer logic invocations, running it once instead of N times (for N inputs) saves significant execution units. Resolving the delegate by the redeemer-witnessed `wdrl_idx` — a direct `list.expect_at`, which drops `wdrl_idx` list cells (so O(`wdrl_idx`), not O(1)) but performs no credential comparison on the way — rather than scanning the withdrawal map removes one comparison per entry walked, on every input. Measured in `validators/programmable_logic/wdrl_idx_cost.test.ak`: the indexed path grows ~1.1M cpu per position against ~2.7M for the scan, breaks even around position 3, and saves ~19M cpu at width 16 / position 15. A wrong index or arm resolves to a credential that fails the equality, so a dishonest witness only invalidates its own transaction.
 
-**Distinct delegate credentials — an assumption, not an invariant.** The arm of the redeemer is only meaningful while the protocol-params datum carries pairwise-distinct `transfer_cred`, `third_party_cred` and `unfracking_cred`. Neither `protocol_params_mint` (at genesis) nor `coordination_spend` (on upgrades) enforces this; it is a deployment and upgrade-authority responsibility. With two equal credentials both arms resolve to the same script, so either arm is satisfied by that one script's withdrawal and the single delegate must dispatch internally — the pre-split, monolithic shape. Every "wrong arm rejects" statement in these docs, in the property tests, and in any formal statement about PLB dispatch carries this hypothesis (pinned by `plb_equal_delegate_creds_collapse_the_arms` in `programmable_logic_base.test.ak`).
+**Distinct delegate credentials — an assumption, not an invariant.** The arm of the redeemer is only meaningful while the protocol-params datum carries pairwise-distinct `transfer_cred`, `third_party_cred` and `unfracking_cred`. Neither `protocol_params_mint` (at genesis) nor `protocol_params_spend` (on upgrades) enforces this; it is a deployment and upgrade-authority responsibility. With two equal credentials both arms resolve to the same script, so either arm is satisfied by that one script's withdrawal and the single delegate must dispatch internally — the pre-split, monolithic shape. Every "wrong arm rejects" statement in these docs, in the property tests, and in any formal statement about PLB dispatch carries this hypothesis (pinned by `plb_equal_delegate_creds_collapse_the_arms` in `programmable_logic_base.test.ak`).
 
 ---
 
@@ -361,7 +361,7 @@ type BlacklistNode {
 
 ### ProgrammableLogicGlobalParams
 
-Stored on-chain in the coordination UTxO, marked by the protocol params NFT:
+Stored on-chain in the protocol-params UTxO, marked by the protocol params NFT:
 
 ```aiken
 type ProgrammableLogicGlobalParams {
@@ -370,7 +370,7 @@ type ProgrammableLogicGlobalParams {
   transfer_cred: Credential,    // 2 — LIVE credential of the transfer validator; read by PLB on SpendViaTransfer; rewriting it is an in-place upgrade
   third_party_cred: Credential, // 3 — LIVE credential of the third_party validator; read by PLB on SpendViaThirdParty
   unfracking_cred: Credential,  // 4 — LIVE credential of the unfracking validator (Finding 17); read by PLB on SpendViaUnfracking
-  upgrade_cred: Credential,     // 5 — upgrade-authority withdraw-0 credential (coordination_spend's trampoline)
+  upgrade_cred: Credential,     // 5 — upgrade-authority withdraw-0 credential (protocol_params_spend's trampoline)
 }
 ```
 

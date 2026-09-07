@@ -62,7 +62,9 @@ are bare (`topup`, `info`, …).
 | Cardano node (n2n) | `localhost:3001` |
 
 The application/query API you point SDKs at is port **8080** (Yaci Store).
-Port 10000 serves the CLI/admin/wallet/MCP endpoints, not chain queries.
+Port 10000 serves the CLI/admin/wallet/MCP endpoints, not chain queries. The MCP there
+administers the devnet (`devnet_*` tools); analytics over mainnet history is a different MCP
+server, see `analyze-chain-data`.
 Ports are configurable via the `config/env` file (`HOST_STORE_API_PORT`, …).
 
 ## Era and block-time configuration

@@ -93,6 +93,7 @@ vote** with its own threshold (`Q5`, ~0.51) — see CIP-1694.
 
 1. **Read governance state**: Query current proposals, DRep list, voting results
    - Use Blockfrost, Koios, or Ogmios governance endpoints
+   - For aggregate or historical views (tallies per action, DRep power over epochs, treasury movements), use `analyze-chain-data`
    - Governance state is on-chain in Conway era
 
 2. **Build governance transactions**: Use CIP-95 wallet extensions

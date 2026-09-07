@@ -1,6 +1,6 @@
 # Cardano Data Provider Comparison
 
-Detailed comparison of 7 Cardano blockchain data providers for querying chain state, transaction history, and on-chain data.
+Detailed comparison of 9 Cardano blockchain data providers for querying chain state, transaction history, and on-chain data.
 
 ## Provider Overview
 
@@ -112,45 +112,65 @@ Sinks: stdout, file, Kafka, Elasticsearch, webhook, AWS SQS/S3/Lambda, GCP PubSu
 
 Filters: by address, policy, asset, transaction metadata, block slot range.
 
+### 8. Yaci Store
+
+| Attribute | Detail |
+|---|---|
+| **Type** | Self-hosted (JVM); the Cardano Foundation hosts a public mainnet instance of its analytics MCP |
+| **Protocol** | Blockfrost-compatible REST, direct SQL (PostgreSQL), DuckDB SQL over Parquet via MCP or REST |
+| **Setup complexity** | Medium (Java runtime + PostgreSQL; Docker and zip distributions) |
+| **Cost** | Infrastructure only |
+| **Strengths** | Enable only the stores you need, full relational schema, Blockfrost-compatible API, analytics export to Parquet/DuckLake, plugin system for custom indexers, same component as Yaci DevKit |
+| **Weaknesses** | Events are in-process Spring listeners, not a streaming pipe; ledger-state aggregation (rewards, pots) is a heavier optional profile; analytics exports lag the tip by about a day unless live federation is on |
+| **Best for** | JVM backends, an index shaped like the application, historical analytics, agent-driven queries over chain history |
+
+It exposes a **Blockfrost-compatible REST API** (`/blocks`, `/epochs` including
+`latest/parameters`, `/txs`, `/tx/submit`, `/addresses`, `/accounts`, `/assets`, `/scripts`,
+`/metadata`, `/utils/txs/evaluate`), so any Blockfrost client, including cardano-client-lib's
+`BFBackendService`, points at it unchanged. Its "events" are Spring application events consumed
+in-process: you write listeners and processors inside your own Spring Boot app. That is a
+different shape from Oura's sinks; Yaci Store is a library you embed, not a pipe you tap.
+Against Kupo it trades pattern-matching simplicity for a full relational schema; against
+DB-Sync it trades completeness for modularity and a much lighter footprint.
+
+The analytics store exports the index to Parquet and serves DuckDB SQL over it through an MCP
+server and a REST query API, which is what `analyze-chain-data` builds on. See
+`${CLAUDE_SKILL_DIR}/../../docs/sources/yaci-store/` (`stores/`, `plugins/`,
+`usage/as-library/`, `blockfrost/endpoints/`, `analytics/`) and
+`${CLAUDE_SKILL_DIR}/../../docs/sources/yaci-store-mcp/`.
+
+### 9. Adder
+
+| Attribute | Detail |
+|---|---|
+| **Type** | Self-hosted (Go), standalone or embedded as a library |
+| **Protocol** | Event pipeline: chainsync (NtC or NtN), mempool, or UTxORPC inputs; webhook, push, notify, log, Telegram outputs |
+| **Setup complexity** | Low to medium (a node or a UTxORPC provider to follow) |
+| **Cost** | Infrastructure only |
+| **Strengths** | Filters by event type, address, asset fingerprint, policy, pool id, DRep id; in-process consumption from a Go service without a broker |
+| **Weaknesses** | Not a query API; no historical backfill without replay |
+| **Best for** | Go backends reacting to chain events, webhook fan-out, alerting |
+
 ## Decision Matrix
 
-| Need | Blockfrost | Ogmios | Kupo | Koios | GraphQL | DB-Sync | Oura | Yaci Store |
-|---|---|---|---|---|---|---|---|---|
-| UTxO by address | Yes | No | Yes | Yes | Yes | Yes | No | Yes |
-| Tx history | Yes | No | No | Yes | Yes | Yes | No | Yes |
-| Protocol params | Yes | Yes | No | Yes | Yes | Yes | No | Yes |
-| Tx submission | Yes | Yes | No | No | No | No | No | Yes |
-| Tx evaluation | No | Yes | No | No | No | No | No | Yes† |
-| Datum resolution | Yes | No | Yes | Yes | Yes | Yes | No | Yes |
-| Asset metadata | Yes | No | No | Yes | Yes | Yes | No | Yes |
-| Real-time events | No | Yes | No | No | Sub | No | Yes | In-proc |
-| Historical analytics | Partial | No | No | Partial | Yes | Yes | No | Yes |
-| SQL access | No | No | No | No | No | Yes | No | Yes |
-| No infra needed | Yes | No | No | Yes | No | No | No | No |
-| Free | Limited | Yes* | Yes* | Yes | Yes* | Yes* | Yes* | Yes* |
+| Need | Blockfrost | Ogmios | Kupo | Koios | GraphQL | DB-Sync | Oura | Adder | Yaci Store |
+|---|---|---|---|---|---|---|---|---|---|
+| UTxO by address | Yes | No | Yes | Yes | Yes | Yes | No | No | Yes |
+| Tx history | Yes | No | No | Yes | Yes | Yes | No | No | Yes |
+| Protocol params | Yes | Yes | No | Yes | Yes | Yes | No | No | Yes |
+| Tx submission | Yes | Yes | No | No | No | No | No | No | Yes |
+| Tx evaluation | No | Yes | No | No | No | No | No | No | Yes† |
+| Datum resolution | Yes | No | Yes | Yes | Yes | Yes | No | No | Yes |
+| Asset metadata | Yes | No | No | Yes | Yes | Yes | No | No | Yes |
+| Real-time events | No | Yes | No | No | Sub | No | Yes | Yes | In-proc |
+| Historical analytics | Partial | No | No | Partial | Yes | Yes | No | No | Yes |
+| SQL access | No | No | No | No | No | Yes | No | No | Yes |
+| No infra needed | Yes | No | No | Yes | No | No | No | No | No‡ |
+| Free | Limited | Yes* | Yes* | Yes | Yes* | Yes* | Yes* | Yes* | Yes* |
 
 *Self-hosted: free software but requires infrastructure.
 †Requires a configured evaluation backend — Ogmios, or a Scalus-backed local evaluator.
-
-**Yaci Store** is a modular JVM indexer: enable only the stores you need (UTxO,
-transaction, assets, governance, ...), each backed by your own Postgres — hence
-direct SQL access. It exposes a **Blockfrost-compatible REST API** (`/blocks`,
-`/epochs` including `latest/parameters`, `/txs`, `/tx/submit`, `/addresses`,
-`/accounts`, `/assets`, `/scripts`, `/metadata`, `/utils/txs/evaluate`), so any
-Blockfrost client — including cardano-client-lib's `BFBackendService` — points at
-it unchanged.
-
-Its "events" are **Spring application events consumed in-process**: you write
-listeners and processors inside your own Spring Boot app to build custom indexers.
-That is a different shape from Oura's streaming sinks (Kafka, webhooks, S3) — Yaci
-Store is a library you embed, not a pipe you tap. Against Kupo it trades
-pattern-matching simplicity for a full relational schema; against DB-Sync it trades
-completeness for modularity and a much lighter footprint.
-
-It is the indexer embedded in Yaci DevKit, so a project can develop locally and run
-the same component in production. See
-`${CLAUDE_SKILL_DIR}/../../docs/sources/yaci-store/` — `stores/`, `plugins/`,
-`usage/as-library/`, `blockfrost/endpoints/`.
+‡The Cardano Foundation hosts a public mainnet instance of the analytics MCP, so exploratory analytics needs no infrastructure; see `analyze-chain-data`.
 
 ## Common Pairings
 
@@ -184,9 +204,14 @@ the same component in production. See
 - **With a node running**: cardano-cli query
 - **Programmatic**: Blockfrost free tier
 
+### Analytics / Reporting
+- **Explore or answer a question now**: Yaci Store analytics over the Cardano Foundation's hosted MCP (`analyze-chain-data`)
+- **Production, private, or non-mainnet**: self-hosted Yaci Store with the `analytics,mcp` profiles, or DB-Sync
+- **Offline or batch**: local DuckDB over a Yaci Store Parquet export
+
 ## Querying through a TypeScript SDK
 
-The 7 providers above are infrastructure. A TypeScript project usually reaches them through a client library rather than raw HTTP/WebSocket.
+The providers above are infrastructure. A TypeScript project usually reaches them through a client library rather than raw HTTP/WebSocket.
 
 **Evolution SDK** wraps Blockfrost, Kupmios, Maestro, and Koios behind one interface — `Client.make(network).withBlockfrost(...)` (or `.withKupmios` / `.withMaestro` / `.withKoios`). The provider is a config choice; query code (`getUtxos`, `getUtxosWithUnit`, `getUtxoByUnit`, `getUtxosByOutRef`, `getDatum`, `getDelegation`, `getProtocolParameters`, `awaitTx`) is identical across all four. A **provider-only client** (no wallet) covers pure read/query and pre-signed submission.
 

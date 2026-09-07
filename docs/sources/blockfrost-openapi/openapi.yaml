@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  version: 0.1.92
+  version: 0.1.93
   title: Blockfrost.io ~ API Documentation
   x-logo:
     url: 'https://staging.blockfrost.io/images/logo.svg'
@@ -8730,7 +8730,9 @@ components:
               drep, spo.
           voter:
             type: string
-            description: The actual voter.
+            description: >-
+              The actual voter. CIP-129 Bech32 identifier: `drep1...`,
+              `pool1...` or `cc_hot1...`.
           vote:
             type: string
             enum:
@@ -8738,23 +8740,38 @@ components:
               - 'no'
               - abstain
             description: 'The Vote. Can be one of yes, no, abstain.'
+          counted:
+            type: boolean
+            description: >-
+              Whether the vote counts toward the proposal's tally. Only the
+              voter's latest vote counts, and a DRep vote stops counting if the
+              DRep deregisters while the proposal is still live.
         required:
           - tx_hash
           - cert_index
           - voter_role
           - voter
           - vote
+          - counted
       example:
+        - tx_hash: 144a086c58a7b7324fba98be44a9c1560f78970ec777ede701d097936591aa4b
+          cert_index: 0
+          voter_role: drep
+          voter: drep1mvdu8slennngja7w4un6knwezufra70887zuxpprd64jxfveahn
+          vote: 'no'
+          counted: false
         - tx_hash: b302de601defdf11a5261ed31a263804dac4a582a888c998ce24dec5
           cert_index: 2
           voter_role: drep
           voter: drep1mvdu8slennngja7w4un6knwezufra70887zuxpprd64jxfveahn
           vote: 'yes'
+          counted: true
         - tx_hash: b302de601defdf11a5261ed31a263804dac4a582a888c998ce24dec5
           cert_index: 3
           voter_role: constitutional_committee
-          voter: 53a42debdc7ffd90085ab7fd9800b63e6d1c9ac481ba6eb7b6a844e4
+          voter: cc_hot1q0wzkpcxzzfs4mf4yk6yx7d075vqtyx2tnxsr256he6gnwq6yfy5w
           vote: abstain
+          counted: true
     proposal_metadata:
       type: object
       properties:

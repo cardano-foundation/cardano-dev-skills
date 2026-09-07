@@ -67,7 +67,7 @@ and refer to the three stake validators it dispatches to by name: **`transfer`**
 │  ┌─────────────────────┐   ┌──────┴──────────────┴─────────────┴─────┐ │
 │  │ Registry             │   │ Issuance Infrastructure                │ │
 │  │ (mint + spend)       │   │ (issuance_mint, issuance_cbor_hex,     │ │
-│  │ Sorted linked list   │   │  protocol_params, coordination_spend)  │ │
+│  │ Sorted linked list   │   │  protocol_params, protocol_params_spend)  │ │
 │  │ of registered tokens │   │                                        │ │
 │  └─────────────────────┘   └────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────┘

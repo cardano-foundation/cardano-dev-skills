@@ -52,6 +52,12 @@ const (
 
 	AddressTypeScriptBit = 0x01
 
+	// Byron address attribute keys, from the EncCBOR and DecCBOR instances
+	// for Attributes AddrAttributes (cardano-ledger
+	// eras/byron/ledger/impl/src/Cardano/Chain/Common/AddrAttributes.hs)
+	byronAddressAttrDerivationPath = 1
+	byronAddressAttrNetworkMagic   = 2
+
 	ByronAddressTypePubkey = 0
 	ByronAddressTypeScript = 1
 	ByronAddressTypeRedeem = 2
@@ -738,6 +744,73 @@ func (a *Address) StakeCredential() (Credential, bool) {
 	}
 }
 
+// RewardAccountCredential returns the credential carried by a valid reward
+// account address. Withdrawal map keys are restricted to the two CIP-0019
+// reward-account forms (key and script) and must use their exact 29-byte wire
+// representation.
+func (a *Address) RewardAccountCredential() (Credential, error) {
+	if a == nil {
+		return Credential{}, errors.New("nil withdrawal address")
+	}
+	var wantType uint = CredentialTypeAddrKeyHash
+	switch a.addressType {
+	case AddressTypeNoneKey:
+	case AddressTypeNoneScript:
+		wantType = CredentialTypeScriptHash
+	default:
+		return Credential{}, fmt.Errorf(
+			"withdrawal address type %d is not a reward account",
+			a.addressType,
+		)
+	}
+	if a.networkId != AddressNetworkTestnet &&
+		a.networkId != AddressNetworkMainnet {
+		return Credential{}, fmt.Errorf(
+			"withdrawal address has invalid network ID %d",
+			a.networkId,
+		)
+	}
+	raw, err := a.Bytes()
+	if err != nil {
+		return Credential{}, fmt.Errorf("encode withdrawal address: %w", err)
+	}
+	if len(raw) != 1+AddressHashSize {
+		return Credential{}, fmt.Errorf(
+			"withdrawal address has invalid length %d, want %d",
+			len(raw),
+			1+AddressHashSize,
+		)
+	}
+	credential, ok := a.StakeCredential()
+	if !ok || credential.CredType != wantType {
+		return Credential{}, errors.New(
+			"withdrawal address credential does not match its header",
+		)
+	}
+	return credential, nil
+}
+
+// ValidateWithdrawalAddresses validates every withdrawal map key and rejects
+// semantically duplicate reward accounts even when their CBOR encodings differ.
+func ValidateWithdrawalAddresses[T any](withdrawals map[*Address]T) error {
+	seen := make(map[string]struct{}, len(withdrawals))
+	for addr := range withdrawals {
+		if _, err := addr.RewardAccountCredential(); err != nil {
+			return fmt.Errorf("invalid withdrawal address: %w", err)
+		}
+		raw, err := addr.Bytes()
+		if err != nil {
+			return fmt.Errorf("encode withdrawal address: %w", err)
+		}
+		key := string(raw)
+		if _, ok := seen[key]; ok {
+			return errors.New("duplicate withdrawal reward account")
+		}
+		seen[key] = struct{}{}
+	}
+	return nil
+}
+
 func (a *Address) ByronAttr() ByronAddressAttributes {
 	return a.byronAddressAttr
 }
@@ -879,40 +952,93 @@ type byronAddressPayload struct {
 }
 
 type ByronAddressAttributes struct {
+	cbor.DecodeStoreCbor
 	Payload []byte
 	Network *uint32
+	// Unparsed holds the attribute keys this decoder does not interpret,
+	// mapped to their raw values. The reference updater returns Nothing for
+	// every key other than 1 and 2
+	// (cardano-ledger
+	// eras/byron/ledger/impl/src/Cardano/Chain/Common/AddrAttributes.hs:121-143),
+	// and decCBORAttributes retains those keys in attrRemain, which
+	// encCBORAttributes writes back
+	// (.../Common/Attributes.hs:213-234). The attribute map is hashed into the
+	// Byron address root, so an unknown key that is dropped rather than
+	// carried through changes the address it belongs to.
+	Unparsed map[uint8][]byte
 }
 
 func (a *ByronAddressAttributes) UnmarshalCBOR(data []byte) error {
-	var tmpData struct {
-		Payload    []byte `cbor:"1,keyasint,omitempty"`
-		NetworkRaw []byte `cbor:"2,keyasint,omitempty"`
-	}
+	// decCBORAttributes decodes the whole map as Map Word8 LByteString before
+	// interpreting any key, so an unrecognised key is data rather than an
+	// error.
+	var tmpData map[uint8][]byte
 	if _, err := cbor.Decode(data, &tmpData); err != nil {
 		return err
 	}
-	a.Payload = tmpData.Payload
-	if len(tmpData.NetworkRaw) > 0 {
-		var tmpNetwork uint32
-		if _, err := cbor.Decode(tmpData.NetworkRaw, &tmpNetwork); err != nil {
-			return err
+	a.SetCbor(data)
+	a.Payload = nil
+	a.Network = nil
+	a.Unparsed = nil
+	for key, value := range tmpData {
+		switch key {
+		case byronAddressAttrDerivationPath:
+			// The reference runs decodeFull over this value, which cannot
+			// succeed on an empty one, and an empty value would also be
+			// dropped by MarshalCBOR and so break the round trip.
+			if len(value) == 0 {
+				return errors.New(
+					"invalid Byron address attributes: empty derivation path",
+				)
+			}
+			a.Payload = value
+		case byronAddressAttrNetworkMagic:
+			if len(value) == 0 {
+				return errors.New(
+					"invalid Byron address attributes: empty network magic",
+				)
+			}
+			var tmpNetwork uint32
+			if _, err := cbor.Decode(value, &tmpNetwork); err != nil {
+				return err
+			}
+			a.Network = &tmpNetwork
+		default:
+			if a.Unparsed == nil {
+				a.Unparsed = make(map[uint8][]byte)
+			}
+			a.Unparsed[key] = value
 		}
-		a.Network = &tmpNetwork
 	}
 	return nil
 }
 
-func (a *ByronAddressAttributes) MarshalCBOR() ([]byte, error) {
-	tmpData := make(map[int]any)
+func (a ByronAddressAttributes) MarshalCBOR() ([]byte, error) {
+	for key := range a.Unparsed {
+		if key == byronAddressAttrDerivationPath ||
+			key == byronAddressAttrNetworkMagic {
+			return nil, fmt.Errorf(
+				"byron address attribute %d is both parsed and unparsed",
+				key,
+			)
+		}
+	}
+	if data := a.Cbor(); data != nil {
+		return data, nil
+	}
+	tmpData := make(map[uint8][]byte, len(a.Unparsed)+2)
+	for key, value := range a.Unparsed {
+		tmpData[key] = value
+	}
 	if len(a.Payload) > 0 {
-		tmpData[1] = a.Payload
+		tmpData[byronAddressAttrDerivationPath] = a.Payload
 	}
 	if a.Network != nil {
 		networkRaw, err := cbor.Encode(a.Network)
 		if err != nil {
 			return nil, err
 		}
-		tmpData[2] = networkRaw
+		tmpData[byronAddressAttrNetworkMagic] = networkRaw
 	}
 	return cbor.Encode(tmpData)
 }

@@ -19,7 +19,8 @@ once the audit branch work settles.
   `programmable_logic/params.ak` type definitions. Semantic/tx-shape
   changes come from the PR diffs.
 - Open PRs are listed as **PROVISIONAL — subject to change** until
-  merged. Last refreshed: **2026-08-21** (validator split, PR #110).
+  merged. Last refreshed: **2026-09-02** (dispatcher reintroduction + params-spend rename +
+  registry merge + params datum reduced to four fields).
 
 ## Systemic note: every merge re-hashes everything
 
@@ -207,6 +208,239 @@ grew to 6 fields — see the consolidated table.)
 
 ---
 
+## PROVISIONAL — subject to change: `feat/dispatch-registry-merge-and-params-reduction`
+
+Giovanni's design, 2026-08-31: PLB stops choosing a delegate and dispatches to a single
+upgradable `programmable_logic_global`, which carries the three delegate hashes as compile-time
+parameters. The delegates stop reading the params datum entirely. Measured against `9db7e06`:
+transfer tx **-27 B / -7.80M cpu**, seize **+41 B / -6.59M cpu**, unfracking **+40 B / -4.84M cpu**,
+PLB **-220 B and -0.95M cpu PER INPUT**.
+
+| Surface | Change | Breaking? |
+|---|---|---|
+| **NEW validator** `programmable_logic_global` | `programmable_logic_global(transfer_hash, third_party_hash, unfracking_hash: ScriptHash)`, withdraw-0 + publish. Must be deployed and its credential written to the params datum | **YES** — new script to deploy, new withdrawal on every programmable tx |
+| `programmable_logic_base` redeemer | `BaseSpendRedeemer` was an enum of three constructors (`SpendViaTransfer` / `SpendViaThirdParty` / `SpendViaUnfracking`), each `{ params_idx, wdrl_idx }`. It is now a **RECORD** `{ params_idx, wdrl_idx }` | **YES — AND SILENTLY SO.** Old and new both encode as "constructor 0 with two ints", so a stale builder emitting `SpendViaTransfer` still DECODES. It fails as a withdrawal-index mismatch, not a decode error. `SpendViaThirdParty`/`SpendViaUnfracking` (tags 1/2) fail to decode outright |
+| Protocol-params datum (built off-chain) | 7 fields → **6**: `{ registry_node_cs, prog_logic_cred, plg_cred, transfer_cred, third_party_cred, upgrade_cred }`. `plg_cred` **INSERTED at index 2**; `unfracking_cred` and `max_inline_datum_bytes` **REMOVED** (nothing reads them any more). ⚠️ **SUPERSEDED LATER ON THIS SAME BRANCH** — see "Params datum reduced to four fields" below. Do not migrate to this 6-field shape; the branch's net delta is **7 → 4** | **YES** — positional datum builder/parser; every field from index 2 on has moved |
+| `transfer` / `third_party` / `unfracking` params | Were `(params_policy: PolicyId)`. Now **`(prog_logic_cred: Credential, registry_node_cs: PolicyId, max_inline_datum_bytes: Int)`** | **YES** — parameter application arity, order AND types |
+| `TransferRedeemer` | `{ params_idx, proofs }` → **`{ proofs }`** | **YES** — redeemer builder |
+| `ThirdPartyRedeemer` / `UnfrackingRedeemer` | `{ params_idx, registry_node_idx, outputs_start_idx }` → **`{ registry_node_idx, outputs_start_idx }`** | **YES** — redeemer builder |
+| **RENAME** `coordination_spend` → `protocol_params_spend` | Blueprint titles change (`coordination_spend.coordination_spend.spend` → `protocol_params_spend.protocol_params_spend.spend`). Script HASH is unaffected by the name itself | **YES for blueprint lookups** — any `findValidator("coordination_spend…")` breaks |
+| Tx shape | Every programmable-token transaction now carries **one more withdraw-0**: the dispatcher's. **Every `wdrl_idx` shifts**, and the dispatcher's own redeemer (`TransferAct` / `ThirdPartyAct` / `UnfrackingAct`, all field-less) must be attached | **YES** — withdrawal-index computation and redeemer set |
+| Deployment ordering | New dependency edge: compile the delegates → take their hashes → compile `programmable_logic_global` → write its credential into the params datum. Replacing ONE delegate now requires deploying a new dispatcher too | **YES** — deployment/upgrade runbook |
+
+**Upgrade-coherence hazard (not enforceable on-chain).** A script cannot read another script's
+parameters, so nothing verifies that the hashes baked into the dispatcher agree with the
+`transfer_cred` / `third_party_cred` the params datum still carries for `issuance_mint`. They
+must be updated together. This belongs in the runbook and as an `ASSUME-*` entry in doc 04.
+
+### Registry merge: `registry_mint` + `registry_spend` → `registry`
+
+The two registry scripts become ONE multi-purpose validator,
+`validator registry(utxo_ref: OutputReference, issuance_cbor_hex_cs: PolicyId)` with a
+`mint` and a `spend` handler. All handlers of one `validator` block share one script hash.
+
+| Surface | Change | Breaking? |
+|---|---|---|
+| **Validator set** | `registry_mint` + `registry_spend` → **`registry`**. Blueprint titles `registry_mint.registry_mint.mint` and `registry_spend.registry_spend.spend` → **`registry.registry.mint`** and **`registry.registry.spend`** (plus one shared `registry.registry.else`) | **YES for blueprint lookups** — any `findValidator("registry_mint…" / "registry_spend…")` breaks |
+| `registry` parameters | `registry_mint` was 3 — `(utxo_ref, issuance_cbor_hex_cs, registry_spend_cred: Credential)`; `registry_spend` was 1 — `(protocol_params_cs: PolicyId)`. Now **2 total**: `(utxo_ref: OutputReference, issuance_cbor_hex_cs: PolicyId)`. `registry_spend_cred` and `protocol_params_cs` exist as parameters nowhere | **YES** — parameter application arity and order |
+| **ONE HASH for policy and address** | The registry node NFT policy id and the registry node address's payment credential are now the SAME VALUE. Init locks the origin node at `Script(policy_id)` — the minting policy naming itself | **YES for address/policy derivation** — an SDK that derives the node ADDRESS from `registry_spend`'s applied hash and the node POLICY from `registry_mint`'s applied hash must **collapse to a single derivation** off the one applied `registry` script. Two derivations that used to be independently correct are now one |
+| Registry ↔ protocol-params coupling | The spend handler no longer scans `reference_inputs` for the protocol-params UTxO and no longer reads `registry_node_cs` out of its datum — it reads the policy off its own input's payment credential | **YES for tx building** — a registry-node spend must **stop attaching the protocol-params reference input** on the registry's account (it may still be needed by other scripts in the same tx). `ProgrammableLogicGlobalParams.registry_node_cs` loses its last on-chain reader here, and is **removed from the datum outright** by the next change on this branch |
+| Deployment ordering | The registry no longer depends on the protocol-params chain at all. It can be compiled **immediately after `issuance_cbor_hex_mint`**, before the params policy exists — removing the edge params-policy → `registry_spend` | **YES** — deployment/upgrade runbook ordering |
+
+**Reference-script footprint** (bytes of `compiledCode`, unapplied / parameters applied):
+
+| Path | Scripts loaded | Before | After | Delta |
+|---|---|---|---|---|
+| Init | mint only | 1928 / 2043 | 2674 / 2751 | +746 / +708 |
+| Insert | mint + spend | 3481 / 3631 | 2674 / 2751 | **-807 / -880** |
+| Update | spend only | 1553 / 1588 | 2674 / 2751 | +1121 / +1163 |
+
+Init and Update regress — each now carries the handler it does not use. That is the accepted
+price of the merge; Insert, the only path that ever loaded both scripts, improves by ~24% of
+its reference-script fee. Sizes are measured against this branch's pre-slice working tree, not
+`main@9db7e06` (where `registry_spend` is 1563 B, which would make the Insert row -817 B).
+
+**Update 2026-09-03 (review-round optimisation, no surface change).** Three internal rewrites in
+`registry.ak` — `list.expect_any` for the one-shot `utxo_ref` check, `has_currency_symbol` for the
+issuance-CBOR reference-input predicate, and `pairs.has_key_or_fail` for the substandard withdraw-0
+proof — take the merged script to **2628 B unapplied (-46)**, with the Insert happy path
+-2,489,299 cpu and Init -905,141 cpu. Parameters, redeemers, datums and tx shape are untouched, so
+every row in the tables above still holds; only the byte figures move (the applied column shifts by
+the same -46 B, derived rather than re-measured — flat encoding may differ by a byte of padding).
+
+Execution units: Init +0.49%, Insert unchanged to the unit (the `RegistryInsert` arm is carried
+over byte-for-byte), node spend -41.4% and node update -21.2% as measured — **but those two
+figures overstate the on-chain saving and must not be quoted bare.** `aiken check` reports
+execution units for the whole test expression, fixture construction included, and the pre-merge
+spend fixtures had to build a protocol-params reference input carrying an inline
+`ProgrammableLogicGlobalParams` datum — a fixture that no longer exists because the validator no
+longer demands one. Constructing it costs a measured **5,667,325 cpu**, i.e. 29% of the recorded
+spend saving and 24% of the recorded update saving. **Like for like the rows are -33.5% and
+-17.0%**; that is the number to carry into any fee estimate. The remainder — the reference-input
+scan, the inline-datum extraction and the whole-record deserialisation — is a genuine saving.
+
+**Test surface.** **Five** `registry_spend` tests are *designed out* rather than deleted for
+convenience — the code paths they covered no longer exist — **plus one never-written case**.
+They are enumerated, each with its reason, in the `Designed out by the registry merge` comment
+block at the top of `validators/registry.test.ak`: four asserted failures of the protocol-params
+reference-input scan, one positive that disambiguated multiple reference inputs, and the
+never-written case ("the params datum names the wrong registry policy") that the merge makes
+unstateable. What replaces them is a discriminating PAIR —
+`registry_spend_derives_node_policy_from_its_own_address` and
+`registry_spend_fails_node_mint_under_a_policy_that_is_not_its_address`, built on a second
+script hash used nowhere else — because a lone positive would be satisfied by any hardcoded
+constant and would assert nothing about the derivation.
+
+### Params datum reduced to four fields
+
+`ProgrammableLogicGlobalParams` now carries **four** fields, ordered by read frequency:
+
+```
+0  plg_cred          Credential   <- programmable_logic_base, once per programmable INPUT
+1  transfer_cred     Credential   <- issuance_mint (Finding 04 precise delegation)
+2  third_party_cred  Credential   <- issuance_mint (Finding 04 precise delegation)
+3  upgrade_cred      Credential   <- protocol_params_spend (upgrade authorisation)
+```
+
+`registry_node_cs` and `prog_logic_cred` are **gone**. Both were frozen values that no
+validator read any more — the registry merge took the last reader of `registry_node_cs`, and
+`prog_logic_cred` had already become a compile-time parameter of the delegates. The rule the
+type is kept to is that every field has a NAMED on-chain reader; these two no longer had one.
+Removing a field is stronger than freezing it, which is why the two `protocol_params_spend`
+freeze rails that guarded them were deleted rather than kept — but be precise about the scope
+of that claim, because this is where the upgrade threat model gets read. It is true of the
+FIELD: neither can be edited in place any more, and no future edit to `protocol_params_spend`
+can get the comparison wrong. It is NOT true of the VALUE. `plg_cred` is upgradable by design,
+and an upgrade that rewrites it installs a dispatch layer naming delegate hashes of the
+authority's choosing, each applied with its own `prog_logic_cred` and `registry_node_cs`. The
+effective values therefore remain reachable, one hop further away — by the same authority, in
+the same transaction the old rails would have gated. That path is unchanged by this slice; it
+predates it.
+
+`plg_cred` at index 0 is load-bearing, not cosmetic: it is the only per-programmable-input
+datum read in the protocol, and at index 0 its accessor is a bare `head_list` with no
+`tail_list` walk. Measured saving, PLB's whole per-input datum-read cost
+(`cost_v6_split_plg_only`): **483,167 → 482,703 mem (-464) and 152,393,931 → 152,166,605 cpu
+(-227,326, -0.149%)**, multiplied by every programmable input a transaction spends.
+
+| Surface | Change | Breaking? |
+|---|---|---|
+| Protocol-params datum (built off-chain) | 6 fields → **4**: `{ plg_cred(0), transfer_cred(1), third_party_cred(2), upgrade_cred(3) }`. `registry_node_cs` and `prog_logic_cred` REMOVED; everything else shifted down two slots | **YES — AND MOSTLY SILENTLY SO.** See the misread table below |
+| `protocol_params_spend` rails | The two frozen-anchor comparisons (`prog_logic_cred`, `registry_node_cs` unchanged) are DELETED. The four `is_28_byte_credential` rails, the value-conservation ratchet, the singleton in/out structure, the no-reference-script rail and the `upgrade_cred` trampoline are all unchanged | **NO** for tx building — the forbidden states are now unrepresentable rather than rejected |
+| `protocol_params_mint` | Still fully deserialises the datum at mint time, now against the 4-field shape. That whole-record `expect` is what licenses PLB and `issuance_mint` to skip validation on their read paths | **YES** — a stale builder's 6-field datum is REJECTED at mint (verified: rejected twice over, on field 0's type and on the field count independently) |
+
+#### ⚠️ SILENT-MISREAD HAZARD — the sharpest off-chain break in this epic
+
+Same family as the `BaseSpendRedeemer` warning above, and worse. A positional parser written
+for the 6-field shape does not fail on the 4-field datum; it reads the wrong field and carries
+on.
+
+| Old index | Old field | Now reads | Loud or silent? |
+|---|---|---|---|
+| 0 | `registry_node_cs` (ByteArray) | `plg_cred` (Credential) | **LOUD** — type mismatch |
+| 1 | `prog_logic_cred` | `transfer_cred` | **SILENT** — right shape, wrong value |
+| 2 | `plg_cred` | `third_party_cred` | **SILENT — WORST.** A builder computing PLB's dispatch target silently gets `third_party_cred` |
+| 3 | `transfer_cred` | `upgrade_cred` | **SILENT** |
+| 4, 5 | `third_party_cred`, `upgrade_cred` | absent | **LOUD** |
+
+Row 2 is the one to brief consumers on: it is the credential whose withdraw-0 every
+programmable spend must carry, so getting it silently wrong produces transactions that build
+cleanly and fail in phase 2.
+
+On-chain this is safe — every reader in this repo moved in the same change set, and the golden
+raw-`Data` pins in `validators/programmable_logic/layout.test.ak` lock the new order in both
+directions. The hazard is **entirely off-chain**: `cip113-sdk-ts` (`src/core/evo-utils.ts`) and
+the Java backend's deploy-time params-datum builder must both be regenerated, not patched by
+index arithmetic.
+
+#### Test surface
+
+**Four** tests are *designed out* rather than deleted for convenience, and **one** is added.
+They are enumerated with their reasons in the `Designed out by the four-field params datum`
+comment block at the top of `validators/protocol_params_spend.test.ak`. Two of the four are the
+interesting pair — `params_spend_fails_changing_prog_logic_cred` and
+`params_spend_fails_changing_registry_node_cs` — and they are **not lost coverage but
+eliminated state space**: a freeze rail replaced by non-existence is stronger over that FIELD.
+It does not make the VALUE unreachable — an upgrade that rewrites `plg_cred` installs a dispatch
+layer whose delegates carry a `prog_logic_cred` and `registry_node_cs` of the authority's
+choosing. That is the same authority in the same transaction, and it was equally true before this
+change. The other two
+(`protocol_params_structure`, `protocol_params_from_reference_inputs`, both in
+`validators/transfer.test.ak`) asserted only on the two removed fields and had no assertion
+left to make. Added: `layout_params_retired_six_field_shape_does_not_decode`, pinning that the
+retired shape is rejected by the whole-record `expect` that `protocol_params_mint` runs.
+
+Two existing tests changed FAILURE MODE, which is itself a surface fact worth recording:
+`plb_fails_on_legacy_three_field_params_datum` and (formerly seven-, now)
+`plb_fails_on_legacy_six_field_params_datum` used to assert a `False` return and now assert an
+ABORT. While `plg_cred` sat at field 2, a legacy datum merely named the wrong script there and
+PLB denied quietly; with `plg_cred` at field 0 a legacy datum puts a `ByteArray` where a
+`Credential` is expected and PLB **crashes**. For an operator pointing PLB at a stale
+protocol-params UTxO, the shape mismatch is now loud.
+
+### Review-round optimisation sweep (2026-09-03) — hashes move, surface does not
+
+A repo-wide pass replacing general helpers with their specialised/fail-fast equivalents
+(`list.expect_at` / `expect_find` / `expect_any`, `dict.expect_get`, `pairs.has_key`,
+`utils.has_currency_symbol`). Purely internal: no parameter, redeemer, datum or transaction-shape
+change, so every row above still holds. **Eight script hashes move, which is a full redeploy** —
+recorded here because the hash cascade is itself the surface event.
+
+| Script | Before | After | Delta |
+|---|---|---|---|
+| `protocol_params_mint` | 1015 | 896 | -119 B |
+| `issuance_cbor_hex_mint` | 909 | 791 | -118 B |
+| `issuance_mint` | 2021 | 1943 | -78 B |
+| `registry` | 2628 | 2573 | -55 B |
+| `protocol_params_spend` | 1087 | 1041 | -46 B |
+| `programmable_logic_base` | 605 | 564 | -41 B |
+| `third_party` | 1803 | 1773 | -30 B |
+| `unfracking` | 1732 | 1702 | -30 B |
+
+cpu: `programmable_logic_base` **-2,116,305 per programmable input** (the params-NFT
+authentication in `params.ak`), transfer -2.12M, seize -3.54M, unfracking -3.43M, registry spend
+-1.56M per transaction.
+
+One equivalence caveat worth carrying into any future use of the helper:
+`utils.has_currency_symbol` SKIPS THE FIRST PAIR of the value, assuming it is ada. That holds for
+any UTxO value (min-UTxO guarantees an ada entry, and `""` sorts first) but NOT for a mint value,
+which has no ada entry — `utils.mint_has_policy` therefore stays on `dict.has_key` and must not be
+"optimised" the same way.
+
+## PROVISIONAL — subject to change: `fix/params-pair-merge-and-init-rails`
+
+Audit-call item M10 plus audit-3 findings 01 and 04, and M4 from the same call. The protocol-params
+pair becomes ONE multi-purpose validator, exactly as the registry pair did in #117.
+
+| Surface | Change | Breaking? |
+|---|---|---|
+| **Validator set** | `protocol_params_mint` + `protocol_params_spend` → **`protocol_params`**. Blueprint titles `protocol_params_mint.protocol_params_mint.mint` and `protocol_params_spend.protocol_params_spend.spend` → **`protocol_params.protocol_params.mint`** and **`protocol_params.protocol_params.spend`** (plus one shared `.else`) | **YES for blueprint lookups** — any `findValidator("protocol_params_mint…" / "protocol_params_spend…")` breaks |
+| `protocol_params` parameters | `protocol_params_mint` was 2 — `(utxo_ref, params_spend_addr_hash)`; `protocol_params_spend` was 1 — `(_nonce)`. Now **1 total**: `(utxo_ref: OutputReference)`. Both `params_spend_addr_hash` and `_nonce` exist as parameters nowhere | **YES** — parameter application arity and order. Deployment tooling that generated or passed a nonce must drop it |
+| **ONE HASH for policy and address** | The protocol-params NFT policy id and the protocol-params address's payment credential are now the SAME VALUE. The mint handler locks the NFT at `Script(own_policy)` — the minting policy naming itself | **YES for address/policy derivation** — an SDK deriving the params ADDRESS from `protocol_params_spend`'s applied hash and the params POLICY from `protocol_params_mint`'s must **collapse to one derivation**. `programmable_logic_base`'s `params_policy` parameter is now that same hash |
+| Deployment ordering | The cycle is dissolved: the mint side no longer depends on the spend side's address, so there is no ordering edge between them and no nonce to choose. The protocol's identity was always the NFT asset class, not the address (audit-3 finding 04) | **YES** — deployment runbook |
+| **Genesis tx shape** (new rejections) | The mint handler now enforces what every later update enforces: all four datum credentials must be 28 bytes; the NFT output may carry **no reference script**; and the datum must decode. Previously the protocol could be BORN in a state the spend handler refuses to move to — including an unsatisfiable `upgrade_cred` with no repair path. (Junk tokens alongside the NFT were ALREADY rejected before this change: `has_nft_strict` matches only a value whose non-ADA half is exactly the one NFT. A rail for it was written, mutation-tested, found to kill no test, and removed) | **YES for init builders** — an initialisation transaction that attached a reference script or wrote a wrong-length credential used to pass and now fails |
+| **Upgrade tx shape** (relaxation) | Lovelace on the continuing output is no longer required to be ≥ the input's. Non-ADA assets are still compared exactly, so the NFT can neither leave nor be joined by junk | **NO** — strictly permissive. A previously impossible transaction (recovering surplus ADA) becomes possible; nothing that worked stops working |
+
+**Reference-script footprint** (bytes of `compiledCode`, unapplied):
+
+| Path | Script loaded | Before | After | Delta |
+|---|---|---|---|---|
+| Genesis (init) | mint only | 1015 | 1414 | **+399** |
+| Upgrade | spend only | 1087 | 1414 | **+327** |
+
+**Both paths regress, and that is expected here.** Unlike the registry merge — where `Insert` loaded
+both scripts and improved by 807 B — **no protocol-params transaction ever loaded both**: genesis only
+mints, an upgrade only spends. The merge buys one hash instead of two, two parameters removed, the
+dissolved cycle, and a genesis that enforces the same rails as an update; it does not buy bytes. Both
+paths are rare (genesis once per deployment, upgrades seldom), so ~350-400 B of reference-script fee on
+each is the accepted price.
+
+cpu: the upgrade path pays **+208,212 (+0.3%)** for carrying the mint handler; genesis pays
+**+10,880,100 (+25.0%)** for the new rails — well under 1% of one transaction's budget, once per
+deployment.
+
+---
+
 ## Consolidated surface: baseline → `feat/upgradability-in-place` + PR #110
 
 "now" = the head of PR #110 (`feat/plg-third-party-split`), i.e. `main`
@@ -232,7 +466,7 @@ Off-chain-built datums:
 | Datum | Baseline → now | Changed by |
 |---|---|---|
 | `RegistryNode` (registry NFT) | 5 → **7 fields** (`minting_logic_script` inserted at index 2; `unfracking_logic_script` added at index 5 by unfracking v2) | #52, unfracking v2 |
-| `ProgrammableLogicGlobalParams` (params NFT) | 2 → **6 fields**, reordered + renamed: `{ registry_node_cs(0), prog_logic_cred(1), transfer_cred(2), third_party_cred(3), unfracking_cred(4), upgrade_cred(5) }` | #78, upgradability #1–#3, validator split |
+| `ProgrammableLogicGlobalParams` (params NFT) | 2 → **4 fields**, reordered + renamed + REDUCED: `{ plg_cred(0), transfer_cred(1), third_party_cred(2), upgrade_cred(3) }`. Went 2 → 3 → 5 → 7 → 6 → 4; the 6-field shape recorded in the PROVISIONAL section above is an intermediate state on the same branch and must not be migrated to. `registry_node_cs` and `prog_logic_cred` are gone entirely — every remaining field has a named on-chain reader. **Every old index 1-3 misreads SILENTLY** — see the misread table in "Params datum reduced to four fields" | #78, upgradability #1–#3, validator split, dispatcher + params reduction |
 | `IssuanceCborHex` | shape unchanged; **content** (prefix/postfix bytes) changes with every issuance_mint change | #51, #68, #80 |
 
 ---
@@ -252,8 +486,9 @@ item once the open PRs land:
 - `src/core/evo-utils.ts` — `RegistryNode` datum builder: **already on
   the 6-field post-#52 shape** (verified: `minting_logic_script` at
   index 2); needs `unfracking_logic_script` (index 5). Needs the
-  6-field `ProgrammableLogicGlobalParams` parser / builder (order above)
-  if it touches the params datum.
+  **4-field** `ProgrammableLogicGlobalParams` parser / builder (order
+  above) if it touches the params datum — a REWRITE, not an index
+  patch: old indices 1, 2 and 3 all misread silently.
 - PLB spend redeemer — every PLB input needs a `BaseSpendRedeemer`
   (`SpendViaTransfer` for transfers, `SpendViaThirdParty` for seizes,
   `SpendViaUnfracking` for unfracking) with `params_idx` (ledger-sorted reference-input position of
@@ -279,8 +514,8 @@ item once the open PRs land:
 
 Other consumers to migrate in the same pass: the Java backend
 (`programmable-tokens-offchain-java`) receives `plutus.json` via
-`build.sh` and builds the params datum at deploy time (6-field layout
-above), applies validator parameters (#51 arity changes; PLB now takes
+`build.sh` and builds the params datum at deploy time (**4-field**
+layout above), applies validator parameters (#51 arity changes; PLB now takes
 the params-NFT policy), deploys the new `third_party`,
 `coordination_spend` and `upgrade_multisig` artefacts, and locks the
 coordination UTxO at `coordination_spend` instead of `always_fail`.

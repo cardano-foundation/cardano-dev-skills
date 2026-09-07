@@ -164,6 +164,7 @@ Add an address to the blacklist. The address will no longer be able to transfer 
 
 ```typescript
 const result = await protocol.compliance.freeze({
+  substandardId: "freeze-and-seize",
   feePayerAddress: adminAddress,
   tokenPolicyId: "abcd...",
   assetName: "hex_asset_name",
@@ -182,6 +183,7 @@ Remove an address from the blacklist.
 
 ```typescript
 const result = await protocol.compliance.unfreeze({
+  substandardId: "freeze-and-seize",
   feePayerAddress: adminAddress,
   tokenPolicyId: "abcd...",
   assetName: "hex_asset_name",
@@ -202,6 +204,7 @@ Take tokens from a frozen address and send them to a destination.
 
 ```typescript
 const result = await protocol.compliance.seize({
+  substandardId: "freeze-and-seize",
   feePayerAddress: adminAddress,
   tokenPolicyId: "abcd...",
   assetName: "hex_asset_name",

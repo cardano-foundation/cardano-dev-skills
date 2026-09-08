@@ -86,7 +86,7 @@ File: skills/setup-devnet/references/yaci-devkit-quickstart.md
 4. **Access points**:
    - Yaci Store API (Blockfrost-compatible): `http://localhost:8080/api/v1/`
    - Yaci Viewer (block explorer): `http://localhost:5173`
-   - CLI/Admin, wallet, MCP: `http://localhost:10000`
+   - CLI/Admin, wallet, MCP: `http://localhost:10000` (the devnet-admin MCP; mainnet analytics over MCP is a different server, see `analyze-chain-data`)
    - cardano-cli against the node: `devkit cli`
 
 #### Configure for your needs

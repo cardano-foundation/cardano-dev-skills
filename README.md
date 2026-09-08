@@ -38,6 +38,7 @@ End result: the agent answers from current, project-authoritative sources instea
 | `design-token` | Design native tokens, NFTs, CIP-25/68/113 metadata |
 | `debug-transaction` | Diagnose failing transactions |
 | `query-chain` | Pick the right query strategy (Blockfrost / Ogmios / indexer) |
+| `analyze-chain-data` | Answer questions and build reports from mainnet history through a Yaci Store analytics store (hosted MCP, self-hosted, or local DuckDB) |
 | `setup-devnet` | Local devnet with Yaci DevKit or testnet setup |
 | `connect-wallet` | CIP-30 wallet integration for dApps |
 | `governance-guide` | CIP-1694 governance, DRep, voting, treasury |

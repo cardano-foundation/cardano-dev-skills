@@ -325,8 +325,25 @@
   priority: medium
   glob_patterns:
     - "**/*.mdx"
-  description: Modular Java indexer with Blockfrost-compatible APIs
+  description: Modular Java indexer with Blockfrost-compatible APIs and a Parquet/DuckDB analytics store
   website: https://store.yaci.xyz
+
+- name: Yaci Store MCP
+  repo: https://github.com/bloxbean/yaci-store.git
+  # Second entry for the same repo, like "Evolution SDK Packages": the MCP
+  # server and the analytics query layer are documented in module READMEs
+  # under aggregates/, outside the docs/app/docs/v2 tree "Yaci Store"
+  # mirrors. Root docs_path with explicit file globs, so more config files
+  # can be added later without relocating these.
+  docs_path: "."
+  format: markdown
+  category: infrastructure
+  priority: medium
+  glob_patterns:
+    - aggregates/mcp-server/README.md
+    - aggregates/analytics-query/README.md
+    - config/application-mcp.yml
+  description: MCP server and analytics query-layer docs, plus the mcp profile config
 
 - name: Masumi
   repo: https://github.com/masumi-network/masumi-docs.git

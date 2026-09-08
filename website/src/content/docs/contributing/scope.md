@@ -65,6 +65,12 @@ than sources**:
   request bodies, datum schemas) belongs in `docs/sources/`, where the
   weekly refresh keeps it current; a skill's `references/` directory is for
   behavioral guidance, not pasted specs.
+- **A skill may teach a hosted service only as an optional transport,
+  never as a dependency.** The conditions (registered source with the
+  serving module mirrored, delivers without the service, no tool
+  pre-approval, one fixed endpoint, trust boundary stated in the skill's
+  own text, self-hosting as the production path) are DESIGN.md Decision
+  15; `analyze-chain-data` is the model.
 - **Renaming a brand-named skill is not, by itself, a path to
   acceptance.** Whether the repo wants a new task skill is an editorial
   decision — open a discussion proposing it before writing code.

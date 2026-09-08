@@ -15,7 +15,7 @@ Help the developer choose and use the right data provider for querying the Carda
 ## When to use
 
 - Developer needs to read UTxOs, transaction history, protocol parameters, or on-chain state
-- Choosing between Blockfrost, Ogmios, Kupo, Koios, Cardano GraphQL, DB-Sync, or Oura
+- Choosing between Blockfrost, Ogmios, Kupo, Koios, Cardano GraphQL, DB-Sync, Yaci Store, or Oura
 - Setting up a data pipeline from chain data
 - Querying datum or script information attached to UTxOs
 - Building a backend service that needs chain data
@@ -27,6 +27,7 @@ Help the developer choose and use the right data provider for querying the Carda
 - Setting up a local devnet (use `setup-devnet` skill)
 - Writing smart contracts (use Aiken/Plutus skills)
 - Wallet integration in a frontend (use `connect-wallet` skill)
+- Answering an analytical question or building a report or dashboard from chain history (use `analyze-chain-data`)
 
 ## Key principles
 
@@ -47,6 +48,8 @@ Ask the developer (if not already clear):
 - **Are you running your own Cardano node?**
 - **What language/SDK are you using?**
 
+If the answer the developer wants is a number or a report rather than an integration ("how much", "how many", "over the last N epochs"), hand off to `analyze-chain-data`.
+
 ### Step 2: Search Bundled Documentation
 
 Search the bundled documentation for relevant content:
@@ -55,7 +58,8 @@ Search the bundled documentation for relevant content:
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/koios/` - Koios API docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-graphql/` - Cardano GraphQL docs
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/db-sync/` - DB-Sync docs
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/yaci-store/` - Yaci Store (modular JVM indexer; see `stores/`, `plugins/`, `usage/as-library/`)
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/yaci-store/` - Yaci Store (modular JVM indexer; see `stores/`, `plugins/`, `usage/as-library/`, `analytics/`)
+- `${CLAUDE_SKILL_DIR}/../../docs/sources/yaci-store-mcp/` - Yaci Store MCP server and analytics query layer (module READMEs)
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/` - Evolution SDK docs (TypeScript client; see `providers/` and `querying/`)
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/blockfrost-go/` - Blockfrost Go client (typed endpoint wrappers)
 - `${CLAUDE_SKILL_DIR}/../../docs/sources/utxorpc-go-sdk/` - UTxORPC Go SDK (provider-agnostic gRPC)
@@ -79,6 +83,7 @@ File: skills/query-chain/references/provider-comparison.md
 | **dapp-frontend** | Blockfrost (via SDK) or Koios | Ogmios via backend proxy |
 | **data-pipeline** | Oura or Adder (streaming) or DB-Sync (SQL) | Cardano GraphQL |
 | **one-off-query** | Koios (free, no signup) or Blockfrost | cardano-cli with local node |
+| **analytics / reporting** | Yaci Store analytics store (hosted MCP to explore, self-hosted for production; see `analyze-chain-data`) | DB-Sync (SQL) |
 
 ### Step 4: Describe each viable option
 
@@ -146,6 +151,23 @@ process replaces the usual node-plus-Ogmios-plus-Kupo stack:
 - Its own README states Dingo is pre-production: testnets and devnets only, not
   mainnet with real funds. Treat it as a development and testnet query layer,
   and keep Blockfrost, Koios, or Ogmios + Kupo for anything mainnet-facing.
+
+#### Yaci Store (Self-hosted JVM indexer with a Blockfrost-compatible API)
+
+- Modular: enable only the stores you need (UTxO, transaction, assets, staking,
+  governance, ...), each in your own PostgreSQL, so you get direct SQL over exactly the
+  tables you index
+- Blockfrost-compatible REST API, so a Blockfrost client (including cardano-client-lib's
+  `BFBackendService`) points at it unchanged
+- Analytics store exports the index to Parquet/DuckLake and serves DuckDB SQL over it through
+  an MCP server and a REST query API. The Cardano Foundation hosts a public mainnet MCP
+  instance; for questions and reports rather than integrations, use `analyze-chain-data`
+- Plugins filter before persist and add custom indexers as Spring listeners, in-process
+- The indexer embedded in Yaci DevKit, so a project develops locally against the same
+  component it runs in production
+- Best for: JVM backends, an index shaped like your application, analytics over chain history
+- Docs: `${CLAUDE_SKILL_DIR}/../../docs/sources/yaci-store/` (`stores/`, `blockfrost/`,
+  `plugins/`, `analytics/`) and `${CLAUDE_SKILL_DIR}/../../docs/sources/yaci-store-mcp/`
 
 #### Cardano GraphQL (Self-hosted GraphQL)
 
@@ -242,6 +264,7 @@ Give the developer a working code snippet for their chosen provider and language
 - Kupo docs: https://cardanosolutions.github.io/kupo
 - Koios docs: https://api.koios.rest
 - DB-Sync docs: https://github.com/IntersectMBO/cardano-db-sync
+- Yaci Store docs: https://store.yaci.xyz
 - Oura docs: https://github.com/txpipe/oura
 - UTxORPC: https://utxorpc.org
 - blockfrost-go: https://pkg.go.dev/github.com/blockfrost/blockfrost-go

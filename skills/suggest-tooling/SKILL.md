@@ -137,6 +137,7 @@ Go adoption is lower than TypeScript or Python, so expect fewer tutorials and sm
 | **Oura** | Event pipeline | Self-hosted |
 | **Adder** | Event pipeline (Go, embeddable) | Self-hosted |
 | **Dingo** | Go node + UTxORPC/Blockfrost/Mesh APIs (pre-production) | Self-hosted |
+| **Yaci Store** | Modular indexer with a Blockfrost-compatible API and a Parquet analytics store queryable over MCP | Self-hosted (CF hosts a public mainnet analytics MCP) |
 | **Yaci DevKit** | Local devnet | Self-hosted |
 
 **Default recommendation**: Blockfrost for getting started (easy, hosted). Ogmios + Kupo for production self-hosted.
@@ -195,7 +196,8 @@ Based on the project requirements, recommend a concrete stack. Example stacks:
 - Testing: Aiken tests + Go `testing` against Yaci DevKit
 
 #### Data Analytics Platform
-- Infrastructure: **DB-Sync** (SQL) + **Oura** (streaming)
+- Infrastructure: **DB-Sync** (SQL) + **Oura** (streaming), or **Yaci Store** with its analytics store (Parquet + DuckDB, queryable by agents over MCP)
+- For answering questions from chain history rather than building the platform: `analyze-chain-data`
 - Language: Python or SQL
 - No smart contracts needed
 

@@ -31,6 +31,9 @@ for) and **governance** (the lifecycle that keeps that content current).
 - **Usage telemetry.** A `PostToolUse` hook logging which docs and skills
   were consulted per session, to a local file. Used to tune the keyword
   set and skill triggers based on real prompts.
+- **Bundled analytics transport.** Declaring the Foundation's Yaci Store
+  analytics MCP in the plugin manifest so it connects without setup, gated
+  on the operators sanctioning plugin-scale use (DESIGN.md Decision 15).
 - **New skills as the ecosystem evolves.** New CIPs, new SDK paradigms,
   new validator patterns. Proposals via issue, ship via PR.
 

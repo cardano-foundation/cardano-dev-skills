@@ -65,7 +65,7 @@ TASK_VERBS = {
     "review", "scaffold", "setup", "suggest", "write", "create", "deploy",
     "migrate", "test", "audit", "monetize", "integrate", "generate", "choose",
     "plan", "estimate", "monitor", "govern", "governance", "stake", "assess",
-    "give",
+    "give", "analyze",
 }
 
 # Filename patterns that smell like marketing-only pages rather than

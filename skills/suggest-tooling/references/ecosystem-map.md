@@ -89,6 +89,7 @@ Comprehensive map of tools, SDKs, and infrastructure in the Cardano developer ec
 | **Ogmios** | Self-hosted | WebSocket | Production | High | Low-latency, tx submission, paired with Kupo. |
 | **Kupo** | Self-hosted | REST | Production | High | UTxO indexing by pattern, datum resolution. |
 | **DB-Sync** | Self-hosted | SQL | Production | High | Full chain in PostgreSQL, analytics, reporting. |
+| **Yaci Store** | Self-hosted | REST (Blockfrost-compatible), SQL, MCP | Production | Medium | Modular JVM indexer; Parquet/DuckDB analytics store with an MCP server. The Cardano Foundation hosts a public mainnet instance of the analytics MCP. |
 | **Oura** | Self-hosted | Pipeline | Production | Medium | Event streaming, Kafka/Elastic/webhooks. |
 | **Adder** | Self-hosted | Pipeline | Production | Low | Event streaming in Go — chainsync/mempool inputs, webhook/push/notify outputs. Embeddable as a library, so a Go service can consume events in-process. |
 | **Cardano GraphQL** | Self-hosted | GraphQL | Production | Medium | Complex queries, relationship traversal. |

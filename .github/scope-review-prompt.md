@@ -70,11 +70,23 @@ the same reasoning to comparable projects (payment protocols, indexers).
   external-service violation. Do flag any *new* outward path, any widening
   of it to another destination, and any change that weakens the
   show-the-draft-and-ask gate.
+  A second carve-out, decided in DESIGN.md Decision 15: a task-named skill
+  may teach one hosted service as an optional transport when the project
+  is a registered source with the serving module mirrored, the skill
+  delivers its output without the service, no tool is pre-approved in
+  `allowed-tools`, the endpoint is one fixed URL run by an identifiable
+  operator, the trust boundary is stated in the skill's own text, and
+  self-hosting is the stated production path. `analyze-chain-data` with the
+  Yaci Store analytics MCP is the recorded instance. Do not flag it, or a
+  change to it, as a vendor integration guide or as a new outward path. Do
+  flag a skill that only works with the service, pre-approves `mcp__*`
+  tools, adds a second endpoint, or inlines schema dumps in `references/`.
 - Skills teach categories generically and read as neutral community
   contributions: no branded promotion, no grant/treasury framing.
 - **Structural reasons — always cite them.** When a PR contains a
   project-specific skill, or a task-named skill whose content is
-  effectively one vendor's integration guide, the "What leans out" section
+  effectively one vendor's integration guide (outside the Decision 15
+  carve-out above), the "What leans out" section
   MUST name the structural reasons, not only the naming rule:
   (a) **duplication** — the content's canonical home is the vendor's own
   repo and, once registered, the bundled source; a copy here is guaranteed

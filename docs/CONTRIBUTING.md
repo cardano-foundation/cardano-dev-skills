@@ -232,7 +232,7 @@ Docs (`CLAUDE.md`, `README.md`, `docs/DESIGN.md`, `docs/CONTRIBUTING.md`) must r
 | New schema field | `registry/sources.yaml` header comment; CONTRIBUTING.md valid-values lists; DESIGN.md if architectural |
 | New script in `scripts/` | README.md if user-facing |
 | New hook | README.md "How to set the Cardano context" section; CLAUDE.md repo structure; `website/src/content/docs/how-it-works.md` |
-| Scope / vetting / governance policy change | CLAUDE.md; CONTRIBUTING.md; `website/src/content/docs/contributing/` pages |
+| Scope / vetting / governance policy change | CLAUDE.md; CONTRIBUTING.md; `website/src/content/docs/contributing/` pages; `.github/scope-review-prompt.md` (the reviewer's rubric) |
 | Vision / "why" change | README.md; `website/src/content/docs/about/why.md` |
 | Install flow change | README.md install section; `website/src/content/docs/getting-started.md` |
 | Roadmap change | `website/src/content/docs/about/roadmap.md` |

@@ -43,40 +43,39 @@ filter on `epoch` anyway for the sake of the habit.
 
 ## Table families
 
+Column names and types come from `analytics-describe-table` at query time; the full exporter
+list is in `docs/sources/yaci-store/analytics/overview/page.mdx`. What follows is the grain of
+each table and the columns whose meaning the describe output does not tell you.
+
 Daily tables (partition `date`), largest first:
 
-| Table | Grain | Key columns |
+| Table | Grain | What to know |
 |---|---|---|
-| `address_utxo` | one row per asset per output (flattened) | `tx_hash`, `output_index`, `asset_unit`, `policy_id`, `asset_name`, `quantity`, `owner_addr`, `owner_stake_addr`, `owner_payment_credential`, `inline_datum`, `data_hash`, `reference_script_hash`, `is_collateral_return`, `epoch`, `slot`, `block_time` |
-| `tx_input` | one row per spent output, partitioned by the day it was spent | `tx_hash`, `output_index` (the output consumed), `spent_tx_hash`, `spent_at_slot`, `spent_epoch`, `spent_block_time` |
-| `transaction_metadata` | one row per label per transaction | `tx_hash`, `label`, `body` |
-| `transaction` | one row per transaction | `tx_hash`, `block`, `slot`, `epoch`, `block_time`, `fee`, `invalid`, `treasury_donation`, `total_collateral`; `inputs`, `outputs`, `reference_inputs`, `collateral_inputs`, `required_signers` are JSON strings |
-| `transaction_scripts` | script executions | `tx_hash`, script hash, purpose, redeemer |
-| `stake_address_balance` | one row per balance change, not a daily snapshot | `address`, `quantity`, `epoch`, `slot` |
-| `datum`, `script` | on-chain datums and script definitions | hash, CBOR |
-| `assets` | mint and burn events | `unit`, `policy`, `asset_name`, `fingerprint`, `quantity` (positive for `MINT`, negative for `BURN`), `mint_type`, `tx_hash`, `slot` |
-| `block` | one row per block | `hash`, `number`, `epoch`, `slot`, `block_time`, `no_of_txs`, `total_fees`, `slot_leader` (pool id hash), `body_size`, `era`, `protocol_version` |
-| `withdrawal` | reward withdrawals | `tx_hash`, `address` (stake), `amount`, `epoch` |
-| `delegation` | stake delegation certificates | `address`, `pool_id`, `credential`, `epoch`, `slot` |
-| `stake_registration` | stake key registrations and deregistrations | `address`, type, `epoch` |
-| `delegation_vote` | vote delegation certificates | `address`, `drep_id`, `drep_type`, `epoch` |
-| `pool`, `pool_registration`, `pool_retirement` | pool lifecycle | `pool_id`, `status` (`REGISTRATION`, `UPDATE`, `RETIRING`, `RETIRED`), `retire_epoch`; registration carries `pledge`, `cost`, `margin`, `metadata_url` |
-| `voting_procedure` | one row per vote cast | `voter_type`, `voter_hash`, `gov_action_tx_hash`, `gov_action_index`, `vote`, `anchor_url`, `epoch`, `slot`, `idx` |
-| `gov_action_proposal` | one row per proposal | `tx_hash`, `idx`, `type`, `deposit`, `return_address`, `anchor_url`, `details` (JSON), `epoch` |
-| `drep`, `drep_registration`, `committee_registration`, `committee_deregistration`, `protocol_params_proposal`, `invalid_transaction`, `rollback`, `cost_model` | small | |
+| `address_utxo` | one row per asset per output (flattened) | `tx_hash` + `output_index` identify the output; `asset_unit` is `lovelace` or `policy_id || asset_name_hex`; `owner_addr` and `owner_stake_addr` both present on base addresses |
+| `tx_input` | one row per spent output, partitioned by the day it was spent | `tx_hash` + `output_index` name the output consumed; `spent_tx_hash` and `spent_epoch` say when |
+| `transaction_metadata` | one row per label per transaction | `body` is the metadata content, third-party text |
+| `transaction` | one row per transaction | `fee` in lovelace; `invalid` marks phase-2 failures; `inputs`, `outputs`, `reference_inputs`, `collateral_inputs` are JSON strings, join the flattened tables instead; `treasury_donation` |
+| `stake_address_balance` | one row per balance change, not a daily snapshot | |
+| `assets` | mint and burn events | `quantity` positive for `mint_type = 'MINT'`, negative for `'BURN'`; `unit` is policy plus hex name |
+| `block` | one row per block | `slot_leader` is the 56-hex pool id hash, the same value as `epoch_stake.pool_id`; `no_of_txs`, `total_fees` |
+| `withdrawal` | reward withdrawals by stake address | `amount` in lovelace |
+| `delegation`, `stake_registration`, `delegation_vote` | certificates | `address` is the stake address; `delegation_vote.drep_type` uses the `drep_dist` values |
+| `pool`, `pool_registration`, `pool_retirement` | pool lifecycle | `pool.status`: `REGISTRATION`, `UPDATE`, `RETIRING` (certificate submitted, `retire_epoch` set), `RETIRED` (took effect) |
+| `voting_procedure` | one row per vote cast; a voter can re-vote | `voter_type`: `DREP_KEY_HASH`, `DREP_SCRIPT_HASH`, `STAKING_POOL_KEY_HASH`, `CONSTITUTIONAL_COMMITTEE_HOT_KEY_HASH`, `CONSTITUTIONAL_COMMITTEE_HOT_SCRIPT_HASH`; `vote`: `YES`, `NO`, `ABSTAIN`; `idx` orders votes within a transaction |
+| `gov_action_proposal` | one row per proposal | `tx_hash` + `idx` identify it; `details` is a JSON string; `anchor_url` is a third-party document |
+| `datum`, `script`, `transaction_scripts`, `drep`, `drep_registration`, `committee_registration`, `committee_deregistration`, `protocol_params_proposal`, `invalid_transaction`, `rollback`, `cost_model` | small or self-explanatory | |
 
 Epoch tables (partition `epoch`):
 
-| Table | Grain | Key columns |
+| Table | Grain | What to know |
 |---|---|---|
-| `epoch_stake` | one row per delegating stake address per epoch | `epoch`, `address`, `pool_id`, `amount`, `delegation_epoch`, `active_epoch` |
-| `reward` | one row per reward per stake address per epoch earned | `address`, `epoch`, `spendable_epoch`, `type` (`member`, `leader`, `treasury`, `reserves`), `pool_id`, `amount` |
-| `adapot` | one row per epoch | `treasury`, `reserves`, `fees`, `deposits_stake`, `utxo`, `circulation`, `distributed_rewards`, `undistributed_rewards`, `rewards_pot`, `pool_rewards_pot` |
-| `drep_dist` | one row per DRep per epoch | `drep_id`, `drep_hash`, `drep_type` (`ADDR_KEYHASH`, `SCRIPTHASH`, `ABSTAIN`, `NO_CONFIDENCE`), `amount` (voting power), `active_until`, `expiry` |
-| `gov_action_proposal_status` | one row per proposal per epoch it was tracked | `gov_action_tx_hash`, `gov_action_index`, `type`, `status` (seen: `ACTIVE`, `RATIFIED`, `EXPIRED`), `voting_stats` (JSON), `epoch` |
-| `epoch_param` | one row per epoch | `epoch`, `params` (JSON, snake_case keys such as `max_tx_size`, `gov_action_lifetime`, `protocol_major_ver`), `cost_model_hash` |
-| `epoch` | one row per epoch | `block_count`, `transaction_count`, `total_output`, `total_fees`, `start_time`, `end_time` |
-| `instant_reward`, `mir`, `reward_rest`, `unclaimed_reward_rest`, `committee`, `committee_member`, `committee_state`, `constitution`, `gov_epoch_activity` | small | |
+| `epoch_stake` | one row per delegating stake address per epoch | `amount` is the active stake; `pool_id` is the pool hash |
+| `reward` | one row per reward per stake address per epoch earned | `epoch` is when it was earned, `spendable_epoch` when it can be withdrawn (member and leader: `epoch + 2`); `type`: `member`, `leader`, `treasury`, `reserves` |
+| `adapot` | one row per epoch, the pots at the boundary | `treasury`, `reserves`, `fees`, `deposits_stake`, `distributed_rewards`, `circulation`, all lovelace |
+| `drep_dist` | one row per DRep per epoch | `amount` is voting power; `drep_type`: `ADDR_KEYHASH`, `SCRIPTHASH`, and the predefined `ABSTAIN`, `NO_CONFIDENCE` with a null `drep_id` |
+| `gov_action_proposal_status` | one row per proposal per epoch it was tracked | `status` seen: `ACTIVE`, `RATIFIED`, `EXPIRED`; `voting_stats` is a JSON string with the per-body tallies and approval ratios |
+| `epoch_param` | one row per epoch | `params` is a JSON string with snake_case keys (`max_tx_size`, `gov_action_lifetime`, `protocol_major_ver`) |
+| `epoch`, `instant_reward`, `mir`, `reward_rest`, `unclaimed_reward_rest`, `committee`, `committee_member`, `committee_state`, `constitution`, `gov_epoch_activity` | small | |
 
 Enum values above are what a `GROUP BY` returned on the verification date. The `describe-table`
 hints list some of them and miss others; when a filter on an enum returns nothing, group by the

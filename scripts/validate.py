@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """Validate cardano-dev-skills repo: SKILL.md files and sources.yaml."""
 
+# Annotations are never evaluated with this import, so `X | Y` costs nothing at
+# import time and this file runs on 3.9 — which matters because `--paths-only`
+# below must work on whatever python3 a contributor happens to have. The other
+# scripts in this directory carry it for the same reason.
+from __future__ import annotations
+
 import argparse
 import subprocess
 import sys
 import re
 from pathlib import Path
 
-# Only the skill/registry checks need pyyaml. `--paths-only` must stay
-# runnable on a bare python3 so the refresh workflow can gate on path
-# portability without installing anything.
+# Only the skill/registry checks need pyyaml. `--paths-only` must stay runnable
+# on a bare python3 with nothing installed, so the refresh workflow can gate on
+# path portability without a setup step. `validate.yml` runs that mode on the
+# oldest supported interpreter to keep both halves of that true.
 try:
     import yaml
 except ModuleNotFoundError:

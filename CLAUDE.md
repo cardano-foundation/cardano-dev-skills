@@ -12,6 +12,30 @@ Community-curated knowledge base for building on Cardano. This repo is a Claude 
 - `docs/DESIGN.md` — architectural decisions
 - `docs/CONTRIBUTING.md` — how to add sources, skills, refresh content, and the source-vetting policy
 
+## Commands
+
+| Purpose | Command | Needs |
+|---|---|---|
+| Validate skills + sources (the CI gate) | `python3 scripts/validate.py` | `pyyaml` |
+| Path-portability check alone | `python3 scripts/validate.py --paths-only` | nothing |
+| Test the SessionStart hook | `./hooks/test-check-docs.sh` | nothing |
+| Fetch one source after editing its registry entry | `./scripts/fetch-docs.sh --source "Project Name" --update-pins` | `python3`, git |
+| Build the site | `cd website && npm ci && npm run build` | Node ≥18.17 |
+| PR policy gate (source vetting, skill naming) | `GITHUB_TOKEN=$(gh auth token) python3 scripts/check-pr-policy.py --base origin/main --head HEAD` | `pyyaml` |
+| Supply-chain scan of a docs delta | `python3 scripts/scan-docs-delta.py --base origin/main --head HEAD` | nothing |
+
+Every script runs on Python 3.9+, the version stock macOS ships; CI pins 3.12 for the
+main job and runs `--paths-only` on 3.9. `pip install pyyaml` is the only Python
+prerequisite anywhere, and `validate.py` says so when the module is missing. The token
+on the policy row is optional — it only raises the GitHub API rate limit.
+
+There is no linter. `validate.py` is the gate CI runs on every PR touching
+`skills/`, `registry/`, `scripts/`, `docs/` or `hooks/`.
+
+`scripts/fetch-docs.sh` with no `--source` and `scripts/sync-sources.sh` hit the
+network and rewrite the whole vendored corpus. Never run them as a side effect of
+unrelated work.
+
 ## Documentation Sources
 
 The `docs/sources/` directory contains documentation extracted from the Cardano projects listed in `registry/sources.yaml`.

@@ -1,11 +1,11 @@
 ---
 title: Getting started
-description: Install Cardano Dev Skills as a Claude Code plugin, a Claude Cowork plugin, a Codex skill set, or as a standalone Markdown reference.
+description: Install the shared Cardano Dev Skills for Claude Code, Claude Cowork, Codex, or as a standalone Markdown reference.
 ---
 
 Cardano Dev Skills works in four modes. Pick the one that matches your agent.
 
-## Claude Code (recommended)
+## Claude Code
 
 In any Claude Code session:
 
@@ -40,36 +40,62 @@ You get the same skills as the Claude Code plugin. Cowork syncs the whole
 repository, and `docs/sources/` is roughly 30 MB of bundled documentation, so
 the first sync is not instant.
 
+## Codex
+
+On macOS, Linux, or WSL, keep this repository and your Cardano project as
+sibling directories:
+
+```bash
+cd /path/to/projects
+git clone https://github.com/cardano-foundation/cardano-dev-skills.git
+cd your-cardano-project
+mkdir -p .agents
+ln -s ../../cardano-dev-skills/skills .agents/skills
+```
+
+On Windows PowerShell, create a directory junction from the Cardano project:
+
+```powershell
+New-Item -ItemType Directory -Force .agents
+New-Item -ItemType Junction -Path .agents\skills -Target (Resolve-Path ..\cardano-dev-skills\skills)
+```
+
+Start or restart Codex in `your-cardano-project`, run `/skills`, and confirm the
+Cardano skills appear. Then run `$cardano-context` once to add the durable
+project directive.
+
+Codex discovers repository skills under `.agents/skills` and follows linked
+skill directories. The repository also includes `.codex-plugin/plugin.json`
+for plugin packaging and publishing; until that plugin is published in a
+directory, the repository link above is the supported installation path.
+
 ## Install the per-project directive
 
-Even with the plugin installed globally, Claude sometimes answers Cardano
-questions from training data instead of consulting bundled skills and docs.
-Run the `cardano-context` skill once per project to install a durable
-directive:
+Either agent can answer Cardano questions from stale model knowledge when a
+skill description does not match the prompt. Run the `cardano-context` skill
+once per project to install a durable, agent-neutral directive:
 
-```
-/cardano-context
+```text
+# Claude Code marketplace plugin
+/cardano-dev-skills:cardano-context
+
+# Codex
+$cardano-context
 ```
 
 What it does:
 
-- Writes a version-tagged block into the project's `CLAUDE.md`. Claude Code
-  re-injects `CLAUDE.md` into every conversation turn, so the directive
-  survives compaction and applies on every new session.
-- Tells Claude to treat training data as potentially stale for Cardano, to
-  bias toward invoking `cardano-dev-skills:*` skills, to search bundled
-  `docs/sources/` before falling back on memory, and to cite what it used.
-- Commit `CLAUDE.md` and teammates inherit the directive on clone.
+- Writes the same version-tagged block into the project's `CLAUDE.md` and
+  `AGENTS.md`. Claude reads the former; Codex reads the latter.
+- Tells either agent to treat model knowledge as potentially stale, select the
+  relevant skill, resolve bundled `docs/sources/` from that skill's location,
+  and cite what it used.
+- Commit both files and teammates inherit the directive on clone.
 - Re-running is safe: same version is a no-op; older versions are atomically
   replaced.
 
-## Codex / other agents
-
-```bash
-git clone https://github.com/cardano-foundation/cardano-dev-skills.git
-cd your-project
-ln -s ../cardano-dev-skills/skills .agents/skills
-```
+A project-local Claude skill may also appear as `/cardano-context`; the
+plugin-qualified form above avoids collisions with skills from other plugins.
 
 ## Standalone
 

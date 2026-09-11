@@ -212,7 +212,7 @@ def main() -> None:
 
     # Recover keys from the dev mnemonic; see PyCardano docs for HDWallet usage.
     # In a real scaffold, replace with HDWallet.from_mnemonic(...) and derive
-    # the payment + stake keys. Search ${CLAUDE_SKILL_DIR}/../../docs/sources/pycardano/
+    # the payment + stake keys. Search ../../docs/sources/pycardano/
     # for the current key derivation API.
     raise NotImplementedError(
         "Derive PaymentSigningKey from DEV_WALLET_MNEMONIC using HDWallet; "
@@ -224,7 +224,7 @@ if __name__ == "__main__":
     main()
 ```
 
-The full version of `lock.py` derives the dev wallet from the mnemonic, computes the script address, builds a `TransactionOutput` to that address with the encoded `HelloDatum`, lets `TransactionBuilder` select inputs and fees, signs with the payment signing key, and submits via the chain context. The exact key-derivation calls vary by PyCardano release; the bundled docs at `${CLAUDE_SKILL_DIR}/../../docs/sources/pycardano/` are authoritative.
+The full version of `lock.py` derives the dev wallet from the mnemonic, computes the script address, builds a `TransactionOutput` to that address with the encoded `HelloDatum`, lets `TransactionBuilder` select inputs and fees, signs with the payment signing key, and submits via the chain context. The exact key-derivation calls vary by PyCardano release; the bundled docs at `../../docs/sources/pycardano/` are authoritative.
 
 A matching `redeem.py` queries the script address via the chain context, picks the locked UTxO, attaches the validator script + redeemer + datum to the input, includes a collateral UTxO, and signs as usual. Hand off to `build-transaction` for the complete pattern.
 
@@ -279,4 +279,4 @@ Hand off to `connect-wallet` for the CIP-30 wallet integration content.
 
 Search the bundled PyCardano docs for advanced patterns:
 
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/pycardano/` -- guides, transaction examples, key derivation
+- `../../docs/sources/pycardano/` -- guides, transaction examples, key derivation

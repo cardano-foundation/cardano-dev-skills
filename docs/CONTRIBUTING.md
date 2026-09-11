@@ -1,6 +1,29 @@
 # Contributing to Cardano Dev Skills
 
-This guide covers source vetting, adding sources, adding skills, refresh, documentation governance, and quality standards.
+This guide covers source vetting, adding sources, adding skills, Claude/Codex
+compatibility, refresh, documentation governance, and quality standards.
+
+## One contribution, two agents
+
+Claude Code and Codex consume the same files under `skills/`. Do not maintain
+host-specific copies of a workflow or reference. The canonical portability
+rules live in [AGENT_COMPATIBILITY.md](AGENT_COMPATIBILITY.md); read them before
+changing a skill, either plugin manifest, discovery links, agent instructions,
+or their validation.
+
+The important boundary is:
+
+- shared behavior and Cardano knowledge remain agent-neutral in `skills/`;
+- `.claude-plugin/`, `hooks/`, and `CLAUDE.md` adapt that content to Claude;
+- `.codex-plugin/`, `.agents/skills`, and `AGENTS.md` adapt it to Codex;
+- `scripts/validate.py` checks the shared contract and both adapters together.
+
+Claude's `allowed-tools` and `disallowed-tools` frontmatter fields remain
+required by this repository's security policy, but Codex does not use them as
+the shared behavioral contract. State every required safety rule in the
+Markdown body as well. Resolve bundled documentation relative to the active
+`SKILL.md`; never use `${CLAUDE_SKILL_DIR}` or `${CLAUDE_PLUGIN_ROOT}` in a
+shared skill body.
 
 ## Scope: what belongs in this repo
 
@@ -53,7 +76,11 @@ The same bar applies to the candidate entries at the bottom of `registry/sources
 
 ## Automated PR policy checks
 
-PRs that touch `skills/`, `registry/`, or `docs/sources/` run `.github/workflows/pr-policy.yml`, which has two layers:
+PRs that touch `skills/`, `registry/`, or `docs/sources/` run
+`.github/workflows/pr-policy.yml`, which has two layers. The existing
+`.github/workflows/validate.yml` is the separate shared correctness gate and
+checks skill portability plus both Claude and Codex adapters; these concerns
+belong in one job because a shared skill is the shipped unit.
 
 1. **Mechanical checks** (`scripts/check-pr-policy.py`, hard-fails CI): new sources are vetted live against the GitHub API (archived flag, last-push age, release/activity signal, fork warning); new skills fail if named after a project/brand (they must be task-oriented) or if they reference a `docs/sources/<x>/` directory the PR doesn't provide; new bundled doc files that look like marketing pages or duplicate generic Cardano-101 content produce warnings.
 2. **AI scope review** (advisory, never fails CI): when a PR adds a source or skill, a model judges it against the scope policy above — the two-part source test and the skill bar — and posts a review comment with a verdict and concrete requested changes. The rubric lives in `.github/scope-review-prompt.md`; the model call is a single non-agentic Gemini request (`.github/scripts/scope-review.py`) authenticated by a `GEMINI_API_KEY` repository secret (Google AI Studio keys have a free tier). When the secret is not configured the job skips cleanly and only the mechanical layer runs. The comment is advisory: a maintainer always makes the final call.
@@ -197,8 +224,17 @@ Instructions...
 - [ ] `name:` matches directory name
 - [ ] Description includes trigger phrases
 - [ ] Has "When to use", "When NOT to use", "Key principles", "Workflow" sections
-- [ ] No external service dependencies — works with `Read` / `Grep` / `Glob` only
-- [ ] `allowed-tools` is `Read Grep Glob` (anything wider needs a reviewed exception in `scripts/validate.py`) and `disallowed-tools` includes `WebFetch WebSearch` — validate.py enforces both
+- [ ] No external service dependencies — remains useful with local file read
+      and search access only
+- [ ] Claude metadata keeps `allowed-tools: Read Grep Glob` (anything wider
+      needs a reviewed exception in `scripts/validate.py`) and
+      `disallowed-tools` includes `WebFetch WebSearch`
+- [ ] Body uses host-neutral capability language rather than requiring Claude
+      or Codex tool names
+- [ ] Bundled-doc paths resolve relative to `SKILL.md`; no host-specific
+      environment variable appears in the shared body
+- [ ] Required safety behavior is stated in the body, not only in
+      host-specific frontmatter
 - [ ] Deep content in `references/`, one level only — no nested subdirectories
 - [ ] No mention of specific deployed dApps; teach categories generically
 - [ ] No mention of grants, treasuries, or governance proposals — the skill must read as a neutral community contribution
@@ -220,7 +256,10 @@ released packages (npm dist-tags, Maven metadata, GitHub releases), not the mirr
 
 ## Documentation governance
 
-Docs (`CLAUDE.md`, `README.md`, `docs/DESIGN.md`, `docs/CONTRIBUTING.md`) must reflect current state. When you change something **observable from outside the repo**, update related docs in the same PR.
+Docs (`AGENTS.md`, `CLAUDE.md`, `README.md`, `docs/DESIGN.md`,
+`docs/CONTRIBUTING.md`, and `docs/AGENT_COMPATIBILITY.md`) must reflect current
+state. When you change something **observable from outside the repo**, update
+related docs in the same PR.
 
 ### What to update for each change type
 
@@ -231,6 +270,7 @@ Docs (`CLAUDE.md`, `README.md`, `docs/DESIGN.md`, `docs/CONTRIBUTING.md`) must r
 | New schema field | `registry/sources.yaml` header comment; CONTRIBUTING.md valid-values lists; DESIGN.md if architectural |
 | New script in `scripts/` | README.md if user-facing |
 | New hook | README.md "How to set the Cardano context" section; CLAUDE.md repo structure; `website/src/content/docs/how-it-works.md` |
+| Agent adapter, manifest, discovery, or portability rule | AGENTS.md; CLAUDE.md; `docs/AGENT_COMPATIBILITY.md`; README/website install docs when user-visible |
 | Scope / vetting / governance policy change | CLAUDE.md; CONTRIBUTING.md; `website/src/content/docs/contributing/` pages |
 | Vision / "why" change | README.md; `website/src/content/docs/about/why.md` |
 | Install flow change | README.md install section; `website/src/content/docs/getting-started.md` |

@@ -129,7 +129,7 @@ test owner_can_spend() {
   let datum = HelloDatum { owner }
   // ... build a mock Transaction with `owner` in extra_signatories and assert.
   // See https://aiken-lang.org/language-tour/testing for the mocking helpers,
-  // or ${CLAUDE_SKILL_DIR}/../../docs/sources/aiken/ for the testing chapter.
+  // or ../../docs/sources/aiken/ for the testing chapter.
   True
 }
 ```
@@ -355,5 +355,5 @@ CIP-30 details (beyond `<CardanoWallet />`): hand off to `connect-wallet`. Keep 
 
 Search the bundled Mesh SDK docs for advanced patterns:
 
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/mesh-sdk/` -- guides, tutorials, transaction recipes
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/mesh-sdk-packages/` -- per-package READMEs
+- `../../docs/sources/mesh-sdk/` -- guides, tutorials, transaction recipes
+- `../../docs/sources/mesh-sdk-packages/` -- per-package READMEs

@@ -15,8 +15,9 @@ for) and **governance** (the lifecycle that keeps that content current).
   designing tokens, debugging, querying chain data, devnet setup, wallet
   integration, governance, and the conceptual primers (eUTxO, CIPs,
   tooling).
-- The `cardano-context` skill, which writes a durable per-project directive
-  into `CLAUDE.md` so agents reliably consult bundled context.
+- The `cardano-context` skill, which writes one durable per-project directive
+  into `CLAUDE.md` and `AGENTS.md` so either agent reliably consults bundled
+  context.
 - Documentation sources mirrored locally — SDKs, languages, infra, CIPs,
   ledger specs — under `docs/sources/`.
 - A `SessionStart` hook (`hooks/check-docs.sh`) that reports doc freshness
@@ -24,13 +25,9 @@ for) and **governance** (the lifecycle that keeps that content current).
 
 ### Planned
 
-- **Auto-consultation hook.** A `UserPromptSubmit` hook that scans the
-  user's prompt for Cardano-specific keywords (`aiken`, `plutus`,
-  `cip-XXXX`, `ogmios`, `drep`, …) and injects an "additional context"
-  reminder to consult bundled docs/skills before training data or the web.
 - **Usage telemetry.** A `PostToolUse` hook logging which docs and skills
-  were consulted per session, to a local file. Used to tune the keyword
-  set and skill triggers based on real prompts.
+  were consulted per session, to a local file. Used to tune skill
+  descriptions and identify prompts that do not match reliably.
 - **New skills as the ecosystem evolves.** New CIPs, new SDK paradigms,
   new validator patterns. Proposals via issue, ship via PR.
 
@@ -53,14 +50,15 @@ for) and **governance** (the lifecycle that keeps that content current).
   the GitHub API and fail brand-named skills, while an AI scope reviewer
   reads the diff against the rules from `CONTRIBUTING.md` and posts an
   advisory verdict comment (not blocking — humans still merge).
+- **Cross-tool compatibility surface.** Claude Code and Codex consume the same
+  skill files through separate plugin manifests and repository discovery
+  links. A shared authoring contract and CI gate prevent host-specific paths,
+  tool names, or packaging changes from silently breaking the other agent.
 
 ### Planned
 
 - **PR-time source-build check.** When `registry/sources.yaml` changes,
   CI fetches the touched source(s) and verifies the clone + glob patterns
   produce files. Catches dead repos and bad globs before they land.
-- **Cross-tool compatibility surface.** Codex and other agent harnesses
-  consume the same skill files via `.agents/skills` symlinks. As the
-  Agent Skills standard evolves, we follow it.
 
 The principle across both tracks: **ship small, observe, iterate**.

@@ -2,7 +2,7 @@
 
 Reference snippets for the config files the scaffold prints. Each template is annotated inline so the developer understands what every field does and which fields they need to adjust.
 
-Versions are intentionally left as placeholder markers. At scaffold time, check the project's GitHub releases page or the bundled docs at `${CLAUDE_SKILL_DIR}/../../docs/sources/<source>/` and replace the marker with the latest stable release.
+Versions are intentionally left as placeholder markers. At scaffold time, check the project's GitHub releases page or the bundled docs at `../../docs/sources/<source>/` and replace the marker with the latest stable release.
 
 ## `aiken.toml` (all stacks)
 
@@ -18,7 +18,7 @@ description = "On-chain validators for the Acme dApp."
 # Compiler used for this project. Aiken pins itself; do not change unless you
 # also change CI and every developer's local toolchain.
 compiler = "v1.x.y"                       # PIN: latest stable Aiken release.
-                                          # Check ${CLAUDE_SKILL_DIR}/../../docs/sources/aiken/
+                                          # Check ../../docs/sources/aiken/
                                           # or https://github.com/aiken-lang/aiken/releases.
 plutus = "v3"                             # Plutus V3 is the current target; required for
                                           # Conway-era features.
@@ -32,7 +32,7 @@ platform = "github"
 [[dependencies]]
 name = "aiken-lang/stdlib"
 version = "v2.x.y"                        # PIN: latest stdlib release matching your compiler.
-                                          # See ${CLAUDE_SKILL_DIR}/../../docs/sources/aiken-stdlib/.
+                                          # See ../../docs/sources/aiken-stdlib/.
 source = "github"
 
 # Optional but recommended: design-patterns library. Drop if not used.
@@ -197,7 +197,7 @@ When you flip `CARDANO_NETWORK` between scaffolded environments, update only the
   },
   "dependencies": {
     "@meshsdk/core": "^X.Y.Z",                 // PIN: latest Mesh SDK release.
-                                               // Check ${CLAUDE_SKILL_DIR}/../../docs/sources/mesh-sdk/
+                                               // Check ../../docs/sources/mesh-sdk/
                                                // or https://github.com/MeshJS/mesh/releases.
     "dotenv": "^16.4.5"
   },
@@ -229,7 +229,7 @@ When you flip `CARDANO_NETWORK` between scaffolded environments, update only the
   },
   "dependencies": {
     "@evolution-sdk/evolution": "^X.Y.Z",      // PIN: latest Evolution SDK release.
-                                               // Check ${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/.
+                                               // Check ../../docs/sources/evolution-sdk/.
     "dotenv": "^16.4.5",
     "effect": "^3.0.0"                         // peer dep; Evolution is built on Effect-TS
   },
@@ -278,7 +278,7 @@ packages = [{ include = "acme_offchain", from = "src" }]
 [tool.poetry.dependencies]
 python = "^3.11"                          # PIN: match your CI Python version
 pycardano = "^X.Y.Z"                      # PIN: latest PyCardano release.
-                                          # Check ${CLAUDE_SKILL_DIR}/../../docs/sources/pycardano/
+                                          # Check ../../docs/sources/pycardano/
                                           # or https://pypi.org/project/pycardano/.
 python-dotenv = "^1.0.1"                  # reads .env at startup
 requests = "^2.32.0"                      # provider HTTP
@@ -322,7 +322,7 @@ strict = true
     <maven.compiler.target>21</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <!-- PIN: latest cardano-client-lib release.
-         Check ${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/
+         Check ../../docs/sources/cardano-client-lib/
          or https://github.com/bloxbean/cardano-client-lib/releases. -->
     <cclib.version>X.Y.Z</cclib.version>
   </properties>

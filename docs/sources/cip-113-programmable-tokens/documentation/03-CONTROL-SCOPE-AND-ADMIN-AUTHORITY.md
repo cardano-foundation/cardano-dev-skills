@@ -76,7 +76,7 @@ seize, burn, or move them; a correctly-implemented substandard can.
 
 The administrative path (seizure / forced transfer) is the standalone
 `third_party` withdraw-0 validator, carrying a `ThirdPartyRedeemer` and invoking
-a policy's `third_party_transfer_logic_script`. A programmable-token spend reaches
+a policy's `third_party_logic_script`. A programmable-token spend reaches
 it with a `SpendViaThirdParty` base redeemer, so `programmable_logic_base`
 requires the `third_party` validator's withdraw-0 (not the transfer validator's). The subject of the
 action is **policy A** — the registry node pointed to by `registry_node_idx`.
@@ -89,7 +89,7 @@ substandard:
 
 | Guarantee | Enforced by |
 |---|---|
-| A's `third_party_transfer_logic_script` is invoked (withdraw-0) | `third_party.ak` |
+| A's `third_party_logic_script` is invoked (withdraw-0) | `third_party.ak` |
 | Each spent PLB UTxO is paired 1:1 with a continuing output preserving **address, datum, and reference script** byte-for-byte | `third_party.ak` |
 | **Non-subject** token quantities are conserved per pair, byte-for-byte — no other policy can be injected, redirected, split, or destroyed | `third_party.ak` |
 | The paired input **must already hold** policy A — the admin cannot conjure A onto a UTxO that never held it (anti-injection), nor drag an unrelated UTxO into the action (anti-DoS) | `third_party.ak` |
@@ -216,7 +216,7 @@ permanent limitation.
 ### 3.2 Registry-node update authority
 
 A node's three mutable fields — `transfer_logic_script`,
-`third_party_transfer_logic_script`, `global_state_cs` — and growth of
+`third_party_logic_script`, `global_state_cs` — and growth of
 `protected_prefixes` can be changed through the registry lifecycle (update) path,
 authorised by the registration credential (`minting_logic_script`). `key`,
 `next`, and `minting_logic_script` are frozen.

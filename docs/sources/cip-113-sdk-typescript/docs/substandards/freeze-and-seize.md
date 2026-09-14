@@ -93,6 +93,10 @@ await client.awaitTx(txHash);
 
 **Returns:** `tokenPolicyId`, `metadata` with script hashes.
 
+In 0.5.0-alpha.4, register mints and therefore includes `issuance_logic`'s second
+protocol withdraw-0. If it is omitted, the mint is refused without naming a missing
+withdrawal, policy, or index.
+
 **Example:** [02-register.ts](../../examples/freeze-and-seize/02-register.ts)
 
 ### Transfer
@@ -115,11 +119,18 @@ await client.awaitTx(txHash);
 
 If the sender is blacklisted, throws: `"Sender ... is blacklisted — transfer denied"`.
 
+`transfer`, `seize`, `freeze`, and `unfreeze` neither mint nor burn, so they need no
+`issuance_logic` withdrawal. Adding one to those operations instead produces an
+extraneous-redeemer refusal (code 3110).
+
 **Example:** [03-transfer.ts](../../examples/freeze-and-seize/03-transfer.ts)
 
 ### Mint
 
 Mint additional tokens. Requires issuer admin (the wallet that created the token).
+
+In 0.5.0-alpha.4, every mint includes `issuance_logic`'s second protocol withdraw-0.
+If it is omitted, the mint is refused without naming a missing withdrawal, policy, or index.
 
 ```typescript
 const result = await protocol.mint({
@@ -140,6 +151,9 @@ await client.awaitTx(txHash);
 ### Burn
 
 Burn tokens from a specific UTxO. Requires issuer admin.
+
+In 0.5.0-alpha.4, every burn includes `issuance_logic`'s second protocol withdraw-0.
+If it is omitted, the burn is refused without naming a missing withdrawal, policy, or index.
 
 ```typescript
 const result = await protocol.burn({
@@ -164,6 +178,7 @@ Add an address to the blacklist. The address will no longer be able to transfer 
 
 ```typescript
 const result = await protocol.compliance.freeze({
+  substandardId: "freeze-and-seize",
   feePayerAddress: adminAddress,
   tokenPolicyId: "abcd...",
   assetName: "hex_asset_name",
@@ -182,6 +197,7 @@ Remove an address from the blacklist.
 
 ```typescript
 const result = await protocol.compliance.unfreeze({
+  substandardId: "freeze-and-seize",
   feePayerAddress: adminAddress,
   tokenPolicyId: "abcd...",
   assetName: "hex_asset_name",
@@ -202,6 +218,7 @@ Take tokens from a frozen address and send them to a destination.
 
 ```typescript
 const result = await protocol.compliance.seize({
+  substandardId: "freeze-and-seize",
   feePayerAddress: adminAddress,
   tokenPolicyId: "abcd...",
   assetName: "hex_asset_name",

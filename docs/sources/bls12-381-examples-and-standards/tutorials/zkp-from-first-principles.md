@@ -1,8 +1,8 @@
 # Zero Knowledge Proof from first principles
 
-> **Installment 1 of 6.** This article introduces the mathematical intuition behind zk-SNARKs, walks through the simplest possible non-trivial circuit, and shows how to generate and verify a Groth16 proof end-to-end on Cardano using nothing but first-principles code. No black boxes, no hand-waving — every intermediate value can be printed and inspected.
+> **Installment 1 of 5.** This article introduces the mathematical intuition behind zk-SNARKs, walks through the simplest possible non-trivial circuit, and shows how to generate and verify a Groth16 proof end-to-end on Cardano using nothing but first-principles code. No black boxes, no hand-waving — every intermediate value can be printed and inspected.
 >
-> In **Installment 2** we will explore the engineering optimizations that turn this slow-but-transparent pipeline into a production prover (FFT, Pippenger MSM, sparse matrices, trusted-setup ceremonies), survey competing proof systems (PLONK, Bulletproofs++, JOLT, STARKs, VM approaches), and map the trade-offs. In **Installment 3** we will show how the optimized prover can be used to prove ownership of cryptographic keys and how to marry this capability with Cardano addresses. In **Installment 4** we will apply the full production stack to **selective disclosure** — the pattern where a credential holder proves they satisfy a predicate (`age ≥ 21`, `country ∈ approved set`) without revealing any field values or their blockchain address. In **Installment 5** we will look at what embracing a **zkVM** could gain us: the ability to prove arbitrary program execution without hand-writing circuits, and how that might reshape the developer experience for privacy-preserving applications on Cardano. In **Installment 6** we will survey **quantum-resistant ZKP systems** — especially lattice-based constructions — that aim to replace the elliptic-curve assumptions Groth16 relies on with post-quantum hard problems, and map the trade-offs against the pairing-based baseline we have built here.
+> In **Installment 2 — optimizations and beyond** we will explore the engineering optimizations that turn this slow-but-transparent pipeline into a production prover (FFT, Pippenger MSM, sparse matrices, trusted-setup ceremonies), survey competing proof systems (PLONK, Bulletproofs++, STARKs), and map the trade-offs — including what embracing a **zkVM** could gain us: the ability to prove arbitrary program execution without hand-writing circuits, and how that might reshape the developer experience for privacy-preserving applications on Cardano. In **Installment 3** we will show how the optimized prover can be used to prove ownership of cryptographic keys and how to marry this capability with Cardano addresses. In **Installment 4** we will apply the full production stack to **selective disclosure** — the pattern where a credential holder proves they satisfy a predicate (`age ≥ 21`, `country ∈ approved set`) without revealing any field values or their blockchain address. We conclude with **Installment 5**, a survey of **quantum-resistant ZKP systems** — especially lattice-based constructions — that aim to replace the elliptic-curve assumptions Groth16 relies on with post-quantum hard problems, and we map the trade-offs against the pairing-based baseline we have built here.
 
 ---
 
@@ -14,7 +14,6 @@
 - [A 5-constraint "hello world"](#a-5-constraint-hello-world)
 - [Why polynomials? (QAP)](#why-polynomials-qap)
 - [The trusted setup](#the-trusted-setup)
-- [Why the scalars must be secret and random](#why-the-scalars-must-be-secret-and-random)
 - [The proof: three curve points](#the-proof-three-curve-points)
 - [Verification: one equation](#verification-one-equation)
 - [The Groth16 workflow at a glance](#the-groth16-workflow-at-a-glance)
@@ -325,7 +324,7 @@ G2, τ·G2, τ²·G2, ..., τ^N·G2
 
 For our 5-constraint SumOfProducts circuit, `N = 4`: the QAP polynomials are degree 4 (from interpolating 5 constraint points), so the prover needs powers `τ⁰` through `τ⁴` to evaluate `l(τ)`, `r(τ)`, and `o(τ)` from the SRS. In a production circuit with thousands of constraints, `N` grows accordingly — typically to the number of constraints minus one.
 
-where `G1` and `G2` are base points on the BLS12-381 curve. The scalar `τ` itself is called **toxic waste**: if anyone knows it, they can forge proofs. `τ` is generated jointly by a dedicated group of **ceremony organizers** who are independent of both the prover and the verifier, and must be destroyed immediately afterward — it must never be known to the prover, the verifier, or any other party after the ceremony concludes. The security of the entire system rests on this destruction.
+where `G1` and `G2` are base points on the BLS12-381 curve. The scalar `τ` itself is called **toxic waste**: if anyone knows it, they can forge proofs, so it is generated and destroyed such that no party ever learns it. We defer the full mechanics of *how* this happens — the forgery attacks, the precomputation rationale, the participants, and the 1-of-N trust model — to [Installment 2: the trusted-setup ceremony](optimization.md), because the ceremony is a production concern that our first-principles pipeline only touches through its output, the SRS.
 
 **Why is this necessary?** The SRS lets the prover evaluate polynomials at the secret point `τ` without learning `τ` itself — it works "in the exponent" on the curve. Without the SRS, the prover would have to send the full QAP polynomials to the verifier (destroying succinctness) and the polynomials would leak the witness (destroying zero-knowledge). And if `τ` were known — even if the SRS were otherwise correct — an attacker could pick any fake witness and compute a `h(τ)` that makes the pairing equation balance, forging a valid-looking proof for a false statement. We walk through both failure modes in detail in [The Groth16 workflow at a glance](#the-groth16-workflow-at-a-glance).
 
@@ -339,9 +338,9 @@ In our pedagogical `Implementation 1` ([`clis/trusted-setup/src/r1cs.rs`](https:
 | `γ` (gamma) | 11  | Denominator for **public-input** CRS elements — separates the public-input commitment `V` from the private-input part of `C` | During ceremony: **ceremony organizers**. After ceremony: **nobody** | Public and private input commitments collapse; attacker can forge proofs by manipulating the public-input split |
 | `δ` (delta) | 13  | Denominator for **private-input** CRS elements — ensures the prover cannot tamper with the private-input commitment in `C` without `δ`'s knowledge | During ceremony: **ceremony organizers**. After ceremony: **nobody** | Attacker can fabricate the private-input part of `C`, forging proofs without a valid witness |
 
-**Summary.** All five scalars must be unknown to every party after the ceremony — the prover, the verifier, and any third party. The ceremony is run by a dedicated group of **organizers** who are independent of both the prover and the verifier: they generate the scalars jointly, embed them into curve points (the SRS), and then destroy the raw scalars. The prover and verifier never participate in the ceremony and never see the raw scalars — they interact only with the curve points. The prover uses the full SRS (power tables + proving key), and the verifier uses only a small subset (the verifying key). This is why the setup is "trusted": the security guarantee is that at least one organizer honestly destroyed their contribution, making it impossible to reconstruct any of the five scalars.
+**Summary.** All five scalars must be unknown to every party after the ceremony — the prover, the verifier, and any third party. The ceremony is what guarantees this: the organizers generate the scalars jointly, embed them into curve points (the SRS), and then destroy the raw scalars. Because the prover and verifier interact only with curve points, the scalars are hidden "in the exponent" and never cross the boundary. This is why we need the ceremony to be *trusted*; exactly how the trust is distributed (and why "at least one honest participant" suffices) is covered in [Installment 2: the trusted-setup ceremony](optimization.md).
 
-For SumOfProducts, `τ = 6` is required because the constraint points are `{0, 1, 2, 3, 4}` — using `τ = 3` or `τ = 4` would make `T(τ) = 0` and break the proof. In a production deployment these are large random field elements generated during a multi-party computation (MPC) ceremony. As long as **at least one participant** in the ceremony was honest and discarded their randomness, the toxic waste remains unknown. Our repository implements both a single-party dev ceremony (`ceremony-dev`) and a full Phase-2 MPC on top of the Perpetual Powers of Tau (PPoT) universal SRS. We will cover the production ceremony in detail in the next installment.
+For SumOfProducts, `τ = 6` is required because the constraint points are `{0, 1, 2, 3, 4}` — using `τ = 3` or `τ = 4` would make `T(τ) = 0` and break the proof. In production, these small determinable values are replaced by large random field elements generated during a multi-party computation (MPC) ceremony; our repository implements both the single-party dev ceremony (`ceremony-dev`) and a full Phase-2 MPC on top of the Perpetual Powers of Tau (PPoT) universal SRS, both walked through in [Installment 2](optimization.md#the-ceremony-in-our-repository).
 
 ---
 
@@ -1067,50 +1066,9 @@ The distinction between `γ` and `δ` is what separates public inputs from priva
 
 ---
 
-### Why the scalars must be secret and random
+### Why the scalars must be secret (unpacked in Installment 2)
 
-The five scalars `τ, α, β, γ, δ` are the *cryptographic heart* of Groth16. If any party knows them, the entire proof system collapses. This is not an exaggeration — it is a mathematical theorem. Let us see why.
-
-**The forgery attack if `τ` is known.**
-
-Suppose an attacker learns `τ = 6`. They can now compute `T(τ) = 720` directly. They can pick *any* fake witness they want — say, `a = 100, b = 100, c = 100, d = 100, e = 100, f = 100, g = 100, h = 100` — which gives intermediates `p1 = 10000, p2 = 10000, p3 = 10000, p4 = 10000, p5 = 10000, p6 = 10000`. This witness does not need to satisfy the R1CS constraints in the polynomial sense; the attacker can simply compute `l(τ), r(τ), o(τ)` and then *choose* `h(τ)` to make the equation balance:
-
-```
-h(τ) = (l(τ)·r(τ) − o(τ)) / T(τ)
-```
-
-Because the attacker knows `τ`, they can compute this quotient even when the witness is garbage. They then build proof elements `A, B, C` using the *legitimate* SRS points (which are public) and their chosen `h(τ)`. The verifier's pairing check will pass — because the equation is algebraically satisfied at `τ` — even though the witness violates the actual circuit constraints at every other point.
-
-In other words, **knowledge of `τ` lets the attacker "cheat" the single-point check without ever satisfying the multiplicative constraints.** The same logic applies to `α, β, γ, δ`: if any of them are known, the attacker can separate the public and private parts of the proof arbitrarily, forging a valid-looking proof for any statement.
-
-**Why randomness matters.**
-
-You might ask: why not just hard-code `τ = 42` and publish it? Everyone would know it, but at least the system would be transparent.
-
-The problem is **precomputation attacks.** If `τ` is predictable, an attacker with enough resources could compute `τ^i · G1` and `τ^i · G2` for astronomically large `i` *before* the SRS is even published. They could then break the discrete logarithm problem in the exponent using pre-computed tables. Randomness ensures that no one can prepare for the setup in advance.
-
-Moreover, `α, β, γ, δ` must be *independent* random values. If `α = β`, the proof element `C` loses its binding to the left input, and an attacker can swap `l(τ)` and `r(τ)` without detection. If `γ = δ`, the public and private input commitments collapse into one, destroying the zero-knowledge property.
-
-**The ceremony intuition.**
-
-Groth16 solves this with a **trusted setup ceremony**: multiple participants jointly generate the scalars, each contributing their own randomness. The security guarantee is simple and powerful:
-
-> **As long as at least one participant was honest and truly destroyed their randomness, the final `τ` remains unknown forever.**
-
-Even if every other participant colluded and shared their secrets, they cannot reconstruct `τ` without the missing contribution. This is why the ceremony needs many independent participants — the probability that *everyone* is dishonest and keeps a backup decreases as the participant count grows.
-
-**Dev ceremony vs. production ceremony.**
-
-Our repository uses two different approaches for two different purposes:
-
-| Purpose | Scalars | Security | Why we use it |
-|---------|---------|----------|---------------|
-| **Learning & debugging** (`ceremony-dev`) | Fixed small primes (`τ=6, α=5, ...`) | **None** — anyone can forge | Every value is printable and reproducible. You can add a `println!` and see exactly what the code does. |
-| **Production** | Large random field elements, generated in a ceremony | Secure if at least one ceremony participant was honest | The scalars are never assembled in one place. Only the curve points `τ^i·G1`, `τ^i·G2`, etc. are published. |
-
-The dev ceremony is completely insecure for production — anyone who reads the source code knows `τ` and can forge proofs. But it is invaluable for learning, which is why every step in this article uses it. The production ceremony, which we will cover in detail in the next installment, is what makes Groth16 safe for real-world deployments.
-
-> **The bottom line.** Groth16's speed and compactness come from a *single* secret evaluation point `τ`. That point must remain secret forever, or the proof system becomes a forgery factory. The trusted setup ceremony is the mechanism that creates `τ`, embeds it into curve points, and then destroys it — provided at least one participant was honest. This is the fundamental trade-off of Groth16: you get the smallest and fastest proofs in cryptography, but you must trust the ceremony once.
+The five scalars `τ, α, β, γ, δ` are the *cryptographic heart* of Groth16: if any party knows them, the entire proof system collapses. We have already seen the concrete mechanism — a known `τ` lets an attacker solve `h(τ) = (l(τ)·r(τ) − o(τ)) / T(τ)` for any fabricated witness so the pairing check still balances (see [Still insecure Groth16: public setup](#still-insecure-groth16-public-setup)). The deeper picture — why the scalars must also be *random* (precomputation attacks), why `α, β, γ, δ` must be mutually independent, and the 1-of-N trusted-setup ceremony that produces and destroys them safely — is now covered in depth in [Installment 2: the trusted-setup ceremony](optimization.md), where the production ceremony code (`ceremony-dev`, `phase2` MPC on PPoT) actually lives.
 
 ---
 
@@ -1678,7 +1636,7 @@ Part 1 commits the prover to the private witness values; part 2 encodes the fact
 Part 1 — private wire contributions:
 
 ```
-Σ a_i · Psi_P_G1[i] = 1·(35/13) + 2·(25/13) + 3·(q-21/13) + 4·(q-15/13) + 5·(22/13) + 6·(12/13) + 7·(q-40/13) + 8·(q-40/13) + 2·(80/13) + 12·(51/13) + 30·(120/13) + 56·(35/13)
+Σ a_i · Psi_P_G1[i] = 1·(35/13) + 2·(25/13) + 3·(q-168)/13 + 4·(q-120)/13 + 5·(315/13) + 6·(225/13) + 7·(q-280)/13 + 8·(q-200)/13 + 2·(80/13) + 12·(51/13) + 30·(120/13) + 56·(35/13)
 ```
 
 (Public variables 0 and 1 are excluded from this sum.)
@@ -1872,23 +1830,32 @@ The scalar arithmetic balances via the bilinearity property. The actual pairing 
 
 This installment deliberately stayed at the "dense monomial" level: polynomials stored as coefficient vectors, division performed by long division, and proof assembly done one scalar multiplication at a time. It is slow, but it is *transparent*. You can open any binary, add a `println!`, and see the exact value passing through the equation.
 
-### Installment 2 — The optimizations game
+> **Honesty caveat — where we cheated.** This article's weakest spot is its treatment of the **trusted setup**. We fixed the five scalars to small deterministic primes (`τ=6, α=5, β=7, γ=11, δ=13`), described the ceremony in a few paragraphs, and moved on — the way a first look at zk-SNARKs usually does. That determinism is a real security hole, not a cosmetic choice: anyone who reads this source knows `τ` and can forge proofs for any witness. It was the right call for a *first* look, because every intermediate value becomes printable and reproducible, but it is precisely why the dev ceremony is only for learning. We underline the weakness here so you know that the piece this installment repairs first is the exact piece we treated most casually.
 
-The next installment will show how each bottleneck is removed:
+### Installment 2 — The optimizations game and beyond
+
+The next installment has three strands:
+
+1. **Adopt the optimizations into Groth16** — remove each bottleneck of this dense-monomial pipeline, one at a time, while keeping the same math we just traced by hand.
+2. **Dive deep into the ceremony** — the part we treated weakest above. We move past fixed dev scalars to the production ceremony: why the scalars must be secret and *random*, the forgery and precomputation attacks, the 1-of-N trust model, and the multi-party ceremony itself. The foundation is already written up in [**Installment 2: the trusted-setup ceremony**](optimization.md), which lives in the same repository as the ceremony code it documents (`ceremony-dev`, `phase2` MPC on PPoT).
+3. **Explore approaches beyond Groth16** — competing proof systems and proving models, from Nova to zkVMs, so the Groth16 baseline can be judged against the alternatives.
+
+The optimization strand, bottleneck by bottleneck:
 
 | Bottleneck | First-principles fix (this article) | Production fix (next article) |
 |------------|-------------------------------------|-------------------------------|
 | Polynomial ops are O(n²) | Dense coefficient vectors | FFT over roots of unity |
 | Proof assembly is O(n) scalar muls | One-by-one multiplication | Pippenger multi-scalar multiplication |
 | Matrices explode memory | Dense `Vec<Vec<Fr>>` | Native sparse constraint representation |
-| Trusted setup is single-party | Deterministic dev scalars | Multi-party MPC ceremony on PPoT |
+| Trusted setup is single-party | Deterministic dev scalars | Multi-party MPC ceremony on PPoT — [covered in this installment](optimization.md#the-ceremony-in-our-repository) |
 | QAP materialises all polynomials | `build_qap()` returns every `u_i(x)` | On-the-fly witness-polynomial accumulation |
 
 We will also survey the landscape beyond Groth16:
 - **PLONK** — universal trusted setup, custom gates, better recursion
 - **Bulletproofs / Bulletproofs++** — no trusted setup at all; Bulletproofs++ (2022) is a transparent improvement with ~3–5× faster verification and ~38% smaller proofs, significantly closing the gap with Groth16
+- **Nova** — incremental verifiable computation that folds a long computation into a chain of tiny Groth16-style steps, already used in this repo for the Cardano key-ownership circuit (the `clis/nova` CLI), with a constant-size compression SNARK on the roadmap
 - **STARKs / JOLT** — post-quantum, transparent setup, proof size trade-offs
-- **VM approaches (RISC Zero, zkVMs)** — prove arbitrary program execution without circuit design
+- **VM approaches (RISC Zero, zkVMs)** — prove arbitrary program execution without circuit design, replacing hand-written R1CS circuits in a domain-specific language with a compiler that targets a zero-knowledge virtual machine. We will weigh the trade-offs (larger proof sizes, different security assumptions) against the pairing-based baseline.
 
 ### Installment 3 — Proving key ownership and Cardano addresses
 
@@ -1898,21 +1865,17 @@ In the third installment we will show how the optimized prover can be used to pr
 
 In the fourth installment we will apply the full production Groth16 pipeline to **selective disclosure** — the pattern where a credential holder proves they satisfy a predicate (`age ≥ 21`, `country ∈ approved set`) without revealing any field values or their blockchain address. The proof becomes the authorization, and the on-chain script verifies nothing but the mathematics.
 
-### Installment 5 — Embracing zkVMs
+### Installment 5 — Quantum-resistant ZKP systems (conclusion)
 
-In the fifth installment we will look at what embracing a **zkVM** could gain us. Instead of hand-writing R1CS circuits in a domain-specific language, a zkVM lets developers prove the correct execution of arbitrary programs — written in familiar languages like Rust or C — by compiling them to a zero-knowledge virtual machine. We will explore the trade-offs (larger proof sizes, different security assumptions) and discuss how this paradigm might reshape the developer experience for privacy-preserving applications on Cardano.
-
-### Installment 6 — Quantum-resistant ZKP systems
-
-Groth16 and the pairing-based constructions we have explored rely on the hardness of the discrete logarithm problem on elliptic curves — a problem that a fault-tolerant quantum computer would destroy via Shor's algorithm. In the sixth installment we will survey **quantum-resistant ZKP systems**, with a focus on **lattice-based** constructions that derive their security from hard lattice problems (Learning With Errors, Short Integer Solution) rather than pairings. We will examine:
+In the final installment we look to the post-quantum frontier. Groth16 and the pairing-based constructions we have explored rely on the hardness of the discrete logarithm problem on elliptic curves — a problem that a fault-tolerant quantum computer would destroy via Shor's algorithm. In the fifth installment we will survey **quantum-resistant ZKP systems**, with a focus on **lattice-based** constructions that derive their security from hard lattice problems (Learning With Errors, Short Integer Solution) rather than pairings. We will examine:
 
 - **Lattice-based SNARKs** and their proof-size / verification-cost trade-offs compared to Groth16
 - **Transparent proof systems** (STARKs, Bulletproofs++) as a different post-quantum path that avoids trusted setups entirely
 - **Hybrid approaches** that combine pairing-based and lattice-based techniques
 - The practical question: *when will lattice ZKPs be production-ready on Cardano, and what will we gain or lose in the transition?*
 
-This installment will map the full landscape from the pairing-based baseline we have built here to the post-quantum frontier, so that builders can make informed choices about which proof system fits their threat model.
+This installment maps the full landscape from the pairing-based baseline we have built here to the post-quantum frontier, so that builders can make informed choices about which proof system fits their threat model — drawing on the zkVM alternatives already surveyed in Installment 2.
 
-The code for all six installments is available in the [cardano-foundation/bls](https://github.com/cardano-foundation/bls) repository.
+The code for all five installments is available in the [cardano-foundation/bls](https://github.com/cardano-foundation/bls) repository.
 
 Stay tuned for the next ZKP installment!

@@ -67,7 +67,7 @@ and refer to the three stake validators it dispatches to by name: **`transfer`**
 │  ┌─────────────────────┐   ┌──────┴──────────────┴─────────────┴─────┐ │
 │  │ Registry             │   │ Issuance Infrastructure                │ │
 │  │ (mint + spend)       │   │ (issuance_mint, issuance_cbor_hex,     │ │
-│  │ Sorted linked list   │   │  protocol_params, coordination_spend)  │ │
+│  │ Sorted linked list   │   │  protocol_params, protocol_params_spend)  │ │
 │  │ of registered tokens │   │                                        │ │
 │  └─────────────────────┘   └────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────┘
@@ -142,7 +142,7 @@ Your transfer logic validator decides **what conditions must be met for a transf
 
 ### 3. Third-Party Transfer Logic (withdraw)
 
-Invoked when a **third party** (not the token owner) moves tokens. The standalone `third_party` validator looks up `third_party_transfer_logic_script` from the subject policy's registry node and requires its withdraw-0. This is used for administrative actions like:
+Invoked when a **third party** (not the token owner) moves tokens. The standalone `third_party` validator looks up `third_party_logic_script` from the subject policy's registry node and requires its withdraw-0. This is used for administrative actions like:
 - Seizing tokens from a sanctioned address
 - Forced transfers by court order
 - Emergency recovery operations
@@ -189,13 +189,13 @@ type RegistryNode {
   next: ByteArray,                               // Next key (linked list)
   minting_logic_script: Credential,              // YOUR issuance / registration authority
   transfer_logic_script: Credential,             // YOUR transfer logic
-  third_party_transfer_logic_script: Credential, // YOUR 3rd party logic
+  third_party_logic_script: Credential, // YOUR 3rd party logic
   global_state_cs: ByteArray,                    // YOUR global state NFT (optional)
   protected_prefixes: List<ByteArray>,           // CIP-67 labels the third-party path may not seize/burn (append-only)
 }
 ```
 
-The `minting_logic_script` (your issuance logic credential) is both **stored in the registry node** and **baked into the `issuance_mint` policy** as a compile-time parameter. `registry_mint` cryptographically binds the two at registration (`is_programmable_token_id_valid`), so they can never disagree. It is frozen for the life of the node and doubles as the registry-lifecycle authority — see [Registry Lifecycle & Upgradeability](#registry-lifecycle--upgradeability).
+The `minting_logic_script` (your issuance logic credential) is both **stored in the registry node** and **baked into the `issuance_mint` policy** as a compile-time parameter. `registry_mint` cryptographically binds the two at registration (`expect_programmable_token_id_valid`), so they can never disagree. It is frozen for the life of the node and doubles as the registry-lifecycle authority — see [Registry Lifecycle & Upgradeability](#registry-lifecycle--upgradeability).
 
 > **Note**: For simple substandards, you can reuse the same validator for multiple purposes. The dummy substandard reuses `transfer` for both transfer and third-party logic. The freeze-and-seize substandard reuses `issuer_admin_contract` for both issuance and third-party logic (seizure is authorized by the same admin credential that controls minting). Design your validators based on which operations share the same authorization model.
 
@@ -270,7 +270,7 @@ whose relevant logic field equals `account`, and read its `key`.
 // reference input or a validator parameter), then match the node whose logic
 // field is your own credential. That node's `key` is the policy id you govern.
 //   - transfer logic          → match node.transfer_logic_script == account
-//   - third-party logic       → match node.third_party_transfer_logic_script == account
+//   - third-party logic       → match node.third_party_logic_script == account
 //   - issuance logic          → match node.minting_logic_script == account
 ```
 
@@ -290,7 +290,7 @@ first, derive the policy id from the `issuance_mint` template, then bake that id
 into your other validators. Do **not** try to parameterize the issuance logic
 with its own policy id — that is circular (the id is a hash *of* the issuance
 script). `registry_mint` cryptographically binds the issuance credential to the
-policy id at registration (`is_programmable_token_id_valid`), so a runtime
+policy id at registration (`expect_programmable_token_id_valid`), so a runtime
 resolution and a correctly-derived compile-time parameter always agree.
 
 This is the general form of the narrower derivation shown for the registration
@@ -435,7 +435,7 @@ record**. Through the registry lifecycle (update) path, these fields can be
 changed in place after registration:
 
 - `transfer_logic_script`
-- `third_party_transfer_logic_script`
+- `third_party_logic_script`
 - `global_state_cs`
 - growth of `protected_prefixes` (append-only — prefixes may be added, never removed)
 
@@ -605,7 +605,7 @@ validator transfer {
 
 - **`issue`** — The issuance logic. Succeeds if the redeemer equals 100. That's it. Anyone who knows to pass 100 as the redeemer can mint or burn.
 - **`transfer`** — The transfer logic. Succeeds if the redeemer equals 200. Any transfer that passes 200 as the redeemer is allowed.
-- **Third-party logic** — The dummy substandard reuses `transfer` for third-party operations. At registration time, the same script credential is used for both `transfer_logic_script` and `third_party_transfer_logic_script`.
+- **Third-party logic** — The dummy substandard reuses `transfer` for third-party operations. At registration time, the same script credential is used for both `transfer_logic_script` and `third_party_logic_script`.
 
 ### Key takeaways
 

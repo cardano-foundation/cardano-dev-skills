@@ -5,6 +5,22 @@ This document lists all available spans in Amaru, auto-generated from the code.
 For information on how to use and filter these spans, see [monitoring/README.md](../monitoring/README.md).
 
 
+## target: `amaru::bootstrap`
+
+| name | level | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- |
+| `complete` | `TRACE` | public | Bootstrap completed successfully | duration_seconds, epoch, point |  |
+
+<details><summary>span: `complete`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `duration_seconds` | `number` | ✓ |
+| `epoch` | `integer` | ✓ |
+| `point` | `string` | ✓ |
+
+</details>
+
 ## target: `amaru::bootstrap::accounts`
 
 | name | level | public | description | required fields | optional fields |
@@ -219,6 +235,57 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `reserves` | `integer` | ✓ |
 | `fees` | `integer` | ✓ |
 | `donations` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::progress`
+
+| name | level | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- |
+| `cancel` | `TRACE` | public | Cancel a long-running bootstrap phase | phase, current, elapsed_seconds | total |
+| `complete` | `TRACE` | public | Complete a long-running bootstrap phase | phase, current, elapsed_seconds | total |
+| `start` | `TRACE` | public | Start a long-running bootstrap phase | phase | total |
+| `update` | `TRACE` | public | Report non-terminal progress for a long-running bootstrap phase | phase, current, elapsed_seconds | total |
+
+<details><summary>span: `cancel`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `phase` | `string` | ✓ |
+| `current` | `integer` | ✓ |
+| `elapsed_seconds` | `number` | ✓ |
+| `total` | `integer` |  |
+
+</details>
+
+<details><summary>span: `complete`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `phase` | `string` | ✓ |
+| `current` | `integer` | ✓ |
+| `elapsed_seconds` | `number` | ✓ |
+| `total` | `integer` |  |
+
+</details>
+
+<details><summary>span: `start`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `phase` | `string` | ✓ |
+| `total` | `integer` |  |
+
+</details>
+
+<details><summary>span: `update`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `phase` | `string` | ✓ |
+| `current` | `integer` | ✓ |
+| `elapsed_seconds` | `number` | ✓ |
+| `total` | `integer` |  |
 
 </details>
 
@@ -1450,7 +1517,16 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
+| `dump` | `TRACE` | public | Load the current constitutional committee on startup | status |  |
 | `ignore` | `TRACE` | public | The constitutional committee votes were ignored during ratification | active_members, min_committee_size, reason |  |
+
+<details><summary>span: `dump`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `status` | `string` | ✓ |
+
+</details>
 
 <details><summary>span: `ignore`</summary>
 
@@ -1459,6 +1535,22 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `active_members` | `integer` | ✓ |
 | `min_committee_size` | `integer` | ✓ |
 | `reason` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::ledger::constitutional_committee_member`
+
+| name | level | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- |
+| `dump` | `TRACE` | public | Load the current constitutional committee member on startup | cold_credential | status, valid_until |
+
+<details><summary>span: `dump`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `cold_credential` | `string` | ✓ |
+| `status` | `string` |  |
+| `valid_until` | `integer` |  |
 
 </details>
 
@@ -1628,9 +1720,9 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
-| `load` | `TRACE` | public | Load the current ledger pots | treasury, reserves, fees, donations |  |
+| `dump` | `TRACE` | public | Load the current ledger pots | treasury, reserves, fees, donations |  |
 
-<details><summary>span: `load`</summary>
+<details><summary>span: `dump`</summary>
 
 | field | type | required |
 | --- | --- | --- |
@@ -1721,90 +1813,47 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
-| `load` | `TRACE` | public | Load the current protocol parameters |  | protocol_version, max_block_body_size, max_transaction_size, max_block_header_size, max_tx_ex_units, max_block_ex_units, max_value_size, max_collateral_inputs, min_fee_a, min_fee_b, stake_credential_deposit, stake_pool_deposit, monetary_expansion_rate, treasury_expansion_rate, min_pool_cost, lovelace_per_utxo_byte, prices, min_fee_ref_script_lovelace_per_byte, max_ref_script_size_per_tx, max_ref_script_size_per_block, ref_script_cost_stride, ref_script_cost_multiplier, stake_pool_max_retirement_epoch, optimal_stake_pools_count, pledge_influence, collateral_percentage, cost_models, pool_voting_thresholds, drep_voting_thresholds, min_committee_size, max_committee_term_length, gov_action_lifetime, gov_action_deposit, drep_deposit, drep_expiry |
-| `ratify` | `TRACE` | public | Ratify a protocol parameters update; only changed parameters are recorded |  | protocol_version, max_block_body_size, max_transaction_size, max_block_header_size, max_tx_ex_units, max_block_ex_units, max_value_size, max_collateral_inputs, min_fee_a, min_fee_b, stake_credential_deposit, stake_pool_deposit, monetary_expansion_rate, treasury_expansion_rate, min_pool_cost, lovelace_per_utxo_byte, prices, min_fee_ref_script_lovelace_per_byte, max_ref_script_size_per_tx, max_ref_script_size_per_block, ref_script_cost_stride, ref_script_cost_multiplier, stake_pool_max_retirement_epoch, optimal_stake_pools_count, pledge_influence, collateral_percentage, cost_models, pool_voting_thresholds, drep_voting_thresholds, min_committee_size, max_committee_term_length, gov_action_lifetime, gov_action_deposit, drep_deposit, drep_expiry |
+| `dump` | `TRACE` | public | Dump the current protocol parameters |  | protocol_version, max_block_body_size, max_transaction_size, max_block_header_size, max_tx_ex_units, max_block_ex_units, max_value_size, max_collateral_inputs, min_fee_a, min_fee_b, stake_credential_deposit, stake_pool_deposit, monetary_expansion_rate, treasury_expansion_rate, min_pool_cost, lovelace_per_utxo_byte, prices, min_fee_ref_script_lovelace_per_byte, max_ref_script_size_per_tx, max_ref_script_size_per_block, ref_script_cost_stride, ref_script_cost_multiplier, stake_pool_max_retirement_epoch, optimal_stake_pools_count, pledge_influence, cost_models, collateral_percentage, pool_voting_thresholds, drep_voting_thresholds, min_committee_size, max_committee_term_length, gov_action_lifetime, gov_action_deposit, drep_deposit, drep_expiry |
 
-<details><summary>span: `load`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `protocol_version` | `string` |  |
-| `max_block_body_size` | `string` |  |
-| `max_transaction_size` | `string` |  |
-| `max_block_header_size` | `string` |  |
-| `max_tx_ex_units` | `string` |  |
-| `max_block_ex_units` | `string` |  |
-| `max_value_size` | `string` |  |
-| `max_collateral_inputs` | `string` |  |
-| `min_fee_a` | `string` |  |
-| `min_fee_b` | `string` |  |
-| `stake_credential_deposit` | `string` |  |
-| `stake_pool_deposit` | `string` |  |
-| `monetary_expansion_rate` | `string` |  |
-| `treasury_expansion_rate` | `string` |  |
-| `min_pool_cost` | `string` |  |
-| `lovelace_per_utxo_byte` | `string` |  |
-| `prices` | `string` |  |
-| `min_fee_ref_script_lovelace_per_byte` | `string` |  |
-| `max_ref_script_size_per_tx` | `string` |  |
-| `max_ref_script_size_per_block` | `string` |  |
-| `ref_script_cost_stride` | `string` |  |
-| `ref_script_cost_multiplier` | `string` |  |
-| `stake_pool_max_retirement_epoch` | `string` |  |
-| `optimal_stake_pools_count` | `string` |  |
-| `pledge_influence` | `string` |  |
-| `collateral_percentage` | `string` |  |
-| `cost_models` | `string` |  |
-| `pool_voting_thresholds` | `string` |  |
-| `drep_voting_thresholds` | `string` |  |
-| `min_committee_size` | `string` |  |
-| `max_committee_term_length` | `string` |  |
-| `gov_action_lifetime` | `string` |  |
-| `gov_action_deposit` | `string` |  |
-| `drep_deposit` | `string` |  |
-| `drep_expiry` | `string` |  |
-
-</details>
-
-<details><summary>span: `ratify`</summary>
+<details><summary>span: `dump`</summary>
 
 | field | type | required |
 | --- | --- | --- |
 | `protocol_version` | `string` |  |
-| `max_block_body_size` | `string` |  |
-| `max_transaction_size` | `string` |  |
-| `max_block_header_size` | `string` |  |
+| `max_block_body_size` | `integer` |  |
+| `max_transaction_size` | `integer` |  |
+| `max_block_header_size` | `integer` |  |
 | `max_tx_ex_units` | `string` |  |
 | `max_block_ex_units` | `string` |  |
-| `max_value_size` | `string` |  |
-| `max_collateral_inputs` | `string` |  |
-| `min_fee_a` | `string` |  |
-| `min_fee_b` | `string` |  |
-| `stake_credential_deposit` | `string` |  |
-| `stake_pool_deposit` | `string` |  |
+| `max_value_size` | `integer` |  |
+| `max_collateral_inputs` | `integer` |  |
+| `min_fee_a` | `integer` |  |
+| `min_fee_b` | `integer` |  |
+| `stake_credential_deposit` | `integer` |  |
+| `stake_pool_deposit` | `integer` |  |
 | `monetary_expansion_rate` | `string` |  |
 | `treasury_expansion_rate` | `string` |  |
-| `min_pool_cost` | `string` |  |
-| `lovelace_per_utxo_byte` | `string` |  |
+| `min_pool_cost` | `integer` |  |
+| `lovelace_per_utxo_byte` | `integer` |  |
 | `prices` | `string` |  |
 | `min_fee_ref_script_lovelace_per_byte` | `string` |  |
-| `max_ref_script_size_per_tx` | `string` |  |
-| `max_ref_script_size_per_block` | `string` |  |
-| `ref_script_cost_stride` | `string` |  |
+| `max_ref_script_size_per_tx` | `integer` |  |
+| `max_ref_script_size_per_block` | `integer` |  |
+| `ref_script_cost_stride` | `integer` |  |
 | `ref_script_cost_multiplier` | `string` |  |
-| `stake_pool_max_retirement_epoch` | `string` |  |
-| `optimal_stake_pools_count` | `string` |  |
+| `stake_pool_max_retirement_epoch` | `integer` |  |
+| `optimal_stake_pools_count` | `integer` |  |
 | `pledge_influence` | `string` |  |
-| `collateral_percentage` | `string` |  |
 | `cost_models` | `string` |  |
+| `collateral_percentage` | `integer` |  |
 | `pool_voting_thresholds` | `string` |  |
 | `drep_voting_thresholds` | `string` |  |
-| `min_committee_size` | `string` |  |
-| `max_committee_term_length` | `string` |  |
-| `gov_action_lifetime` | `string` |  |
-| `gov_action_deposit` | `string` |  |
-| `drep_deposit` | `string` |  |
-| `drep_expiry` | `string` |  |
+| `min_committee_size` | `integer` |  |
+| `max_committee_term_length` | `integer` |  |
+| `gov_action_lifetime` | `integer` |  |
+| `gov_action_deposit` | `integer` |  |
+| `drep_deposit` | `integer` |  |
+| `drep_expiry` | `integer` |  |
 
 </details>
 
@@ -1930,7 +1979,7 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `initial_progress` | `TRACE` | public | Report progress for one of the initial stake distributions loaded on startup | epoch, progress |  |
 | `initial_ready` | `TRACE` | public | Finished computing all initial stake distributions loaded on startup | epochs |  |
 | `rotate` | `TRACE` | public | Rotate stake distributions at an epoch boundary | available_stake_distributions |  |
-| `snapshot` | `TRACE` | public | Snapshot of the stake distribution taken at an epoch boundary | accounts, dreps, pools, active_stake, pools_voting_stake, dreps_voting_stake |  |
+| `snapshot` | `TRACE` | public | Snapshot of the stake distribution taken at an epoch boundary | accounts, dreps, pools, active_stake, pools_voting_stake, dreps_voting_stake | cc_update |
 
 <details><summary>span: `compute`</summary>
 
@@ -1983,6 +2032,7 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `active_stake` | `integer` | ✓ |
 | `pools_voting_stake` | `integer` | ✓ |
 | `dreps_voting_stake` | `integer` | ✓ |
+| `cc_update` | `string` |  |
 
 </details>
 
@@ -2371,19 +2421,20 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 </details>
 
-## target: `amaru::protocols::blockfetch::initiator`
+## target: `amaru::protocols`
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
-| `protocol_violation` | `TRACE` | public | The peer broke the block-fetch protocol and the connection is terminated. Reason ∈ {too_many_blocks, no_pending_request, invalid_cbor}. | reason | max_blocks, bytes |
+| `invalid_input` | `TRACE` | public | A protocol handler received invalid input | proto, peer, state, input |  |
 
-<details><summary>span: `protocol_violation`</summary>
+<details><summary>span: `invalid_input`</summary>
 
 | field | type | required |
 | --- | --- | --- |
-| `reason` | `string` | ✓ |
-| `max_blocks` | `integer` |  |
-| `bytes` | `integer` |  |
+| `proto` | `string` | ✓ |
+| `peer` | `string` | ✓ |
+| `state` | `string` | ✓ |
+| `input` | `string` | ✓ |
 
 </details>
 
@@ -2413,6 +2464,7 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | --- | --- | --- | --- | --- | --- |
 | `accept_failed` | `TRACE` | public | An inbound connection could not be accepted. Reason ∈ {aborted, error}. | reason | error |
 | `child_died` | `TRACE` | public | A mini-protocol stage running on a connection died | peer, conn_id, child |  |
+| `child_stopped` | `TRACE` | public | A mini-protocol stage running on a connection stopped upon request | peer, conn_id, child |  |
 | `handshake_query_reply` | `TRACE` | public | The peer answered a version query instead of negotiating | version_table |  |
 | `handshake_refused` | `TRACE` | public | The peer refused our proposed protocol versions | reason |  |
 
@@ -2426,6 +2478,16 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 </details>
 
 <details><summary>span: `child_died`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `child` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `child_stopped`</summary>
 
 | field | type | required |
 | --- | --- | --- |
@@ -2537,7 +2599,9 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `disconnecting` | `TRACE` | public | A connection is being closed on request. Direction ∈ {inbound, outbound}. | peer, conn_id, direction |  |
 | `duplicate_terminated` | `TRACE` | public | A duplicate connection is terminated after its handshake completed | peer, conn_id |  |
 | `handshake_completed` | `TRACE` | public | The handshake completed on a connection | peer, conn_id, full_duplex_capable, full_duplex, advertisable |  |
+| `local_use_applied` | `TRACE` | public | The connection finished converging to this local use | peer, conn_id, local_use |  |
 | `remove` | `TRACE` | public | A peer was removed from the manager | peer |  |
+| `set_local_use` | `TRACE` | public | A change of local use was requested on a connection | peer, conn_id, local_use |  |
 
 <details><summary>span: `accepted`</summary>
 
@@ -2668,6 +2732,16 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 </details>
 
+<details><summary>span: `local_use_applied`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `local_use` | `string` | ✓ |
+
+</details>
+
 <details><summary>span: `remove`</summary>
 
 | field | type | required |
@@ -2676,12 +2750,22 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 </details>
 
+<details><summary>span: `set_local_use`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `local_use` | `string` | ✓ |
+
+</details>
+
 ## target: `amaru::protocols::mux`
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
 | `empty_segment` | `TRACE` | public | A segment header announcing an empty payload was received | role, peer |  |
-| `failed` | `TRACE` | public | The muxer failed while moving data between a protocol and the network. Operation ∈ {send, recv_header, decode_header, recv_data, muxing}. | role, peer, operation, error |  |
+| `failed` | `TRACE` | public | The muxer failed while moving data between a protocol and the network. Operation ∈ {send, recv_header, decode_header, recv_data, muxing, after_done}. | role, peer, operation, error |  |
 
 <details><summary>span: `empty_segment`</summary>
 
@@ -2763,10 +2847,14 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | --- | --- | --- | --- | --- | --- |
 | `add_skipped` | `TRACE` | public | A peer was not added to the outbound set. Reason ∈ {already_added, too_many_inbound}. | peer, reason |  |
 | `added` | `TRACE` | public | A peer was added to the outbound set | peer, was_banned |  |
+| `address_rejected` | `TRACE` | public | A candidate address was rejected and will not be used as a Peer. | address, reason |  |
 | `connected` | `TRACE` | public | A connection has been established and the handshake completed successfully. | peer, conn_id, direction, full_duplex_capable, full_duplex |  |
+| `demoted` | `TRACE` | public | Local use dropped to Maintenance. Reason ∈ {churn, uninteresting}. | peer, conn_id, reason |  |
 | `disconnected` | `TRACE` | public | A connection has been terminated (graceful disconnect, error, handshake refusal, or network error). | peer, conn_id, direction | reason |
 | `reconnected` | `TRACE` | public | A peer reconnected while a previous connection was still registered; the older connection is dropped. Direction ∈ {inbound, outbound}. | peer, direction, conn_id |  |
 | `removed` | `TRACE` | public | A peer was removed after behaving adversarially | peer, direction, peer_state, is_static |  |
+| `resolve_failed` | `TRACE` | public | Name resolution for a bootstrap candidate failed (no viable address). | candidate, reason |  |
+| `resolved` | `TRACE` | public | A selected bootstrap name resolved to a single peer, ready to dial. | candidate, origin, peer |  |
 
 <details><summary>span: `add_skipped`</summary>
 
@@ -2786,6 +2874,15 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 </details>
 
+<details><summary>span: `address_rejected`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `address` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
 <details><summary>span: `connected`</summary>
 
 | field | type | required |
@@ -2795,6 +2892,16 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `direction` | `string` | ✓ |
 | `full_duplex_capable` | `boolean` | ✓ |
 | `full_duplex` | `boolean` | ✓ |
+
+</details>
+
+<details><summary>span: `demoted`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `reason` | `string` | ✓ |
 
 </details>
 
@@ -2827,6 +2934,25 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `direction` | `string` | ✓ |
 | `peer_state` | `string` | ✓ |
 | `is_static` | `boolean` | ✓ |
+
+</details>
+
+<details><summary>span: `resolve_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `candidate` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `resolved`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `candidate` | `string` | ✓ |
+| `origin` | `string` | ✓ |
+| `peer` | `string` | ✓ |
 
 </details>
 
@@ -3005,7 +3131,25 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
+| `export_failed` | `TRACE` | public | OTLP export failed; collection may not be started for every signal | unavailable_signals |  |
+| `export_recovered` | `TRACE` | public | OTLP collection recovered for previously unavailable signals | recovered_signals |  |
 | `init` | `TRACE` | public | Observability stack initialization | with_open_telemetry, with_json_traces, with_colors |  |
+
+<details><summary>span: `export_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `unavailable_signals` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `export_recovered`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `recovered_signals` | `string` | ✓ |
+
+</details>
 
 <details><summary>span: `init`</summary>
 

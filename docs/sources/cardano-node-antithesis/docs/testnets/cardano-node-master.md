@@ -125,9 +125,30 @@ Why this belongs in the production-baseline testnet:
   through `tx_generator_population_grew`,
   `tx_generator_refill_landed`, and `tx_generator_pressure_summary`.
 
-### Promotion evidence
+### Image provenance promotion (September 2026)
 
-The image promoted here is `tx-generator:69bf815`, referenced from
+The scheduled `cardano_node_master` profile consumes the tx-generator and
+tracer-sidecar images built from source revision
+`36756d0efcf73f412df42a352afd7d6b0ac3c33d`, pinned by immutable registry digest.
+Both images record source creation time `2026-09-08T10:52:25Z` and OCI
+revision, source, version, and creation labels.
+
+These exact images passed a one-hour, faults-enabled Antithesis run on the
+otherwise identical `cardano_node_provenance_241` profile: **69/69 properties
+Passing**, including `Recent software version provided`. The
+[validation workflow](https://github.com/cardano-foundation/cardano-node-antithesis/actions/runs/34227748384)
+used consumer commit `ed603743e31149709ac2baa002ebbfd21136cc82`.
+Antithesis identified both images among its freshness examples.
+
+The scheduled profile must select the published digests to consume the harness
+fix; merging the image-building code alone does not update existing pins.
+Creation time follows the source revision, so rebuilding unchanged source does
+not renew the 72-hour freshness window. New source images need validation and
+pin promotion as they are published.
+
+### Original workload promotion (May 2026)
+
+The original workload promotion used `tx-generator:69bf815`, referenced from
 downstream commit `4687a09`. It was validated on a sibling
 `cardano_node_tx_generator` testnet before promotion (since removed;
 the workload now lives directly in this testnet).

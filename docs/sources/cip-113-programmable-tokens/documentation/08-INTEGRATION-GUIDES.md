@@ -115,7 +115,7 @@ The `transfer_logic_script` for a given token can be looked up from the on-chain
 
 The transaction must include reference inputs (not consumed, just read):
 
-- **Protocol parameters UTxO** — contains the `ProgrammableLogicGlobalParams` datum with the registry node currency symbol and programmable logic credential.
+- **Protocol parameters UTxO** — contains the `ProtocolParams` datum with the registry node currency symbol and programmable logic credential.
 - **Registry node UTxO** — the registry entry for the token being transferred, containing the transfer logic script credential.
 
 > **Reference-input indices are supplied in the redeemer.** Every validator that reads the protocol-params UTxO (`programmable_logic_base`, `transfer`, `third_party`, `unfracking`) jumps straight to it by index — `params_idx` — instead of scanning the reference-input set, and authenticates it by the one-shot params NFT. A transaction references several scripts (each as a reference input), so the builder must compute the params UTxO's position **in the canonical reference-input ordering** (the ledger sorts `reference_inputs` by `OutputReference` = `(transaction_id, output_index)`; the on-chain index is a position into that sorted list, not into the order you added them). Set `params_idx` to that position in each redeemer; a wrong index fails the NFT check. The same discipline applies to `registry_node_idx` for the registry node.
@@ -191,7 +191,7 @@ To determine whether a token is programmable:
 
 1. Look up the token's policy ID in the on-chain registry (sorted linked list of `RegistryNode` UTxOs at the registry address, each marked with an NFT from the `registry_node_cs` policy).
 2. If a node with `key == policy_id` exists, the token is programmable.
-3. The node's `transfer_logic_script` and `third_party_transfer_logic_script` fields indicate what substandard governs the token.
+3. The node's `transfer_logic_script` and `third_party_logic_script` fields indicate what substandard governs the token.
 
 ### Stake Delegation
 
@@ -212,12 +212,12 @@ In general, programmable token addresses will hold minimal ADA (just the minimum
 | Not registering the stake address | The script stake address for `transfer` (and `third_party` / `unfracking`) and the `transfer_logic_script` must be registered on-chain before use. If not registered, the withdraw-zero invocation will fail at the ledger level. |
 | Wrong credential convention | If the token protocol uses payment keys but the wallet constructs the address with the stake key (or vice versa), the balance will appear as zero and transfers will fail. |
 | Caching a registry-node reference input | A registry node UTxO is consumed and re-created when a token is registered around it, or when its node is updated in place. A transfer that references a stale (now-spent) node UTxO will fail. Resolve the covering/exists node at build time, and on failure **re-resolve against the current registry and rebuild** rather than retrying the same reference. See the registration-contention limitation in [`02-ARCHITECTURE.md`](./02-ARCHITECTURE.md#registration-contention-a-linked-list-limitation). |
-| Caching a token's logic **credentials** | A registry node's `transfer_logic_script`, `third_party_transfer_logic_script`, `global_state_cs`, and `protected_prefixes` are **live, mutable configuration** — the token's issuer can update them in place, and the change is **retroactive** (it governs all existing holders on their next spend). Do not cache these credentials as immutable facts derived once at registration. Always resolve the **current** registry node at transaction-build time, and monitor registry-node updates for the policies you support. (`key`, `next`, and `minting_logic_script` are the only frozen fields.) |
+| Caching a token's logic **credentials** | A registry node's `transfer_logic_script`, `third_party_logic_script`, `global_state_cs`, and `protected_prefixes` are **live, mutable configuration** — the token's issuer can update them in place, and the change is **retroactive** (it governs all existing holders on their next spend). Do not cache these credentials as immutable facts derived once at registration. Always resolve the **current** registry node at transaction-build time, and monitor registry-node updates for the policies you support. (`key`, `next`, and `minting_logic_script` are the only frozen fields.) |
 
 ### UTxO Hygiene & Anti-Injection
 
 A programmable token can be **frozen** by its substandard — the token's
-`transfer_logic_script` (or an administrator via `third_party_transfer_logic_script`)
+`transfer_logic_script` (or an administrator via `third_party_logic_script`)
 can decline to authorize a spend. Because a single UTxO can hold assets of
 several policies at once, **a freeze applies to the whole UTxO, not to one
 asset**: if a UTxO holds a legitimate token *and* a frozen one, the legitimate
@@ -254,7 +254,7 @@ tokens expose extra risk data worth surfacing:
 
 - Whether a co-located token is a **registered programmable token** at all —
   and if so, from its registry node, **who can freeze or seize it**
-  (`transfer_logic_script` / `third_party_transfer_logic_script` and the admin
+  (`transfer_logic_script` / `third_party_logic_script` and the admin
   credential behind them). A *registered* token with **unknown or untrusted
   logic** sitting beside a user's assets is the loud signal: only a registered
   token can freeze the shared UTxO (its transfer logic runs on the spend and can
@@ -383,7 +383,7 @@ The on-chain registry is a sorted linked list of `RegistryNode` UTxOs. Indexers 
 
 - **Registered tokens**: Each node's `key` is a registered programmable token policy ID.
 - **Transfer logic**: Each node's `transfer_logic_script` indicates the substandard governing the token.
-- **Third-party logic**: Each node's `third_party_transfer_logic_script` indicates the admin/compliance script.
+- **Third-party logic**: Each node's `third_party_logic_script` indicates the admin/compliance script.
 - **Global state**: Each node's `global_state_cs` may point to additional on-chain state (e.g., a denylist).
 
 #### Compliance Events (Freeze-and-Seize Substandard)

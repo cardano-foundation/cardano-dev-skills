@@ -64,7 +64,7 @@ func marshalBool(val reflect.Value, useIndef bool) (data.PlutusData, error) {
 	if val.Kind() != reflect.Bool {
 		return nil, fmt.Errorf("bool tag requires bool, got %s", val.Kind())
 	}
-	tag := uint(0)
+	tag := uint64(0)
 	if val.Bool() {
 		tag = 1
 	}
@@ -222,7 +222,7 @@ func unmarshalBool(pd data.PlutusData, fieldVal reflect.Value) error {
 	if !ok {
 		return fmt.Errorf("expected Constr for Bool, got %T", pd)
 	}
-	if constr.Tag != 0 && constr.Tag != 1 {
+	if !constrTagEqual(constr.Tag, 0) && !constrTagEqual(constr.Tag, 1) {
 		return fmt.Errorf("expected Constr tag 0 or 1 for Bool, got %d", constr.Tag)
 	}
 	if len(constr.Fields) != 0 {
@@ -231,6 +231,6 @@ func unmarshalBool(pd data.PlutusData, fieldVal reflect.Value) error {
 	if fieldVal.Kind() != reflect.Bool {
 		return fmt.Errorf("bool tag requires bool, got %s", fieldVal.Kind())
 	}
-	fieldVal.SetBool(constr.Tag == 1)
+	fieldVal.SetBool(constrTagEqual(constr.Tag, 1))
 	return nil
 }

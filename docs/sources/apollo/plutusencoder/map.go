@@ -10,7 +10,7 @@ import (
 	"github.com/blinklabs-io/plutigo/data"
 )
 
-func marshalMap(val reflect.Value, typ reflect.Type, constrTag uint, hasConstr bool) (data.PlutusData, error) {
+func marshalMap(val reflect.Value, typ reflect.Type, constrTag uint64, hasConstr bool) (data.PlutusData, error) {
 	var pairs [][2]data.PlutusData
 	seenKeys := make(map[string]struct{}, typ.NumField())
 
@@ -299,7 +299,7 @@ func unmarshalFromMap(pd data.PlutusData, val reflect.Value, typ reflect.Type) e
 	if !ok {
 		// Could be a Constr wrapping a Map
 		if constr, ok := pd.(*data.Constr); ok && len(constr.Fields) == 1 {
-			if hasExpectedConstr && constr.Tag != expectedConstr {
+			if hasExpectedConstr && !constrTagEqual(constr.Tag, expectedConstr) {
 				return fmt.Errorf("expected Constr tag %d, got %d", expectedConstr, constr.Tag)
 			}
 			mapData, ok = constr.Fields[0].(*data.Map)

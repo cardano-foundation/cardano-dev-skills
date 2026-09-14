@@ -40,11 +40,53 @@ type CertState interface {
 	IsStakeCredentialRegistered(Credential) bool
 }
 
+// StakeCredentialDepositState is the optional ledger-state capability used by
+// Conway certificate validation to retrieve the deposit held for a registered
+// stake credential. The returned pointer is nil when the credential is not
+// registered.
+type StakeCredentialDepositState interface {
+	StakeCredentialDeposit(Credential) (*uint64, error)
+}
+
+// EpochState is the optional ledger-state capability that maps a slot to the
+// epoch containing it. The Shelley POOL rule's retirement bound
+// (StakePoolRetirementWrongEpochPOOL) is expressed relative to the current
+// epoch, which the (transaction, slot, state, params) validation contract does
+// not otherwise carry.
+//
+// It is deliberately optional and degrading: a ledger state that does not
+// implement it keeps every other POOL predicate and does not get the
+// retirement-epoch bound enforced, so that adopting a gouroboros release
+// containing this rule cannot reject otherwise-valid pool retirements in a
+// consumer that has not implemented the method yet.
+//
+// The single exception is retirement epoch zero, which is rejected without
+// EpochState. The bound is cEpoch < e, and cEpoch is unsigned, so e == 0 is
+// invalid for every possible current epoch and needs no epoch lookup to
+// judge. Every other epoch value requires current-epoch knowledge and is
+// skipped rather than rejected when EpochState is absent.
+type EpochState interface {
+	// EpochForSlot returns the epoch number containing the given slot.
+	EpochForSlot(slot uint64) (uint64, error)
+}
+
 // PoolState defines the interface for querying the current pool state
 type PoolState interface {
 	// PoolCurrentState returns the latest active registration certificate for the given pool key hash.
 	// It also returns the epoch of a pending retirement certificate, if one exists.
 	// If the pool is not registered, the registration certificate will be nil.
+	//
+	// The returned retirement epoch must be pending relative to the returned
+	// registration. A retirement that a later registration superseded is no
+	// longer pending and must be reported as nil, not as the pool's most
+	// recent retirement.
+	//
+	// PoolRegistrationDepositDue reads the pair together and treats a
+	// retirement epoch the current epoch has reached as evidence that the pool
+	// is no longer registered, so an implementation that returned the latest
+	// retirement unconditionally would charge a second pool deposit on every
+	// parameter update made after a re-registration and reject a canonical
+	// block for failing value conservation.
 	PoolCurrentState(PoolKeyHash) (*PoolRegistrationCertificate, *uint64, error)
 	// IsPoolRegistered checks if a pool is currently registered
 	IsPoolRegistered(PoolKeyHash) bool
@@ -119,10 +161,18 @@ type SlotState interface {
 	TimeToSlot(time.Time) (uint64, error)
 }
 
-// Minimal placeholder types used by the extended interface. These are intentionally
-// lightweight so tests and era packages can compile while we wire real parsing.
+// Constitution is the current enacted constitution. ScriptHash is the
+// optional guardrails script hash: nil means that the constitution has no
+// guardrails script.
+type Constitution struct {
+	Anchor     GovAnchor
+	ScriptHash []byte
+}
+
+// Minimal placeholder types used by the extended interface. These are
+// intentionally lightweight so tests and era packages can compile while we
+// wire real parsing.
 type (
-	Constitution   struct{}
 	PlutusLanguage uint8
 	CostModel      struct{}
 )
@@ -135,10 +185,37 @@ type CommitteeMember struct {
 	Resigned    bool
 }
 
+// CommitteeCredentialState is the optional authoritative committee-state
+// capability used by Conway certificate and voter validation. Credentials are
+// passed with their key/script tag intact so providers cannot alias identities
+// that share the same hash.
+//
+// CommitteeStateAvailable distinguishes an authoritative empty committee from
+// a provider that cannot answer committee queries for the validation snapshot.
+// Validation fails closed when this capability is absent or reports false.
+type CommitteeCredentialState interface {
+	CommitteeStateAvailable() (bool, error)
+	CommitteeCredentialMember(Credential) (*CommitteeMember, error)
+	CommitteeHotCredentialMember(Credential) (*CommitteeMember, error)
+}
+
+// DRepRegistration is the ledger state held for a registered DRep.
 type DRepRegistration struct {
+	// Credential is the DRep's credential hash. The reference ledger keys
+	// DRep state by Credential (Cardano.Ledger.Conway.Governance vsDReps),
+	// so the same 28 bytes under a key-hash and a script-hash credential
+	// are two distinct DReps and this hash alone does not identify one.
+	// Widening it is a breaking change for implementors and is deferred.
 	Credential Blake2b224
 	Anchor     *GovAnchor
-	Deposit    uint64
+	// Deposit is the deposit recorded against this DRep's registration.
+	// It is a pointer for the same reason StakeCredentialDeposit returns
+	// one: nil is the absence of a recorded deposit, distinct from a
+	// recorded zero. The reference ledger's DRepState carries a
+	// non-optional drepDeposit, so a ledger state that reports a
+	// registration without one is internally inconsistent, and refund
+	// validation fails closed on nil rather than reading it as zero.
+	Deposit *uint64
 }
 
 // DRepDelegationState is the optional ledger-state capability used to query
@@ -146,6 +223,20 @@ type DRepRegistration struct {
 // key-hash reward withdrawals must implement this interface.
 type DRepDelegationState interface {
 	DRepDelegation(Credential) (*Drep, error)
+}
+
+// GenesisDelegationState is the optional ledger-state capability used to
+// authorize move-instantaneous-rewards certificates. MIR certificates carry no
+// field-level author, so Shelley through Babbage authorize them with signatures
+// from a quorum of the currently delegated genesis keys. Ledger states used to
+// validate those eras must implement this interface.
+type GenesisDelegationState interface {
+	// GenesisDelegateKeyHashes returns the key hash of every currently
+	// delegated genesis key.
+	GenesisDelegateKeyHashes() ([]Blake2b224, error)
+	// GenesisUpdateQuorum returns the number of distinct genesis delegate
+	// signatures required to authorize an MIR certificate.
+	GenesisUpdateQuorum() (uint, error)
 }
 
 type PoolDelegation struct {
@@ -192,10 +283,25 @@ type GovPurposeRootsState interface {
 // GovState defines the interface for querying governance state
 type GovState interface {
 	// Committee queries
+	// CommitteeMember resolves a cold credential against both the current
+	// committee and every pending UpdateCommittee proposal. It returns nil only
+	// when the credential is neither a current nor a potential future member.
 	CommitteeMember(coldKey Blake2b224) (*CommitteeMember, error)
+	// CommitteeMembers returns the current committee members.
 	CommitteeMembers() ([]CommitteeMember, error)
 
 	// DRep queries
+	// DRepRegistration returns the registration held for the given DRep
+	// credential hash, or nil when that hash is not a registered DRep.
+	//
+	// The reference ledger keys DRep state by Credential
+	// (Cardano.Ledger.Conway.Governance vsDReps), so a key-hash and a
+	// script-hash DRep sharing the same 28 bytes are distinct DReps. This
+	// lookup takes a bare hash and therefore cannot distinguish them, and
+	// the records DRepRegistrations returns carry the same bare hash.
+	// Widening both to a full Credential is a breaking change for every
+	// implementor and is deferred; until then a same-hash key/script pair
+	// resolves to whichever registration the state holds.
 	DRepRegistration(credential Blake2b224) (*DRepRegistration, error)
 	DRepRegistrations() ([]DRepRegistration, error)
 

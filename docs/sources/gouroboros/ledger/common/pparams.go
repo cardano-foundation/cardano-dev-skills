@@ -40,14 +40,45 @@ type ProtocolParameters interface {
 	Utxorpc() (*cardano.PParams, error)
 }
 
+// PoolRuleProtocolParameters is the protocol-parameter view required by the
+// Shelley POOL rules. Every protocol parameter type in this repository from
+// Shelley onwards implements it, so it is an internal accessor rather than a
+// capability a consumer has to supply. Byron has no POOL rule.
+//
+// Reference: poolTransition in
+// eras/shelley/impl/src/Cardano/Ledger/Shelley/Rules/Pool.hs reads
+// ppProtocolVersionL, ppMinPoolCostL and ppEMaxL.
+type PoolRuleProtocolParameters interface {
+	// ProtocolMajorVersion returns the active major protocol version, used
+	// to gate the era-dependent POOL predicates.
+	ProtocolMajorVersion() uint
+	// MinPoolCostValue returns the minPoolCost protocol parameter.
+	MinPoolCostValue() uint64
+	// PoolRetirementMaxEpoch returns the eMax protocol parameter, the
+	// number of epochs after the current one within which a scheduled pool
+	// retirement must fall.
+	PoolRetirementMaxEpoch() uint64
+}
+
 type ExUnitPrice struct {
 	cbor.StructAsArray
 	MemPrice  *cbor.Rat
 	StepPrice *cbor.Rat
 }
 
-// ConvertToUtxorpcCardanoCostModels converts a map of cost models for Plutus scripts into cardano.CostModels
-// Only PlutusV(keys 1, 2, and 3) are supported.
+// ConvertToUtxorpcCardanoCostModels converts a map of cost models for Plutus
+// scripts into cardano.CostModels.
+//
+// NOTE: the map keys follow the real cardano-ledger wire convention for the
+// protocol-parameter cost-models map (`Map language pv -> CostModel`), which
+// is 0-indexed: PlutusV1=0, PlutusV2=1, PlutusV3=2, PlutusV4=3. This matches
+// the same 0-indexed keys used throughout this repo's own genesis loading
+// (e.g. ledger/alonzo/pparams.go's PlutusV1Key/PlutusV2Key/PlutusV3Key
+// constants) and script-execution cost-model lookups (e.g.
+// ledger/conway/rules.go, ledger/dijkstra/rules.go), and is verified against
+// a real on-chain transaction fixture in
+// ledger/babbage/script_data_hash_used_languages_test.go. Do not shift this
+// back to 1-indexed keys.
 func ConvertToUtxorpcCardanoCostModels(
 	models map[uint][]int64,
 ) *cardano.CostModels {
@@ -55,12 +86,14 @@ func ConvertToUtxorpcCardanoCostModels(
 	for k, v := range models {
 		costModel := &cardano.CostModel{Values: v}
 		switch k {
-		case 1:
+		case 0:
 			costModels.PlutusV1 = costModel
-		case 2:
+		case 1:
 			costModels.PlutusV2 = costModel
-		case 3:
+		case 2:
 			costModels.PlutusV3 = costModel
+		case 3:
+			costModels.PlutusV4 = costModel
 		default:
 			slog.Warn("unsupported cost model version", "version", k)
 		}

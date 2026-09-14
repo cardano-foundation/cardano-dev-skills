@@ -30,11 +30,12 @@ Currently we provide and maintain one testnet configuration. Some old testnets a
 
 ## Image publishing
 
-Component images are published to `ghcr.io/cardano-foundation/cardano-node-antithesis/` via the `publish-images` workflow. The docker-compose references images by commit hash (e.g., `configurator:aa43ea4`). The publish workflow:
+Component images are published to `ghcr.io/cardano-foundation/cardano-node-antithesis/` via the `publish-images` workflow. The docker-compose references images by commit hash (e.g., `configurator:aa43ea4`). Nix-built images stamp OCI `created` from source revision time, not packaging wall-clock; see [image provenance](images/provenance.md). The publish workflow:
 
-1. Scans `docker-compose.yaml` for image references matching the registry prefix
-2. Resolves each tag (commit hash) to a git revision
-3. Checks out that revision and builds from `components/<name>/`
-4. Pushes the image tagged with both the short hash and full commit hash
+1. Runs the daemon-free provenance proof (`just check-image-provenance`)
+2. Scans `docker-compose.yaml` for image references matching the registry prefix
+3. Resolves each tag (commit hash) to a git revision
+4. Checks out that revision and builds from `components/<name>/`
+5. Pushes the image tagged with both the short hash and full commit hash, skipping tags that already exist and digest-only pins
 
-To add a new component: create `components/<name>/Dockerfile`, reference it in docker-compose as `ghcr.io/cardano-foundation/cardano-node-antithesis/<name>:<commit>`, and push. The publish workflow builds and pushes it automatically on PR or merge to main.
+To add a new component: create `components/<name>/Dockerfile`, reference it in docker-compose as `ghcr.io/cardano-foundation/cardano-node-antithesis/<name>:<commit>`, and push. The publish workflow builds and pushes it automatically on PR or merge to main. The live Antithesis freshness warning needs a consuming run of the corrected tags; this repository does not claim that live resolution. The MOOG config image is a separate artifact.

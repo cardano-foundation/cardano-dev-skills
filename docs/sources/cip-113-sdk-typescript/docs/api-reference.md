@@ -21,6 +21,8 @@ const protocol = CIP113.init({
 
 ### Core Operations
 
+> ⚠ In 0.5.0-alpha.4, every `register`, `mint`, and `burn` transaction carries `issuance_logic`'s withdraw-0; omitting it refuses the mint without naming a missing withdrawal, policy, or index.
+
 | Method | Description |
 |--------|-------------|
 | `register(substandardId, params)` | Register a new token (first mint + registry insert) |
@@ -33,9 +35,9 @@ const protocol = CIP113.init({
 | Method | Description |
 |--------|-------------|
 | `compliance.init(substandardId, params)` | Initialize compliance infrastructure |
-| `compliance.freeze(params)` | Add address to blacklist |
-| `compliance.unfreeze(params)` | Remove address from blacklist |
-| `compliance.seize(params)` | Seize tokens from frozen address |
+| `compliance.freeze(params)` | Add address to blacklist. **`params.substandardId` is required** — no try-all fallback |
+| `compliance.unfreeze(params)` | Remove address from blacklist. **`params.substandardId` is required** — no try-all fallback |
+| `compliance.seize(params)` | Seize tokens from frozen address. **`params.substandardId` is required** — no try-all fallback |
 
 ### Runtime
 
@@ -159,17 +161,68 @@ const protocol = CIP113.init({
 
 On-chain protocol deployment references. Obtained from the bootstrap transaction.
 
+> ⚠ **This block was wrong for two protocol versions.** Until 0.8.0 it described the **0.3.x**
+> shape — `programmableLogicGlobal: { policyId, scriptHash }`, `protocolParams.alwaysFailScriptHash`,
+> a `directoryMint`/`directorySpend` pair — and survived the entire 0.3.x → 0.5.0-alpha.2 migration
+> unnoticed, because nothing tests documentation. It is now pinned by
+> `test/docs-drift.test.mjs`, which fails if these field names stop matching the real type.
+>
+> ⚠ **For 0.5.0-alpha.4, this is the six-field deployment shape.** The params datum inserts
+> `issuance_logic_cred` at index 1, shifting the credential-valued slots at indices 1, 2 and 3.
+> Every `register`, `mint`, and `burn` transaction also carries `issuance_logic`'s withdraw-0;
+> omitting it refuses the mint without naming a missing withdrawal, policy, or index.
+
 ```typescript
 interface DeploymentParams {
   txHash: TxHash;
-  protocolParams: { txInput: TxInput; policyId: PolicyId; alwaysFailScriptHash: ScriptHash };
-  programmableLogicGlobal: { policyId: PolicyId; scriptHash: ScriptHash };
+
+  // ⚑ ONE hash, two roles: policyId is ALSO the params address's payment
+  // credential. protocol_params merged its mint and spend handlers in
+  // alpha.3, so deriving them separately is two chances to disagree.
+  protocolParams: { txInput: TxInput; policyId: PolicyId; utxo: TxInput };
+
   programmableLogicBase: { scriptHash: ScriptHash };
+
+  // The three withdraw-0 delegates.
+  transfer: { scriptHash: ScriptHash };
+  thirdParty: { scriptHash: ScriptHash };
+  unfracking: { scriptHash: ScriptHash };
+
+  // The dispatcher. Every programmable transaction withdraws through it.
+  programmableLogicGlobal: { scriptHash: ScriptHash };
+
+  // A deployment CHOICE, not a derivation — baked into transfer, third_party,
+  // unfracking, and issuance_logic hashes and recoverable from none of them.
+  maxInlineDatumBytes: number;
+
+  // ⚑ ONE hash, THREE roles: scriptHash is the config NFT policy, the config
+  // UTxO address's payment credential, AND the withdraw-0 credential.
+  // txInput is the spent one-shot it is parameterised by — NOT interchangeable
+  // with protocolParams.txInput, which has the same type. utxo is MUTABLE: a
+  // signer rotation spends the config UTxO and recreates it.
+  upgradeMultisig: { scriptHash: ScriptHash; txInput: TxInput; utxo: TxInput };
+  upgradeMultisigRefInput: TxInput;
+
+  // The ACTIVE authority the params datum names. Not derived from
+  // upgradeMultisig, and never checked against it.
+  upgradeAuthority: { type: "key" | "script"; hash: ScriptHash };
+
+  // The withdraw-0 credential named by the params datum's field 1. Every mint
+  // and every burn carries its withdrawal, and it must be REGISTERED.
+  issuanceLogic: { scriptHash: ScriptHash };
+  issuanceLogicRefInput: TxInput;
+
   issuance: { txInput: TxInput; policyId: PolicyId; alwaysFailScriptHash: ScriptHash };
-  directoryMint: { txInput: TxInput; issuanceScriptHash: ScriptHash; scriptHash: ScriptHash };
-  directorySpend: { policyId: PolicyId; scriptHash: ScriptHash };
+
+  // ⚑ ONE hash, two roles again: scriptHash is the node NFT policy AND the
+  // node address's payment credential.
+  registry: { txInput: TxInput; issuanceScriptHash: ScriptHash; scriptHash: ScriptHash };
+
   programmableBaseRefInput: TxInput;
-  programmableGlobalRefInput: TxInput;
+  programmableLogicGlobalRefInput: TxInput;
+  transferRefInput: TxInput;
+  thirdPartyRefInput: TxInput;
+  unfrackingRefInput: TxInput;
 }
 ```
 
@@ -259,3 +312,43 @@ const blacklistMint = scripts.buildBlacklistMint(txInput, adminPkh);
 | `EvoAssets` | Assets module |
 | `EvoTransactionHash` | TransactionHash module |
 | `EvoData` | Plutus Data module |
+
+## Third-party transfers: the output layout is the contract
+
+`thirdPartyTransfer` moves a holder's tokens **without the holder's signature**. It takes a
+different on-chain route from `transfer`: `programmable_logic_base` withdraws through the
+`programmable_logic_global` dispatcher, whose own redeemer carries `ThirdPartyAct`, and the
+dispatcher requires the standalone `third_party` validator. A third-party transaction never loads
+the `transfer` reference script at all.
+
+> ⚠ In 0.5.0-alpha.2 the choice lived on `programmable_logic_base`'s own redeemer, as
+> `SpendViaThirdParty`. That constructor no longer exists — see the migration note in the README.
+>
+> ⚠ In 0.5.0-alpha.4, `thirdPartyTransfer` still neither mints nor burns, so it carries no
+> `issuance_logic` withdrawal. Its six-field params datum instead supplies the shifted delegate
+> credentials by their alpha.4 field names.
+
+**The rule that is easy to get backwards**, and which fails with **no diagnostic at all** if you do:
+
+`third_party` walks programmable inputs and outputs **in lockstep**. For each input at the
+programmable-logic-base credential it takes the *next* output and requires that output to preserve
+the input's **address, datum and reference script**, with lovelace only ratcheting **up**. The
+amount seized is the **delta** between the pair.
+
+**So the destination — where the seized tokens actually go — cannot be one of those paired outputs.**
+It must sit among the *leading* outputs that `outputs_start_idx` tells the validator to skip; their
+tokens are still counted in the conservation check, but they are exempt from the pairing rule.
+
+```
+outputs[0 .. outputs_start_idx-1]   destinations   (skipped; tokens still counted)
+outputs[outputs_start_idx .. ]      one continuation per spent input, IN LEDGER ORDER
+```
+
+Two things follow that are not obvious:
+
+- **Continuations must be in LEDGER input order**, not the order you added them. The ledger sorts
+  inputs by `(tx id, index)`; the validator walks that order, so the outputs must match it.
+- **Getting the layout wrong encodes cleanly, submits, and dies at script evaluation with an EMPTY
+  TRACE LIST.** There is no message naming the layout, because the failure is a structural
+  `expect`, not a traced check. If you see an empty trace from `third_party`, suspect the pairing
+  before anything else.

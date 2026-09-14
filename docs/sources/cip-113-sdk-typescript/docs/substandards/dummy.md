@@ -40,6 +40,9 @@ const result = await protocol.transfer({
 
 The dummy transfer uses redeemer value 200 and does not check any blacklist.
 
+In 0.5.0-alpha.4, `transfer` neither mints nor burns and needs no `issuance_logic`
+withdrawal. The dummy substandard does not implement register, mint, or burn.
+
 ## Validators
 
 | Validator | Redeemer | Purpose |

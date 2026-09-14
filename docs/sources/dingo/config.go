@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	"math"
 	"net/http"
 	"runtime"
@@ -96,6 +95,11 @@ type KoiosParityConfig struct {
 	// CachePath is the Koios reference cache.db path. Empty defaults to
 	// {DatabasePath}/.koios/cache.db.
 	CachePath string
+	// BaseURL overrides the public koios.rest host for the network, for a
+	// self-hosted or mirrored Koios instance. Empty selects the public host.
+	BaseURL string
+	// AllowInsecureHTTP permits a plain-HTTP BaseURL. Local dev/test only.
+	AllowInsecureHTTP bool
 	// APIKey is the Koios Bearer token for higher-rate-limit access.
 	APIKey string
 	// Strict stops/cancels the node on the first Koios/tool error or exact
@@ -154,12 +158,15 @@ type TokenRegistryConfig struct {
 // MidnightConfig controls the Midnight indexer and optional gRPC listener.
 // Indexing is only active when Enabled is true AND Dingo is running in API
 // storage mode -- both are required, since the indexer depends on the
-// api-mode indexes to function. Port 0 disables the gRPC listener while
-// leaving indexing eligible to run.
+// api-mode indexes to function. ServerEnabled independently opts into the
+// listener so persisted Midnight data can be served without running the
+// indexer. Reflection remains a separate, default-off decision. TLS is optional.
 type MidnightConfig struct {
-	Enabled bool
-	Port    uint
-	Host    string
+	Enabled           bool
+	ServerEnabled     bool
+	ReflectionEnabled bool
+	Port              uint
+	Host              string
 
 	CNightPolicyID              string
 	CNightAssetName             string
@@ -205,7 +212,7 @@ type Config struct {
 	pluginSelections                map[hostplugin.Capability]hostplugin.Selection
 	network                         string
 	tlsCertFilePath, tlsKeyFilePath string
-	// apiConfig mirrors cfg.API -- the shared api.tls/api.auth policy
+	// apiConfig mirrors cfg.API -- the shared api.tls policy
 	// defaults merged into every selected plugins.api.* provider's own
 	// config by node.go before that provider resolves. See
 	// ARCHITECTURE.md's "API security" section.
@@ -215,17 +222,20 @@ type Config struct {
 	barkBlockDownloadHosts                                                              []string
 	barkHost                                                                            string
 	barkClientCAFilePath                                                                string
+	barkOperatorCertificateFingerprints                                                 []string
 	databaseLifecycle                                                                   internalconfig.DatabaseLifecycleConfig
 	historyExpiry                                                                       HistoryExpiryConfig
 	koiosParity                                                                         KoiosParityConfig
 	corsAllowedOrigins                                                                  []string
 	networkMagic                                                                        uint32
 	intersectTip, peerSharing, validateHistorical, strictUtxoValidation                 bool
+	skipRewardLiveStakeBackfillCheck                                                    bool
 	runMode                                                                             string
 	startEra                                                                            internalconfig.StartEra
 	shutdownTimeout                                                                     time.Duration
 	DatabaseWorkerPoolConfig                                                            ledger.DatabaseWorkerPoolConfig
 	targetNumberOfKnownPeers, targetNumberOfEstablishedPeers, targetNumberOfActivePeers int
+	targetNumberOfRootPeers                                                             int
 	activePeersTopologyQuota, activePeersGossipQuota, activePeersLedgerQuota            int
 	minHotPeers                                                                         int
 	reconcileInterval, inactivityTimeout                                                time.Duration
@@ -242,6 +252,9 @@ type Config struct {
 	blockProducer                                                                       bool
 	shelleyVRFKey, shelleyKESKey, shelleyOperationalCertificate                         string
 	forgeSyncToleranceSlots, forgeStaleGapThresholdSlots                                uint64
+	forgePrimaryChainTipToleranceSlots                                                  uint64
+	forgeUpstreamStalenessSlots, forgeAppliedTipStalenessSlots                          uint64
+	forgeEndorserBlockStalenessSlots                                                    uint64
 	validateForgedBlock                                                                 bool
 	blockPipelineEnabled                                                                bool
 	blockPipelineValidateEnabled                                                        bool
@@ -252,7 +265,6 @@ type Config struct {
 	delegatorInactivityEnabled                                                          bool
 	delegatorInactivity                                                                 uint64
 	leiosVoteSigningKeyFile                                                             string
-	leiosVoterPublicKeys                                                                map[string]string
 	midnight                                                                            MidnightConfig
 	chainsyncMaxClients                                                                 int
 	chainsyncStrategy                                                                   chainsync.HeaderSyncStrategy
@@ -553,6 +565,20 @@ func (n *Node) configValidate() error {
 			ouroboros.NetworkCardanoMusashi.NetworkMagic,
 		)
 	}
+	// Peer snapshot relays replace the configured bootstrap peers during
+	// Genesis selection. Validate the snapshot as one contract before any of
+	// its endpoints can suppress those known-good peers.
+	if n.config.topologyConfig != nil &&
+		n.config.topologyConfig.PeerSnapshot != nil {
+		if err := n.config.topologyConfig.PeerSnapshot.Validate(
+			n.config.cfg.NetworkMagic,
+		); err != nil {
+			return fmt.Errorf(
+				"invalid peer snapshot: %w",
+				err,
+			)
+		}
+	}
 	// The block-decode pipeline's vendored decode stage
 	// (gouroboros/pipeline.DecodeStage) calls ledger.NewBlockFromCbor
 	// directly and has no hook for dingo's Leios-extended-header Conway
@@ -627,6 +653,24 @@ func (n *Node) configValidate() error {
 				shelleyGenesis.NetworkMagic,
 			)
 		}
+		if byronGenesis := n.config.CardanoNodeConfig().ByronGenesis(); byronGenesis != nil {
+			byronProtocolMagic := byronGenesis.ProtocolConsts.ProtocolMagic
+			if byronProtocolMagic < 0 || byronProtocolMagic > math.MaxUint32 {
+				return fmt.Errorf(
+					"byron genesis protocol magic %d is out of uint32 range",
+					byronProtocolMagic,
+				)
+			}
+			if n.config.cfg.NetworkMagic != uint32(
+				byronProtocolMagic,
+			) { // #nosec G115 -- range-checked above
+				return fmt.Errorf(
+					"network magic (%d) doesn't match value from Byron genesis (%d)",
+					n.config.cfg.NetworkMagic,
+					byronProtocolMagic,
+				)
+			}
+		}
 	}
 	return nil
 }
@@ -640,17 +684,24 @@ func NewConfig(opts ...ConfigOptionFunc) Config {
 	// Start with a default internal config
 	c := Config{
 		cfg: &internalconfig.Config{
-			BindAddr:           "0.0.0.0",
-			StorageMode:        string(StorageModeCore),
-			RunMode:            internalconfig.RunModeServe,
-			Cache:              internalconfig.DefaultCacheConfig(),
-			Chainsync:          internalconfig.DefaultChainsyncConfig(),
-			GenesisBootstrap:   internalconfig.DefaultGenesisBootstrapConfig(),
-			HistoryExpiry:      internalconfig.DefaultHistoryExpiryConfig(),
-			KoiosParity:        internalconfig.DefaultKoiosParityConfig(),
-			Logging:            internalconfig.DefaultLoggingConfig(),
-			Midnight:           internalconfig.DefaultMidnightConfig(),
-			CORSAllowedOrigins: []string{"*"},
+			BindAddr:    "0.0.0.0",
+			StorageMode: string(StorageModeCore),
+			RunMode:     internalconfig.RunModeServe,
+			// Fail closed: self-validate locally-forged blocks before
+			// adoption and diffusion unless an operator explicitly opts
+			// out. Mirrors internalconfig's own package-level default
+			// (globalConfig, built by its unexported newDefaultConfig)
+			// -- this literal is a separate default source, not backfilled
+			// from that one, so it must be set here too.
+			ValidateForgedBlock: true,
+			Cache:               internalconfig.DefaultCacheConfig(),
+			Chainsync:           internalconfig.DefaultChainsyncConfig(),
+			GenesisBootstrap:    internalconfig.DefaultGenesisBootstrapConfig(),
+			HistoryExpiry:       internalconfig.DefaultHistoryExpiryConfig(),
+			KoiosParity:         internalconfig.DefaultKoiosParityConfig(),
+			Logging:             internalconfig.DefaultLoggingConfig(),
+			Midnight:            internalconfig.DefaultMidnightConfig(),
+			CORSAllowedOrigins:  []string{"*"},
 			Plugins: internalconfig.PluginsConfig{
 				Storage: internalconfig.StoragePluginsConfig{
 					Blob: hostplugin.Selection{
@@ -708,10 +759,14 @@ func (c *Config) syncCompatFields() {
 	c.barkBaseUrl, c.barkPort, c.barkBlockDownloadHosts = c.cfg.BarkBaseUrl, c.cfg.BarkPort, c.cfg.BarkBlockDownloadHosts
 	c.barkHost = c.cfg.BarkHost
 	c.barkClientCAFilePath = c.cfg.BarkClientCAFilePath
+	c.barkOperatorCertificateFingerprints = slices.Clone(
+		c.cfg.BarkOperatorCertificateFingerprints,
+	)
 	c.databaseLifecycle = c.cfg.DatabaseLifecycle
 	c.corsAllowedOrigins, c.intersectTip = c.cfg.CORSAllowedOrigins, c.cfg.IntersectTip
 	c.peerSharing = c.cfg.PeerSharing != nil && *c.cfg.PeerSharing
 	c.validateHistorical, c.strictUtxoValidation = c.cfg.ValidateHistorical, c.cfg.StrictUtxoValidation
+	c.skipRewardLiveStakeBackfillCheck = c.cfg.SkipRewardLiveStakeBackfillCheck
 	c.runMode, c.startEra, c.storageMode = string(
 		c.cfg.RunMode,
 	), c.cfg.StartEra, StorageMode(
@@ -738,6 +793,8 @@ func (c *Config) syncCompatFields() {
 		Network:              c.cfg.KoiosParity.Network,
 		CachePath:            c.cfg.KoiosParity.CachePath,
 		APIKey:               c.cfg.KoiosParity.APIKey,
+		BaseURL:              c.cfg.KoiosParity.BaseURL,
+		AllowInsecureHTTP:    c.cfg.KoiosParity.AllowInsecureHTTP,
 		Strict:               c.cfg.KoiosParity.Strict,
 		GraceHours:           c.cfg.KoiosParity.GraceHours,
 		Accounts:             &koiosParityAccounts,
@@ -763,6 +820,8 @@ func (c *Config) syncCompatFields() {
 	}
 	c.midnight = MidnightConfig{
 		Enabled:                     c.cfg.Midnight.Enabled,
+		ServerEnabled:               c.cfg.Midnight.ServerEnabled,
+		ReflectionEnabled:           c.cfg.Midnight.ReflectionEnabled,
 		Port:                        c.cfg.Midnight.Port,
 		Host:                        c.cfg.Midnight.Host,
 		CNightPolicyID:              c.cfg.Midnight.CNightPolicyID,
@@ -790,6 +849,7 @@ func (c *Config) syncCompatFields() {
 		TaskQueueSize:  c.cfg.DatabaseQueueSize,
 	}
 	c.targetNumberOfKnownPeers, c.targetNumberOfEstablishedPeers, c.targetNumberOfActivePeers = c.cfg.TargetNumberOfKnownPeers, c.cfg.TargetNumberOfEstablishedPeers, c.cfg.TargetNumberOfActivePeers
+	c.targetNumberOfRootPeers = c.cfg.TargetNumberOfRootPeers
 	c.activePeersTopologyQuota, c.activePeersGossipQuota, c.activePeersLedgerQuota = c.cfg.ActivePeersTopologyQuota, c.cfg.ActivePeersGossipQuota, c.cfg.ActivePeersLedgerQuota
 	c.minHotPeers, c.reconcileInterval, c.inactivityTimeout = c.cfg.MinHotPeers, c.cfg.ReconcileInterval, c.cfg.InactivityTimeout
 	c.inboundWarmTarget, c.inboundHotQuota, c.inboundMinTenure = c.cfg.InboundWarmTarget, c.cfg.InboundHotQuota, c.cfg.InboundMinTenure
@@ -798,12 +858,15 @@ func (c *Config) syncCompatFields() {
 	c.genesisBootstrap, c.genesisWindowSlots, c.genesisCorroborationPeers = c.cfg.GenesisBootstrap.Enabled, c.cfg.GenesisBootstrap.WindowSlots, c.cfg.GenesisBootstrap.CorroborationPeers
 	c.blockProducer, c.shelleyVRFKey, c.shelleyKESKey, c.shelleyOperationalCertificate = c.cfg.BlockProducer, c.cfg.ShelleyVRFKey, c.cfg.ShelleyKESKey, c.cfg.ShelleyOperationalCertificate
 	c.forgeSyncToleranceSlots, c.forgeStaleGapThresholdSlots, c.validateForgedBlock = c.cfg.ForgeSyncToleranceSlots, c.cfg.ForgeStaleGapThresholdSlots, c.cfg.ValidateForgedBlock
+	c.forgePrimaryChainTipToleranceSlots = c.cfg.ForgePrimaryChainTipToleranceSlots
+	c.forgeUpstreamStalenessSlots, c.forgeAppliedTipStalenessSlots = c.cfg.ForgeUpstreamStalenessSlots, c.cfg.ForgeAppliedTipStalenessSlots
+	c.forgeEndorserBlockStalenessSlots = c.cfg.ForgeEndorserBlockStalenessSlots
 	c.blockPipelineEnabled = c.cfg.BlockPipelineEnabled
 	c.blockPipelineValidateEnabled = c.cfg.BlockPipelineValidateEnabled
 	c.minPoolMargin, c.pledgeLeverageEnabled, c.pledgeLeverage = c.cfg.MinPoolMargin, c.cfg.PledgeLeverageEnabled, c.cfg.PledgeLeverage
 	c.fullPotRewardsEnabled, c.unsafeFullPotRewardsOnStandardNetworks = c.cfg.FullPotRewardsEnabled, c.cfg.UnsafeFullPotRewardsOnStandardNetworks
 	c.delegatorInactivityEnabled, c.delegatorInactivity = c.cfg.DelegatorInactivityEnabled, c.cfg.DelegatorInactivity
-	c.leiosVoteSigningKeyFile, c.leiosVoterPublicKeys = c.cfg.LeiosVoteSigningKeyFile, c.cfg.LeiosVoterPublicKeys
+	c.leiosVoteSigningKeyFile = c.cfg.LeiosVoteSigningKeyFile
 	c.cacheBlockLRUEntries, c.cacheHotUtxoEntries, c.cacheHotTxEntries, c.cacheHotTxMaxBytes = c.cfg.Cache.BlockLRUEntries, c.cfg.Cache.HotUtxoEntries, c.cfg.Cache.HotTxEntries, c.cfg.Cache.HotTxMaxBytes
 	c.pluginSelections = map[hostplugin.Capability]hostplugin.Selection{
 		hostplugin.CapabilityStorageBlob: c.cfg.Plugins.Storage.Blob, hostplugin.CapabilityStorageMetadata: c.cfg.Plugins.Storage.Metadata,
@@ -967,8 +1030,8 @@ func WithCardanoNodeConfig(
 	}
 }
 
-// WithBindAddr specifies the IP address used for API listeners
-// (Blockfrost, Mesh, UTxO RPC). The default is "0.0.0.0" (all interfaces).
+// WithBindAddr specifies the IP address used by relay, metrics, and public
+// Blockfrost, Mesh, and UTxO RPC listeners. The default is 0.0.0.0.
 func WithBindAddr(addr string) ConfigOptionFunc {
 	return func(c *Config) {
 		c.cfg.BindAddr = addr
@@ -1066,9 +1129,9 @@ func WithUtxorpcPort(port uint) ConfigOptionFunc {
 	}
 }
 
-// WithAPIConfig sets the shared api.tls/api.auth policy applied to every
+// WithAPIConfig sets the shared api.tls policy applied to every
 // selected plugins.api.* provider (Blockfrost, Mesh, UTxORPC) unless that
-// provider's own plugins.api.<name>.config.tls/auth overrides a field.
+// provider's own plugins.api.<name>.config.tls overrides a field.
 // See internal/apiconfig and ARCHITECTURE.md's "API security" section.
 func WithAPIConfig(cfg internalconfig.APIConfig) ConfigOptionFunc {
 	return func(c *Config) {
@@ -1216,6 +1279,14 @@ func WithPeerTargets(
 		c.cfg.TargetNumberOfKnownPeers = targetKnown
 		c.cfg.TargetNumberOfEstablishedPeers = targetEstablished
 		c.cfg.TargetNumberOfActivePeers = targetActive
+	}
+}
+
+// WithRootPeerTarget specifies the target number of root peers from topology.
+// Use 0 to use the default target, or -1 for unlimited.
+func WithRootPeerTarget(targetRoot int) ConfigOptionFunc {
+	return func(c *Config) {
+		c.cfg.TargetNumberOfRootPeers = targetRoot
 	}
 }
 
@@ -1395,18 +1466,6 @@ func WithLeiosVoteSigningKeyFile(path string) ConfigOptionFunc {
 	}
 }
 
-// WithLeiosVoterPublicKeys specifies the static Leios voter public key
-// registry (DINGO_LEIOS_VOTER_PUBLIC_KEYS): hex pool key hash to
-// hex-encoded BLS12-381 public key. Stands in for CIP-0164 key
-// registration, which is not yet specified. Experimental, leios runMode
-// only.
-func WithLeiosVoterPublicKeys(keys map[string]string) ConfigOptionFunc {
-	return func(c *Config) {
-		// Copy so later caller mutations cannot change live config
-		c.cfg.LeiosVoterPublicKeys = maps.Clone(keys)
-	}
-}
-
 // WithLeiosPipelineTiming overrides the provisional Leios pipeline stage
 // timing windows. CIP-0164 has not finalized these parameters, so they are
 // kept off-chain and overridable here rather than as protocol parameters.
@@ -1427,6 +1486,50 @@ func WithForgeSyncToleranceSlots(slots uint64) ConfigOptionFunc {
 	}
 }
 
+// WithForgePrimaryChainTipToleranceSlots sets how far the ledger-applied tip may
+// trail this node's own primary chain tip before forging is skipped.
+// Use 0 to fall back to the built-in default.
+func WithForgePrimaryChainTipToleranceSlots(slots uint64) ConfigOptionFunc {
+	return func(c *Config) {
+		c.cfg.ForgePrimaryChainTipToleranceSlots = slots
+	}
+}
+
+// WithForgeUpstreamStalenessSlots sets how far the newest block this node holds
+// may trail the corroborated upstream sync target before forging is skipped.
+// 0 (the default) DISABLES the bound -- it is not "fall back to a built-in
+// default", and nothing fills it in: see
+// internal/config.DefaultForgeUpstreamStalenessSlots, which is itself 0.
+func WithForgeUpstreamStalenessSlots(slots uint64) ConfigOptionFunc {
+	return func(c *Config) {
+		c.cfg.ForgeUpstreamStalenessSlots = slots
+	}
+}
+
+// WithForgeAppliedTipStalenessSlots sets how many slots older than the current
+// slot the newest block this node holds may be before forging is skipped. 0
+// disables this wall-clock backstop.
+func WithForgeAppliedTipStalenessSlots(slots uint64) ConfigOptionFunc {
+	return func(c *Config) {
+		c.cfg.ForgeAppliedTipStalenessSlots = slots
+	}
+}
+
+// WithForgeEndorserBlockStalenessSlots sets how far a corroborated Leios
+// endorser block may lead the ledger-applied tip before forging is skipped.
+// 0 (the default) DISABLES the bound -- it is not "fall back to a built-in
+// default", and nothing fills it in: see
+// internal/config.DefaultForgeEndorserBlockStalenessSlots, which is itself 0.
+//
+// Deliberately separate from WithForgePrimaryChainTipToleranceSlots: that one
+// bounds a local block-against-block comparison, this one bounds a
+// network-stage announcement watermark against the local applied tip.
+func WithForgeEndorserBlockStalenessSlots(slots uint64) ConfigOptionFunc {
+	return func(c *Config) {
+		c.cfg.ForgeEndorserBlockStalenessSlots = slots
+	}
+}
+
 // WithForgeStaleGapThresholdSlots sets the slot gap threshold for stale database warnings.
 // Use 0 to fall back to the built-in default.
 func WithForgeStaleGapThresholdSlots(slots uint64) ConfigOptionFunc {
@@ -1435,11 +1538,12 @@ func WithForgeStaleGapThresholdSlots(slots uint64) ConfigOptionFunc {
 	}
 }
 
-// WithValidateForgedBlock enables self-validation of locally-forged blocks
+// WithValidateForgedBlock controls self-validation of locally-forged blocks
 // before they are adopted onto the chain and diffused to peers. When enabled,
 // the forger runs VRF/KES header crypto, body-hash consistency, and per-tx
 // ledger validation on each forged block. A failing block is dropped without
-// being adopted or diffused. Disabled by default.
+// being adopted or diffused. Enabled by default; pass false only to
+// explicitly opt out.
 func WithValidateForgedBlock(enabled bool) ConfigOptionFunc {
 	return func(c *Config) {
 		c.cfg.ValidateForgedBlock = enabled
@@ -1484,14 +1588,24 @@ func WithBarkHost(host string) ConfigOptionFunc {
 	}
 }
 
-// WithBarkClientCAFilePath sets the PEM CA bundle Bark verifies client
-// certificates (mTLS) against. Required whenever the database lifecycle
-// service is mounted — see BarkConfig.TlsClientCAFilePath's doc comment in
-// bark/bark.go for what this gates.
+// WithBarkClientCAFilePath sets the PEM CA bundle Bark uses to authenticate
+// every DatabaseService caller. Destructive methods additionally require an
+// allowlisted fingerprint set by WithBarkOperatorCertificateFingerprints.
 func WithBarkClientCAFilePath(path string) ConfigOptionFunc {
 	return func(c *Config) {
 		c.cfg.BarkClientCAFilePath = path
 		c.barkClientCAFilePath = path
+	}
+}
+
+// WithBarkOperatorCertificateFingerprints sets the SHA-256 client certificate
+// fingerprints authorized to invoke destructive DatabaseService RPCs.
+func WithBarkOperatorCertificateFingerprints(
+	fingerprints []string,
+) ConfigOptionFunc {
+	return func(c *Config) {
+		c.cfg.BarkOperatorCertificateFingerprints = slices.Clone(fingerprints)
+		c.barkOperatorCertificateFingerprints = slices.Clone(fingerprints)
 	}
 }
 
@@ -1528,6 +1642,8 @@ func WithKoiosParity(cfg KoiosParityConfig) ConfigOptionFunc {
 			Network:              cfg.Network,
 			CachePath:            cfg.CachePath,
 			APIKey:               cfg.APIKey,
+			BaseURL:              cfg.BaseURL,
+			AllowInsecureHTTP:    cfg.AllowInsecureHTTP,
 			Strict:               cfg.Strict,
 			GraceHours:           cfg.GraceHours,
 			Accounts:             accounts,
@@ -1592,6 +1708,8 @@ func WithMidnightConfig(cfg MidnightConfig) ConfigOptionFunc {
 		}
 		c.cfg.Midnight = internalconfig.MidnightConfig{
 			Enabled:                     cfg.Enabled,
+			ServerEnabled:               cfg.ServerEnabled,
+			ReflectionEnabled:           cfg.ReflectionEnabled,
 			Port:                        cfg.Port,
 			Host:                        cfg.Host,
 			CNightPolicyID:              cfg.CNightPolicyID,
@@ -1725,7 +1843,7 @@ func (c *Config) MetadataPlugin() string {
 	return c.cfg.Plugins.Storage.Metadata.Provider
 }
 
-// BindAddr returns the IP address for API listeners.
+// BindAddr returns the IP address for relay and metrics listeners.
 func (c *Config) BindAddr() string {
 	return c.cfg.BindAddr
 }
@@ -1785,6 +1903,12 @@ func (c *Config) BarkBlockDownloadHosts() []string {
 	return c.cfg.BarkBlockDownloadHosts
 }
 
+// BarkOperatorCertificateFingerprints returns the SHA-256 client certificate
+// fingerprints authorized to invoke destructive Bark DatabaseService RPCs.
+func (c *Config) BarkOperatorCertificateFingerprints() []string {
+	return slices.Clone(c.cfg.BarkOperatorCertificateFingerprints)
+}
+
 // TlsCertFilePath returns the path to the TLS certificate for gRPC APIs.
 func (c *Config) TlsCertFilePath() string {
 	return c.cfg.TlsCertFilePath
@@ -1795,7 +1919,7 @@ func (c *Config) TlsKeyFilePath() string {
 	return c.cfg.TlsKeyFilePath
 }
 
-// APIConfig returns the shared api.tls/api.auth policy defaults applied to
+// APIConfig returns the shared api.tls policy defaults applied to
 // every selected plugins.api.* provider unless overridden. See
 // WithAPIConfig and ARCHITECTURE.md's "API security" section.
 func (c *Config) APIConfig() internalconfig.APIConfig {
@@ -1966,6 +2090,11 @@ func (c *Config) SetTargetNumberOfActivePeers(n int) {
 	c.cfg.TargetNumberOfActivePeers = n
 }
 
+// TargetNumberOfRootPeers returns the target number of root peers.
+func (c *Config) TargetNumberOfRootPeers() int {
+	return c.cfg.TargetNumberOfRootPeers
+}
+
 // ActivePeersTopologyQuota returns the per-source quota for topology peers.
 func (c *Config) ActivePeersTopologyQuota() int {
 	return c.cfg.ActivePeersTopologyQuota
@@ -2099,7 +2228,7 @@ func (c *Config) CORSAllowedOrigins() []string {
 	return c.cfg.CORSAllowedOrigins
 }
 
-// API returns the shared api.tls/api.auth policy defaults applied to
+// API returns the shared api.tls policy defaults applied to
 // every selected plugins.api.* provider. See WithAPIConfig.
 func (c *Config) API() internalconfig.APIConfig {
 	return c.cfg.API
@@ -2140,6 +2269,32 @@ func (c *Config) ForgeSyncToleranceSlots() uint64 {
 	return c.cfg.ForgeSyncToleranceSlots
 }
 
+// ForgePrimaryChainTipToleranceSlots returns how far the ledger-applied tip may
+// trail this node's own primary chain tip before forging is skipped.
+func (c *Config) ForgePrimaryChainTipToleranceSlots() uint64 {
+	return c.cfg.ForgePrimaryChainTipToleranceSlots
+}
+
+// ForgeUpstreamStalenessSlots returns how far the newest block this node holds
+// may trail the corroborated upstream sync target before forging is skipped.
+func (c *Config) ForgeUpstreamStalenessSlots() uint64 {
+	return c.cfg.ForgeUpstreamStalenessSlots
+}
+
+// ForgeAppliedTipStalenessSlots returns how many slots older than the current
+// slot the newest block this node holds may be before forging is skipped.
+// 0 disables the wall-clock backstop.
+func (c *Config) ForgeAppliedTipStalenessSlots() uint64 {
+	return c.cfg.ForgeAppliedTipStalenessSlots
+}
+
+// ForgeEndorserBlockStalenessSlots returns how far a corroborated Leios
+// endorser block may lead the ledger-applied tip before forging is skipped.
+// 0 disables the bound.
+func (c *Config) ForgeEndorserBlockStalenessSlots() uint64 {
+	return c.cfg.ForgeEndorserBlockStalenessSlots
+}
+
 // ForgeStaleGapThresholdSlots returns the stale gap threshold for warnings.
 func (c *Config) ForgeStaleGapThresholdSlots() uint64 {
 	return c.cfg.ForgeStaleGapThresholdSlots
@@ -2153,11 +2308,6 @@ func (c *Config) ValidateForgedBlock() bool {
 // LeiosVoteSigningKeyFile returns the path to the Leios vote signing key.
 func (c *Config) LeiosVoteSigningKeyFile() string {
 	return c.cfg.LeiosVoteSigningKeyFile
-}
-
-// LeiosVoterPublicKeys returns the Leios voter public key registry.
-func (c *Config) LeiosVoterPublicKeys() map[string]string {
-	return c.cfg.LeiosVoterPublicKeys
 }
 
 // PeerSharing returns the peer sharing configuration.

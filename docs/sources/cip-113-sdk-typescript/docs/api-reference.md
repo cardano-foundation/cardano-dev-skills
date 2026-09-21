@@ -165,7 +165,15 @@ On-chain protocol deployment references. Obtained from the bootstrap transaction
 > shape — `programmableLogicGlobal: { policyId, scriptHash }`, `protocolParams.alwaysFailScriptHash`,
 > a `directoryMint`/`directorySpend` pair — and survived the entire 0.3.x → 0.5.0-alpha.2 migration
 > unnoticed, because nothing tests documentation. It is now pinned by
-> `test/docs-drift.test.mjs`, which fails if these field names stop matching the real type.
+> `test/docs-drift.test.mjs`, which fails if these field names stop matching the real type —
+> **top-level names AND one level of nesting**, so `programmableLogicGlobal.unfrackingParameter`
+> is compared, not just `programmableLogicGlobal`.
+>
+> ⚠ **That claim was itself wrong once, which is the reason it now states its depth.** The drift
+> test originally collected names at brace-depth 0 only, so every nested field was invisible to it
+> and this block could — and did — describe a `programmableLogicGlobal` the SDK refuses, with the
+> test sitting green. A check classified by its shape ("it pins `DeploymentParams`") rather than by
+> what gets past it is the same defect this section exists to record, one level down.
 >
 > ⚠ **For 0.5.0-alpha.4, this is the six-field deployment shape.** The params datum inserts
 > `issuance_logic_cred` at index 1, shifting the credential-valued slots at indices 1, 2 and 3.
@@ -189,7 +197,18 @@ interface DeploymentParams {
   unfracking: { scriptHash: ScriptHash };
 
   // The dispatcher. Every programmable transaction withdraws through it.
-  programmableLogicGlobal: { scriptHash: ScriptHash };
+  //
+  // unfrackingParameter is a deployment CHOICE, not a derivation — it is what
+  // programmable_logic_global was COMPILED AGAINST, baked into scriptHash and
+  // recoverable from no hash. It is EITHER unfracking.scriptHash (unfracking
+  // enabled) OR UNFRACKING_DISABLED, the 28-byte zero sentinel exported from
+  // this package (unfracking deployed and published, but the dispatcher's
+  // unfracking arm made permanently unsatisfiable). NOTHING ELSE IN THE RECORD
+  // DETERMINES WHICH, so it is REQUIRED and has no default: a record that omits
+  // it, or that copies unfracking.scriptHash without checking, is refused by
+  // name. Import the constant — a local copy is a second place to disagree
+  // about a value that determines a script hash.
+  programmableLogicGlobal: { scriptHash: ScriptHash; unfrackingParameter: ScriptHash };
 
   // A deployment CHOICE, not a derivation — baked into transfer, third_party,
   // unfracking, and issuance_logic hashes and recoverable from none of them.
@@ -269,6 +288,61 @@ interface FESDeploymentParams {
 | `assembleSignedTx(unsigned, witness)` | Merge witness set into unsigned tx CBOR |
 | `sortTxInputs(inputs)` | Sort tx inputs in canonical (ledger) order |
 | `findRefInputIndex(sorted, target)` | Find index of input in sorted list |
+
+---
+
+## Substandard Plugin Interface
+
+### SubstandardContext
+
+The object `CIP113.init()` hands to every plugin's `init()`. Field names here are pinned
+against `src/substandards/interface.ts` by `test/docs-drift.test.mjs`.
+
+```typescript
+interface SubstandardContext {
+  evaluator?: unknown;
+  client: EvoClient;
+  standardScripts: ResolvedStandardScripts;
+  deployment: DeploymentParams;
+  network?: Network;
+  checkStakeRegistration?: (stakeAddress: string) => Promise<boolean>;
+}
+```
+
+⛔ **`network` is `Network | undefined`, and the `undefined` is load-bearing.** It names the
+public Cardano network the client is pointed at — `"mainnet"`, `"preprod"` or `"preview"` —
+derived from the chain's **network magic**. A client pointed at a devnet or any other private
+network gets `undefined`, because it is none of the three and naming it one would be a lie a
+plugin would then act on. Branch on the absence; do not coerce it to a default.
+
+⭐ **The information is not lost, and this is why `undefined` is honest rather than lossy.**
+`ctx.client.chain.networkMagic` and `ctx.client.chain.name` are on the same context object, one
+field away. If you need to distinguish private networks, read those — do not invent a default for
+`network`.
+
+⚠ **It is derived from the magic ALONE, so a private network that REUSES a public magic is
+labelled as that network.** A mainnet-fork devnet keeps magic `764824073` and reports `"mainnet"`;
+a privnet that picked magic `1` or `2` reports `"preprod"` or `"preview"`. If you gate a
+destructive path on `network !== "mainnet"`, that gate does not distinguish a mainnet fork from
+mainnet. Check `chain.name` or your own configuration as well.
+
+> ⚠ **Breaking, and it landed after 0.10.0** — the release notes name the version; this
+> block deliberately does not, because a number written here ages into a lie. This field
+> was previously typed `string` and computed from
+> `chain.id`, which is the *address* network id — `1` for mainnet and `0` for **every** testnet.
+> A preview client was therefore labelled `"preprod"`, and a devnet was too. Plugins that read
+> `ctx.network` into a `string`, or that branch on `=== "preprod"` to detect a devnet, must be
+> updated. `networkFromChain(chain)` is exported from the package root if you need the same
+> mapping for a chain of your own.
+>
+> ⛔ **AND THE ONE THE COMPILER WILL NOT CATCH.** At 0.10.0 this field was declared `string`
+> while the package exported a `Network` union, so a plugin that wanted the union **had no choice
+> but to cast**: `ctx.network as Network`. **That cast still compiles, and now yields `undefined`
+> at runtime** — an exhaustive `switch` over it falls off the end and returns `undefined`, with
+> no diagnostic anywhere. **Remove the cast.** Plain-JavaScript plugins have the same exposure
+> with no typechecker at all: `` `https://${ctx.network}.cardanoscan.io` `` becomes
+> `https://undefined.cardanoscan.io`, `ctx.network.toUpperCase()` throws, and `JSON.stringify(ctx)`
+> drops the key entirely on a devnet.
 
 ---
 

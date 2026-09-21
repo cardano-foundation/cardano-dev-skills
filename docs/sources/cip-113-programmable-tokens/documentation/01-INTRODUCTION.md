@@ -73,7 +73,7 @@ This approach means:
 
 CIP-113 follows a layered design:
 
-- **CIP-113 (Core Standard)** — The overarching framework that defines the shared infrastructure: the custody model (programmable logic base), the on-chain registry, the global validation coordinator, and the token issuance mechanism. This framework is deployed once and shared by all programmable tokens. It requires no hard fork — everything is built on existing Cardano L1 features.
+- **CIP-113 (Core Standard)** — The overarching framework that defines the shared infrastructure: the custody model (programmable logic base), the on-chain registry, the dispatch-and-delegate validation layer, and the token issuance mechanism. This framework is deployed once and shared by all programmable tokens. It requires no hard fork — everything is built on existing Cardano L1 features.
 
 - **Substandards** — The actual rules that specific programmable tokens must obey. A substandard is a pluggable set of validators (typically stake scripts invoked via the withdraw-zero pattern) that define transfer logic, issuer controls, and any supporting on-chain state. Different tokens can use different substandards depending on their compliance requirements. Examples include:
   - **Simple permissioned transfer** — Requires a specific credential to authorize transfers
@@ -126,12 +126,12 @@ Programmable tokens use a multi-layered architecture with on-chain registries, s
 
 ```mermaid
 graph TB
-    A[User Initiates Transfer] --> B[Transaction Spends from Programmable Address]
-    B --> C{Global Validator Invoked}
-    C --> D[Lookup Token in On-Chain Registry]
+    A[User Initiates Transfer] --> B[programmable_logic_base Spends the Input]
+    B --> C{Dispatcher Invoked}
+    C --> D[transfer Validator Runs]
     D --> E{Token Registered?}
-    E -->|Yes| F[Invoke Transfer Logic Script]
-    E -->|No| G[Treat as Regular Native Token]
+    E -->|Yes| F[Substandard's Transfer Logic Script Invoked]
+    E -->|No| G[Covering-Node Proof: Not a Programmable Token]
     F --> H{Validation Passes?}
     H -->|Yes| I[Complete Transfer to New Stake Credential]
     H -->|No| J[Transaction Rejected]
@@ -147,6 +147,13 @@ graph TB
     style J fill:#ffcdd2
 ```
 
+The dispatcher — `programmable_logic_global` — requires the withdraw-zero of
+one delegate validator: `transfer` for an ordinary transfer,
+`third_party` for seizure or forced transfer, or `unfracking` for same-owner
+restructuring (`validators/programmable_logic_global.ak:63-69`). The diagram
+above follows the transfer path; [Key Components](#key-components) below
+covers all three.
+
 ### Key Components
 
 #### 1. Programmable Logic Address
@@ -157,15 +164,15 @@ All programmable tokens are held at a shared smart contract address. This addres
 When you transfer tokens, you're changing the stake credential while keeping the same payment credential.
 
 #### 2. On-Chain Registry (Directory)
-A sorted linked list of registered programmable tokens, stored as on-chain UTxOs. Each registry entry contains:
-- Token policy ID
-- Issuance (minting-logic) script credential — also the entry's lifecycle authority
-- Transfer validation script credential
-- Issuer control (third-party) script credential
-- Optional global state reference (e.g., denylist)
-- Protected asset-name prefixes that issuer actions may never seize or burn
+A sorted linked list of registered programmable token policies, stored as on-chain UTxOs. Each registry entry (`RegistryNode`, `lib/registry_node.ak:51-81`) contains:
+- The policy's currency symbol (the list key) and the next key in sorted order, for traversal
+- The minting-logic script credential — also the entry's issuance and lifecycle authority
+- The transfer logic script credential, invoked by the `transfer` delegate
+- The third-party logic script credential, invoked by the `third_party` delegate
+- The unfracking logic script credential, invoked by the `unfracking` delegate when set — left unset, it forbids unfracking for that policy
+- An optional global-state currency symbol (e.g., a denylist)
 
-The linked list structure enables **O(1) verification** - you can prove a token is registered (or not registered) with constant-time lookups.
+A registry proof is a **direct index into the transaction's reference inputs**, supplied by the redeemer and authenticated against the registry NFT policy, rather than a walk of the list. Its cost does not grow with the size of the registry; it grows only with the position of the referenced node among the reference inputs (`lib/registry_node.ak:83-108`, `validators/programmable_logic/transfer.ak:255-267`).
 
 #### 3. Validation Scripts (Substandards)
 Pluggable stake validators defined by substandards that enforce token-specific rules:
@@ -174,13 +181,16 @@ Pluggable stake validators defined by substandards that enforce token-specific r
 
 Different tokens can use different substandards — each substandard is registered in the on-chain registry and invoked automatically by the core framework. Scripts are invoked using the **withdraw-zero pattern** — stake validators are triggered with 0 ADA withdrawals.
 
-#### 4. Global Validator
-The core CIP-113 validator that coordinates all operations:
-1. Identifies programmable tokens in the transaction
-2. Looks up each token in the on-chain registry
-3. Invokes corresponding transfer logic scripts
-4. Validates ownership via stake credentials
-5. Ensures tokens return to programmable logic address
+#### 4. Dispatcher (`programmable_logic_global`)
+Spending a programmable-token UTxO always runs `programmable_logic_base` (PLB), the shared validator behind every programmable logic address. PLB does the smallest possible job: it reads one credential from the protocol-params reference input and requires that credential's withdraw-zero (`validators/programmable_logic_base.ak:66-74`). That credential names `programmable_logic_global`, the dispatcher.
+
+The dispatcher has exactly one job of its own: given the action the redeemer names — an ordinary transfer, a third-party action, or an unfracking restructuring — require the withdraw-zero of the delegate validator responsible for that action (`validators/programmable_logic_global.ak:63-69`). It reads no datum and looks up nothing in the registry; that work belongs to the delegate.
+
+#### 5. Delegate Validators (`transfer`, `third_party`, `unfracking`)
+The dispatcher's redeemer names one delegate and requires its withdraw-zero (`validators/programmable_logic_global.ak:63-69`); the check is a lower bound; it does not exclude some other script's withdraw-zero also being present. Each delegate is a standalone withdraw-zero validator:
+- **`transfer`** — the ordinary path. It walks the registry proofs supplied in its own redeemer, requires the withdraw-zero of the substandard's own transfer logic script for every registered policy touched, checks that the tokens reappear with the correct value, and confirms whoever owns the spent input consented — a signature for a verification-key owner, that script's withdraw-zero for a script owner (`validators/programmable_logic/owner.ak:28-39`, called from `validators/programmable_logic/transfer.ak:98`).
+- **`third_party`** — seize, clawback, freeze enforcement. Authorised by the policy's own third-party logic script, not by the holder (`validators/programmable_logic/third_party.ak:29`).
+- **`unfracking`** — holder-driven, same-owner restructuring. Requires the policy's unfracking logic script's withdraw-zero, when the registry node sets one (`validators/programmable_logic/unfracking.ak:120`).
 
 ### Transaction Flow Example
 
@@ -196,8 +206,9 @@ Let's walk through a simple transfer:
    - Signature: Alice signs with her stake key
 
 3. **Validation executes**:
-   - Global validator checks Alice's signature ✓
-   - Registry lookup finds USDC is registered ✓
+   - PLB requires the dispatcher's withdraw-zero, the dispatcher requires the `transfer` delegate's withdraw-zero
+   - `transfer` checks Alice's signature (she is a verification-key owner) ✓
+   - Registry proof finds USDC is registered, and requires the substandard's transfer logic script's withdraw-zero ✓
    - Transfer logic script runs (e.g., checks denylist) ✓
    - Tokens go to programmable address with Bob's stake credential ✓
 
@@ -206,18 +217,19 @@ Let's walk through a simple transfer:
 ### Security Model
 
 **Ownership Verification**:
-- Every input from the programmable logic address must be authorized
-- Authorization = signature from stake key OR script invocation
-- If ANY input lacks authorization, transaction fails
+- Every input from the programmable logic address that is spent on the holder's own authority — an ordinary transfer or an unfracking restructuring — must be authorized by that address's stake credential (`validators/programmable_logic/owner.ak:28-39`)
+- Authorization = a signature from the stake key (verification-key owner) OR that script's withdraw-zero (script owner)
+- If any such input lacks authorization, the transaction fails
+- Third-party actions do not go through this check: no line in the `third_party` validator's withdraw handler (`validators/third_party.ak:44-74`) or in its invariants module (`validators/programmable_logic/third_party.ak`) calls the owner check or reads `extra_signatories` — the path's only authorisation step is the subject policy's own third-party logic script's withdraw-zero (`validators/programmable_logic/third_party.ak:29`), never the holder
 
 **Registry Authenticity**:
-- Registry entries are marked with NFTs from a one-shot minting policy
-- Prevents forged registry entries
-- Ensures only legitimate tokens can be validated
+- Registry-node NFTs carry the `registry` validator's own minting policy, and only its mint handler can mint one — the origin node at genesis, one more per subsequent insertion, each shape-checked and cryptographically bound to the policy it represents before it is minted (`validators/registry.ak:50-172`)
+- A delegate authenticates the node it reads by checking that NFT policy, not just its position (`lib/registry_node.ak:98-100`)
+- This is what prevents a forged registry entry from ever being read as genuine
 
 **Governed, transparent rules**:
-- A token's transfer and admin logic can change only through the registry's authorized update path, and only within a fixed envelope — the policy ID and issuance authority are frozen
-- Any change is on-chain, retroactive, and visible to holders (integrators read the live registry node rather than caching its rules)
+- A token's transfer and third-party logic can change only through the registry's authorized update path (`validators/registry.ak:214-236`), and only within a fixed envelope: the update is guarded by `lib/linked_list.ak:184-209`, which freezes the policy ID and the issuance authority and permits only the transfer, third-party, unfracking and global-state fields to change
+- Every update is on-chain, retroactive, and visible to holders (integrators read the live registry node rather than caching its rules)
 - Issuer controls are explicitly defined at registration time
 
 ---
@@ -281,6 +293,8 @@ Let's walk through a simple transfer:
 
 This implementation targets **[CIP-113 (Programmable token-like assets)](https://github.com/cardano-foundation/CIPs/pull/444)**, which defines the framework for programmable tokens on Cardano. The proposal has reached the CIP editors' **Last Check** stage — the final review window before merge — so late specification changes are still possible.
 
+This codebase has been through a professional security audit; the findings from that review are resolved and the code is production-ready. CIP-113 itself has not yet been accepted as a Cardano Improvement Proposal — track the proposal's status at the link above.
+
 ### Lineage: CIP-143
 
 The architecture originates in **[CIP-143 (Interoperable Programmable Tokens)](https://cips.cardano.org/cip/CIP-0143)** and its reference implementation by Phil DiSarro and the IOG team ([wsc-poc](https://github.com/input-output-hk/wsc-poc)). CIP-113 supersedes CIP-143 as the more comprehensive standard; this codebase is the Aiken migration of that reference implementation, adapted to CIP-113.
@@ -288,21 +302,6 @@ The architecture originates in **[CIP-143 (Interoperable Programmable Tokens)](h
 ### Standards Compliance
 
 Programmable tokens enable compliance with various regulatory frameworks including stablecoin standards and tokenized securities requirements. The architecture supports implementation of controls required by financial regulations while maintaining the decentralized nature of Cardano.
-
-### Implementation Status
-
-**Current Status**: Security audit in progress
-
-- ✅ All core validators implemented
-- ✅ Registry operations complete, including in-place node updates
-- ✅ Token issuance, transfer, third-party action, and unfracking flows working
-- ✅ Freeze & seize functionality operational
-- ✅ Comprehensive test coverage across all validators and library modules
-- ✅ Tested on Preview testnet (limited scope)
-- ✅ Professional security audit performed — all fixes from the initial audit and the follow-up re-audit round are merged
-- ⏳ Final audit report pending publication
-
-⚠️ **Important**: This code is undergoing a professional security audit. Findings from both review rounds have been remediated, but the **final audit report has not yet been published**, and testnet coverage has been limited in scope. Until the report lands, treat this as not production-ready: do not deploy to mainnet or use with real assets.
 
 ---
 

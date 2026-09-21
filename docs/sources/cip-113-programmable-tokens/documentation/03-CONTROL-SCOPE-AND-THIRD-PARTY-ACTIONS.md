@@ -1,18 +1,20 @@
-# Control Scope & Admin Authority
+# Control Scope & Third-Party Actions
 
 This document defines two boundaries that the rest of the architecture assumes
 but does not spell out:
 
 1. **The scope of programmable control** — what a registered CIP-113 policy does
    and does not govern (and why metadata/royalty management is out of scope).
-2. **The scope of administrative authority** — exactly what the third-party
-   path (the administrative / compliance action: forced transfer, seizure,
+2. **The scope of third-party action** — exactly what the third-party
+   path (a compliance action: forced transfer, seizure,
    freeze enforcement, burn), run through the standalone `third_party`
    validator, can and cannot do to a holder's UTxO.
 
-Implementation lives in `validators/programmable_logic/third_party.ak`,
-`lib/registry_node.ak`, and `lib/linked_list.ak`; this document is the normative
-reading of their intent.
+The withdraw-0 validator is `third_party` (`validators/third_party.ak:39`); it
+calls the invariant module `validators/programmable_logic/third_party.ak`,
+which holds the rules this document is the normative reading of. The
+registry-node shape and lifecycle mechanics referenced throughout are
+`lib/registry_node.ak` and `lib/linked_list.ak`.
 
 ---
 
@@ -58,29 +60,54 @@ CIP-68/102-aware substandard:
   reference NFT's datum (the transfer path does not pin output datums, so a
   CIP-68-aware substandard can permit datum updates), or handling royalty
   payouts. This is the substandard author's responsibility, not the framework's.
-- **The third-party path is forbidden from interfering** with them: list labels
-  100/500 in the node's protected prefixes (§2.2) and the administrator can
-  neither seize nor burn the companion assets. Only the owner — through the
-  substandard's transfer logic — can move them.
+- **The third-party path reaches them like any other subject-policy token.** A
+  `RegistryNode` has no asset-name-scoped field — its seven fields are `key`,
+  `next`, and five credential/currency fields, none of them a label list
+  (`lib/registry_node.ak:51-81`) — and the third-party per-pair rules operate on
+  policy A as a whole, with no carve-out by asset name
+  (`validators/programmable_logic/third_party.ak:99-120`, implemented at
+  `:121-280`). A companion asset minted under the same policy id as the user
+  token is therefore exactly as reachable by a third-party action on policy A as the
+  user token is — a third-party action may decrease, remove, increase, or leave it
+  unchanged on each paired output, the same as any other subject-policy token
+  (§2.1).
+- **Protecting a companion asset from a third-party action is a substandard
+  decision, not a framework guarantee** — the same "framework provides
+  primitives, the substandard composes the policy" pattern as holder scope
+  (§2.3). Two substandard-level options: (a) the policy's
+  `third_party_logic_script` — the script whose withdraw-zero the base layer
+  requires present (`validators/programmable_logic/third_party.ak:29`) — runs
+  with full visibility into the transaction and can itself refuse to authorise
+  a seizure that disturbs the protected asset names; the base layer only checks
+  that this script's withdraw-zero is invoked, never what it itself checks. Or
+  (b) mint the companion asset under a **different** policy id, so it becomes
+  "non-subject" to any action on policy A and is conserved byte-for-byte by the
+  per-pair rule (§2.1) — at the cost of the CIP-68/102 same-policy-id
+  convention.
 - CIP-68/102 consumers locate companion assets by *policy id + CIP-67 label asset
   name* and read their datum regardless of on-chain location, so
   interoperability holds without any escape.
 
-In short: keep everything in the mini-ledger, make the substandard
-CIP-68/102-aware, and protect the companion labels. The administrator cannot
-seize, burn, or move them; a correctly-implemented substandard can.
+In short: keep everything in the mini-ledger, and decide deliberately how — or
+whether — to keep a companion asset out of a third-party action's reach on policy A.
+The framework does not decide this for you; it gives you the same policy id
+(reachable, substandard-enforced protection if you want it) or a distinct
+policy id (framework-enforced conservation, by construction) to choose from.
 
 ---
 
-## 2. Admin authority — the third-party scope
+## 2. Scope of third-party action
 
-The administrative path (seizure / forced transfer) is the standalone
+The third-party path (seizure / forced transfer) is the standalone
 `third_party` withdraw-0 validator, carrying a `ThirdPartyRedeemer` and invoking
-a policy's `third_party_logic_script`. A programmable-token spend reaches
-it with a `SpendViaThirdParty` base redeemer, so `programmable_logic_base`
-requires the `third_party` validator's withdraw-0 (not the transfer validator's). The subject of the
-action is **policy A** — the registry node pointed to by `registry_node_idx`.
-Everything else in the transaction is "non-subject".
+a policy's `third_party_logic_script`. A spend reaches it the way every spend
+does: `programmable_logic_base` requires the dispatcher's withdraw-zero
+(`programmable_logic_global_cred`, protocol-params field 0 —
+`validators/programmable_logic_base.ak:72-74`), and the dispatcher requires
+`third_party`'s withdraw-zero under a `ThirdPartyAct` redeemer
+(`validators/programmable_logic_global.ak:65`, `:69`). The subject of the
+action is **policy A** — the registry node pointed to by `registry_node_idx`
+(`lib/types.ak:50-55`). Everything else in the transaction is "non-subject".
 
 ### 2.1 Structural guarantees the base layer enforces
 
@@ -89,63 +116,42 @@ substandard:
 
 | Guarantee | Enforced by |
 |---|---|
-| A's `third_party_logic_script` is invoked (withdraw-0) | `third_party.ak` |
-| Each spent PLB UTxO is paired 1:1 with a continuing output preserving **address, datum, and reference script** byte-for-byte | `third_party.ak` |
-| **Non-subject** token quantities are conserved per pair, byte-for-byte — no other policy can be injected, redirected, split, or destroyed | `third_party.ak` |
-| The paired input **must already hold** policy A — the admin cannot conjure A onto a UTxO that never held it (anti-injection), nor drag an unrelated UTxO into the action (anti-DoS) | `third_party.ak` |
-| The subject delta across all pairs reconciles against A's `mint`/burn; nothing escapes the PLB | `third_party.ak` |
-| The action resolves exactly **one** registry node (`registry_node_idx`), hence exactly one policy per transaction (see §3.1) | `third_party` |
+| A's `third_party_logic_script` is invoked (withdraw-0) | `validators/programmable_logic/third_party.ak:29` |
+| Each spent PLB UTxO is paired 1:1 with a continuing output preserving **address, datum, and reference script** byte-for-byte | `validators/programmable_logic/third_party.ak:196-198` |
+| Lovelace is **ratcheted, not frozen** — the paired output must carry at least the input's lovelace, never less | `validators/programmable_logic/third_party.ak:211-217` |
+| **Non-subject** token quantities are conserved per pair, byte-for-byte — no other policy can be injected, redirected, split, or destroyed | `validators/programmable_logic/third_party.ak:221-229`, `:254-257` |
+| The paired input **must already hold** policy A — a third-party action cannot conjure A onto a UTxO that never held it (anti-injection), nor drag an unrelated UTxO into the action (anti-DoS) | `validators/programmable_logic/third_party.ak:253` |
+| The subject delta across all pairs reconciles against A's `mint`/burn; nothing escapes the PLB | `validators/programmable_logic/third_party.ak:181-184` |
+| The action resolves exactly **one** registry node (`registry_node_idx`), hence exactly one policy per transaction (see §3.1) | `lib/types.ak:50-55` |
 
 A single third-party action may act on **multiple UTxOs of the same policy A** in
 one transaction; each spent PLB input gets its own paired output.
 
-**On the subject policy, the admin may change amounts in any direction.**
+**On the subject policy, a third-party action may change amounts in any direction.**
 A third-party action is a forced *transfer*, not only a removal: on each paired
-output the subject policy's non-protected tokens may be **decreased, removed
-entirely, increased, or left unchanged**. The framework does not require the
-amount to change — an admin can re-spend a holder's UTxO without altering its
-subject balance, a capability bounded by transaction fees rather than the
-validator; custody is unaffected either way. The per-pair check pins the
-protected subset (§2.2) and the non-subject tokens; the *direction* of the
-subject change is otherwise unconstrained per pair. The aggregate rule (the
-`mint`/burn-reconciled superset check above) keeps the *total* non-protected
-subject amount within the PLB across all outputs — so amounts are
-**redistributed** (or minted/burned), never created from nothing or made to
-escape. An increase on one UTxO must therefore be backed by a decrease on
-another seized input or by a mint of A.
+output the subject policy's tokens may be **decreased, removed entirely,
+increased, or left unchanged**
+(`validators/programmable_logic/third_party.ak:99-120`, implemented at
+`:121-280`). The framework does not require the amount to change — a third-party
+action can re-spend a holder's UTxO without altering its subject balance, a
+capability bounded by transaction fees rather than the validator; custody is
+unaffected either way. The per-pair check pins the non-subject tokens (and, on
+lovelace, only a floor — see the table above); the *direction* of the subject
+change is otherwise unconstrained per pair. The aggregate rule (the
+`mint`/burn-reconciled superset check above) keeps the *total* subject amount
+within the PLB across all outputs — so amounts are **redistributed** (or
+minted/burned), never created from nothing or made to escape. An increase on
+one UTxO must therefore be backed by a decrease on another seized input or by a
+mint of A.
 
-### 2.2 Protected prefixes — extraction the admin cannot perform
+### 2.2 Freeze vs. extract
 
-The `RegistryNode` carries `protected_prefixes`: an **issuer-declared,
-append-only** list of 4-byte CIP-67 asset-name label prefixes, kept in
-**strictly ascending order** (which deduplicates it and lets the framework
-validate the list and the append-only invariant in a single pass).
-
-A third-party action may **not extract or burn** any token of policy A whose asset
-name begins with a protected prefix. On each paired UTxO the protected-labelled
-tokens must be **byte-equal** between input and continuing output; only the
-non-protected remainder may be seized or otherwise changed. This is
-**"preserve, not fail"**:
-co-locating a protected token in a UTxO does **not** block the admin from
-seizing everything else in it, and the protected token simply stays put.
-
-The list is **append-only** — a registry-node update may only *add* prefixes,
-never remove one. Protection, once declared, cannot be revoked to enable a later
-seizure.
-
-Typical use: protect CIP-68 reference NFTs (label 100, prefix `000643b0`) and
-CIP-102 royalty tokens (label 500, prefix `001f4d70`), so administrative seizure
-of the user token never sweeps the metadata/royalty infrastructure. This is the
-mechanism by which the §1 scope boundary is enforced on the admin path.
-
-### 2.3 Freeze vs. extract
-
-The two administrative powers are **asymmetric**:
+The two powers are **asymmetric**:
 
 - **Freeze** (declining to authorise a spend) is **unconditional** — a
   substandard's `transfer_logic` can always refuse a transfer.
 - **Extract** (seizing/removing tokens via the `third_party` path) is the **gated,
-  conditional** power.
+  conditional** power described in §2.1.
 
 A consequence worth stating plainly: **hiding assets behind a non-cooperating
 script is self-freezing, not evasion.** Tokens parked under a script that
@@ -153,7 +159,7 @@ refuses to authorise spends become unspendable *to the holder too*. So gating
 extraction (but not freeze) is safe — there is no construction that both evades
 seizure and keeps the tokens usable.
 
-### 2.4 Holder scope is substandard policy, not framework
+### 2.3 Holder scope is substandard policy, not framework
 
 **Which holders are seizable is a substandard decision, not a framework rule.**
 The only on-chain signal of who holds a token is the UTxO's **stake credential**:
@@ -175,12 +181,12 @@ against pooled contracts is socially uncallable):
 > unilaterally **extract** assets from a UTxO whose validator has not opted in.
 
 Example: a lending protocol holding policy-A collateral at the PLB is in scope
-for seizure *as the base layer is written*. Whether seizing it is correct —
-given the borrower's debt and other lenders' claims — is exactly the kind of
-judgement the framework cannot make for every case, and must be left to the
-substandard.
+for seizure *as the base layer is written* (§2.1). Whether seizing it is
+correct — given the borrower's debt and other lenders' claims — is exactly the
+kind of judgement the framework cannot make for every case, and must be left to
+the substandard.
 
-### 2.5 DeFi-aware substandard reference pattern
+### 2.4 DeFi-aware substandard reference pattern
 
 A substandard that wants to respect script-owned positions can gate extraction
 of **script-staked** inputs with one of two patterns:
@@ -191,9 +197,9 @@ of **script-staked** inputs with one of two patterns:
   withdraw-0 is invoked in the same transaction (the protocol consents to the
   seizure).
 
-Both gate **extraction only**; freeze remains unconditional (§2.3). Note this is
+Both gate **extraction only**; freeze remains unconditional (§2.2). Note this is
 substandard-level guidance — the base framework does not enforce it, precisely
-because no single rule is correct for every script (§2.4).
+because no single rule is correct for every script (§2.3).
 
 ---
 
@@ -202,24 +208,30 @@ because no single rule is correct for every script (§2.4).
 ### 3.1 One policy per third-party transaction
 
 The `third_party` withdraw-0 validator runs once per transaction, and its
-`ThirdPartyRedeemer` resolves exactly one registry node (`registry_node_idx`) —
-therefore exactly one policy. A single third-party action can act on many UTxOs
-of the *same* policy, but **cannot atomically seize across two policies**.
+`ThirdPartyRedeemer` names exactly one registry node (`registry_node_idx`,
+`lib/types.ak:50-55`) — therefore exactly one policy. A single third-party
+action can act on many UTxOs of the *same* policy, but **cannot atomically
+seize across two policies**.
 
 A compliance operation spanning multiple policies requires multiple sequential
-transactions (accepting an exposure window between them). Atomic multi-policy
-seizure was prototyped and **deliberately not adopted**: making the path
-multi-policy imposed a significant execution-cost and script-size tax on the
-common single-policy case, which was judged not worth it. This is an accepted,
-permanent limitation.
+transactions, accepting an exposure window between them. This is a permanent
+limitation, by design: a multi-policy path would carry its cost — walking a
+second policy's tokens through the same per-pair and aggregate checks
+(§2.1) — on every single-policy seizure, the common case, to serve the rare
+cross-policy one.
 
 ### 3.2 Registry-node update authority
 
-A node's three mutable fields — `transfer_logic_script`,
-`third_party_logic_script`, `global_state_cs` — and growth of
-`protected_prefixes` can be changed through the registry lifecycle (update) path,
-authorised by the registration credential (`minting_logic_script`). `key`,
-`next`, and `minting_logic_script` are frozen.
+A node's four mutable fields — `transfer_logic_script`,
+`third_party_logic_script`, `unfracking_logic_script`, and `global_state_cs` —
+can be changed through the registry lifecycle (update) path, authorised by the
+registration credential (`minting_logic_script`). `key`, `next`, and
+`minting_logic_script` are frozen (`lib/linked_list.ak:184-209`).
+
+The update path itself is gated on `minting_logic_script`'s credential type: it
+must be a `Script` credential whose withdraw-zero is present in the
+transaction — a node registered with a `VerificationKey` `minting_logic_script`
+can never be updated in place (`validators/registry.ak:226-235`).
 
 Two properties integrators must understand:
 
@@ -239,9 +251,11 @@ issuance logic (see
 [`09-DEVELOPING-SUBSTANDARDS.md`](./09-DEVELOPING-SUBSTANDARDS.md#registry-lifecycle--upgradeability)).
 Independently, the base layer forbids a node-spend — an update, or the
 covering-node spend of an insert — from minting or burning **that node's own
-token** in the same transaction (enforced by `registry_spend`, the sole spender
-of every node). So a registry lifecycle operation and an issuance of the same
-policy are always **separate transactions**, never conflated in one.
+token** in the same transaction: the `registry` validator's `spend` handler
+rejects it (`validators/registry.ak:187-188`, inside the handler at
+`:174-238`), and it is the sole spender of every node. So a registry lifecycle
+operation and an issuance of the same policy are always **separate
+transactions**, never conflated in one.
 
 ### 3.3 De-registration
 
@@ -254,12 +268,12 @@ deliberately not provided.
 
 A third-party action operates on the PLB inputs a transaction includes. A holder's
 balance of the subject policy may be spread across many UTxOs (fragmentation),
-and the framework does not force consolidation. Consequences an administrator
-must understand:
+and the framework does not force consolidation. Consequences for a third-party
+action to account for:
 
 - A single third-party action can act on many UTxOs of the *same* policy, but only
   those the transaction actually spends. To fully seize a holder, the
-  administrator must include **all** of that holder's subject-policy UTxOs.
+  transaction must include **all** of that holder's subject-policy UTxOs.
 - A holder can therefore fragment a balance across many small UTxOs to raise the
   cost of — or push past the transaction-size / execution-budget limits for — a
   single atomic seizure. Full seizure may then need **multiple transactions**,
@@ -267,11 +281,11 @@ must understand:
 - This is inherent to the eUTxO model, not a framework defect: there is no
   account-style "seize the whole balance in one call". Holder-driven
   consolidation (the Unfracking action) and substandard-level UTxO-shape
-  guidance reduce fragmentation in practice, but the administrator cannot assume
+  guidance reduce fragmentation in practice, but a third-party action cannot assume
   a holder's balance lives in a single UTxO.
 
 ---
 
 *See also: [`02-ARCHITECTURE.md`](./02-ARCHITECTURE.md) for the validator
-architecture and the third-party (administrative) flow; [`09-DEVELOPING-SUBSTANDARDS.md`](./09-DEVELOPING-SUBSTANDARDS.md)
+architecture and the third-party flow; [`09-DEVELOPING-SUBSTANDARDS.md`](./09-DEVELOPING-SUBSTANDARDS.md)
 for writing transfer and third-party logic.*

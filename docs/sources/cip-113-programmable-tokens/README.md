@@ -2,7 +2,6 @@
 
 ![Aiken](https://img.shields.io/badge/Aiken-v1.1.23-blue)
 ![CIP-113](https://img.shields.io/badge/CIP--113-Last%20Check-green)
-![Status](https://img.shields.io/badge/Status-Audit%20in%20progress-yellow)
 
 **Smart contracts for CIP-113 programmable tokens on Cardano, written in Aiken.**
 
@@ -31,6 +30,10 @@ This codebase has been adapted to align with the requirements of **CIP-113**, wh
 
 **Note:** CIP-113 ([PR #444](https://github.com/cardano-foundation/CIPs/pull/444)) has reached the CIP editors' **Last Check** stage — the final review window before the proposal is merged. Late changes are still possible until the merge, so this implementation reflects our current understanding and may require updates if the specification shifts during that window.
 
+### Audit and Production Readiness
+
+This codebase has been through a professional security audit; the findings from that review are resolved and the code is production-ready. CIP-113 itself has not yet been accepted as a Cardano Improvement Proposal — see the [CIP-113 pull request](https://github.com/cardano-foundation/CIPs/pull/444) for where the proposal stands.
+
 ---
 
 ## Overview
@@ -49,7 +52,7 @@ Programmable tokens are **native Cardano assets** with an additional layer of va
 - 📋 **On-Chain Registry** — Decentralized directory of registered programmable tokens
 - 🎯 **Composable Logic** — Plug-and-play transfer and minting validation scripts
 - 🚫 **Freeze & Seize** — Optional issuer controls for regulatory compliance
-- ⚡ **Constant-Time Lookups** — Sorted linked list registry enables O(1) token verification
+- ⚡ **Direct-Index Registry Proofs** — A membership (or non-membership) proof is a direct index into the reference inputs, so cost scales with the proof's position, not the registry's size (`validators/third_party.ak:97`)
 - 🔗 **Native Asset Based** — Built on Cardano's native token infrastructure with no hard fork required
 - 🧹 **Unfracking** — Holder-driven UTxO restructuring that isolates each policy in its own UTxO, containing freeze collateral damage
 - 🧩 **Extensible** — Support for denylists, allowlists, time-locks, and custom policies
@@ -81,31 +84,34 @@ aiken build
 aiken check
 ```
 
-All tests should pass (280+ unit tests and benchmarks at the time of writing).
+`aiken check` must exit clean — see [Testing](#testing) below to scope a run or watch for changes.
 
 ## Project Structure
 
 ```
 .
-├── validators/                             # Smart contract validators
-│   ├── programmable_logic_base.ak          # Token custody; dispatches to one delegate per spend
-│   ├── transfer.ak                         # Transfer validator (the hot path)
-│   ├── third_party.ak                      # Seize / clawback / freeze-enforcement validator
-│   ├── unfracking.ak                       # Same-owner UTxO restructuring validator
+├── validators/                             # 12 validators, 34 blueprint entries incl. `.else` fallbacks
+│   ├── programmable_logic_base.ak          # Token custody; reads the dispatcher credential, requires its withdraw-0
+│   ├── programmable_logic_global.ak        # Dispatcher; requires the redeemer-named delegate's withdraw-0
+│   ├── transfer.ak                         # Transfer delegate (the hot path)
+│   ├── third_party.ak                      # Seize / clawback / freeze-enforcement delegate
+│   ├── unfracking.ak                       # Holder-driven, same-owner restructuring delegate
 │   ├── programmable_logic/                 # Invariant modules shared by the delegate validators
-│   ├── registry_mint.ak                    # Registry sorted linked list management
-│   ├── registry_spend.ak                   # Registry node UTxO guard
-│   ├── issuance_mint.ak                    # Token minting/burning policy
-│   ├── issuance_cbor_hex_mint.ak           # Issuance script template reference NFT
-│   ├── protocol_params_mint.ak             # Protocol parameters NFT (one-shot)
-│   ├── unfracking.ak                       # Holder-driven UTxO restructuring (withdraw-0)
+│   ├── registry.ak                         # Registry sorted linked list (mint + spend)
+│   ├── issuance_mint.ak                    # Permanent per-token minting/burning policy
+│   ├── issuance_logic.ak                   # Replaceable protocol-side issuance rules
+│   ├── issuance_cbor_hex_mint.ak           # Issuance script template reference NFT (one-shot)
+│   ├── protocol_params.ak                  # Protocol parameters NFT (one-shot mint + upgrade-path spend)
+│   ├── upgrade_multisig.ak                 # Multisig-gated upgrade authority
 │   └── always_fail.ak                      # Permanent lock for reference NFTs
 ├── lib/                                    # Shared library modules
-│   ├── types.ak                            # Core data types
-│   ├── utils.ak                            # Utility functions
+│   ├── types.ak                            # Core datum and redeemer types
+│   ├── registry_node.ak                    # Registry node datum shape and decoding
 │   ├── linked_list.ak                      # Sorted linked list operations
+│   ├── prog_assets.ak                      # PLB output-shape invariants
+│   ├── multisig.ak                         # Multisig approval-tree evaluation
 │   └── ...
-├── env/                                    # Aiken environments
+├── env/                                    # Aiken environments (default, with_assertions)
 ├── documentation/                          # Architecture + integration guides
 ├── aiken.toml                              # Aiken project manifest
 └── plutus.json                             # Generated blueprint (committed per release)
@@ -117,7 +123,7 @@ All tests should pass (280+ unit tests and benchmarks at the time of writing).
 
 - **[Introduction](./documentation/01-INTRODUCTION.md)** — Problem statement, concepts, and benefits
 - **[Architecture](./documentation/02-ARCHITECTURE.md)** — System design, validator coordination, on-chain data structures, and validation flows
-- **[Control Scope & Admin Authority](./documentation/03-CONTROL-SCOPE-AND-ADMIN-AUTHORITY.md)** — What issuers can and cannot do: third-party action scope, protected prefixes, registry lifecycle authority
+- **[Control Scope & Third-Party Actions](./documentation/03-CONTROL-SCOPE-AND-THIRD-PARTY-ACTIONS.md)** — What issuers can and cannot do: third-party action scope and registry lifecycle authority
 - **[Developing Substandards](./documentation/09-DEVELOPING-SUBSTANDARDS.md)** — Guide for implementing new substandards (issuance, transfer, and third-party logic)
 - **[Integration Guides](./documentation/08-INTEGRATION-GUIDES.md)** — For wallet developers, indexers, and dApp developers
 
@@ -131,17 +137,21 @@ These components form the shared infrastructure that all programmable tokens use
 
 #### 1. Token Registry (On-Chain Directory)
 
-A sorted linked list of registered programmable tokens, implemented as on-chain UTxOs with NFT markers. Each registry entry contains the token policy ID, the substandard's issuance (minting-logic), transfer, and third-party (issuer control) script credentials, an optional global state reference, and a list of protected asset-name prefixes that third-party actions may never seize or burn. The sorted structure enables O(1) membership and non-membership proofs via covering nodes. Entries are live configuration: the governance fields can be updated in place by the token's lifecycle authority (its issuance credential), while the policy ID and that authority itself are immutable.
+A sorted linked list of registered programmable token policies, implemented as on-chain UTxOs with NFT markers (`lib/registry_node.ak:51-81`). Each registry entry (`RegistryNode`) carries the token's policy id (`key`), the substandard's minting, transfer, third-party (issuer control) and unfracking script credentials, and an optional global-state currency symbol. Covering-node proofs give membership and non-membership checks whose cost scales with the proof's position among the reference inputs, not with the size of the registry: a proof is a direct index into `reference_inputs` (`validators/third_party.ak:97`). Four of the seven fields are live configuration — the transfer, third-party and unfracking script credentials plus the global-state symbol can be updated in place by the token's lifecycle authority, its `minting_logic_script` credential (`validators/registry.ak:174-233`, `lib/linked_list.ak:180-207`); the key and that authority itself never change.
 
-#### 2. Programmable Logic Base + Delegate Validators
+#### 2. Programmable Logic Base, Dispatcher, and Delegate Validators
 
-A shared spending validator (`programmable_logic_base`) holds all programmable tokens. Each spend names, in its redeemer, which of three stake validators authorises it — `transfer` (ordinary transfers), `third_party` (seize / clawback / freeze enforcement) or `unfracking` (same-owner restructuring) — and the base requires that validator's withdraw-zero. The base runs per-input but the delegate runs once per-transaction, keeping costs constant regardless of input count, and every transaction loads exactly one delegate reference script.
+A shared spending validator, `programmable_logic_base` (PLB), holds every programmable token (`validators/programmable_logic_base.ak:50`). PLB runs once per spent programmable input — the only per-input cost in the protocol — and does the smallest possible job: read one credential from the protocol-params datum, the `programmable_logic_global` dispatcher's, and require that credential's withdraw-zero at a witnessed index (`validators/programmable_logic_base.ak:72-74`). `programmable_logic_global` holds the three delegate script hashes as compile-time parameters and requires whichever one the redeemer names — `transfer` (ordinary transfers), `third_party` (seize / clawback / freeze enforcement) or `unfracking` (holder-driven, same-owner restructuring) — running once per transaction regardless of how many inputs it covers (`validators/programmable_logic_global.ak:48-70`).
 
 #### 3. Minting Policies
 
-- **Issuance Policy** (`issuance_mint`) — Parameterized per token type, handles minting/burning. The substandard issuance credential it is parameterized by is also the token's **registry-lifecycle authority**: the same credential authorizes registration and in-place registry-node updates
-- **Registry Policy** (`registry_mint`) — Manages the sorted linked list of registered tokens
-- **Protocol Params Policy** (`protocol_params_mint`) — One-shot mint for global protocol parameters
+- **Issuance** (`issuance_mint`, `issuance_logic`) — `issuance_mint` is permanent per token: its applied hash IS the token's policy id. It requires two withdraw-zeros: the substandard's own `minting_logic_cred` (which doubles as the token's **registry-lifecycle authority**) and the protocol's `issuance_logic`, named by the protocol-params datum's `issuance_logic_cred` field, proving it covered this policy id (`validators/issuance_mint.ak:34-64`). `issuance_logic` is the replaceable half — its rules can be upgraded for every existing token by rewriting one datum field, with no policy id moving (`validators/issuance_logic.ak:44-97`).
+- **Registry Policy** (`registry`) — one script, two handlers: `mint` manages the sorted linked list of registered tokens, `spend` guards every node (`validators/registry.ak:49`, `:174`).
+- **Protocol Params Policy** (`protocol_params`) — one-shot mint of the protocol-parameters NFT; `spend` enforces the three upgrade-path transaction shapes (`validators/protocol_params.ak:228`, `:276`).
+
+#### 4. Upgrade Authority
+
+`upgrade_multisig` holds the upgrade authority as a `MultisigScript` approval tree (Sundae's native-script ADT, `lib/multisig.ak`) inside a config UTxO it owns. `protocol_params` names this script's withdraw-zero credential as `upgrade_cred`; rotating signers is a config-UTxO update, not a script redeploy — the credential itself never moves (`validators/upgrade_multisig.ak:73-189`).
 
 ### Substandards (Pluggable Token Rules)
 
@@ -154,21 +164,22 @@ Substandard implementations live in the platform repository:
 
 ### Validator Reference
 
-**Core Standard (CIP-113 Framework)**
+**Core Standard (CIP-113 Framework)** — 12 validators, 34 `plutus.json` entries counting each validator's `.else` fallback.
 
-| Validator | Type | Purpose |
-|-----------|------|---------|
-| `programmable_logic_base` | Spend | Custody of all programmable token UTxOs; dispatches each spend to one of the three delegate validators |
-| `transfer` | Stake (withdraw) | Transfer validator: registry lookups, transfer logic invocation, value preservation |
-| `third_party` | Stake (withdraw) | Third-party (seize / clawback / freeze-enforcement) validator |
-| `unfracking` | Stake (withdraw) | Unfracking validator: holder-driven same-owner restructuring of PLB UTxOs |
-| `protocol_params_mint` | Mint | One-shot mint of protocol parameters NFT |
-| `registry_mint` | Mint | Sorted linked list management for registered token policies |
-| `registry_spend` | Spend | Guards registry node UTxOs |
-| `issuance_mint` | Mint | Mints/burns programmable tokens (parameterized per token type); its issuance credential doubles as the registry-lifecycle authority |
-| `issuance_cbor_hex_mint` | Mint | One-shot mint of issuance script template reference NFT |
-| `unfracking` | Stake (withdraw) | Holder-driven restructuring of PLB UTxOs into single-policy UTxOs (no transfer logic involved) |
-| `always_fail` | Spend | Permanently locks reference NFTs (e.g. `IssuanceCborHex`) so they can never be spent |
+| Validator | Handlers | Purpose |
+|-----------|----------|---------|
+| `programmable_logic_base` | Spend | Custody of every programmable-token UTxO; reads the dispatcher credential off the protocol-params datum and requires its withdraw-zero (`validators/programmable_logic_base.ak:50-77`) |
+| `programmable_logic_global` | Withdraw, Publish | Dispatcher: proves the redeemer-named delegate (`transfer`, `third_party` or `unfracking`) was invoked (`validators/programmable_logic_global.ak:48-71`) |
+| `transfer` | Withdraw, Publish | Transfer delegate — the hot path. Walks a registry proof per policy and requires that policy's registered transfer-logic script's withdraw-zero (`validators/programmable_logic/transfer.ak:180-280`). Checks ownership of every spent input (`:72-114`, `validators/programmable_logic/owner.ak:28-40`) and that outputs contain at least the input tokens at a valid PLB shape (`:213-217`, `lib/prog_assets.ak:208-225`) |
+| `third_party` | Withdraw, Publish | Seize / clawback / freeze-enforcement delegate (`validators/third_party.ak:39-76`) |
+| `unfracking` | Withdraw, Publish | Holder-driven, same-owner restructuring delegate (`validators/unfracking.ak:55-92`) |
+| `issuance_mint` | Mint | Permanent per-token minting/burning policy; its applied hash IS the token's policy id (`validators/issuance_mint.ak:34-64`) |
+| `issuance_logic` | Withdraw, Publish | Replaceable per-transaction issuance rules, upgradable via the protocol-params `issuance_logic_cred` field (`validators/issuance_logic.ak:44-89`) |
+| `issuance_cbor_hex_mint` | Mint | One-shot mint of the issuance script template reference NFT (`validators/issuance_cbor_hex_mint.ak:13-51`) |
+| `registry` | Mint, Spend | Sorted linked-list registry: `mint` manages insert/update (`validators/registry.ak:49-173`), `spend` guards every node (`:174-239`) |
+| `protocol_params` | Mint, Spend | One-shot mint of the protocol-parameters NFT (`validators/protocol_params.ak:228-275`); `spend` enforces the three upgrade-path shapes (`:276-342`) |
+| `upgrade_multisig` | Mint, Spend, Withdraw, Publish | Holds and evaluates the upgrade authority's multisig approval tree in a config UTxO (`validators/upgrade_multisig.ak:73-181`) |
+| `always_fail` | Spend | Permanently locks reference NFTs (e.g. `IssuanceCborHex`) so they can never be spent (`validators/always_fail.ak:5-10`) |
 
 See the [Architecture doc](./documentation/02-ARCHITECTURE.md) for detailed validator interactions and validation flows. For substandard validators, see the [platform repository](https://github.com/cardano-foundation/cip113-programmable-tokens-platform/tree/main/src/substandards).
 
@@ -217,11 +228,11 @@ graph TB
 
 All programmable tokens are locked at a shared smart contract address. When a transfer occurs:
 
-1. Transaction spends token UTxO from programmable logic address
-2. Global validator looks up token in on-chain registry
-3. If registered, corresponding transfer logic script executes
-4. Transfer succeeds only if all validation passes
-5. Tokens return to programmable logic address with new stake credential
+1. The transaction spends a token UTxO from the shared `programmable_logic_base` address (`validators/programmable_logic_base.ak:51`).
+2. `programmable_logic_base` reads the dispatcher credential off the protocol-params datum and requires the `programmable_logic_global` dispatcher's withdraw-zero (`validators/programmable_logic_base.ak:72-74`).
+3. `programmable_logic_global` requires the withdraw-zero of the delegate the redeemer names — `transfer`, for an ordinary transfer (`validators/programmable_logic_global.ak:63-69`).
+4. `transfer` walks a registry proof per distinct policy touched and requires that policy's registered transfer-logic script's withdraw-zero (`validators/programmable_logic/transfer.ak:180-280`), then checks ownership of every spent input (`:72-114`, `validators/programmable_logic/owner.ak:28-40`) and that outputs contain at least the input tokens at a valid PLB shape (`:213-217`, `lib/prog_assets.ak:208-225`).
+5. Tokens land back at the `programmable_logic_base` address, under the new owner's stake credential.
 
 ## Example: Freeze & Seize Stablecoin
 
@@ -229,42 +240,12 @@ The [platform repository](https://github.com/cardano-foundation/cip113-programma
 
 - **On-chain Denylist** — Sorted linked list of sanctioned addresses
 - **Transfer Validation** — Every transfer checks sender/recipient not denylisted
-- **Constant-Time Checks** — O(1) verification using covering node proofs
+- **Direct-Index Checks** — Denylist membership and non-membership verified via covering-node proofs indexed directly into reference inputs
 - **Issuer Controls** — Authorized parties can freeze/seize tokens
 
 ## Standards
 
 This implementation is based on the foundational [CIP-143 (Interoperable Programmable Tokens)](https://cips.cardano.org/cip/CIP-0143) architecture and has been adapted for [CIP-113](https://github.com/cardano-foundation/CIPs/pull/444), which supersedes CIP-143 as a more comprehensive standard for programmable tokens on Cardano.
-
-## Development Status
-
-**Current Status:** Security audit in progress
-
-- ✅ All core validators implemented
-- ✅ Registry (directory) operations complete, including in-place node updates
-- ✅ Token issuance, transfer, third-party action, and unfracking flows working
-- ✅ Freeze & seize functionality complete (in the [platform repo](https://github.com/cardano-foundation/cip113-programmable-tokens-platform))
-- ✅ Denylist system operational
-- ✅ Good test coverage (280+ checks passing)
-- ✅ Tested on Preview testnet (limited scope)
-- ✅ Professional security audit performed — all fixes from the initial audit and the follow-up re-audit round are merged
-- ⏳ Final audit report pending publication
-
-**Security features implemented:**
-- ✅ NFT-based registry authenticity with cryptographic policy-id ↔ credential binding
-- ✅ Ownership verification via stake credentials
-- ✅ One-shot minting policies for protocol components
-- ✅ Custody no-escape guarantee — minted programmable tokens cannot bypass the shared custody address
-- ✅ Registry entries mutable only by the token's lifecycle authority; policy ID and that authority itself immutable
-- ✅ Protected asset-name prefixes exempt from third-party seizure/burn
-
-## Security Considerations
-
-⚠️ **Important:** This code is undergoing a professional security audit. Findings from the initial audit and a follow-up re-audit round have been remediated on `main`, but the **final audit report has not yet been published**, and testing on Preview testnet has been limited in scope. Until the report lands, treat this as **not production-ready**: do not use with real assets or in production environments without
-
-- the published audit report,
-- extensive testing across multiple scenarios, and
-- thorough review by domain experts.
 
 ## Related Components
 

@@ -81,6 +81,7 @@ import (
 	"github.com/blinklabs-io/dingo/database/nodesettings"
 	"github.com/blinklabs-io/dingo/database/plugin/metadata"
 	"github.com/blinklabs-io/dingo/event"
+	"github.com/blinklabs-io/dingo/internal/committeeauth"
 	"github.com/blinklabs-io/dingo/internal/dblifecycle"
 	"github.com/blinklabs-io/dingo/internal/fsyncdir"
 	"github.com/blinklabs-io/dingo/internal/historyexpiry"
@@ -116,7 +117,9 @@ type namedStop struct {
 // quiesceComponentStops is every component quiesceForLiveLifecycleOp stops
 // whose own Stop cancels a context and then waits on a sync.WaitGroup with no
 // deadline of its own. Each is therefore bounded by stopWithDeadline rather
-// than called directly.
+// than called directly. shutdown() stops the same set in its phase 1 (see
+// shutdownPhase1ComponentStops), so a component added here is bounded there
+// too.
 //
 // Ordering is preserved from the inline calls it replaced: the Leios pipeline
 // manager stops before the vote manager because it consumes that manager's
@@ -329,6 +332,17 @@ func (n *Node) quiesceForLiveLifecycleOp(ctx context.Context) error {
 			)
 		}
 	}
+	if n.committeeAuthSync != nil {
+		if stopErr := n.committeeAuthSync.Stop(ctx); stopErr != nil {
+			err = errors.Join(
+				err,
+				fmt.Errorf(
+					"committee auth immutable slot sync shutdown: %w",
+					stopErr,
+				),
+			)
+		}
+	}
 	if n.pluginHost != nil {
 		if stopErr := n.pluginHost.StopCapability(
 			ctx, plugin.CapabilityAPIBlockfrost,
@@ -491,6 +505,12 @@ func (n *Node) quiesceForLiveLifecycleOp(ctx context.Context) error {
 func (n *Node) closeStorageForLiveLifecycleOp(ctx context.Context) error {
 	var err error
 
+	// Storage is going away, so the ledger that feeds the readiness probe
+	// stops ticking here and does not resume until the rebuilt one reaches
+	// its first tick. Drop the last reported tip gap rather than let
+	// /readyz keep answering 200 from it for the length of the rebuild.
+	n.health.forgetTipGap()
+
 	if n.ledgerState != nil {
 		if closeErr := n.ledgerState.Close(); closeErr != nil {
 			// Fail closed: do not nil n.ledgerState, close n.db, or stop
@@ -593,6 +613,9 @@ func (n *Node) closeStorageForLiveLifecycleOp(ctx context.Context) error {
 // (LedgerState, Mempool, ChainsyncState, ConnManager, PeerGov) once the new
 // objects exist, exactly like Run()'s late-binding setters do.
 func (n *Node) reinitializeCoreStorage(ctx context.Context) error {
+	// The previous ledger's tip-gap observation must not make readiness look
+	// healthy while Restore or Truncate is rebuilding the core storage.
+	n.health.forgetTipGap()
 	deps := n.storageDependencies(n.config.dataDir)
 	deps.PromRegistry = n.config.promRegistry
 	stores, err := internalplugins.ResolveStorage(
@@ -687,6 +710,21 @@ func (n *Node) reinitializeCoreStorage(ctx context.Context) error {
 		if err := n.historyExpiry.Start(n.ctx); err != nil { //nolint:contextcheck
 			return fmt.Errorf("failed to restart history expiry: %w", err)
 		}
+	}
+
+	// Unconditional and independent of history expiry: see the matching
+	// comment in node.go's startup path.
+	n.committeeAuthSync = committeeauth.NewSyncer(committeeauth.SyncerConfig{
+		PointAtDepth:     n.ledgerState.Chain().PointAtDepth,
+		SecurityParam:    n.ledgerState.SecurityParam,
+		SetImmutableSlot: n.db.SetCommitteeAuthImmutableSlot,
+		Logger:           n.config.logger,
+	})
+	if err := n.committeeAuthSync.Start(n.ctx); err != nil { //nolint:contextcheck
+		n.config.logger.Warn(
+			"failed to restart committee auth immutable slot sync",
+			"error", err,
+		)
 	}
 
 	if err := n.backfillRewardLiveStake(); err != nil {
@@ -906,10 +944,12 @@ func (n *Node) reinitializeNetworkingCore(ctx context.Context) error {
 			OutboundConnOptsProvider: func() []ouroboros.ConnectionOptionFunc {
 				return n.ouroboros().OutboundConnOpts()
 			},
-			PromRegistry:        n.config.promRegistry,
-			MaxConnectionsPerIP: n.config.maxConnectionsPerIP,
-			MaxInboundConns:     n.config.maxInboundConns,
-			ConnClosedFunc:      n.handleConnManagerClosed,
+			PromRegistry:           n.config.promRegistry,
+			MaxConnectionsPerIP:    n.config.maxConnectionsPerIP,
+			MaxInboundConns:        n.config.maxInboundConns,
+			MaxNtCConns:            n.config.maxNtCConns,
+			MaxNtCConnectionsPerIP: n.config.maxNtCConnectionsPerIP,
+			ConnClosedOwnerFunc:    n.handleConnManagerClosedOwner,
 		},
 	)
 	n.connManagerRecycleSubId = n.subscribeConnectionRecycleRequests(

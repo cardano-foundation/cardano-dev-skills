@@ -42,10 +42,31 @@ const (
 
 type Blake2b256 [Blake2b256Size]byte
 
+// NewBlake2b256 builds a Blake2b256 from data, zero-padding a short slice
+// and truncating a long one. Use it only where the source is itself 32
+// bytes wide, such as another fixed-size hash array. For any length that is
+// not statically guaranteed -- CBOR, JSON, hex, or database input -- use
+// NewBlake2b256Checked, because a silently padded or truncated hash can
+// collide with an unrelated one and mis-key ledger state.
 func NewBlake2b256(data []byte) Blake2b256 {
 	b := Blake2b256{}
 	copy(b[:], data)
 	return b
+}
+
+// NewBlake2b256Checked builds a Blake2b256 from data, returning an error
+// unless data is exactly Blake2b256Size bytes long.
+func NewBlake2b256Checked(data []byte) (Blake2b256, error) {
+	b := Blake2b256{}
+	if len(data) != Blake2b256Size {
+		return b, fmt.Errorf(
+			"invalid blake2b-256 hash: expected %d bytes, got %d",
+			Blake2b256Size,
+			len(data),
+		)
+	}
+	copy(b[:], data)
+	return b, nil
 }
 
 func (b Blake2b256) String() string {
@@ -119,10 +140,31 @@ func Blake2b256Hash(data []byte) Blake2b256 {
 
 type Blake2b224 [Blake2b224Size]byte
 
+// NewBlake2b224 builds a Blake2b224 from data, zero-padding a short slice
+// and truncating a long one. Use it only where the source is itself 28
+// bytes wide, such as another fixed-size hash array. For any length that is
+// not statically guaranteed -- CBOR, JSON, hex, or database input -- use
+// NewBlake2b224Checked, because a silently padded or truncated hash can
+// collide with an unrelated one and mis-key ledger state.
 func NewBlake2b224(data []byte) Blake2b224 {
 	b := Blake2b224{}
 	copy(b[:], data)
 	return b
+}
+
+// NewBlake2b224Checked builds a Blake2b224 from data, returning an error
+// unless data is exactly Blake2b224Size bytes long.
+func NewBlake2b224Checked(data []byte) (Blake2b224, error) {
+	b := Blake2b224{}
+	if len(data) != Blake2b224Size {
+		return b, fmt.Errorf(
+			"invalid blake2b-224 hash: expected %d bytes, got %d",
+			Blake2b224Size,
+			len(data),
+		)
+	}
+	copy(b[:], data)
+	return b, nil
 }
 
 func (b Blake2b224) String() string {
@@ -199,10 +241,31 @@ type GenesisHash = Blake2b224
 
 type Blake2b160 [Blake2b160Size]byte
 
+// NewBlake2b160 builds a Blake2b160 from data, zero-padding a short slice
+// and truncating a long one. Use it only where the source is itself 20
+// bytes wide, such as another fixed-size hash array. For any length that is
+// not statically guaranteed -- CBOR, JSON, hex, or database input -- use
+// NewBlake2b160Checked, because a silently padded or truncated hash can
+// collide with an unrelated one and mis-key ledger state.
 func NewBlake2b160(data []byte) Blake2b160 {
 	b := Blake2b160{}
 	copy(b[:], data)
 	return b
+}
+
+// NewBlake2b160Checked builds a Blake2b160 from data, returning an error
+// unless data is exactly Blake2b160Size bytes long.
+func NewBlake2b160Checked(data []byte) (Blake2b160, error) {
+	b := Blake2b160{}
+	if len(data) != Blake2b160Size {
+		return b, fmt.Errorf(
+			"invalid blake2b-160 hash: expected %d bytes, got %d",
+			Blake2b160Size,
+			len(data),
+		)
+	}
+	copy(b[:], data)
+	return b, nil
 }
 
 func (b Blake2b160) String() string {
@@ -269,6 +332,13 @@ type (
 type MultiAsset[T int64 | uint64 | *big.Int] struct {
 	data             map[Blake2b224]map[cbor.ByteString]T
 	duplicateMapKeys bool
+	// Wire-form conditions that pre-Conway decoding prunes away but that
+	// later decoder versions reject outright. They are recorded here because
+	// UnmarshalCBOR has no protocol version, and reported by
+	// CheckForZeroAssets and CheckForEmptyMultiAsset.
+	zeroQuantity    bool
+	emptyAssets     bool
+	emptyMultiAsset bool
 }
 
 // NewMultiAsset creates a MultiAsset with the specified data
@@ -334,16 +404,30 @@ func (m *MultiAsset[T]) UnmarshalCBOR(data []byte) error {
 			return err
 		}
 	}
+	// Record the wire form before pruning: pruning is what makes a zero
+	// quantity and an empty asset map indistinguishable from an absent one.
+	zeroQuantity := false
+	emptyAssets := false
+	emptyMultiAsset := len(decoded) == 0
 	for _, assets := range decoded {
-		for name := range assets {
+		if len(assets) == 0 {
+			emptyAssets = true
+		}
+		for name, amount := range assets {
 			if len(name.Bytes()) > 32 {
 				return fmt.Errorf(
 					"invalid asset name length: expected at most 32 bytes, got %d",
 					len(name.Bytes()),
 				)
 			}
+			if amountIsZero(amount) {
+				zeroQuantity = true
+			}
 		}
 	}
+	m.zeroQuantity = zeroQuantity
+	m.emptyAssets = emptyAssets
+	m.emptyMultiAsset = emptyMultiAsset
 	m.data = pruneZeroAssets(decoded)
 	m.duplicateMapKeys = duplicateMapKeys
 	return nil
@@ -358,6 +442,40 @@ func (m *MultiAsset[T]) MarshalCBOR() ([]byte, error) {
 func (m *MultiAsset[T]) CheckForDuplicateKeys() error {
 	if m != nil && m.duplicateMapKeys {
 		return errors.New("duplicate map key in multiasset")
+	}
+	return nil
+}
+
+// CheckForZeroAssets reports a decoded wire form that cardano-ledger rejects
+// from protocol version 9 (Conway): an asset quantity of zero, or a policy
+// whose asset map is empty. Its decodeMultiAsset
+// (eras/mary/impl/src/Cardano/Ledger/Mary/Value.hs) switches at that version
+// from pruneZeroMultiAsset to decodeNonEmptyMap decodeNonZeroAmount, which
+// fails with "MultiAsset cannot contain zeros" and "Empty Assets are not
+// allowed". Pre-Conway decoders must keep pruning instead of calling this.
+func (m *MultiAsset[T]) CheckForZeroAssets() error {
+	if m == nil {
+		return nil
+	}
+	if m.zeroQuantity {
+		return errors.New("multiasset cannot contain zeros")
+	}
+	if m.emptyAssets {
+		return errors.New("empty assets are not allowed in multiasset")
+	}
+	return nil
+}
+
+// CheckForEmptyMultiAsset reports a decoded empty multiasset map. Only
+// protocol version 12 (Dijkstra) rejects it, where decodeMultiAsset wraps the
+// outer map in decodeNonEmptyMap as well; Conway still accepts an empty outer
+// map, so only Dijkstra decoders call this.
+func (m *MultiAsset[T]) CheckForEmptyMultiAsset() error {
+	if m == nil {
+		return nil
+	}
+	if m.emptyMultiAsset {
+		return errors.New("empty multiasset map is not allowed")
 	}
 	return nil
 }
@@ -430,6 +548,9 @@ func (m *MultiAsset[T]) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	m.duplicateMapKeys = false
+	m.zeroQuantity = false
+	m.emptyAssets = false
+	m.emptyMultiAsset = false
 	if m.data == nil {
 		m.data = make(map[Blake2b224]map[cbor.ByteString]T)
 	}
@@ -438,8 +559,10 @@ func (m *MultiAsset[T]) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return err
 		}
-		var policy Blake2b224
-		copy(policy[:], policyBytes)
+		policy, err := NewBlake2b224Checked(policyBytes)
+		if err != nil {
+			return err
+		}
 		nameBytes, err := hex.DecodeString(tmp.NameHex)
 		if err != nil {
 			return err
@@ -1065,6 +1188,25 @@ type TransactionLocation struct {
 type BlockTransactionOffsets struct {
 	// Transactions maps transaction index to its location information
 	Transactions []TransactionLocation
+
+	// InvalidTransactions contains the transaction indexes listed in the
+	// block's invalid_transactions field. It is nil for block formats without
+	// that field or when the field is empty.
+	InvalidTransactions []uint
+}
+
+// decodeInvalidTransactionIndices decodes the optional invalid_transactions
+// field without requiring a full ledger-era block decode. Keeping this in the
+// offset pass lets callers avoid parsing the block a second time.
+func decodeInvalidTransactionIndices(raw cbor.RawMessage) ([]uint, error) {
+	var indices []uint
+	if _, err := cbor.Decode([]byte(raw), &indices); err != nil {
+		return nil, fmt.Errorf("decode invalid transaction indices: %w", err)
+	}
+	if len(indices) == 0 {
+		return nil, nil
+	}
+	return indices, nil
 }
 
 // isByronBlock checks whether a decoded block array represents a Byron-era block.
@@ -1265,71 +1407,202 @@ func extractByronOutputOffsets(
 	}
 }
 
-// isDijkstraBlock checks whether a decoded block array represents a Dijkstra
-// (prototype-2026w27) block. A Dijkstra block is a 2-element array
-// [header, block_body] where block_body is a 4-element array
-// [invalid_transactions/nil, transactions, leios_certificate/nil,
-// peras_certificate/nil] and each transaction is a 3-element array
-// [transaction_body, transaction_witness_set, auxiliary_data/nil].
+// Dijkstra block component counts. A Dijkstra block is always
+// [header, block_body], but two block_body shapes exist and the era decoder
+// (DijkstraBlockBody.UnmarshalCBOR) accepts both.
+const (
+	dijkstraBlockComponents = 2
+	// dijkstraBodyComponents is the block_body arity defined by the Dijkstra
+	// CDDL: [transactions, leios_certificate/nil, peras_certificate/nil].
+	dijkstraBodyComponents = 3
+	// dijkstraLegacyBodyComponents is the block_body arity of the earlier
+	// prototype-2026w27 layout, which carries a leading invalid_transactions
+	// field: [invalid_transactions/nil, transactions,
+	// leios_certificate/nil, peras_certificate/nil].
+	dijkstraLegacyBodyComponents = 4
+	// dijkstraTxComponents is the arity of a transaction without a validity
+	// flag: [transaction_body, transaction_witness_set, auxiliary_data/nil].
+	// It is the block transaction arity of the prototype-2026w27 layout.
+	dijkstraTxComponents = 3
+	// dijkstraBlockTxComponents is the arity of the block_transaction defined
+	// by the Dijkstra CDDL, whose final element is the is_valid flag set by
+	// the block producer: [transaction_body, transaction_witness_set,
+	// auxiliary_data/nil, bool].
+	dijkstraBlockTxComponents = 4
+)
+
+// dijkstraBlockShape describes how a decoded top-level block array relates to
+// the Dijkstra block layout.
+type dijkstraBlockShape int
+
+const (
+	// dijkstraShapeNone means the value is not a Dijkstra block.
+	dijkstraShapeNone dijkstraBlockShape = iota
+	// dijkstraShapeCurrent means the block_body has the CDDL arity, with the
+	// transactions array as its first element.
+	dijkstraShapeCurrent
+	// dijkstraShapeLegacy means the block_body has the prototype-2026w27
+	// arity, with the transactions array as its second element.
+	dijkstraShapeLegacy
+	// dijkstraShapeMalformed means only a Dijkstra block could carry this
+	// layout, but its block_body or transaction arity is not understood.
+	// Callers must fail rather than silently report no transactions.
+	dijkstraShapeMalformed
+)
+
+// cborArrayItems decodes a CBOR array into its raw elements, reporting whether
+// the value was an array at all. A decode failure is a shape signal for the
+// Dijkstra block classifier rather than an error to propagate.
+func cborArrayItems(data []byte) ([]cbor.RawMessage, bool) {
+	items := []cbor.RawMessage{}
+	if _, err := cbor.Decode(data, &items); err != nil {
+		return []cbor.RawMessage{}, false
+	}
+	return items, true
+}
+
+// dijkstraBodyTxField maps a decoded block_body arity to the index of its
+// transactions field and to the matching block shape.
+func dijkstraBodyTxField(bodyLen int) (int, dijkstraBlockShape) {
+	switch bodyLen {
+	case dijkstraBodyComponents:
+		return 0, dijkstraShapeCurrent
+	case dijkstraLegacyBodyComponents:
+		return 1, dijkstraShapeLegacy
+	default:
+		return 0, dijkstraShapeMalformed
+	}
+}
+
+// classifyDijkstraBlock checks whether a decoded block array represents a
+// Dijkstra block and, if so, which block_body shape it uses. The returned
+// error is non-nil only for dijkstraShapeMalformed and describes the arity
+// that was not understood.
 //
 // The 2-element top level distinguishes Dijkstra from Byron (3-element) and
-// Shelley+ (4+ element) blocks. The nested shape check guards against
-// misclassifying an unrelated 2-element value (e.g. a Byron epoch-boundary
-// block, whose second element is a bytestring array, not a 4-element array).
-func isDijkstraBlock(blockArray []cbor.RawMessage) bool {
-	if len(blockArray) != 2 {
-		return false
+// Shelley+ (4+ element) blocks. The nested shape checks guard against
+// misclassifying an unrelated 2-element value (e.g. a value whose second
+// element is a bytestring array rather than an array of transactions).
+//
+// Transaction arity is not tied to the block_body shape here: the walker only
+// needs to find byte ranges, and pairing the two (a prototype-2026w27 body
+// carries flagless transactions, a CDDL body carries block transactions with
+// a trailing is_valid) is enforced by the era decoder.
+func classifyDijkstraBlock(
+	blockArray []cbor.RawMessage,
+) (dijkstraBlockShape, error) {
+	if len(blockArray) != dijkstraBlockComponents {
+		return dijkstraShapeNone, nil
 	}
-	var bodyParts []cbor.RawMessage
-	if _, err := cbor.Decode([]byte(blockArray[1]), &bodyParts); err != nil {
-		return false
+	// block_body must be an array; anything else is not a Dijkstra block.
+	bodyParts, ok := cborArrayItems([]byte(blockArray[1]))
+	if !ok {
+		return dijkstraShapeNone, nil
 	}
-	if len(bodyParts) != 4 {
-		return false
+	txField, shape := dijkstraBodyTxField(len(bodyParts))
+	if shape == dijkstraShapeMalformed {
+		// A two-element value is only eligible for Dijkstra-specific
+		// malformed shape errors when its header is accepted by the Dijkstra
+		// decoder. This preserves the generic offset-walker fall-through for
+		// unrelated values. Valid Dijkstra body shapes are recognized without
+		// this check because existing callers may provide only a structural
+		// header placeholder.
+		if !isDijkstraCompatibleHeader([]byte(blockArray[0])) {
+			return dijkstraShapeNone, nil
+		}
+		return shape, fmt.Errorf(
+			"dijkstra block body has %d elements, expected %d or %d",
+			len(bodyParts),
+			dijkstraBodyComponents,
+			dijkstraLegacyBodyComponents,
+		)
 	}
-	// bodyParts[1] is the transactions array.
-	var txs []cbor.RawMessage
-	if _, err := cbor.Decode([]byte(bodyParts[1]), &txs); err != nil {
-		return false
+	// The transactions field must be an array, otherwise this 2-element value
+	// is not a Dijkstra block.
+	txs, ok := cborArrayItems([]byte(bodyParts[txField]))
+	if !ok {
+		return dijkstraShapeNone, nil
 	}
-	// If there are transactions, verify the first one is a 3-element array.
+	// If there are transactions, verify the first one has a known arity.
 	if len(txs) > 0 {
-		var tx []cbor.RawMessage
-		if _, err := cbor.Decode([]byte(txs[0]), &tx); err != nil {
-			return false
+		tx, ok := cborArrayItems([]byte(txs[0]))
+		if !ok {
+			return dijkstraShapeNone, nil
 		}
-		if len(tx) != 3 {
-			return false
+		if len(tx) != dijkstraTxComponents &&
+			len(tx) != dijkstraBlockTxComponents {
+			if !isDijkstraCompatibleHeader([]byte(blockArray[0])) {
+				return dijkstraShapeNone, nil
+			}
+			return dijkstraShapeMalformed, fmt.Errorf(
+				"dijkstra transaction 0 has %d elements, expected %d or %d",
+				len(tx),
+				dijkstraTxComponents,
+				dijkstraBlockTxComponents,
+			)
 		}
 	}
-	return true
+	return shape, nil
+}
+
+// isDijkstraCompatibleHeader checks the structural portion shared by the
+// plain Babbage-shaped and extended Dijkstra headers. The common package
+// cannot import ledger/dijkstra because that package depends on common.
+func isDijkstraCompatibleHeader(data []byte) bool {
+	top, ok := cborArrayItems(data)
+	if !ok || len(top) != 2 {
+		return false
+	}
+	body, ok := cborArrayItems([]byte(top[0]))
+	return ok && len(body) >= 10
 }
 
 // extractDijkstraTransactionOffsets extracts transaction offsets from a
-// Dijkstra (prototype-2026w27) block. The block is [header, block_body] with
-// block_body = [invalid_transactions/nil, transactions, leios_certificate/nil,
-// peras_certificate/nil] and each transaction a complete
-// [transaction_body, transaction_witness_set, auxiliary_data/nil] array (not
-// the pre-Dijkstra parallel body/witness/metadata segments).
+// Dijkstra block, which is [header, block_body]. Unlike the pre-Dijkstra eras
+// there are no parallel body/witness/metadata segments: each transaction is a
+// complete array inside block_body.
+//
+// Both block_body shapes are supported, selected by shape:
+//
+//   - dijkstraShapeCurrent: block_body = [transactions,
+//     leios_certificate/nil, peras_certificate/nil], each block transaction
+//     [transaction_body, transaction_witness_set, auxiliary_data/nil,
+//     is_valid].
+//   - dijkstraShapeLegacy: the prototype-2026w27 block_body =
+//     [invalid_transactions/nil, transactions, leios_certificate/nil,
+//     peras_certificate/nil], each transaction
+//     [transaction_body, transaction_witness_set, auxiliary_data/nil].
+//
+// The trailing is_valid flag of a block transaction is a bool rather than a
+// byte range, so it needs no entry in TransactionLocation and is simply not
+// walked.
 func extractDijkstraTransactionOffsets(
 	cborData []byte,
 	blockArray []cbor.RawMessage,
+	shape dijkstraBlockShape,
 ) (*BlockTransactionOffsets, error) {
-	if len(blockArray) != 2 {
+	if len(blockArray) != dijkstraBlockComponents {
 		return nil, fmt.Errorf(
-			"dijkstra block has %d elements, expected 2",
+			"dijkstra block has %d elements, expected %d",
 			len(blockArray),
+			dijkstraBlockComponents,
 		)
+	}
+	legacyBody := shape == dijkstraShapeLegacy
+	expectedBodyComponents := dijkstraBodyComponents
+	if legacyBody {
+		expectedBodyComponents = dijkstraLegacyBodyComponents
 	}
 
 	topCount, topHeaderSize, topIndefinite := cborArrayInfo(cborData)
 	if topCount < 0 && !topIndefinite {
 		return nil, errors.New("invalid Dijkstra block array")
 	}
-	if !topIndefinite && topCount != 2 {
+	if !topIndefinite && topCount != dijkstraBlockComponents {
 		return nil, fmt.Errorf(
-			"dijkstra block has %d elements, expected 2",
+			"dijkstra block has %d elements, expected %d",
 			topCount,
+			dijkstraBlockComponents,
 		)
 	}
 
@@ -1337,10 +1610,11 @@ func extractDijkstraTransactionOffsets(
 	if _, err := cbor.Decode([]byte(blockArray[1]), &bodyParts); err != nil {
 		return nil, fmt.Errorf("failed to decode Dijkstra block body: %w", err)
 	}
-	if len(bodyParts) != 4 {
+	if len(bodyParts) != expectedBodyComponents {
 		return nil, fmt.Errorf(
-			"dijkstra block body has %d elements, expected 4",
+			"dijkstra block body has %d elements, expected %d",
 			len(bodyParts),
+			expectedBodyComponents,
 		)
 	}
 
@@ -1363,10 +1637,11 @@ func extractDijkstraTransactionOffsets(
 	if bodyCount < 0 && !bodyIndefinite {
 		return nil, errors.New("invalid Dijkstra block body array")
 	}
-	if !bodyIndefinite && bodyCount != 4 {
+	if !bodyIndefinite && bodyCount != expectedBodyComponents {
 		return nil, fmt.Errorf(
-			"dijkstra block body has %d elements, expected 4",
+			"dijkstra block body has %d elements, expected %d",
 			bodyCount,
+			expectedBodyComponents,
 		)
 	}
 
@@ -1374,8 +1649,21 @@ func extractDijkstraTransactionOffsets(
 	if err != nil {
 		return nil, err
 	}
-	if _, _, err := bodyDecoder.Skip(); err != nil {
-		return nil, fmt.Errorf("failed to skip invalid_transactions: %w", err)
+	var invalidTransactions []uint
+	// Only the prototype-2026w27 body carries a leading invalid_transactions
+	// field; in the CDDL body the transactions array is the first element.
+	if legacyBody {
+		_, invalidRaw, err := bodyDecoder.DecodeRaw(new(cbor.RawMessage))
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to decode invalid_transactions: %w",
+				err,
+			)
+		}
+		invalidTransactions, err = decodeInvalidTransactionIndices(invalidRaw)
+		if err != nil {
+			return nil, err
+		}
 	}
 	txsOffset, txsRaw, err := bodyDecoder.DecodeRaw(new(cbor.RawMessage))
 	if err != nil {
@@ -1397,7 +1685,8 @@ func extractDijkstraTransactionOffsets(
 	}
 	if len(txs) == 0 {
 		return &BlockTransactionOffsets{
-			Transactions: []TransactionLocation{},
+			Transactions:        []TransactionLocation{},
+			InvalidTransactions: invalidTransactions,
 		}, nil
 	}
 
@@ -1414,10 +1703,13 @@ func extractDijkstraTransactionOffsets(
 	}
 
 	result := &BlockTransactionOffsets{
-		Transactions: make([]TransactionLocation, len(txs)),
+		Transactions:        make([]TransactionLocation, len(txs)),
+		InvalidTransactions: invalidTransactions,
 	}
 
-	// Walk each transaction [transaction_body, transaction_witness_set, aux/nil].
+	// Walk each transaction
+	// [transaction_body, transaction_witness_set, aux/nil] plus, for a block
+	// transaction, the trailing is_valid flag.
 	txsDecoder, err := cbor.NewStreamDecoder(txsRaw[txsHeaderSize:])
 	if err != nil {
 		return nil, err
@@ -1441,10 +1733,14 @@ func extractDijkstraTransactionOffsets(
 				"failed to decode Dijkstra transaction %d: %w", i, err,
 			)
 		}
-		if len(txParts) != 3 {
+		if len(txParts) != dijkstraTxComponents &&
+			len(txParts) != dijkstraBlockTxComponents {
 			return nil, fmt.Errorf(
-				"dijkstra transaction %d has %d elements, expected 3",
-				i, len(txParts),
+				"dijkstra transaction %d has %d elements, expected %d or %d",
+				i,
+				len(txParts),
+				dijkstraTxComponents,
+				dijkstraBlockTxComponents,
 			)
 		}
 
@@ -1455,11 +1751,12 @@ func extractDijkstraTransactionOffsets(
 				i,
 			)
 		}
-		if !txIndefinite && txCount != 3 {
+		if !txIndefinite && txCount != len(txParts) {
 			return nil, fmt.Errorf(
-				"dijkstra transaction %d has %d elements, expected 3",
+				"dijkstra transaction %d array has %d elements, decoded %d",
 				i,
 				txCount,
+				len(txParts),
 			)
 		}
 
@@ -1553,8 +1850,9 @@ func extractDijkstraTransactionOffsets(
 // The function parses the block CBOR structure to find where each transaction body,
 // witness set, and metadata starts and ends within the raw block bytes.
 //
-// It supports both Byron-era blocks (3-element: [header, body, extra]) and
-// Shelley+ blocks (4+ element: [header, tx_bodies, witnesses, metadata, ...]).
+// It supports Byron-era blocks (3-element: [header, body, extra]), Shelley+
+// blocks (4+ element: [header, tx_bodies, witnesses, metadata, ...]) and
+// Dijkstra blocks (2-element: [header, block_body]).
 func ExtractTransactionOffsets(cborData []byte) (*BlockTransactionOffsets, error) {
 	// First pass: decode block as array of RawMessages to get component boundaries
 	var blockArray []cbor.RawMessage
@@ -1562,12 +1860,24 @@ func ExtractTransactionOffsets(cborData []byte) (*BlockTransactionOffsets, error
 		return nil, fmt.Errorf("failed to decode block array: %w", err)
 	}
 
-	// Detect Dijkstra (prototype-2026w27) blocks. Unlike pre-Dijkstra eras,
-	// these are a 2-element array [header, block_body] where transactions live
-	// inline inside block_body rather than as parallel top-level segments, so
-	// they must be recognized before the generic short-block early return.
-	if isDijkstraBlock(blockArray) {
-		return extractDijkstraTransactionOffsets(cborData, blockArray)
+	// Detect Dijkstra blocks. Unlike pre-Dijkstra eras, these are a 2-element
+	// array [header, block_body] where transactions live inline inside
+	// block_body rather than as parallel top-level segments, so they must be
+	// recognized before the generic short-block early return. Both the CDDL
+	// block_body shape and the earlier prototype-2026w27 shape are handled.
+	blockShape, err := classifyDijkstraBlock(blockArray)
+	if err != nil {
+		// The layout can only be a Dijkstra block, but its shape is not
+		// understood. Failing here keeps a future layout change loud instead
+		// of silently indexing none of the block's transactions.
+		return nil, err
+	}
+	if blockShape != dijkstraShapeNone {
+		return extractDijkstraTransactionOffsets(
+			cborData,
+			blockArray,
+			blockShape,
+		)
 	}
 
 	if len(blockArray) < 3 {
@@ -1579,6 +1889,15 @@ func ExtractTransactionOffsets(cborData []byte) (*BlockTransactionOffsets, error
 	// Detect Byron-era blocks and handle them separately
 	if isByronBlock(blockArray) {
 		return extractByronTransactionOffsets(cborData, blockArray)
+	}
+
+	var invalidTransactions []uint
+	if len(blockArray) > 4 {
+		var err error
+		invalidTransactions, err = decodeInvalidTransactionIndices(blockArray[4])
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Shelley+ block layout: [header, tx_bodies[], witnesses[], metadata_map, ...]
@@ -1636,7 +1955,8 @@ func ExtractTransactionOffsets(cborData []byte) (*BlockTransactionOffsets, error
 
 	// Build transaction locations
 	result := &BlockTransactionOffsets{
-		Transactions: make([]TransactionLocation, len(txBodiesRaw)),
+		Transactions:        make([]TransactionLocation, len(txBodiesRaw)),
+		InvalidTransactions: invalidTransactions,
 	}
 
 	// Calculate body offsets within the tx bodies array.

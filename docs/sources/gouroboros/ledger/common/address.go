@@ -15,13 +15,14 @@
 package common
 
 import (
-	"bytes"
 	"crypto/sha3"
 	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
+	"math"
 	"math/big"
+	"slices"
 	"strings"
 
 	"github.com/blinklabs-io/gouroboros/cbor"
@@ -85,13 +86,18 @@ func init() {
 type AddrKeyHash = Blake2b224
 
 type Address struct {
-	addressType      uint8
-	networkId        uint8
-	paymentPayload   AddressPayload
-	stakingPayload   AddressPayload
-	extraData        []byte
-	byronAddressType uint64
-	byronAddressAttr ByronAddressAttributes
+	addressType    uint8
+	networkId      uint8
+	paymentPayload AddressPayload
+	stakingPayload AddressPayload
+	trailingBytes  []byte
+	// pointerOutOfRange names the first pointer component that decodePtr would
+	// reject, and is empty for every other address. Decoding normalizes such a
+	// pointer as decodePtrLenient does; CheckAddressPointerInRange turns the
+	// record into the rejection that decoder version 9 onward requires.
+	pointerOutOfRange string
+	byronAddressType  uint64
+	byronAddressAttr  ByronAddressAttributes
 }
 
 // NewAddress returns an Address based on the provided bech32/base58 address
@@ -118,7 +124,7 @@ func NewAddress(addr string) (Address, error) {
 		}
 	}
 	a := Address{}
-	err = a.populateFromBytes(decoded)
+	err = a.populateFromBytes(decoded, false)
 	if err != nil {
 		return Address{}, err
 	}
@@ -155,7 +161,19 @@ func hasFoldedPrefix(value, prefix string) bool {
 // NewAddressFromBytes returns an Address based on the raw bytes provided
 func NewAddressFromBytes(addrBytes []byte) (Address, error) {
 	var ret Address
-	if err := ret.populateFromBytes(addrBytes); err != nil {
+	if err := ret.populateFromBytes(addrBytes, false); err != nil {
+		return Address{}, err
+	}
+	return ret, nil
+}
+
+// NewAddressFromBytesLenient decodes an address using the pre-Babbage output
+// rule, which crops bytes after the address payload. Callers decoding a
+// transaction output must apply the era-specific strictness at that boundary;
+// general address validation should use NewAddressFromBytes instead.
+func NewAddressFromBytesLenient(addrBytes []byte) (Address, error) {
+	var ret Address
+	if err := ret.populateFromBytes(addrBytes, true); err != nil {
 		return Address{}, err
 	}
 	return ret, nil
@@ -208,8 +226,7 @@ func NewAddressFromParts(
 			)
 		}
 	case AddressTypeKeyPointer, AddressTypeScriptPointer:
-		// Preserve pointer-address behavior via the existing byte path so
-		// extra trailing data continues to round-trip unchanged.
+		// Preserve pointer-address behavior via the existing byte path.
 		fallthrough
 	default:
 		addrBytes := make([]byte, 1+len(paymentAddr)+len(stakingAddr))
@@ -307,10 +324,13 @@ func NewByronAddressRedeem(
 	}, nil
 }
 
-func (a *Address) populateFromBytes(data []byte) error {
+func (a *Address) populateFromBytes(data []byte, allowTrailing bool) error {
 	if len(data) == 0 {
 		return errors.New("invalid address data: empty byte slice")
 	}
+	// Clear trailer and pointer state before decoding into a reused address.
+	a.trailingBytes = nil
+	a.pointerOutOfRange = ""
 	// Extract header info
 	header := data[0]
 	a.addressType = (header & AddressHeaderTypeMask) >> 4
@@ -318,7 +338,8 @@ func (a *Address) populateFromBytes(data []byte) error {
 	// Byron Addresses
 	if a.addressType == AddressTypeByron {
 		var rawAddr byronAddress
-		if _, err := cbor.Decode(data, &rawAddr); err != nil {
+		byronLen, err := cbor.Decode(data, &rawAddr)
+		if err != nil {
 			return err
 		}
 		payloadBytes, ok := rawAddr.Payload.Content.([]byte)
@@ -346,6 +367,12 @@ func (a *Address) populateFromBytes(data []byte) error {
 		a.byronAddressAttr = byronAddr.Attr
 		a.paymentPayload = AddressPayloadKeyHash{
 			Hash: AddrKeyHash(NewBlake2b224(byronAddr.Hash)),
+		}
+		if byronLen < len(data) {
+			return fmt.Errorf(
+				"invalid address data: %d unexpected trailing byte(s)",
+				len(data)-byronLen,
+			)
 		}
 		return nil
 	}
@@ -418,98 +445,100 @@ func (a *Address) populateFromBytes(data []byte) error {
 		payload = payload[AddressHashSize:]
 	case AddressTypeKeyPointer, AddressTypeScriptPointer:
 		var tmpPointer AddressPayloadPointer
-		n, err := tmpPointer.decode(payload)
+		// Pointer strictness does not follow allowTrailing. Every decoder
+		// version below 9 reaches decodePtrLenient: below 7 through
+		// fromCborBackwardsBothAddr and at 7 and 8 through
+		// fromCborRigorousBothAddr True, which is Babbage. Decoding therefore
+		// normalizes in every era, and the eras that need decodePtr call
+		// CheckAddressPointerInRange on the result.
+		n, outOfRange, err := tmpPointer.decode(payload)
 		if err != nil {
 			return err
 		}
+		a.pointerOutOfRange = outOfRange
 		a.stakingPayload = tmpPointer
 		payload = payload[n:]
 	}
-	// A well-formed address of a given type has an exact, computable
-	// length, so nothing should remain in payload at this point. However,
-	// a small, fixed set of addresses were minted on Cardano mainnet with
-	// extra trailing bytes due to a historical wallet/ledger bug (see
-	// https://github.com/IntersectMBO/cardano-ledger/issues/2729 and
-	// https://github.com/blinklabs-io/gouroboros/issues/519). Those
-	// addresses are permanently part of the chain, so we special-case the
-	// exact trailing byte sequences known to have appeared on mainnet
-	// (mirroring the TRAILING_WHITELIST approach taken by
-	// cardano-multiplatform-lib) to allow them to keep decoding, while
-	// rejecting any other unexpected trailing data outright. The known
-	// malformed addresses are all mainnet addresses, so we only consult
-	// the whitelist for mainnet; a testnet address is never exempted, even
-	// if its trailing bytes happen to collide with a whitelisted sequence.
+	// A well-formed address of a given type has an exact, computable length,
+	// so nothing should remain in payload at this point. Prior to Babbage the
+	// reference decoder does not require the address buffer to be fully
+	// consumed: below decoder version 7 fromCborBothAddr uses
+	// fromCborBackwardsBothAddr, which decodes with decodeAddrStateLenientT
+	// True True and keeps only the consumed prefix
+	// (cardano-ledger libs/cardano-ledger-core/src/Cardano/Ledger/Address.hs).
+	// The unconsumed bytes are recorded here rather than returned by Bytes(),
+	// matching that crop, and the eras that do require full consumption reject
+	// them at their own decode: Babbage onward for a transaction output, and
+	// every era for a reward account, whose decodeAccountAddressT calls
+	// ensureBufIsConsumed with no version gate.
 	if len(payload) > 0 {
-		if a.networkId != AddressNetworkMainnet ||
-			!isKnownMalformedAddressTrailer(payload) {
+		if !allowTrailing {
 			return fmt.Errorf(
 				"invalid address data: %d unexpected trailing byte(s)",
 				len(payload),
 			)
 		}
-		a.extraData = payload[:]
+		a.trailingBytes = slices.Clone(payload)
 	}
 	return nil
 }
 
-// knownMalformedAddressTrailers holds the exact trailing byte sequences of
-// the small set of addresses known to exist on Cardano mainnet with extra
-// bytes appended beyond their expected length, due to a historical
-// wallet/ledger bug. See:
-// https://github.com/IntersectMBO/cardano-ledger/issues/2729
-// https://github.com/blinklabs-io/gouroboros/issues/519
-// This list mirrors the TRAILING_WHITELIST constant maintained by
-// cardano-multiplatform-lib, the canonical reference for these addresses.
-var knownMalformedAddressTrailers = [][]byte{
-	{
-		203, 87, 175, 176, 179, 95, 200, 156, 99, 6, 28, 153, 20, 224, 85, 0,
-		26, 81, 140, 117, 22,
-	},
-	{
-		19, 213, 244, 163, 254, 4, 120, 178, 36, 30, 1, 104, 227, 203, 165, 0,
-		26, 34, 193, 90, 17,
-	},
-	{0},
-	{
-		106, 51, 48, 102, 53, 97, 109, 107, 119, 104, 119, 113, 97, 52, 119,
-		118, 102, 121, 106, 100, 101, 122, 121, 97, 101, 108, 109, 110, 110,
-		103, 100, 54, 100, 52, 101,
-	},
-	{
-		53, 97, 99, 121, 50, 114, 48, 101, 107, 114, 112, 113, 122, 113, 106,
-		108, 113, 100, 107, 56, 108, 122, 113, 110, 53, 114, 52, 53, 110,
-	},
-	{
-		6, 29, 7, 12, 13, 4, 27, 7, 2, 15, 11, 13, 11, 15, 2, 9, 18, 5, 29,
-		28, 16, 9, 17, 4, 14, 31, 7, 19, 17, 3, 1, 0, 11, 16, 22, 0,
-	},
-	{
-		18, 110, 119, 53, 51, 53, 103, 54, 118, 115, 112, 55, 120, 55, 102,
-		104, 120, 112, 113, 50, 112, 116, 115, 104, 57, 103, 107, 114,
-	},
-	{44},
+// CheckAddressFullyConsumed rejects an address whose encoding carried bytes
+// past its payload. From decoder version 7 (Babbage) fromCborBothAddr selects
+// fromCborRigorousBothAddr, whose decodeAddrStateLenientT reaches
+// "unless isLenient $ ensureBufIsConsumed" (cardano-ledger
+// libs/cardano-ledger-core/src/Cardano/Ledger/Address.hs), so an output
+// address from Babbage onward must be rejected where Shelley through Alonzo
+// crop it.
+func CheckAddressFullyConsumed(a Address) error {
+	if n := len(a.trailingBytes); n > 0 {
+		return fmt.Errorf(
+			"invalid address data: %d unexpected trailing byte(s)",
+			n,
+		)
+	}
+	return nil
 }
 
-func isKnownMalformedAddressTrailer(trailer []byte) bool {
-	for _, known := range knownMalformedAddressTrailers {
-		if bytes.Equal(trailer, known) {
-			return true
-		}
+// CheckAddressPointerInRange rejects a pointer address whose slot, transaction
+// index or certificate index is wider than cardano-ledger's Ptr allows. From
+// decoder version 9 (Conway) fromCborBothAddr selects
+// fromCborRigorousBothAddr False, whose decodeStakeReference uses decodePtr;
+// versions 7 and 8 (Babbage) pass True and reach decodePtrLenient, which
+// normalizes such a pointer to all zeros instead
+// (cardano-ledger libs/cardano-ledger-core/src/Cardano/Ledger/Address.hs).
+// Conway reuses the Babbage output type, so the two eras are separated at their
+// own decoders rather than at this one.
+func CheckAddressPointerInRange(a Address) error {
+	if a.pointerOutOfRange == "" {
+		return nil
 	}
-	return false
+	return fmt.Errorf(
+		"%w: %s",
+		ErrAddressPointerOutOfRange,
+		a.pointerOutOfRange,
+	)
+}
+
+// TrailingBytes returns the bytes that followed the address payload and were
+// not consumed by it. They are dropped from Bytes(), as the reference drops
+// them below decoder version 7, and are non-empty only for an address that a
+// stricter era has to reject.
+func (a Address) TrailingBytes() []byte {
+	return slices.Clone(a.trailingBytes)
 }
 
 func (a *Address) UnmarshalCBOR(data []byte) error {
 	// Try to unwrap as bytestring (Shelley and forward)
 	tmpData := []byte{}
 	if _, err := cbor.Decode(data, &tmpData); err == nil {
-		err := a.populateFromBytes(tmpData)
+		err := a.populateFromBytes(tmpData, false)
 		if err != nil {
 			return err
 		}
 	} else {
 		// Probably a Byron address
-		if err := a.populateFromBytes(data); err != nil {
+		if err := a.populateFromBytes(data, false); err != nil {
 			return err
 		}
 	}
@@ -637,13 +666,19 @@ func (a Address) ByronType() uint64 {
 	return a.byronAddressType
 }
 
-// PaymentAddress returns a new Address with only the payment address portion. This will return nil for anything other than payment and script addresses
+// PaymentAddress returns the enterprise address for the payment credential.
+// Byron and reward addresses do not contain a Shelley payment credential and
+// return nil. Pointer addresses retain their payment credential.
 func (a Address) PaymentAddress() *Address {
 	var addrType uint8
 	switch a.addressType {
-	case AddressTypeKeyKey, AddressTypeKeyNone:
+	case AddressTypeKeyKey, AddressTypeKeyScript, AddressTypeKeyPointer,
+		AddressTypeKeyNone:
 		addrType = AddressTypeKeyNone
-	case AddressTypeScriptKey, AddressTypeScriptNone, AddressTypeScriptScript:
+	case AddressTypeScriptKey,
+		AddressTypeScriptScript,
+		AddressTypeScriptPointer,
+		AddressTypeScriptNone:
 		addrType = AddressTypeScriptNone
 	default:
 		// Unsupported address type
@@ -679,13 +714,15 @@ func (a *Address) PayloadPayload() AddressPayload {
 	return a.paymentPayload
 }
 
-// StakeAddress returns a new Address with only the stake key portion. This will return nil if the address is not a payment/staking key pair
+// StakeAddress returns the reward address for the staking credential.
+// Byron, enterprise and pointer addresses return nil; a pointer cannot be
+// resolved to a staking credential without ledger state.
 func (a Address) StakeAddress() *Address {
 	var addrType uint8
 	switch a.addressType {
-	case AddressTypeKeyKey, AddressTypeScriptKey:
+	case AddressTypeKeyKey, AddressTypeScriptKey, AddressTypeNoneKey:
 		addrType = AddressTypeNoneKey
-	case AddressTypeScriptScript, AddressTypeNoneScript:
+	case AddressTypeKeyScript, AddressTypeScriptScript, AddressTypeNoneScript:
 		addrType = AddressTypeNoneScript
 	default:
 		// Unsupported address type
@@ -779,6 +816,12 @@ func (a *Address) RewardAccountCredential() (Credential, error) {
 			"withdrawal address has invalid length %d, want %d",
 			len(raw),
 			1+AddressHashSize,
+		)
+	}
+	if len(a.trailingBytes) > 0 {
+		return Credential{}, fmt.Errorf(
+			"withdrawal address has %d unconsumed trailing byte(s)",
+			len(a.trailingBytes),
 		)
 	}
 	credential, ok := a.StakeCredential()
@@ -884,14 +927,12 @@ func (a Address) Bytes() ([]byte, error) {
 		}
 	}
 
-	ret := make(
-		[]byte,
-		1+len(paymentPayload)+len(stakingPayload)+len(a.extraData),
-	)
+	// Trailing bytes are deliberately not re-emitted: the reference keeps
+	// only the consumed prefix for the eras that accept them.
+	ret := make([]byte, 1+len(paymentPayload)+len(stakingPayload))
 	ret[0] = (a.addressType << 4) | (a.networkId & AddressHeaderNetworkMask)
 	offset := 1 + copy(ret[1:], paymentPayload)
-	offset += copy(ret[offset:], stakingPayload)
-	copy(ret[offset:], a.extraData)
+	copy(ret[offset:], stakingPayload)
 	return ret, nil
 }
 
@@ -1067,35 +1108,118 @@ type AddressPayloadPointer struct {
 
 func (AddressPayloadPointer) isAddressPayload() {}
 
-func (a *AddressPayloadPointer) decode(data []byte) (int, error) {
-	readVarUint := func(data []byte, offset int) (uint64, int, error) {
-		var ret uint64
-		for offset < len(data) {
-			byt := data[offset]
-			offset++
-			ret = (ret << 7) | uint64(byt&0x7F)
-			if (byt & 0x80) == 0 {
-				return ret, offset, nil
-			}
-		}
-		return 0, offset, io.ErrUnexpectedEOF
-	}
+// Bounds on the three components of a pointer address, from cardano-ledger's
+// Ptr, which is "Ptr !SlotNo32 !TxIx !CertIx" over "newtype SlotNo32 = SlotNo32
+// Word32", "newtype TxIx = TxIx Word16" and "newtype CertIx = CertIx Word16"
+// (libs/cardano-ledger-core/src/Cardano/Ledger/Credential.hs). The components
+// are not the same width: the slot is 32 bits and both indices are 16.
+const (
+	addressPointerSlotMax  = uint64(math.MaxUint32)
+	addressPointerIndexMax = uint64(math.MaxUint16)
 
+	// Maximum number of 7-bit groups each component may occupy under decodePtr.
+	// decodeVariableLengthWord32 and decodeVariableLengthWord16 accept at most
+	// five and three groups respectively and fail with "too many bytes." on a
+	// sixth or fourth
+	// (libs/cardano-ledger-core/src/Cardano/Ledger/Address.hs).
+	addressPointerSlotGroups  = 5
+	addressPointerIndexGroups = 3
+)
+
+// ErrAddressPointerOutOfRange reports a pointer address whose slot, transaction
+// index or certificate index is wider than cardano-ledger's Ptr allows. It is
+// returned by CheckAddressPointerInRange, not by decoding, because every era
+// below decoder version 9 accepts such a pointer in normalized form.
+var ErrAddressPointerOutOfRange = errors.New(
+	"invalid pointer address: component out of range",
+)
+
+// readAddressPointerVarUint reads one big-endian 7-bit variable-length natural,
+// stopping after the first byte whose continuation bit is clear, and reports how
+// many groups it consumed. It mirrors decode7BitVarLength in cardano-ledger,
+// including the silent wrap of its accumulator: decodeVariableLengthWord64 is
+// "fix (decode7BitVarLength name buf) 0", so it has no group cap and an
+// encoding past ten groups shifts its leading groups away. A lenient decode has
+// to reproduce that wrapped value rather than reject it, because the chain
+// already accepted whatever the reference produced.
+func readAddressPointerVarUint(
+	data []byte,
+	offset int,
+) (uint64, int, int, error) {
+	var ret uint64
+	groups := 0
+	for offset < len(data) {
+		byt := data[offset]
+		offset++
+		groups++
+		ret = (ret << 7) | uint64(byt&0x7F)
+		if (byt & 0x80) == 0 {
+			return ret, offset, groups, nil
+		}
+	}
+	return 0, offset, groups, io.ErrUnexpectedEOF
+}
+
+// decode reads a StakePointer from the bytes following an address's payment
+// credential. It returns the number of bytes consumed and the name of the first
+// component that decodePtr would have rejected, which is empty when decodePtr
+// would have accepted the encoding.
+//
+// The decode itself is always lenient, reproducing decodePtrLenient: the
+// components are read as wrapping Word64s and then passed through
+// mkPtrNormalized, which clamps all three to zero when any one of them does not
+// fit its Ptr field. Only decoder version 9 onward substitutes decodePtr, so its
+// narrower rule is reported here and applied by CheckAddressPointerInRange at
+// the era's own decoder.
+func (a *AddressPayloadPointer) decode(data []byte) (int, string, error) {
 	var offset int
-	var err error
-	a.Slot, offset, err = readVarUint(data, offset)
-	if err != nil {
-		return 0, err
+	var outOfRange string
+	read := func(name string, maxGroups int, maxValue uint64) (uint64, error) {
+		val, next, groups, err := readAddressPointerVarUint(data, offset)
+		offset = next
+		if err != nil {
+			return 0, err
+		}
+		// decodePtr caps the group count and, in the final group only, requires
+		// the spare high bits of the first byte to be clear. That check admits
+		// exactly the first-group values that keep the result inside the
+		// component's width, so a group cap plus one range test reproduces it.
+		// Below the cap no wrap is possible, so the range test reads a value
+		// the reference computed the same way.
+		if outOfRange == "" && (groups > maxGroups || val > maxValue) {
+			outOfRange = name
+		}
+		return val, nil
 	}
-	a.TxIndex, offset, err = readVarUint(data, offset)
+	slot, err := read("slot", addressPointerSlotGroups, addressPointerSlotMax)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
-	a.CertIndex, offset, err = readVarUint(data, offset)
+	txIndex, err := read(
+		"transaction index",
+		addressPointerIndexGroups,
+		addressPointerIndexMax,
+	)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
-	return offset, nil
+	certIndex, err := read(
+		"certificate index",
+		addressPointerIndexGroups,
+		addressPointerIndexMax,
+	)
+	if err != nil {
+		return 0, "", err
+	}
+	if slot > addressPointerSlotMax ||
+		txIndex > addressPointerIndexMax ||
+		certIndex > addressPointerIndexMax {
+		// mkPtrNormalized clamps every component to zero when any one of them
+		// does not fit, because the result is a dangling pointer regardless.
+		slot, txIndex, certIndex = 0, 0, 0
+	}
+	a.Slot, a.TxIndex, a.CertIndex = slot, txIndex, certIndex
+	return offset, outOfRange, nil
 }
 
 func (a *AddressPayloadPointer) encode() []byte {

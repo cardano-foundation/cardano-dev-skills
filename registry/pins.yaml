@@ -85,6 +85,6 @@
 "blockfrost-go": 7c2f324c451977a542722ebcb6ec1c70f3d26b1e
 "cardano-client-lib": c2fe53e51a0f8e289e106a834273c40379a01863
 "cardano-js-sdk": 1a08af20cba29de7798cc96f76e707796b92607b
-"gOuroboros": aa174751a0623afd6169818b43e7b532ad229fec
+"gOuroboros": 4c824e73080ae9e3226010c9be9214fe5e21437c
 "haskell.nix": 86b5ca02e422c728d8f2687e6c3153680fbf402a
 "iohk-nix": af463a46dbe9c6e2db6b2639c0f35f5689e0c3a8

@@ -1,0 +1,28 @@
+{
+  "name": "cardano-dev-skills",
+  "version": "0.1.0",
+  "description": "Community-curated Cardano developer knowledge and workflows for smart contracts, transactions, governance, and tooling",
+  "author": {
+    "name": "Cardano Foundation",
+    "url": "https://cardanofoundation.org"
+  },
+  "homepage": "https://cardano-foundation.github.io/cardano-dev-skills/",
+  "repository": "https://github.com/cardano-foundation/cardano-dev-skills",
+  "license": "Apache-2.0",
+  "keywords": ["cardano", "blockchain", "smart-contracts", "aiken", "web3", "eutxo"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Cardano Dev Skills",
+    "shortDescription": "Current Cardano development workflows and reference knowledge",
+    "longDescription": "Build, review, and debug Cardano applications with shared skills backed by a pinned local corpus of project-authoritative documentation.",
+    "developerName": "Cardano Foundation",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://cardano-foundation.github.io/cardano-dev-skills/",
+    "defaultPrompt": [
+      "Help me choose a current Cardano development stack.",
+      "Review this Cardano validator for security issues.",
+      "Debug this failing Cardano transaction."
+    ]
+  }
+}

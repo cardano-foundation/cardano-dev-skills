@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 import re
@@ -27,10 +28,22 @@ SKILLS_DIR = REPO_ROOT / "skills"
 SOURCES_FILE = REPO_ROOT / "registry" / "sources.yaml"
 PINS_FILE = REPO_ROOT / "registry" / "pins.yaml"
 DOCS_SOURCES_DIR = REPO_ROOT / "docs" / "sources"
+CLAUDE_MANIFEST = REPO_ROOT / ".claude-plugin" / "plugin.json"
+CODEX_MANIFEST = REPO_ROOT / ".codex-plugin" / "plugin.json"
+COMPATIBILITY_DOC = REPO_ROOT / "docs" / "AGENT_COMPATIBILITY.md"
 
 MAX_SKILL_LINES = 500
 MAX_NAME_LEN = 64
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+SEMVER_PATTERN = re.compile(
+    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
+
+# Shared skill bodies must not depend on adapter-only paths or tool names.
+# Host-specific frontmatter remains allowed and is validated separately.
+FORBIDDEN_SHARED_VARIABLES = {"${CLAUDE_SKILL_DIR}", "${CLAUDE_PLUGIN_ROOT}"}
+HOST_TOOL_REFERENCE_RE = re.compile(
+    r"`(?:Read|Grep|Glob|Edit|Write|WebFetch|WebSearch)`")
 
 # Windows path portability (issue #36). git aborts the ENTIRE checkout when a
 # tree contains a path Windows can't create — not just that file — so one bad
@@ -69,11 +82,10 @@ VALID_PRIORITIES = {"high", "medium", "low"}
 VETTING_EXCEPTIONS: dict[str, str] = {
 }
 
-# Tool-grant policy. `allowed-tools` entries are PRE-APPROVED (they skip the
-# user's permission prompt for one turn), so widening this set is a security
-# decision, not a convenience. Skills needing more than the read-only base
-# set require an explicit entry in ALLOWED_TOOLS_EXCEPTIONS, reviewed in the
-# same PR that adds it.
+# Claude Code tool-grant policy. `allowed-tools` entries are PRE-APPROVED in
+# Claude Code, so widening this set is a security decision, not a convenience.
+# Codex does not use these fields as the portable contract; required behavior
+# must also be present in the Markdown body.
 BASE_ALLOWED_TOOLS = {"Read", "Grep", "Glob"}
 # Exceptions list only the EXTRA tools a skill needs beyond the base set;
 # they are unioned with BASE_ALLOWED_TOOLS, so a skill never has to re-declare
@@ -127,7 +139,8 @@ def validate_skill(skill_dir: Path) -> None:
         return
 
     # Check line count
-    lines = skill_md.read_text(encoding="utf-8").splitlines()
+    raw_text = skill_md.read_text(encoding="utf-8")
+    lines = raw_text.splitlines()
     if len(lines) > MAX_SKILL_LINES:
         error(f"{skill_md}: {len(lines)} lines exceeds max {MAX_SKILL_LINES}")
 
@@ -186,7 +199,21 @@ def validate_skill(skill_dir: Path) -> None:
         )
 
     # Check required sections
-    text = skill_md.read_text(encoding="utf-8").lower()
+    body = raw_text.split("---", 2)[2]
+    for variable in FORBIDDEN_SHARED_VARIABLES:
+        if variable in body:
+            error(
+                f"{skill_md}: shared skill body uses host-specific variable "
+                f"{variable}; resolve paths relative to SKILL.md instead"
+            )
+    tool_refs = sorted(set(HOST_TOOL_REFERENCE_RE.findall(body)))
+    if tool_refs:
+        error(
+            f"{skill_md}: shared skill body requires host-specific tool "
+            f"names {tool_refs}; describe the capability in neutral language"
+        )
+
+    text = raw_text.lower()
     for section in ["when to use", "when not to use", "workflow"]:
         if section not in text:
             warn(f"{skill_md}: missing recommended section '## {section.title()}'")
@@ -195,8 +222,90 @@ def validate_skill(skill_dir: Path) -> None:
     refs_dir = skill_dir / "references"
     if refs_dir.exists():
         for ref_file in refs_dir.iterdir():
+            if ref_file.is_dir():
+                error(
+                    f"{ref_file}: nested reference directories are not "
+                    "portable; keep references one level deep"
+                )
+                continue
             if ref_file.suffix not in (".md", ".txt", ".yaml", ".yml"):
                 warn(f"{ref_file}: unexpected file type in references/")
+                continue
+            if ref_file.suffix in (".md", ".txt"):
+                ref_text = ref_file.read_text(encoding="utf-8")
+                for variable in FORBIDDEN_SHARED_VARIABLES:
+                    if variable in ref_text:
+                        error(
+                            f"{ref_file}: shared reference uses host-specific "
+                            f"variable {variable}; resolve paths relative to "
+                            "the active SKILL.md instead"
+                        )
+
+
+def load_json(path: Path) -> dict | None:
+    if not path.exists():
+        error(f"Missing {path}")
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        error(f"{path}: invalid JSON: {exc}")
+        return None
+    if not isinstance(value, dict):
+        error(f"{path}: expected a JSON object")
+        return None
+    return value
+
+
+def validate_agent_compatibility() -> None:
+    """Validate the shared Claude/Codex packaging and authoring contract."""
+    for required in (REPO_ROOT / "AGENTS.md", REPO_ROOT / "CLAUDE.md",
+                     COMPATIBILITY_DOC):
+        if not required.exists():
+            error(f"Missing {required}")
+
+    for link in (REPO_ROOT / ".claude" / "skills",
+                 REPO_ROOT / ".agents" / "skills"):
+        if not link.is_symlink():
+            error(f"{link}: must be a symlink to ../skills")
+            continue
+        if link.readlink() != Path("../skills"):
+            error(f"{link}: expected target ../skills, got {link.readlink()}")
+        elif link.resolve() != SKILLS_DIR.resolve():
+            error(f"{link}: does not resolve to the canonical skills directory")
+
+    claude = load_json(CLAUDE_MANIFEST)
+    codex = load_json(CODEX_MANIFEST)
+    if claude is None or codex is None:
+        return
+
+    expected_name = "cardano-dev-skills"
+    for path, manifest in ((CLAUDE_MANIFEST, claude),
+                           (CODEX_MANIFEST, codex)):
+        if manifest.get("name") != expected_name:
+            error(f"{path}: name must be {expected_name!r}")
+
+    if claude.get("name") != codex.get("name"):
+        error("Claude and Codex plugin manifests must use the same name")
+
+    version = codex.get("version")
+    if not isinstance(version, str) or not SEMVER_PATTERN.fullmatch(version):
+        error(f"{CODEX_MANIFEST}: version must be strict semver")
+    if codex.get("skills") != "./skills/":
+        error(f"{CODEX_MANIFEST}: skills must point to ./skills/")
+    if not isinstance(codex.get("description"), str):
+        error(f"{CODEX_MANIFEST}: missing description")
+    author = codex.get("author")
+    if not isinstance(author, dict) or not author.get("name"):
+        error(f"{CODEX_MANIFEST}: missing author.name")
+    interface = codex.get("interface")
+    if not isinstance(interface, dict):
+        error(f"{CODEX_MANIFEST}: missing interface object")
+    else:
+        for field in ("displayName", "shortDescription", "longDescription",
+                      "developerName", "category"):
+            if not interface.get(field):
+                error(f"{CODEX_MANIFEST}: interface.{field} is required")
 
 
 def check_snapshot_matches_globs(prefix: str, name: str, src: dict) -> None:
@@ -402,11 +511,19 @@ def main() -> int:
 
         # Validate skills (flat structure: skills/<skill-name>/SKILL.md)
         for skill_dir in sorted(SKILLS_DIR.iterdir()):
-            if not skill_dir.is_dir() or skill_dir.name == "shared":
+            if not skill_dir.is_dir():
                 continue
-            if (skill_dir / "SKILL.md").exists():
-                validate_skill(skill_dir)
-                skill_count += 1
+            if not (skill_dir / "SKILL.md").exists():
+                error(
+                    f"{skill_dir}: every immediate directory under skills/ "
+                    "must be a discoverable skill with SKILL.md"
+                )
+                continue
+            validate_skill(skill_dir)
+            skill_count += 1
+
+        # Validate the shared authoring contract and both host adapters.
+        validate_agent_compatibility()
 
         # Validate sources
         validate_sources()
@@ -417,6 +534,7 @@ def main() -> int:
     # Report
     if not args.paths_only:
         print(f"Skills validated: {skill_count}")
+        print("Agent adapters validated: Claude Code, Codex")
     print(f"Paths checked for Windows portability: {path_count}")
 
     if warnings:

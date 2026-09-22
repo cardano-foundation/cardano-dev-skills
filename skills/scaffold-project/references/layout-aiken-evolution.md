@@ -289,7 +289,7 @@ const tx = await lucid
   .complete();
 ```
 
-For the wider surface, search `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/` and `evolution-sdk-packages/`.
+For the wider surface, search `../../docs/sources/evolution-sdk/` and `evolution-sdk-packages/`.
 
 ## Frontend (optional)
 

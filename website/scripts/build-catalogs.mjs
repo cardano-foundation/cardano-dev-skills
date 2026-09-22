@@ -301,8 +301,8 @@ function buildSkillsPage(skills) {
   lines.push(
     `${skills.length} skills, listed alphabetically. Each is a standalone Markdown file under ` +
       '[`skills/`](' + REPO_TREE + '/skills/) in the repo. The agent loads only ' +
-      '`name` + `description` at session start; the full SKILL.md loads when ' +
-      'the skill is invoked.',
+      '`name` + `description` for discovery; the full SKILL.md loads when ' +
+      'the skill is selected.',
   );
   lines.push('');
   lines.push('| Skill | What it does |');
@@ -316,8 +316,9 @@ function buildSkillsPage(skills) {
   lines.push('## How to invoke');
   lines.push('');
   lines.push(
-    'In Claude Code, prefix the skill name with the plugin: ' +
-      '`cardano-dev-skills:write-validator`. Or describe the task in natural ' +
+    'In Claude Code, use the plugin-qualified name ' +
+      '`/cardano-dev-skills:write-validator`; in Codex, use ' +
+      '`$write-validator`. Or describe the task in natural ' +
       'language — skills carry trigger phrases that auto-match. See ' +
       '[How it works](/cardano-dev-skills/how-it-works/) for the matching ' +
       'mechanism and what to do when it misses.',

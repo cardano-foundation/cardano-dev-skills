@@ -14,7 +14,8 @@ This plugin solves that by shipping:
 
 - **Authoritative bundled docs** from active Cardano projects (auto-refreshed weekly from upstream).
 - **Behavioral skills** that encode common workflows: scaffolding, writing validators, building transactions, governance, optimization, debugging.
-- **Hooks that auto-consult bundled context** before the agent reaches for training data or the web.
+- **Durable project context and skill discovery** that steer agents to the
+  bundled corpus before training data or the web.
 
 End result: the agent answers from current, project-authoritative sources instead of memorized snapshots.
 
@@ -22,13 +23,13 @@ End result: the agent answers from current, project-authoritative sources instea
 
 - **Developer skills** — each a focused workflow
 - **Documentation sources** — bundled locally under `docs/sources/`, auto-refreshed weekly via GitHub Actions
-- **Hooks** — `SessionStart` reports doc freshness; a `UserPromptSubmit` auto-consultation hook is in development
+- **Claude lifecycle hook** — `SessionStart` reports doc freshness and project-context status
 
 ### Skills
 
 | Skill | What it does |
 |---|---|
-| `cardano-context` | Install a per-project Cardano directive into `CLAUDE.md` so the agent reliably consults bundled skills and docs |
+| `cardano-context` | Install one Cardano directive into `CLAUDE.md` and `AGENTS.md` so Claude and Codex consult bundled skills and docs |
 | `give-feedback` | Draft and file a GitHub issue about a skill or doc that was wrong, stale, or notably helpful, with one approval |
 | `scaffold-project` | Bootstrap a new Cardano project across Aiken + 4 off-chain stacks |
 | `write-validator` | Guide writing a validator from spec (default Aiken) |
@@ -59,7 +60,7 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#scope-what-belongs-in-this-repo)
 
 ## Install
 
-### Claude Code (recommended)
+### Claude Code
 
 In any Claude Code session:
 
@@ -90,13 +91,35 @@ The skills are the same ones listed above. Note that Cowork syncs the whole
 repository, and `docs/sources/` is roughly 30 MB of bundled documentation — the
 first sync is not instant.
 
-### Codex / other agents
+### Codex
+
+For repository-scoped use on macOS, Linux, or WSL, keep this repository and
+your Cardano project as sibling directories, then link the shared skill tree
+into Codex's discovery directory:
 
 ```bash
+cd /path/to/projects
 git clone https://github.com/cardano-foundation/cardano-dev-skills.git
-cd your-project
-ln -s ../cardano-dev-skills/skills .agents/skills
+cd your-cardano-project
+mkdir -p .agents
+ln -s ../../cardano-dev-skills/skills .agents/skills
 ```
+
+On Windows PowerShell, create a directory junction from the Cardano project:
+
+```powershell
+New-Item -ItemType Directory -Force .agents
+New-Item -ItemType Junction -Path .agents\skills -Target (Resolve-Path ..\cardano-dev-skills\skills)
+```
+
+Start or restart Codex in `your-cardano-project`, run `/skills`, and confirm the
+Cardano skills appear. Codex discovers repository skills under
+`.agents/skills` and follows linked skill directories. Then run
+`$cardano-context` once to add the durable project directive.
+
+The repository also ships `.codex-plugin/plugin.json` for Codex plugin
+packaging and publishing. Until the plugin is published in a directory, the
+repository link above is the supported installation path.
 
 ### Standalone
 
@@ -106,28 +129,40 @@ Skills are pure Markdown — read `skills/*/SKILL.md` directly or with `grep`.
 
 Three complementary mechanisms, listed from most reliable to least:
 
-### Per-project directive (recommended) — `/cardano-context`
+### Per-project directive (recommended) — `cardano-context`
 
-Even with the plugin installed globally, Claude sometimes answers Cardano questions from training data instead of consulting these skills and bundled docs. Run the `cardano-context` skill once per project to install a durable directive:
+Either agent can answer a Cardano question from stale model knowledge when a
+skill description does not match the prompt. Run the `cardano-context` skill
+once per project to install a durable, agent-neutral directive:
 
-```
-/cardano-context
+```text
+# Claude Code marketplace plugin
+/cardano-dev-skills:cardano-context
+
+# Codex
+$cardano-context
 ```
 
 What it does:
 
-- Writes a version-tagged block into the project's `CLAUDE.md` (default `./CLAUDE.md`). Claude Code re-injects `CLAUDE.md` into every conversation turn, so the directive survives compaction and applies on every new session.
-- The block tells Claude to treat training data as potentially stale for Cardano, to bias toward invoking `cardano-dev-skills:*` skills, to search `${CLAUDE_PLUGIN_ROOT}/docs/sources/` before falling back on memory, and to cite what it used.
-- Commit `CLAUDE.md` and teammates inherit the directive on clone.
+- Writes the same version-tagged block into the project's `CLAUDE.md` and
+  `AGENTS.md` by default. Claude reads the former; Codex reads the latter.
+- Tells either agent to treat model knowledge as potentially stale, select the
+  relevant Cardano skill, resolve the bundled `docs/sources/` corpus from that
+  skill's location, and cite what it used.
+- Commit both files and teammates inherit the directive on clone.
 - Re-running is safe: same version is a no-op; older versions are atomically replaced.
+
+A project-local Claude skill may also appear as `/cardano-context`; the
+plugin-qualified form above avoids collisions with skills from other plugins.
 
 ### Automatic mechanisms (no setup)
 
-The plugin also tries to set the context automatically. In a Claude Code session:
+Skill matching applies in both hosts. The freshness hook is currently a
+Claude-specific adapter:
 
-1. **Session start.** A `SessionStart` hook reports doc freshness — you'll see `[Cardano Dev Skills] Docs loaded: <n> sources, ...` at the top of every session in any directory.
-2. **Skill matching.** When you ask a question that matches a skill's trigger phrases (e.g. *"review my validator"*, *"scaffold a Cardano project"*), the agent auto-invokes that skill.
-3. **Doc consultation** *(in development).* A `UserPromptSubmit` hook scans your prompt for Cardano-specific keywords (`aiken`, `plutus`, `cip-XXXX`, `ogmios`, `drep`, …) and reminds the agent to consult bundled docs before training data or the web.
+1. **Skill matching.** When you ask a question that matches a skill's trigger phrases (e.g. *"review my validator"*, *"scaffold a Cardano project"*), the agent selects that skill.
+2. **Session start (Claude only).** A `SessionStart` hook reports doc freshness — you'll see `[Cardano Dev Skills] Docs loaded: <n> sources, ...` at the top of every Claude session in any directory.
 
 ### When auto-consultation misses
 
@@ -137,7 +172,8 @@ Vague prompts like *"help me build a Cardano dApp"* may not match any specific s
 - *"Use the scaffold-project skill to set up a new project."*
 - *"Read `docs/sources/aiken/` before writing this validator."*
 
-We're tracking which prompts fail to auto-consult so the keyword set + skill triggers can be tuned over time (observability layer in development).
+The durable `cardano-context` directive is the fallback for prompts that do not
+match a skill description reliably.
 
 ## Bundled documentation
 
@@ -162,8 +198,8 @@ A `SessionStart` hook (`hooks/check-docs.sh`) inspects the bundled corpus and th
   - Local clone: `cd <plugin-root> && git pull && ./scripts/fetch-docs.sh`.
   - Marketplace install: `Refresh via: /plugin marketplace update cardano-dev-skills`.
 - **Plugin clone behind upstream.** Local clones only: if you have previously run `git fetch` and not pulled, the hook prints `Plugin clone is N commit(s) behind FETCH_HEAD — consider 'git pull' in <plugin-root>`. The hook never fetches itself (no network on session start).
-- **Cardano context active.** When `./CLAUDE.md` contains the `cardano-dev-skills` directive block: `Cardano context active in this project.`
-- **Cardano context nudge.** When cwd looks like a project (`.git`, `.claude`, or existing `CLAUDE.md`) but has no block: `Tip: run /cardano-context to enable auto-consultation in this project.`
+- **Cardano context active.** When `./CLAUDE.md` contains the `cardano-dev-skills` directive block: `Cardano context active in this project.` Codex reads the corresponding `AGENTS.md` block directly and does not depend on this hook.
+- **Cardano context nudge.** When cwd looks like a project (`.git`, `.claude`, or existing `CLAUDE.md`) but has no block: `Tip: run /cardano-dev-skills:cardano-context to enable auto-consultation in this project.`
 
 The hook is fail-open: any failure exits 0 silently and never blocks the session. The cwd nudge is suppressed when working inside the plugin repo itself.
 
@@ -174,6 +210,8 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for:
 - Source-vetting policy (maintenance bar, the two-part scope test)
 - How to add a skill (format, quality bar, task-oriented naming — no project-named skills)
 - Documentation governance (when to update what)
+- The shared Claude/Codex authoring contract is in
+  [docs/AGENT_COMPATIBILITY.md](docs/AGENT_COMPATIBILITY.md)
 
 Quick validation:
 
@@ -187,7 +225,11 @@ python3 scripts/scan-docs-delta.py # security scan of docs/sources/ changes (CI 
 
 We want to know how this works in practice: which skills get used, which prompts miss, which docs are stale, what's missing, and what saved you time.
 
-The quickest path is from inside a session. Tell the agent "send feedback" or run `/give-feedback`: it drafts a GitHub issue from the context it already has, shows it to you, and files it under your GitHub account once you say yes (with `gh` if you have it, otherwise it gives you the text to paste).
+The quickest path is from inside a session. Tell the agent "send feedback",
+run `/cardano-dev-skills:give-feedback` in Claude Code, or run `$give-feedback`
+in Codex. It drafts a GitHub issue from the context it already has, shows it to
+you, and files it under your GitHub account once you say yes (with `gh` if you
+have it, otherwise it gives you the text to paste).
 
 Or [open an issue](https://github.com/cardano-foundation/cardano-dev-skills/issues/new/choose) directly. The templates cover stale docs, missing topics, new sources, and general feedback.
 
@@ -197,10 +239,14 @@ See [docs/DESIGN.md](docs/DESIGN.md) for decisions and rationale.
 
 ```
 cardano-dev-skills/
+├── .claude-plugin/              ← Claude packaging
+├── .codex-plugin/               ← Codex packaging
+├── .claude/skills → ../skills   ← repository-local Claude discovery
+├── .agents/skills → ../skills   ← repository-local Codex discovery
 ├── registry/sources.yaml        ← canonical source list
 ├── skills/                      ← developer skills (flat layout)
 ├── docs/sources/                ← extracted upstream docs (auto-refreshed)
-├── hooks/                       ← session and prompt hooks
+├── hooks/                       ← Claude SessionStart freshness hook
 ├── scripts/                     ← fetch (pinned + sanitized), validate, policy-check, delta-scan, update-counts
 └── .github/                     ← workflows, issue templates
 ```

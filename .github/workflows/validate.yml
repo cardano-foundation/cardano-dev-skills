@@ -14,6 +14,17 @@ on:
       # at all until its tests landed: PRs touching only hooks/ reported zero
       # checks.
       - "hooks/**"
+      - ".claude-plugin/**"
+      - ".codex-plugin/**"
+      - ".claude/skills"
+      - ".agents/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "README.md"
+      - "website/src/content/docs/getting-started.md"
+      - "website/src/content/docs/how-it-works.md"
+      - "website/src/content/docs/contributing/add-a-skill.md"
+      - "website/src/content/docs/about/roadmap.md"
   push:
     branches: [main]
     paths:
@@ -25,6 +36,17 @@ on:
       # at all until its tests landed: PRs touching only hooks/ reported zero
       # checks.
       - "hooks/**"
+      - ".claude-plugin/**"
+      - ".codex-plugin/**"
+      - ".claude/skills"
+      - ".agents/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "README.md"
+      - "website/src/content/docs/getting-started.md"
+      - "website/src/content/docs/how-it-works.md"
+      - "website/src/content/docs/contributing/add-a-skill.md"
+      - "website/src/content/docs/about/roadmap.md"
 
 jobs:
   validate:
@@ -51,7 +73,7 @@ jobs:
       - name: Install dependencies
         run: pip install pyyaml
 
-      - name: Validate skills and sources
+      - name: Validate skills, sources, and Claude/Codex compatibility
         run: python scripts/validate.py
 
       # Runs in the existing job on purpose — it needs no Python, no network and

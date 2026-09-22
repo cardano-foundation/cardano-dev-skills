@@ -1,32 +1,36 @@
 ---
 title: How it works
-description: Three complementary mechanisms set the Cardano context — per-project directive, skill auto-matching, and SessionStart freshness signals.
+description: Shared skills, dual-host project instructions, and Claude freshness signals keep Cardano guidance current.
 ---
 
 Three complementary mechanisms set the Cardano context for the agent, listed
 from most reliable to least.
 
-## 1. Per-project `/cardano-context` directive
+## 1. Per-project `cardano-context` directive
 
 The most reliable mechanism. Run once per project:
 
-```
-/cardano-context
+```text
+# Claude Code marketplace plugin
+/cardano-dev-skills:cardano-context
+
+# Codex
+$cardano-context
 ```
 
 What it does:
 
-- Writes a version-tagged block into the project's `CLAUDE.md` (default
-  `./CLAUDE.md`). Claude Code re-injects `CLAUDE.md` into every conversation
-  turn, so the directive survives compaction and applies on every new
-  session.
-- Instructs the agent to treat training data as potentially stale for
-  Cardano, to bias toward invoking `cardano-dev-skills:*` skills, to search
-  `${CLAUDE_PLUGIN_ROOT}/docs/sources/` before falling back on memory, and to
-  cite what it used.
-- Commit `CLAUDE.md` and teammates inherit the directive on clone.
+- Writes the same version-tagged block into the project's `CLAUDE.md` and
+  `AGENTS.md`. Claude reads the former; Codex reads the latter.
+- Instructs either agent to treat model knowledge as potentially stale, select
+  the relevant shared skill, resolve `docs/sources/` relative to that skill,
+  and cite what it used.
+- Commit both files and teammates inherit the directive on clone.
 - Re-running is safe: same version is a no-op; older versions are
   atomically replaced.
+
+A project-local Claude skill may also appear as `/cardano-context`; the
+plugin-qualified form above avoids collisions with skills from other plugins.
 
 **Good at:** ensuring the agent consults bundled context on every turn,
 including vague prompts that don't match any specific skill's triggers.
@@ -45,7 +49,7 @@ The full skill catalogue lives at [/skills](/cardano-dev-skills/skills/).
 
 **Good at:** workflow-shaped prompts where the user names the task.
 
-## 3. SessionStart freshness signals
+## 3. Claude SessionStart freshness signals
 
 A `SessionStart` hook (`hooks/check-docs.sh`) inspects the bundled corpus
 and the current working directory and prints status lines prefixed
@@ -61,11 +65,13 @@ and the current working directory and prints status lines prefixed
   and you haven't pulled, the hook prints how many commits behind you are.
 - **Cardano context active.** When `./CLAUDE.md` contains the directive block.
 - **Cardano context nudge.** When cwd looks like a project (`.git`, `.claude`,
-  or existing `CLAUDE.md`) but has no block: *"Tip: run /cardano-context to
-  enable auto-consultation in this project."*
+  or existing `CLAUDE.md`) but has no block: *"Tip: run
+  /cardano-dev-skills:cardano-context to enable auto-consultation in this
+  project."*
 
 The hook is fail-open: any failure exits 0 silently and never blocks the
-session.
+session. It is a Claude-specific adapter. Codex reads the durable `AGENTS.md`
+block and does not depend on this hook.
 
 **Good at:** ambient awareness — surfaces stale docs and missing project
 directives without interrupting flow.
@@ -82,8 +88,6 @@ When that happens, nudge explicitly:
 - *"Use the scaffold-project skill to set up a new project."*
 - *"Read `docs/sources/aiken/` before writing this validator."*
 
-A keyword-matching `UserPromptSubmit` hook is in development — it will scan
-prompts for Cardano-specific terms (`aiken`, `plutus`, `cip-XXXX`, `ogmios`,
-`drep`, …) and remind the agent to consult bundled docs before training
-data or the web. Until it ships, the per-project directive is the reliable
-solution.
+The durable per-project directive is the reliable fallback. A keyword-matching
+prompt hook was considered and rejected because it is host-specific, loses
+project context, and produces both false positives and false negatives.

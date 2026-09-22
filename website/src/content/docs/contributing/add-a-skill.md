@@ -4,6 +4,9 @@ description: How to scaffold, write, validate, and ship a new developer skill.
 ---
 
 Skills live flat under `skills/<name>/SKILL.md`. No category subdirectories.
+Every skill is shared by Claude Code and Codex; read the
+[compatibility contract](https://github.com/cardano-foundation/cardano-dev-skills/blob/main/docs/AGENT_COMPATIBILITY.md)
+before editing the frontmatter or instruction body.
 
 ## 1. Scaffold
 
@@ -71,6 +74,11 @@ Instructions...
 - [ ] Has "When to use", "When NOT to use", "Key principles", "Workflow"
       sections
 - [ ] No MCP dependency (no `search_docs` references)
+- [ ] Body describes capabilities without requiring Claude or Codex tool names
+- [ ] Bundled-doc paths resolve relative to `SKILL.md`, with no host-specific
+      environment variables
+- [ ] Required safety behavior appears in the body, not only in Claude's
+      `allowed-tools` or `disallowed-tools` metadata
 - [ ] Deep content in `references/`, one level only — no nested
       subdirectories
 - [ ] No mention of specific deployed dApps; teach categories generically
@@ -95,5 +103,5 @@ checks (mechanical vetting + an advisory AI scope review comment).
   mistakes.
 - **Prescriptiveness scales with risk.** Security skills should be strict.
   Exploratory skills can be flexible.
-- **No hardcoded paths.** Use relative references and
-  `${CLAUDE_PLUGIN_ROOT}` where appropriate.
+- **No hardcoded or host-variable paths.** Resolve repository content relative
+  to the active `SKILL.md`.

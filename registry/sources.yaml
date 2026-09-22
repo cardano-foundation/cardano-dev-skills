@@ -1003,6 +1003,39 @@
   description: Official developer portal at developers.cardano.org
   website: https://developers.cardano.org
 
+- name: Developer Portal Templates
+  repo: https://github.com/cardano-foundation/developer-portal.git
+  # The runnable starters live outside docs/, so the entry above never
+  # mirrors them. Only each template's README; the index README at the
+  # directory root is contributor guidance for the portal itself.
+  docs_path: examples/templates
+  format: markdown
+  category: standards
+  priority: medium
+  glob_patterns:
+    - "*/README.md"
+  description: READMEs of the runnable starter templates at developers.cardano.org/templates
+  website: https://developers.cardano.org/templates
+
+- name: x402
+  repo: https://github.com/x402-foundation/x402.git
+  # Multichain repo: only the protocol core and the Cardano parts are
+  # mirrored. Left out: the other chains' schemes, the quickstarts and
+  # core-concepts pages (EVM and Solana examples, no Cardano), and
+  # docs/AGENTS.md.
+  docs_path: "."
+  format: markdown
+  category: standards
+  priority: high
+  glob_patterns:
+    - "specs/x402-specification-v2.md"
+    - "specs/transports-v2/*.md"
+    - "specs/schemes/exact/scheme_exact.md"
+    - "specs/schemes/exact/scheme_exact_cardano.md"
+    - "typescript/packages/mechanisms/cardano/README.md"
+  description: HTTP 402 payment protocol, with the Cardano exact scheme and the @x402/cardano package
+  website: https://x402.org
+
 - name: Cardano Docs
   repo: https://github.com/input-output-hk/cardano-documentation.git
   docs_path: docs

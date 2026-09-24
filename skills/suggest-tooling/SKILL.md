@@ -1,7 +1,7 @@
 ---
 name: suggest-tooling
 description: >-
-  Recommends Cardano developer tools and SDKs for a specific project. Triggers: "which SDK", "recommend tools", "best library for", "Cardano SDK", "Mesh vs Evolution SDK", "Aiken vs Plutus", "what tools should I use", "Cardano ecosystem", "haskell.nix", "CHaP", "cardano-ledger off-chain", "Haskell Cardano stack", "Cardano in Go".
+  Recommends Cardano developer tools and SDKs for a specific project. Triggers: "which SDK", "recommend tools", "best library for", "Cardano SDK", "Mesh vs Evolution SDK", "Aiken vs Plutus", "what tools should I use", "Cardano ecosystem", "haskell.nix", "CHaP", "cardano-ledger off-chain", "Haskell Cardano stack", "Cardano in Go", "x402", "HTTP 402", "pay per request", "charge per API call", "x402 facilitator".
 allowed-tools: Read Grep Glob
 disallowed-tools: Bash Edit Write WebFetch WebSearch
 ---
@@ -22,6 +22,7 @@ Help the developer choose the right tools, SDKs, and libraries for their Cardano
 - Evaluating wallet integration options
 - Understanding which CIPs are relevant to their project
 - Deciding whether a project needs Layer 2 / scaling (Hydra) or can stay on L1
+- Charging per request for an API, or letting an agent pay for one (x402)
 
 ## When NOT to use
 
@@ -69,6 +70,8 @@ Search the bundled documentation for relevant content:
 - `../../docs/sources/cardano-ledger/` - ledger types and Conway tx validation
 - `../../docs/sources/apollo/` - Apollo (Go) tx builder docs and API source
 - `../../docs/sources/gouroboros/` - gOuroboros (Go) protocol and ledger API source
+- `../../docs/sources/x402/` - x402 protocol, the Cardano `exact` scheme and the `@x402/cardano` README
+- `../../docs/sources/developer-portal-templates/` - READMEs of the portal's starter templates, including x402-express and x402-next
 
 Go sources mirror `.go` files, so their API reference is the doc comment above each exported identifier. Start with a package's `doc.go` for the overview, then search for a type or function name rather than looking for a prose manual.
 
@@ -140,6 +143,17 @@ Go adoption is lower than TypeScript or Python, so expect fewer tutorials and sm
 | **Yaci DevKit** | Local devnet | Self-hosted |
 
 **Default recommendation**: Blockfrost for getting started (easy, hosted). Ogmios + Kupo for production self-hosted.
+
+#### Payments per request (x402)
+
+x402 lets an HTTP API charge per request, and lets clients and agents pay without accounts or API keys. Cardano has its own `exact` scheme and the `@x402/cardano` package.
+
+- Read `../../docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md` and `../../docs/sources/x402/typescript/packages/mechanisms/cardano/README.md` before answering. Take network ids from the spec's "Network Identifiers" section and output minimums from "Minimum UTXO Value (min-ada)", not from memory.
+- Starters: `x402-express` (a paid API plus a headless buyer) and `x402-next` (a browser paywall) under `../../docs/sources/developer-portal-templates/`.
+- Facilitator: the public facilitator at x402.org lists no Cardano network. Use one whose `/supported` response lists `cardano:*`, or run your own: the x402-express template includes a local facilitator built on `@x402/cardano`.
+- Language: only the TypeScript SDK has a Cardano mechanism. Check the installed x402 SDK for one before recommending another language, and do not hand-roll a client.
+- Pricing: every payment is one L1 transaction. The payment output carries at least ~1 ADA (~1.2–1.5 ADA alongside a token), which goes to the seller, and the buyer pays a fee of about 0.17 ADA. Price at 1 ADA or more, or in cents with USDM. For sub-cent usage, sell a pack of calls with one payment. x402's `batch-settlement` scheme has no Cardano binding.
+- For the developer: https://developers.cardano.org/x402 is the overview page.
 
 #### Scaling / Layer 2
 

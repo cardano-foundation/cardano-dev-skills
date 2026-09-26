@@ -178,7 +178,7 @@ Yaci DevKit is the default local network. Do not duplicate setup details here; p
 
 What this skill provides in the scaffold:
 
-- `.env.example` includes a `CARDANO_NETWORK` toggle (defaults to a testnet) and a `YACI_STORE_URL=http://localhost:10000` entry
+- `.env.example` includes a `CARDANO_NETWORK` toggle (defaults to a testnet) and a `YACI_STORE_URL=http://localhost:8080` entry
 - The off-chain SDK initialisation snippet reads these env vars and selects the provider accordingly
 - A `scripts/dev-up.sh` (or equivalent) that launches Yaci DevKit; the script body is one line and points to the `setup-devnet` skill for the full command
 - The off-chain code defaults to a testnet on startup; never to mainnet

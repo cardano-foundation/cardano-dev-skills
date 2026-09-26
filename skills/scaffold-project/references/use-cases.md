@@ -62,6 +62,6 @@ When the agent and developer pick an agent-generated use case, the workflow is:
 
 ## Caveats
 
-- Upstream test scenarios assume Yaci DevKit at `http://localhost:8080`. The scaffold defaults to `http://localhost:10000` (Yaci Store's standard port). Adjust env vars when porting upstream code.
+- Yaci Store's Blockfrost-compatible API is `http://localhost:8080/api/v1`, the same URL the upstream scenarios use. Port 10000 is the DevKit admin API, not a chain-query endpoint.
 - Upstream off-chain code uses a single shared mnemonic (`"test test test ... sauce"`) for convenience. The scaffold replaces this with a `.env`-driven dev mnemonic generated per project. Do not commit the upstream literal as a project secret.
 - Plutus time is POSIX milliseconds. Slot-to-time conversion is era-dependent. The upstream vesting code aligns the slot config manually for Yaci DevKit's compressed eras; copy that pattern when working with time-locked validators.

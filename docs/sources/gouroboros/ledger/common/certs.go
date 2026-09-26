@@ -155,25 +155,59 @@ func (d Drep) MarshalCBOR() ([]byte, error) {
 	}
 }
 
+// UnmarshalCBOR decodes the drep union the Conway and Dijkstra CDDL define:
+//
+//	drep = [0, addr_keyhash// 1, script_hash// 2// 3]
+//
+// Both hash alternatives alias hash28, so types 0 and 1 carry exactly 28
+// bytes and nothing else, and types 2 and 3 carry nothing at all. The arity
+// is read off the decoded array rather than inferred, because a trailing
+// element on a predefined option would otherwise make [2] and [2, x] the same
+// DRep from different bytes.
 func (d *Drep) UnmarshalCBOR(data []byte) error {
-	drepType, err := cbor.DecodeIdFromList(data)
-	if err != nil {
+	if d == nil {
+		return errors.New("nil Drep receiver")
+	}
+	var tmpItems []cbor.RawMessage
+	if _, err := cbor.Decode(data, &tmpItems); err != nil {
+		return err
+	}
+	if len(tmpItems) == 0 {
+		return errors.New("drep is an empty list")
+	}
+	var drepType int
+	if _, err := cbor.Decode(tmpItems[0], &drepType); err != nil {
 		return err
 	}
 	switch drepType {
 	case DrepTypeAddrKeyHash, DrepTypeScriptHash:
-		d.Type = drepType
-		tmpData := struct {
-			cbor.StructAsArray
-			Type       int
-			Credential []byte
-		}{}
-		if _, err := cbor.Decode(data, &tmpData); err != nil {
-			return err
+		if len(tmpItems) != 2 {
+			return fmt.Errorf(
+				"drep type %d takes exactly 2 list items, got %d",
+				drepType,
+				len(tmpItems),
+			)
 		}
-		d.Credential = tmpData.Credential[:]
-	case DrepTypeAbstain, DrepTypeNoConfidence:
+		// Blake2b224 is the repository's strict hash28 decoder: it rejects
+		// any byte string that is not 28 bytes, which is what keeps a
+		// wrong-length credential away from the zero-padding conversions
+		// in the era rule packages.
+		var credential Blake2b224
+		if err := credential.UnmarshalCBOR(tmpItems[1]); err != nil {
+			return fmt.Errorf("decode drep credential: %w", err)
+		}
 		d.Type = drepType
+		d.Credential = credential[:]
+	case DrepTypeAbstain, DrepTypeNoConfidence:
+		if len(tmpItems) != 1 {
+			return fmt.Errorf(
+				"drep type %d takes exactly 1 list item, got %d",
+				drepType,
+				len(tmpItems),
+			)
+		}
+		d.Type = drepType
+		d.Credential = nil
 	default:
 		return fmt.Errorf("unknown drep type: %d", drepType)
 	}
@@ -546,7 +580,110 @@ type PoolMetadata struct {
 	Hash PoolMetadataHash
 }
 
+const (
+	poolMetadataMaxURLLength       = 128
+	poolMetadataMaxURLLengthLegacy = 64
+)
+
+// ErrPoolMetadataURLTooLong identifies a pool metadata URL that exceeds the
+// protocol's 128-byte bound.
+var ErrPoolMetadataURLTooLong = errors.New(
+	"pool metadata URL exceeds the protocol length limit",
+)
+
+// ValidatePoolMetadata verifies the maximum URL size used when encoding pool
+// metadata to CBOR or exposing it through UTxO RPC. JSON uses the reference
+// ledger's unbounded Url/Text representation and does not call this helper.
+func ValidatePoolMetadata(metadata *PoolMetadata) error {
+	return validatePoolMetadataURL(metadata, poolMetadataMaxURLLength)
+}
+
+// ValidatePoolMetadataForProtocolVersion verifies the protocol-version-aware
+// URL bound for pool metadata. Protocol versions before Conway use the legacy
+// 64-byte bound; Conway and later use the 128-byte bound.
+func ValidatePoolMetadataForProtocolVersion(
+	metadata *PoolMetadata,
+	protocolMajor uint,
+) error {
+	maxURLLength := poolMetadataMaxURLLength
+	if protocolMajor < ProtocolVersionConway {
+		maxURLLength = poolMetadataMaxURLLengthLegacy
+	}
+	return validatePoolMetadataURL(metadata, maxURLLength)
+}
+
+func validatePoolMetadataURL(metadata *PoolMetadata, maxURLLength int) error {
+	if metadata == nil || len(metadata.Url) <= maxURLLength {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: maximum %d bytes, got %d",
+		ErrPoolMetadataURLTooLong,
+		maxURLLength,
+		len(metadata.Url),
+	)
+}
+
+func (p *PoolMetadata) UnmarshalCBOR(data []byte) error {
+	if p == nil {
+		return errors.New("nil PoolMetadata receiver")
+	}
+	type poolMetadata PoolMetadata
+	var tmp poolMetadata
+	if _, err := cbor.Decode(data, &tmp); err != nil {
+		return err
+	}
+	metadata := PoolMetadata(tmp)
+	if err := ValidatePoolMetadata(&metadata); err != nil {
+		return err
+	}
+	*p = metadata
+	return nil
+}
+
+func (p PoolMetadata) MarshalCBOR() ([]byte, error) {
+	if err := ValidatePoolMetadata(&p); err != nil {
+		return nil, err
+	}
+	return cbor.Encode([]any{p.Url, p.Hash})
+}
+
+func (p *PoolMetadata) UnmarshalJSON(data []byte) error {
+	if p == nil {
+		return errors.New("nil PoolMetadata receiver")
+	}
+	var tmp struct {
+		Url  string           `json:"url"`
+		Hash PoolMetadataHash `json:"hash"`
+	}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	metadata := PoolMetadata{
+		Url:  tmp.Url,
+		Hash: tmp.Hash,
+	}
+	*p = metadata
+	return nil
+}
+
+func (p PoolMetadata) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Url  string           `json:"url"`
+		Hash PoolMetadataHash `json:"hash"`
+	}{
+		Url:  p.Url,
+		Hash: p.Hash,
+	})
+}
+
 func (p *PoolMetadata) Utxorpc() (*utxorpc.PoolMetadata, error) {
+	if p == nil {
+		return nil, nil
+	}
+	if err := ValidatePoolMetadata(p); err != nil {
+		return nil, err
+	}
 	return &utxorpc.PoolMetadata{
 			Url:  p.Url,
 			Hash: p.Hash[:],
@@ -1139,7 +1276,11 @@ func (p *PoolRegistrationCertificate) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return fmt.Errorf("invalid VRF key hash: %w", err)
 		}
-		p.VrfKeyHash = VrfKeyHash(NewBlake2b256(vrfBytes))
+		vrfHash, err := NewBlake2b256Checked(vrfBytes)
+		if err != nil {
+			return fmt.Errorf("invalid VRF key hash: %w", err)
+		}
+		p.VrfKeyHash = VrfKeyHash(vrfHash)
 	}
 
 	// Convert pool owners
@@ -1150,7 +1291,11 @@ func (p *PoolRegistrationCertificate) UnmarshalJSON(data []byte) error {
 			if err != nil {
 				return fmt.Errorf("invalid pool owner key: %w", err)
 			}
-			owners[i] = AddrKeyHash(NewBlake2b224(ownerBytes))
+			ownerHash, err := NewBlake2b224Checked(ownerBytes)
+			if err != nil {
+				return fmt.Errorf("invalid pool owner key: %w", err)
+			}
+			owners[i] = AddrKeyHash(ownerHash)
 		}
 		p.PoolOwners = owners
 	}
@@ -1169,6 +1314,9 @@ func (p *PoolRegistrationCertificate) UnmarshalJSON(data []byte) error {
 func (c PoolRegistrationCertificate) MarshalJSON() ([]byte, error) {
 	if err := ValidatePoolMargin(c.Margin); err != nil {
 		return nil, fmt.Errorf("invalid pool registration margin: %w", err)
+	}
+	if err := ValidatePoolMetadata(c.PoolMetadata); err != nil {
+		return nil, fmt.Errorf("invalid pool registration metadata: %w", err)
 	}
 	type poolRegistrationCertificateJSON PoolRegistrationCertificate
 	//nolint:musttag // The alias preserves PoolRegistrationCertificate's tags.
@@ -1693,6 +1841,7 @@ func (c *RegistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 		Certificate: &utxorpc.Certificate_RegCert{
 			RegCert: &utxorpc.RegCert{
 				StakeCredential: stakeCred,
+				Coin:            BigIntToUtxorpcBigInt(c.DepositAmount()),
 			},
 		},
 	}, nil
@@ -1739,6 +1888,7 @@ func (c *DeregistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 		Certificate: &utxorpc.Certificate_UnregCert{
 			UnregCert: &utxorpc.UnRegCert{
 				StakeCredential: stakeCred,
+				Coin:            BigIntToUtxorpcBigInt(c.DepositAmount()),
 			},
 		},
 	}, nil
@@ -1882,6 +2032,7 @@ func (c *StakeRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certificate
 			StakeRegDelegCert: &utxorpc.StakeRegDelegCert{
 				StakeCredential: stakeCred,
 				PoolKeyhash:     c.PoolKeyHash.Bytes(),
+				Coin:            BigIntToUtxorpcBigInt(c.DepositAmount()),
 			},
 		},
 	}, nil
@@ -1935,6 +2086,7 @@ func (c *VoteRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certificate,
 			VoteRegDelegCert: &utxorpc.VoteRegDelegCert{
 				StakeCredential: stakeCred,
 				Drep:            drep,
+				Coin:            BigIntToUtxorpcBigInt(c.DepositAmount()),
 			},
 		},
 	}, nil
@@ -1981,16 +2133,6 @@ func (c *StakeVoteRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certifi
 		return nil, fmt.Errorf("failed to convert DRep: %w", err)
 	}
 
-	var drepBytes []byte
-
-	if drepProto != nil {
-		switch drepProto.GetDrep().(type) {
-		case *utxorpc.DRep_AddrKeyHash:
-			drepBytes = drepProto.GetAddrKeyHash()
-		case *utxorpc.DRep_ScriptHash:
-			drepBytes = drepProto.GetScriptHash()
-		}
-	}
 	stakeCred, err := c.StakeCredential.Utxorpc()
 	if err != nil {
 		return nil, err
@@ -1999,8 +2141,9 @@ func (c *StakeVoteRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certifi
 		Certificate: &utxorpc.Certificate_StakeVoteRegDelegCert{
 			StakeVoteRegDelegCert: &utxorpc.StakeVoteRegDelegCert{
 				StakeCredential: stakeCred,
-				PoolKeyhash:     drepBytes,
+				PoolKeyhash:     c.PoolKeyHash.Bytes(),
 				Drep:            drepProto,
+				Coin:            BigIntToUtxorpcBigInt(c.DepositAmount()),
 			},
 		},
 	}, nil
@@ -2152,6 +2295,7 @@ func (c *RegistrationDrepCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 			RegDrepCert: &utxorpc.RegDRepCert{
 				DrepCredential: drepCred,
 				Anchor:         anchor,
+				Coin:           BigIntToUtxorpcBigInt(c.DepositAmount()),
 			},
 		},
 	}, nil
@@ -2198,6 +2342,7 @@ func (c *DeregistrationDrepCertificate) Utxorpc() (*utxorpc.Certificate, error) 
 		Certificate: &utxorpc.Certificate_UnregDrepCert{
 			UnregDrepCert: &utxorpc.UnRegDRepCert{
 				DrepCredential: drepCred,
+				Coin:           BigIntToUtxorpcBigInt(c.DepositAmount()),
 			},
 		},
 	}, nil

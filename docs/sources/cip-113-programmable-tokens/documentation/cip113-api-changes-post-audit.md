@@ -2,6 +2,9 @@
 
 # CIP-113 Programmable Tokens — Audit-Era API Changes
 
+> **Terminology note**: this document uses "admin" per the API surface at the
+> time of writing; the current normative term is third-party.
+
 A reference for off-chain integrators (transaction builders, indexers,
 custodial software, wallet teams) covering every breaking change to the public
 on-chain surface between the pre-audit baseline and current `main`.
@@ -64,6 +67,49 @@ impact):
 - `always_fail.ak`
 
 The rest of this document walks through the components that did change.
+
+---
+
+## 0. Current state — read this first
+
+`main` has moved well past this document's TARGET commit through several
+further refactors (the PLG dispatcher split into standalone validators and
+back, the upgrade authority became a Sundae multisig tree, issuance split into
+a permanent policy plus a replaceable `issuance_logic`). Sections §2, §7, §8,
+§9, §10, §14 and §17 below describe an intermediate shape and are kept for
+their transition narrative, not as a description of `main` today. The ground
+truth is `lib/registry_node.ak` and `validators/programmable_logic/params.ak`;
+`CONTRACT_SURFACE_CHANGES.md` carries every step between there and here. As of
+this writing:
+
+- **`protected_prefixes` does not exist any more.** It was added in #82
+  (§7/§10 below) and removed again in #97 (issue #96); current `main` does
+  not carry it.
+- **`RegistryNode` (`lib/registry_node.ak`) has 7 fields**: `key`, `next`,
+  `minting_logic_script`, `transfer_logic_script`, `third_party_logic_script`
+  (renamed from `third_party_transfer_logic_script`), `unfracking_logic_script`
+  (the current 7th field — an issuer-set unfracking hook, not
+  `protected_prefixes`), `global_state_cs`.
+- **The protocol-params datum (`ProtocolParams` in
+  `validators/programmable_logic/params.ak`) has 6 fields**:
+  `programmable_logic_global_cred`, `issuance_logic_cred`, `transfer_cred`,
+  `third_party_cred`, `upgrade_cred`, `pending_upgrade_cred`. There is no
+  `unfracking_cred` field: `programmable_logic_global` locates the `transfer`
+  / `third_party` / `unfracking` validators by compile-time parameter
+  (`ScriptHash`), not by reading a params-datum credential. Separately,
+  `RegistryNode.unfracking_logic_script` is an ADDITIONAL, per-policy gate the
+  `unfracking` validator itself enforces — the issuer's own consent hook, not
+  a replacement for how the dispatcher finds `unfracking`.
+- **The PLG dispatcher pattern is current again.** `programmable_logic_global`
+  dispatches `TransferAct` / `ThirdPartyAct` / `UnfrackingAct` (field-less
+  arms) to the `transfer` / `third_party` / `unfracking` validators;
+  `programmable_logic_base`'s redeemer is the flat
+  `BaseSpendRedeemer { params_idx, wdrl_idx }` reading one credential
+  (`programmable_logic_global_cred`, field 0). The `SpendViaTransfer` /
+  `SpendViaThirdParty` / `SpendViaUnfracking` three-arm shape in §17 was a
+  later, since-superseded design.
+- Re-audit items R-03 and R-04, "Pending" in §12 below, have both landed
+  (`#90`, `#89`).
 
 ---
 
@@ -169,7 +215,7 @@ pub type RegistryNode {
   global_state_cs: ByteArray,
 }
 
-// After (current main — 7 fields)
+// After (this document's TARGET commit — since superseded, see §0)
 pub type RegistryNode {
   key: ByteArray,
   next: ByteArray,
@@ -179,9 +225,21 @@ pub type RegistryNode {
   global_state_cs: ByteArray,
   protected_prefixes: List<ByteArray>,          // NEW (position #7, Finding 18 — see §7/§10)
 }
+
+// Current main — 7 fields (see §0; lib/registry_node.ak is the ground truth)
+pub type RegistryNode {
+  key: ByteArray,
+  next: ByteArray,
+  minting_logic_script: Credential,
+  transfer_logic_script: Credential,
+  third_party_logic_script: Credential,         // renamed from third_party_transfer_logic_script
+  unfracking_logic_script: Credential,          // 7th field — protected_prefixes was removed (#97)
+  global_state_cs: ByteArray,
+}
 ```
 
-Off-chain impact:
+Off-chain impact (at this document's TARGET commit — protected_prefixes has
+since been removed; see §0 for the current field list):
 
 - Anyone constructing a `RegistryNode` datum CBOR must include `minting_logic_script`
   at index 2 (between `next` and `transfer_logic_script`) **and**
@@ -197,7 +255,8 @@ Off-chain impact:
   assets (e.g. CIP-68 label 100, CIP-102 label 500) that `ThirdPartyAct` may
   neither seize nor burn. See [§7](#7-registry-node-field-updates--in-place-node-upgradability)
   (mutability) and [§10](#10-third-party-action--protected-prefixes--anti-injection)
-  (enforcement).
+  (enforcement). **This field no longer exists on `main`** (removed in #97,
+  issue #96) — see §0.
 
 ---
 
@@ -492,9 +551,9 @@ that tx → the "update" branch). The rules are in
 | `next` | **No** — only re-linked by insert |
 | `minting_logic_script` | **No** — bound to `key` |
 | `transfer_logic_script` | **Yes** (must be a 28-byte credential) |
-| `third_party_transfer_logic_script` | **Yes** (28-byte credential) |
+| `third_party_transfer_logic_script` (renamed `third_party_logic_script`) | **Yes** (28-byte credential) |
 | `global_state_cs` | **Yes** (28 bytes or empty) |
-| `protected_prefixes` | **Yes, APPEND-ONLY** (4-byte, strictly-ascending; new ⊇ old) |
+| `protected_prefixes` | table entry as of this document's TARGET commit; **the field itself no longer exists on `main`** (removed #97) — see §0 |
 
 **Authority.** The update is valid only if the node's `minting_logic_script` is
 a `Script` credential **and** its withdraw-0 is invoked in the update tx. A
@@ -509,24 +568,24 @@ spend.
 **Off-chain impact:**
 
 - **Indexers / wallets / custodial software: treat `transfer_logic_script`,
-  `third_party_transfer_logic_script`, `global_state_cs`, and
-  `protected_prefixes` as LIVE.** Resolve them fresh from the current node at
-  transaction-build time; do not cache them as immutable. A token's governance
-  can change under existing holders. *(This is a behavioural change with no
-  signature change — the classic silent breakage.)*
+  `third_party_logic_script`, `unfracking_logic_script`, and `global_state_cs`
+  as LIVE.** Resolve them fresh from the current node at transaction-build
+  time; do not cache them as immutable. A token's governance can change under
+  existing holders. *(This is a behavioural change with no signature change —
+  the classic silent breakage.)*
 - To **update** a node, build a tx that spends the node UTxO, produces exactly
   one continuing node output preserving the immutable fields, includes the
   node's `minting_logic_script` withdraw-0, and mints/burns nothing under `key`.
 
 ---
 
-## 8. Protocol-params datum — new `unfracking_cred` field
+## 8. Protocol-params datum — new `unfracking_cred` field (since removed, see §0)
 
 **New (Finding 17, #78).** `programmable_logic/params.ak:ProgrammableLogicGlobalParams`
 gained a third field:
 
 ```aiken
-// Before                          // After (current main)
+// Before                          // After (this document's TARGET commit)
 { registry_node_cs: PolicyId,      { registry_node_cs: PolicyId,
   prog_logic_cred: Credential }      prog_logic_cred: Credential,
                                      unfracking_cred: Credential }  // NEW (#3)
@@ -535,10 +594,18 @@ gained a third field:
 `unfracking_cred` is the credential of the standalone `unfracking` withdraw-0
 validator. It is read only by the `UnfrackingAct` branch of PLGlobal (§9).
 
-**Off-chain impact:** the protocol-bootstrap tooling that mints the params NFT
-and writes its datum must include this third field. Anyone parsing the params
-datum must expect three fields. `registry_node_cs` and `prog_logic_cred` are
-unchanged in position.
+**Off-chain impact (at this document's TARGET commit):** the protocol-bootstrap
+tooling that mints the params NFT and writes its datum must include this third
+field. Anyone parsing the params datum must expect three fields.
+`registry_node_cs` and `prog_logic_cred` are unchanged in position.
+
+**Current `main`.** The params datum has been reshaped several times since;
+`unfracking_cred` no longer exists as a field — `programmable_logic_global`
+now locates `transfer` / `third_party` / `unfracking` by compile-time
+parameter, not a params-datum credential. Separately,
+`RegistryNode.unfracking_logic_script` is a newer, additional per-policy gate
+the `unfracking` validator itself enforces. See §0 and
+`validators/programmable_logic/params.ak` for the current 6-field shape.
 
 ---
 
@@ -581,7 +648,11 @@ live in that standalone validator.
 - Anyone decoding the PLG redeemer must handle the new third variant.
 
 > On `feat/upgradability-in-place`, every variant additionally carries a leading
-> `params_idx: Int` — see §16.
+> `params_idx: Int` — see §16. That shape is itself superseded on current
+> `main`: `ProgrammableLogicGlobalRedeemer`'s arms are field-less again
+> (`TransferAct`, `ThirdPartyAct`, `UnfrackingAct`, no payload), and
+> `unfracking_cred` no longer exists (§0, §8) — unfracking is gated by
+> `RegistryNode.unfracking_logic_script` instead.
 
 ---
 
@@ -600,15 +671,19 @@ invariants in `validators/programmable_logic/third_party.ak`:
   extracted nor burned ("preserve, not fail"). The unprotected remainder stays
   fully seizable.
 
-**Off-chain impact:** seize-style tx builders must (a) only target inputs that
-already hold the subject policy, and (b) leave protected-prefixed tokens
-untouched on the continuing output. Registration is where you *declare* the
-protected prefixes (append-only thereafter). No PLG redeemer signature change.
+**Off-chain impact (at this document's TARGET commit):** seize-style tx
+builders must (a) only target inputs that already hold the subject policy,
+and (b) leave protected-prefixed tokens untouched on the continuing output.
+Registration is where you *declare* the protected prefixes (append-only
+thereafter). No PLG redeemer signature change.
 
-> **Note (re-audit R-03, pending).** A former per-pair "the subject amount must
-> change" anti-DoS guard is being removed on a separate branch (§12). It does
-> not affect the CBOR surface; it only means a no-op respend is no longer
-> rejected by the validator.
+**Current `main`.** Protected prefixes were removed in #97 (issue #96); only
+the anti-injection invariant above still applies. See §0.
+
+> **Note (re-audit R-03, landed #90).** The former per-pair "the subject
+> amount must change" anti-DoS guard was removed. It did not affect the CBOR
+> surface; it only means a no-op respend is no longer rejected by the
+> validator.
 
 ---
 
@@ -640,12 +715,12 @@ The second audit ("re-audit") reviewed the first-audit fixes. Status on `main`:
 |---|---|---|---|
 | **R-01** | A registry-node spend cannot issue its own token; registry-lifecycle authority documented | `registry_spend` guard (§7) | **Landed (#88)** |
 | **R-02** | Registry lifecycle authority & mutability documentation | none (docs) | Landed |
-| **R-03** | Remove the pair-local no-op guard on `ThirdPartyAct` (bypassable; aggregate check too costly) | none — a no-op respend becomes accepted; no CBOR change (§10 note) | **Pending** (branch `fix/r03-remove-pair-local-noop-guard`) |
-| **R-04** | Issuance custody escape — net-positive mints must land at PLB even when pre-existing supply exists | `issuance_mint` output-custody tightening; no signature change | **Pending** (two candidate branches) |
+| **R-03** | Remove the pair-local no-op guard on `ThirdPartyAct` (bypassable; aggregate check too costly) | none — a no-op respend is accepted; no CBOR change (§10 note) | **Landed (#90)** |
+| **R-04** | Issuance custody escape — net-positive mints must land at PLB even when pre-existing supply exists | `issuance_mint` output-custody tightening; no signature change | **Landed (#89)** |
 | **R-05** | Unfracking module documentation (ADA-out allowed; non-ADA-non-programmable-out forbidden) | none (docs) | Landed |
 | **R-06** | Redundant registration-mode tag removed from `RegistryInsert` before release | `RegistryInsert` = `{key, minting_logic_script}` (§1.3); `registry_mint` hash changes | **Landed (#92)** |
 
-When R-03 and R-04 land in `main`, this section and §10/§4 will be updated.
+All six re-audit items have landed on `main`.
 
 ---
 
@@ -663,8 +738,8 @@ When R-03 and R-04 land in `main`, this section and §10/§4 will be updated.
 | 10 | Redundant single-mint redeemer check | removed from `issuance_mint` |
 | 12 | UTxO contamination in ThirdPartyAct | `third_party.ak` anti-injection (§10) |
 | 13 | Reference script preservation in ThirdPartyAct | `third_party.ak` reference-script equality (§5) |
-| 17 | Unfracking action | `UnfrackingAct` + `unfracking_cred` (§8, §9) |
-| 18 | Admin/control scope — protected prefixes | `RegistryNode.protected_prefixes` (§7, §10) |
+| 17 | Unfracking action | `UnfrackingAct` + `unfracking_cred` (§8, §9) — `unfracking_cred` since removed from the params datum; unfracking is now gated per-node via `RegistryNode.unfracking_logic_script` (§0) |
+| 18 | Admin/control scope — protected prefixes | `RegistryNode.protected_prefixes` (§7, §10) — since removed (#97); the finding's remediation did not survive to the current registry-node shape (§0) |
 | 19 | Redundant length/ordering checks in RegistryInsert | `registry_mint` internal (#70) |
 | R-01 | Node spend cannot issue its own token | `registry_spend` guard (§7, §12) |
 | R-06 | Redundant `RegistryInsert` registration-mode tag | removed before release — final redeemer is `{key, minting_logic_script}` (§1.3) |
@@ -676,6 +751,10 @@ tracking in the repo. This document captures the *resulting public-API surface*
 ---
 
 ## 14. Migration checklist
+
+This checklist targets this document's TARGET commit, not current `main` —
+see §0 for what has moved since, including two rows below (`protected_prefixes`
+and `unfracking_cred`) that describe a field current `main` no longer has.
 
 When upgrading off-chain integration:
 
@@ -701,39 +780,41 @@ When upgrading off-chain integration:
       PLB outputs preserve the input's reference script verbatim, only target
       inputs already holding the subject policy, and leave protected-prefixed
       tokens byte-equal on the continuing output (§10).
-- [ ] Add the 7th `RegistryNode` field `protected_prefixes` (and the 3rd
-      `minting_logic_script` if migrating from pre-`ebd9ffa`) to every datum
-      constructor/parser (§2, §7).
-- [ ] Add the 3rd protocol-params field `unfracking_cred` to your params-datum
-      tooling (§8).
-- [ ] Decode the PLG redeemer's new `UnfrackingAct` variant and the reshaped
-      `ThirdPartyAct { registry_node_idx, outputs_start_idx }` (§9) — **on the
-      upgradability branch these no longer exist**: use `TransferRedeemer`,
-      `ThirdPartyRedeemer`, `UnfrackingRedeemer` and the three-arm
-      `BaseSpendRedeemer` instead (§17).
+- [ ] Add the 3rd `RegistryNode` field `minting_logic_script` if migrating
+      from pre-`ebd9ffa` (§2, §7). Current `main`'s 7th field is
+      `unfracking_logic_script`, not `protected_prefixes` — that field
+      shipped after #82 and was removed again in #97 (issue #96); do not add
+      it (§0).
+- [ ] Current `main`'s protocol-params datum has 6 fields and no
+      `unfracking_cred` — `programmable_logic_global` locates `transfer` /
+      `third_party` / `unfracking` by compile-time parameter, not a
+      params-datum field. See §0 and `validators/programmable_logic/params.ak`
+      for the field list your params-datum tooling must write.
+- [ ] Decode the PLG dispatcher's redeemer (`TransferAct` / `ThirdPartyAct` /
+      `UnfrackingAct`, field-less) and each delegate's own redeemer
+      (`TransferRedeemer`, `ThirdPartyRedeemer`, `UnfrackingRedeemer`); the
+      `programmable_logic_base` spend redeemer is the flat
+      `BaseSpendRedeemer { params_idx, wdrl_idx }` — the `SpendVia*` sum type
+      in §17 is itself superseded (§0).
 - [ ] **Stop caching node governance credentials** — resolve
-      `transfer_logic_script` / `third_party_transfer_logic_script` /
-      `global_state_cs` / `protected_prefixes` fresh at build time; they are
-      updatable (§7).
+      `transfer_logic_script` / `third_party_logic_script` (renamed from
+      `third_party_transfer_logic_script`) / `unfracking_logic_script` /
+      `global_state_cs` fresh at build time; they are updatable (§7).
 - [ ] In transfer builders, drop `TransferAct` proofs for pure-mint policies;
       keep exactly one per PLB input policy (§11).
 
 ---
 
-## 15. Coming next (not yet in `main`)
+## 15. R-03 and R-04 (landed)
 
-Two re-audit fixes are prepared on separate branches (§12):
+Both re-audit fixes referenced from §12 have landed on `main`:
 
-- **R-03** — removes the pair-local no-op guard on `ThirdPartyAct`. No CBOR
-  surface change; the only observable effect is that a no-op forced respend
-  (subject amount unchanged) is no longer rejected by the validator. Branch:
-  `fix/r03-remove-pair-local-noop-guard`.
-- **R-04** — tightens issuance custody so a net-positive mint must land at PLB
-  even when pre-existing supply of the policy could otherwise mask an escape.
-  No validator-signature change; `issuance_mint` output-custody only. Two
-  candidate branches (input-aware and no-escape variants).
-
-This document will be updated when each lands in `main`.
+- **R-03** (#90) — removed the pair-local no-op guard on `ThirdPartyAct`. No
+  CBOR surface change; the only observable effect is that a no-op forced
+  respend (subject amount unchanged) is no longer rejected by the validator.
+- **R-04** (#89) — tightened issuance custody so a net-positive mint must land
+  at PLB even when pre-existing supply of the policy could otherwise mask an
+  escape. No validator-signature change; `issuance_mint` output-custody only.
 
 ---
 
@@ -787,6 +868,14 @@ index simply fails — no security is delegated to the index.
 ## 17. Validator split — `transfer`, `third_party`, `unfracking` as standalone validators; PLB dispatches (upgradability branch, PR #110)
 
 > On `feat/upgradability-in-place`. **Breaking redeemer-surface + validator-set change.** Supersedes the `ThirdPartyAct` / `UnfrackingAct` parts of §9 and the PLG redeemer shape in §16.
+> **This section is itself superseded on current `main` (§0):** the PLG
+> dispatcher pattern is back (`programmable_logic_global` dispatching to
+> `transfer` / `third_party` / `unfracking`), `programmable_logic_base`'s
+> redeemer is the flat `BaseSpendRedeemer { params_idx, wdrl_idx }` rather
+> than the `SpendVia*` sum type below, and the protocol-params datum has 6
+> fields with `issuance_logic_cred` and `pending_upgrade_cred` in place of
+> this section's `unfracking_cred` — see `lib/types.ak` and
+> `validators/programmable_logic/params.ak` for ground truth.
 
 The former `programmable_logic_global` (PLG) coordinator — one withdraw-0
 script that dispatched transfer / third-party / unfracking on its redeemer —

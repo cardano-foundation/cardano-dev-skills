@@ -17,9 +17,8 @@ description = "On-chain validators for the Acme dApp."
 
 # Compiler used for this project. Aiken pins itself; do not change unless you
 # also change CI and every developer's local toolchain.
-compiler = "v1.x.y"                       # PIN: latest stable Aiken release.
-                                          # Check ../../docs/sources/aiken/
-                                          # or https://github.com/aiken-lang/aiken/releases.
+compiler = "v1.1.21"                      # PIN: the compiler the templates are tested with.
+                                          # Bump together with the stdlib pin below.
 plutus = "v3"                             # Plutus V3 is the current target; required for
                                           # Conway-era features.
 
@@ -31,14 +30,15 @@ platform = "github"
 # Dependencies. Pin to a tag, never to a branch. Always commit aiken.lock.
 [[dependencies]]
 name = "aiken-lang/stdlib"
-version = "v2.x.y"                        # PIN: latest stdlib release matching your compiler.
-                                          # See ../../docs/sources/aiken-stdlib/.
+version = "v3.1.0"                        # PIN: stdlib v3 provides the aiken/collection,
+                                          # aiken/crypto and cardano/* modules the
+                                          # validators import.
 source = "github"
 
 # Optional but recommended: design-patterns library. Drop if not used.
 # [[dependencies]]
 # name = "Anastasia-Labs/aiken-design-patterns"
-# version = "v0.x.y"
+# version = "v1.6.3"
 # source = "github"
 
 [config]

@@ -196,8 +196,8 @@ A working scaffold reaches this point with zero errors. If `typecheck` reports u
 Start the local devnet (see `setup-devnet` skill for full details):
 
 ```bash
-docker run -d --name yaci-devkit -p 8080:8080 -p 10000:10000 bloxbean/yaci-cli:latest
-# … wait ~30s for the chain to start producing blocks …
+devkit start                        # opens yaci-cli
+yaci-cli:> create-node -o --start   # create + start a default devnet
 ```
 
 The bundled `vesting.ts` hard-codes `YACI_URL = "http://localhost:8080/api/v1"` and `NETWORK = "Preview"`. The test mnemonic is the standard Yaci devnet seed:

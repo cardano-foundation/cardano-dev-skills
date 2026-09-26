@@ -129,11 +129,12 @@ The template below covers all supported networks. Leave the variables for the ne
 CARDANO_NETWORK=devnet               # devnet | preview | preprod | mainnet
 
 # --- Yaci DevKit (local devnet) ---
-# Yaci Store exposes a Blockfrost-compatible API on this URL by default.
+# Yaci Store serves a Blockfrost-compatible API under /api/v1 on this URL.
 # Use `yaci-cli` (or the dev-up.sh script in the scaffold) to launch it; see
 # the `setup-devnet` skill for full instructions.
-# Built-in faucet: `yaci-cli faucet send <address> <ada>` while devnet is up.
-YACI_STORE_URL=http://localhost:10000
+# Fund an address: `topup <address> <ada>` at the yaci-cli devnet prompt.
+YACI_STORE_URL=http://localhost:8080
+# DevKit admin API (CLI, wallet page, MCP). Not a chain-query endpoint.
 YACI_ADMIN_URL=http://localhost:10000
 # Yaci DevKit auto-seeds wallets with test ADA at startup. Replace with an
 # address printed by `yaci-cli` when you start the devnet.
@@ -172,7 +173,7 @@ When you flip `CARDANO_NETWORK` between scaffolded environments, update only the
 
 | Network | Blockfrost key prefix | Faucet | Notes |
 |---|---|---|---|
-| devnet | not used | `yaci-cli faucet send ...` (built into Yaci DevKit) | YACI_STORE_URL must be reachable |
+| devnet | not used | `topup <address> <ada>` at the yaci-cli prompt | YACI_STORE_URL must be reachable |
 | preview | `preview...` | https://docs.cardano.org/cardano-testnets/tools/faucet (select Preview) | network ID = 0, ~20s blocks |
 | preprod | `preprod...` | https://docs.cardano.org/cardano-testnets/tools/faucet (select Preprod) | network ID = 0, mainnet-like params |
 | mainnet | `mainnet...` | none — real ADA | network ID = 1, audit before deploying |

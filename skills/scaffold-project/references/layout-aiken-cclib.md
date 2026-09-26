@@ -105,7 +105,7 @@ cardano.blueprint.path=${BLUEPRINT_PATH:../onchain/plutus.json}
 
 ### Hello-world validator skeleton -- `onchain/validators/hello.ak`
 
-Identical to stack 1. See `references/layout-aiken-mesh.md` for the annotated Aiken source.
+Identical across stacks. See the hello validator in `references/layout-aiken-mesh.md` for the annotated Aiken source.
 
 ### Hello-world off-chain class -- `Blueprint.java`
 

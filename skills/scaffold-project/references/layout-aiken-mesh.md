@@ -103,9 +103,9 @@ A trivial validator that succeeds when the spending transaction is signed by a s
 // exists to prove the build + deploy + spend cycle works end-to-end. Replace
 // with real business logic by handing off to the write-validator skill.
 
-use aiken/transaction.{Transaction, ScriptContext, Spend}
-use aiken/transaction/credential.{VerificationKeyHash}
-use aiken/list
+use aiken/collection/list
+use aiken/crypto.{VerificationKeyHash}
+use cardano/transaction.{OutputReference, Transaction}
 
 pub type HelloDatum {
   owner: VerificationKeyHash,
@@ -115,26 +115,36 @@ validator hello {
   spend(
     datum: Option<HelloDatum>,
     _redeemer: Data,
-    _own_ref: Data,
+    _own_ref: OutputReference,
     tx: Transaction,
-  ) -> Bool {
+  ) {
     expect Some(HelloDatum { owner }) = datum
     list.has(tx.extra_signatories, owner)
   }
+
+  else(_) {
+    fail
+  }
 }
 
-// Unit tests live alongside the validator.
+// Unit tests live alongside the validator. `transaction.placeholder` is an
+// empty transaction; override only the fields the validator reads.
+const owner = #"00112233445566778899aabbccddeeff00112233445566778899aabb"
+
+const own_ref = OutputReference { transaction_id: #"", output_index: 0 }
+
 test owner_can_spend() {
-  let owner = #"00112233445566778899aabbccddeeff00112233445566778899aabb"
-  let datum = HelloDatum { owner }
-  // ... build a mock Transaction with `owner` in extra_signatories and assert.
-  // See https://aiken-lang.org/language-tour/testing for the mocking helpers,
-  // or ../../docs/sources/aiken/ for the testing chapter.
-  True
+  let tx = Transaction { ..transaction.placeholder, extra_signatories: [owner] }
+  hello.spend(Some(HelloDatum { owner }), Void, own_ref, tx)
+}
+
+test other_signer_cannot_spend() {
+  let tx = Transaction { ..transaction.placeholder, extra_signatories: [#"ff"] }
+  !hello.spend(Some(HelloDatum { owner }), Void, own_ref, tx)
 }
 ```
 
-Build with `aiken build` from the `onchain/` directory. The resulting `plutus.json` is the contract with the off-chain side.
+Run `aiken check` (compiles and runs both tests), then `aiken build`, from the `onchain/` directory. The resulting `plutus.json` is the contract with the off-chain side.
 
 ### Hello-world off-chain script -- `offchain/src/blueprint.ts`
 

@@ -292,7 +292,7 @@ When a developer describes a feature, map it to the relevant CIP:
 
 | Developer asks about... | Relevant CIP(s) |
 |---|---|
-| NFT metadata | CIP-25 (immutable), CIP-68 (updatable) |
+| NFT metadata | CIP-25 (updatable only by re-minting), CIP-68 (updatable) |
 | Wallet connection | CIP-30 |
 | Wallet governance | CIP-95 (extends CIP-30) |
 | Message signing | CIP-8 (via CIP-30's `signData`) |

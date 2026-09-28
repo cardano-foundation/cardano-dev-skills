@@ -1,6 +1,6 @@
 # KYC Extended — How it works
 
-A short, non-technical walk-through of the **extended KYC** substandard.
+A short, non-technical walk-through of the **extended KYC** module.
 
 ---
 
@@ -48,7 +48,7 @@ the same fingerprint, the recipient is verified; if not, the transfer fails.
 > Implementation: the off-chain tree is in
 > [`MpfTreeService.java`](../../../src/programmable-tokens-offchain-java/src/main/java/org/cardanofoundation/cip113/service/MpfTreeService.java).
 > The on-chain check is in
-> [`kyc_extended_transfer.ak`](../../../src/substandards/kyc-extended/validators/kyc_extended_transfer.ak)
+> [`kyc_extended_transfer.ak`](../../../src/modules/kyc-extended/validators/kyc_extended_transfer.ak)
 > (`validate_membership` function).
 
 ---
@@ -116,9 +116,9 @@ validator then verifies, in one go:
 If anything fails, the chain rejects the transfer.
 
 > Implementation: the wallet-side bundling is in
-> [`KycExtendedSubstandardHandler.buildTransferTransaction`](../../../src/programmable-tokens-offchain-java/src/main/java/org/cardanofoundation/cip113/service/substandard/KycExtendedSubstandardHandler.java).
+> [`KycExtendedModuleHandler.buildTransferTransaction`](../../../src/programmable-tokens-offchain-java/src/main/java/org/cardanofoundation/cip113/service/module/KycExtendedModuleHandler.java).
 > The on-chain checks are in the `transfer` validator in
-> [`kyc_extended_transfer.ak`](../../../src/substandards/kyc-extended/validators/kyc_extended_transfer.ak).
+> [`kyc_extended_transfer.ak`](../../../src/modules/kyc-extended/validators/kyc_extended_transfer.ak).
 
 ---
 
@@ -148,7 +148,7 @@ shorten an entry's TTL by re-adding it with an earlier expiry.
 
 ---
 
-## What this substandard does **not** do
+## What this module does **not** do
 
 - It does **not** restrict *amounts* by recipient — once a recipient is in
   the allowlist they can receive any quantity.
@@ -170,8 +170,6 @@ shorten an entry's TTL by re-adding it with an earlier expiry.
 - **Members expire silently.** A member whose TTL has passed will be pruned
   on the next publisher tick; their next transfer attempt will be blocked
   with an "expired" notice that points them back to the verify page.
-- **Re-registration after a contract rebuild.** If the on-chain validator
-  bytecode changes (e.g. you rebuild from updated Aiken sources), tokens
-  registered with the older bytecode will stop working until re-registered.
-  See [`kyc-processes.md`](../../../kyc-processes.md) for the recovery
-  procedure.
+- **Preserve deployed blueprints.** Rebuilding a validator can change its
+  script hash. Existing deployments need the bytes they were registered with;
+  check [contract provenance](../../CONTRACTS.md) before adopting new bytes.

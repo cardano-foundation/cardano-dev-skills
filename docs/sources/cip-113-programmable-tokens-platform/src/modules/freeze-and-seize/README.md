@@ -1,8 +1,8 @@
-# Freeze-and-Seize Substandard
+# Freeze-and-Seize Module
 
-A CIP-113 substandard for regulated stablecoins: denylist-aware transfer logic, seizure/freeze operations, and on-chain denylist management.
+A CIP-113 module for regulated stablecoins: denylist-aware transfer logic, seizure/freeze operations, and on-chain denylist management.
 
-This substandard demonstrates how regulatory controls can be implemented on top of the CIP-113 core framework while preserving Cardano's native-token semantics.
+This module demonstrates how regulatory controls can be implemented on top of the CIP-113 core framework while preserving Cardano's native-token semantics.
 
 ## What it provides
 
@@ -19,7 +19,7 @@ This substandard demonstrates how regulatory controls can be implemented on top 
 
 ```bash
 aiken fmt --check
-aiken check
+aiken check -D
 aiken build
 ```
 
@@ -42,15 +42,15 @@ freeze-and-seize/
 
 ## How it fits CIP-113
 
-This substandard is a **stake validator** invoked via a 0-ADA withdrawal, registered in the CIP-113 registry alongside the token's issuance policy. When a transfer occurs, the core `programmable_logic_global` validator looks the token up in the registry and requires this substandard's withdrawal to succeed — which is where denylist checks happen.
+This module is a **stake validator** invoked via a 0-ADA withdrawal, registered in the CIP-113 registry alongside the token's issuance policy. When a transfer occurs, the core `programmable_logic_global` validator looks the token up in the registry and requires this module's withdrawal to succeed — which is where denylist checks happen.
 
-For the full on-chain coordination model, see the [core framework's architecture doc](https://github.com/cardano-foundation/cip113-programmable-tokens-2/blob/main/documentation/02-ARCHITECTURE.md).
+For the full on-chain coordination model, see the [core framework's architecture doc](https://github.com/cardano-foundation/cip113-programmable-tokens/blob/main/documentation/02-ARCHITECTURE.md).
 
 ## Related
 
 - Platform overview: [root README](../../../README.md)
-- Core framework: [cardano-foundation/cip113-programmable-tokens-2](https://github.com/cardano-foundation/cip113-programmable-tokens-2)
-- Substandard developer guide: [documentation/09-DEVELOPING-SUBSTANDARDS.md](https://github.com/cardano-foundation/cip113-programmable-tokens-2/blob/main/documentation/09-DEVELOPING-SUBSTANDARDS.md)
+- Core framework: [cardano-foundation/cip113-programmable-tokens](https://github.com/cardano-foundation/cip113-programmable-tokens)
+- Contract provenance: [docs/CONTRACTS.md](../../../docs/CONTRACTS.md)
 
 ## License
 

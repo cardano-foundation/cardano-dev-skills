@@ -1,6 +1,6 @@
 # KYC — How it works
 
-A short, non-technical walk-through of the **basic KYC** substandard.
+A short, non-technical walk-through of the **basic KYC** module.
 
 ![Flow diagram](./kyc-flow.png)
 
@@ -16,7 +16,7 @@ adds exactly that one rule:
 > sender has been verified.
 
 Receivers are not checked. The receiver-side check is the job of the
-[kyc-extended](../kyc-extended/) substandard.
+[kyc-extended](../kyc-extended/) module.
 
 ---
 
@@ -48,7 +48,7 @@ state called the **global state UTxO**. It holds:
 
 The issuer can update each of these later with their admin key.
 
-> Implementation: [`KycExtendedSubstandardHandler.buildGlobalStateInitTransaction`](../../../src/programmable-tokens-offchain-java/src/main/java/org/cardanofoundation/cip113/service/substandard/KycSubstandardHandler.java)
+> Implementation: [`KycModuleHandler.buildGlobalStateInitTransaction`](../../../src/programmable-tokens-offchain-java/src/main/java/org/cardanofoundation/cip113/service/module/KycModuleHandler.java)
 > creates this initial state.
 
 ### 2. Sender goes through KYC
@@ -66,7 +66,7 @@ The certificate is short-lived — typically 30 days. After it expires the
 sender has to re-verify.
 
 > Implementation: the certificate format is defined in the
-> [transfer validator](../../../src/substandards/kyc/validators/kyc_transfer.ak)
+> [transfer validator](../../../src/modules/kyc/validators/kyc_transfer.ak)
 > as `KycProof`. The frontend flow that walks the user through verification
 > lives in [`KycVerificationFlow.tsx`](../../../src/programmable-tokens-frontend/components/transfer/KycVerificationFlow.tsx).
 
@@ -87,9 +87,9 @@ If all five hold, the transfer goes through. If any one fails, the chain
 rejects the transaction.
 
 > Implementation: the on-chain check is `validate_kyc_proof` in
-> [`kyc_transfer.ak`](../../../src/substandards/kyc/validators/kyc_transfer.ak)
+> [`kyc_transfer.ak`](../../../src/modules/kyc/validators/kyc_transfer.ak)
 > (60-line function). The wallet-side bundling lives in
-> [`KycSubstandardHandler.buildTransferTransaction`](../../../src/programmable-tokens-offchain-java/src/main/java/org/cardanofoundation/cip113/service/substandard/KycSubstandardHandler.java).
+> [`KycModuleHandler.buildTransferTransaction`](../../../src/programmable-tokens-offchain-java/src/main/java/org/cardanofoundation/cip113/service/module/KycModuleHandler.java).
 
 ### 4. The certificate is cached
 
@@ -114,12 +114,12 @@ Once the token is live, the issuer can:
   off-chain auditors.
 
 > Implementation: each of these is a separate "spend action" on the global
-> state UTxO. They live in `KycSubstandardHandler.build…Transaction` methods
+> state UTxO. They live in `KycModuleHandler.build…Transaction` methods
 > in the same file as the registration.
 
 ---
 
-## What this substandard does **not** do
+## What this module does **not** do
 
 - It does **not** check who receives the token. The receiver could be
   anyone.

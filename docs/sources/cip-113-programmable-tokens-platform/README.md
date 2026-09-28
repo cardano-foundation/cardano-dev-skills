@@ -3,7 +3,7 @@
 ![CIP-113](https://img.shields.io/badge/CIP--113-Adapted-green)
 ![Status](https://img.shields.io/badge/Status-R&D-yellow)
 
-**Off-chain platform, reference frontend, and substandard implementations for experimenting with CIP-113 programmable tokens on Cardano testnets.**
+**Off-chain platform, reference frontend, and module implementations for experimenting with CIP-113 programmable tokens on Cardano testnets.**
 
 This repository is the **companion to the on-chain implementation**. The Aiken validators for the CIP-113 core framework live in a separate repository:
 
@@ -33,10 +33,10 @@ This repository contains everything you need to exercise programmable tokens end
 
 A Next.js web application for interacting with CIP-113 programmable tokens.
 
-- Wallet connection (Nami, Eternl, Lace, Flint) via Mesh SDK
+- Wallet connection (Nami, Eternl, Lace, Flint) through the CIP-113 TypeScript SDK
 - Multi-network support (Preview, Preprod, Mainnet)
 - Protocol deployment, token minting, transfers, blacklist management, and admin controls
-- Tech stack: Next.js 15, TypeScript, Mesh SDK, Tailwind CSS, Blockfrost
+- Tech stack: Next.js 15, TypeScript, CIP-113 TypeScript SDK, Tailwind CSS, Blockfrost
 
 📖 [Frontend README](./src/programmable-tokens-frontend/README.md)
 
@@ -51,14 +51,18 @@ A Spring Boot application providing transaction building and blockchain integrat
 
 📖 [Off-chain README](./src/programmable-tokens-offchain-java/README.md)
 
-### 3. Substandards — `src/substandards/`
+### 3. Modules — `src/modules/`
 
-Substandards are the pluggable rule sets that define how specific programmable tokens behave on top of the CIP-113 core framework. Each substandard is its own Aiken project.
+Modules are the pluggable rule sets that define how specific programmable tokens behave on top of the CIP-113 core framework. Each module is its own Aiken project.
 
-- **[`dummy/`](./src/substandards/dummy/)** — Minimal permissioned-transfer substandard requiring a specific credential; useful as a template and for integration tests.
-- **[`freeze-and-seize/`](./src/substandards/freeze-and-seize/)** — Denylist-aware transfer logic, seizure/freeze operations, and on-chain denylist management for regulated stablecoins.
+- **[`dummy/`](./src/modules/dummy/)** — Minimal permissioned-transfer module requiring a specific credential; useful as a template and for integration tests.
+- **[`freeze-and-seize/`](./src/modules/freeze-and-seize/)** — Denylist-aware transfer logic, seizure/freeze operations, and on-chain denylist management for regulated stablecoins.
+- **[`kyc/`](./src/modules/kyc/)** — Sender KYC proofs backed by an updatable trusted-entity list.
+- **[`kyc-extended/`](./src/modules/kyc-extended/)** — KYC checks for both senders and receivers.
 
-See each substandard's README for build and test instructions. For guidance on developing a new substandard, see the [on-chain repository's developer guide](https://github.com/cardano-foundation/cip113-programmable-tokens-2/blob/main/documentation/09-DEVELOPING-SUBSTANDARDS.md).
+The backend also ships the compiled **rwa-token** module from its upstream repository; see [contract provenance](./docs/CONTRACTS.md).
+
+The Aiken projects have their own build instructions in [`dummy`](./src/modules/dummy/README.md) and [`freeze-and-seize`](./src/modules/freeze-and-seize/README.md). The [basic KYC](./docs/modules/kyc/README.md) and [extended KYC](./docs/modules/kyc-extended/README.md) walkthroughs describe the other two. [Contract provenance](./docs/CONTRACTS.md) explains how the platform pins and serves their blueprints.
 
 ---
 
@@ -78,7 +82,7 @@ Programmable tokens are **native Cardano assets** with an additional layer of va
 - Regulated financial instruments
 - Any token requiring programmable transfer rules
 
-For a deeper walkthrough of the on-chain design, see the [on-chain repository's README](https://github.com/cardano-foundation/cip113-programmable-tokens-2#readme) and [architecture doc](https://github.com/cardano-foundation/cip113-programmable-tokens-2/blob/main/documentation/02-ARCHITECTURE.md).
+For a deeper walkthrough of the on-chain design, see the [on-chain repository's README](https://github.com/cardano-foundation/cip113-programmable-tokens#readme) and [architecture doc](https://github.com/cardano-foundation/cip113-programmable-tokens/blob/main/documentation/02-ARCHITECTURE.md).
 
 ---
 
@@ -86,10 +90,10 @@ For a deeper walkthrough of the on-chain design, see the [on-chain repository's 
 
 **Current Status:** Research & Development
 
-- ✅ Core on-chain validators implemented and tested (see the [on-chain repo](https://github.com/cardano-foundation/cip113-programmable-tokens-2))
+- ✅ Core on-chain validators implemented and tested (see the [on-chain repo](https://github.com/cardano-foundation/cip113-programmable-tokens))
 - ✅ Reference frontend with wallet integration and core flows
 - ✅ Java off-chain service with transaction builders and Blockfrost/Yaci integration
-- ✅ Dummy and Freeze-and-Seize substandards implemented
+- ✅ Dummy, Freeze-and-Seize, KYC, and KYC-Extended modules implemented; the RWA-token blueprint is shipped from upstream
 - ✅ Limited testing on Preview testnet
 - ⏳ Comprehensive real-world testing required
 - ⏳ **Professional security audit pending**
@@ -108,9 +112,9 @@ For a deeper walkthrough of the on-chain design, see the [on-chain repository's 
 
 ### Prerequisites
 
-- **Frontend:** Node.js 18+ (20+ recommended), npm or yarn, Blockfrost API key
-- **Backend:** Java 17+, Gradle
-- **Substandards:** [Aiken](https://aiken-lang.org/installation-instructions) v1.1.13+
+- **Frontend:** Node.js 20+, npm, Blockfrost API key
+- **Backend:** Java 21, Gradle
+- **Modules:** [Aiken](https://aiken-lang.org/installation-instructions) v1.1.21 (the version used by module CI)
 - **Local devnet (optional):** Docker and [Yaci DevKit](https://github.com/bloxbean/yaci-devkit), exposing yaci-store on port 8080
 
 ### Frontend
@@ -118,7 +122,7 @@ For a deeper walkthrough of the on-chain design, see the [on-chain repository's 
 ```bash
 cd src/programmable-tokens-frontend
 npm install
-cp .env.preview.example .env.preview   # add your Blockfrost key
+cp .env.preview.example .env.local   # add your Blockfrost key and backend URL
 npm run dev
 ```
 
@@ -134,14 +138,14 @@ cd src/programmable-tokens-offchain-java
 
 See the [backend README](./src/programmable-tokens-offchain-java/README.md) for PostgreSQL setup and configuration.
 
-### Substandards
+### Modules
 
-Each substandard is an independent Aiken project:
+Each module is an independent Aiken project:
 
 ```bash
-cd src/substandards/freeze-and-seize   # or src/substandards/dummy
+cd src/modules/freeze-and-seize   # or src/modules/dummy
 aiken build
-aiken check
+aiken check -D
 ```
 
 For detailed setup, testing, and deployment instructions, see the respective README files in each subdirectory.
@@ -249,10 +253,12 @@ The same two deployment commands work against preview or preprod: drop the
 ├── src/
 │   ├── programmable-tokens-frontend/       # Next.js reference frontend
 │   ├── programmable-tokens-offchain-java/  # Spring Boot backend
-│   └── substandards/
-│       ├── dummy/                          # Minimal permissioned-transfer substandard
-│       └── freeze-and-seize/               # Denylist / freeze / seize substandard
-├── .github/workflows/                      # CI for frontend, backend, and substandards
+│   └── modules/
+│       ├── dummy/                          # Minimal permissioned-transfer module
+│       ├── freeze-and-seize/               # Denylist / freeze / seize module
+│       ├── kyc/                            # Sender KYC module
+│       └── kyc-extended/                   # Sender and receiver KYC module
+├── .github/workflows/                      # CI for frontend, backend, and modules
 ├── CODE-OF-CONDUCT.md
 ├── CONTRIBUTING.md
 ├── LICENSE
@@ -270,7 +276,7 @@ The same two deployment commands work against preview or preprod: drop the
 
 ## Related Repositories
 
-- **On-chain (Aiken):** [cardano-foundation/cip113-programmable-tokens-2](https://github.com/cardano-foundation/cip113-programmable-tokens-2) — Core CIP-113 validators, registry, and framework
+- **On-chain (Aiken):** [cardano-foundation/cip113-programmable-tokens](https://github.com/cardano-foundation/cip113-programmable-tokens) — Core CIP-113 validators, registry, and framework
 
 ---
 

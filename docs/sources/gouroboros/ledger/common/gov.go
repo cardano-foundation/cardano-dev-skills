@@ -15,11 +15,14 @@
 package common
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
+	"sort"
 
 	"github.com/blinklabs-io/gouroboros/cbor"
 	"github.com/blinklabs-io/plutigo/data"
@@ -483,6 +486,12 @@ func (vp VotingProcedure) ToPlutusData() data.PlutusData {
 	return Vote(vp.Vote).ToPlutusData()
 }
 
+// ErrGovAnchorURLTooLong identifies a governance anchor URL that exceeds the
+// protocol's 128-byte bound.
+var ErrGovAnchorURLTooLong = errors.New(
+	"governance anchor URL exceeds the protocol length limit",
+)
+
 type GovAnchor struct {
 	cbor.StructAsArray
 	Url      string
@@ -509,6 +518,13 @@ func (a *GovAnchor) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (a GovAnchor) MarshalCBOR() ([]byte, error) {
+	if err := validateGovAnchorURL(a.Url); err != nil {
+		return nil, err
+	}
+	return cbor.Encode([]any{a.Url, a.DataHash[:]})
+}
+
 func (a *GovAnchor) ToPlutusData() data.PlutusData {
 	return data.NewConstr(0,
 		data.NewByteString([]byte(a.Url)),
@@ -518,6 +534,9 @@ func (a *GovAnchor) ToPlutusData() data.PlutusData {
 
 // NewGovAnchor builds a GovAnchor from a URL and a 32-byte data hash.
 func NewGovAnchor(url string, dataHash []byte) (GovAnchor, error) {
+	if err := validateGovAnchorURL(url); err != nil {
+		return GovAnchor{}, err
+	}
 	if len(dataHash) != 32 {
 		return GovAnchor{}, fmt.Errorf(
 			"invalid gov anchor data hash length: expected 32 bytes, got %d",
@@ -529,6 +548,30 @@ func NewGovAnchor(url string, dataHash []byte) (GovAnchor, error) {
 		DataHash: [32]byte(dataHash),
 	}, nil
 }
+
+func validateGovAnchorURL(url string) error {
+	if len(url) <= urlMaxLength {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: maximum %d bytes, got %d",
+		ErrGovAnchorURLTooLong,
+		urlMaxLength,
+		len(url),
+	)
+}
+
+// MaxGovActionIdx is the largest governance action index the wire format
+// admits. The Conway and Dijkstra CDDL both type the field as
+// `gov_action_index : uint .size 2`, and cardano-ledger holds it in
+// `newtype GovActionIx = GovActionIx Word16`, whose derived decoder fails
+// above this value.
+//
+// GovActionIdx stays a uint32 to match TransactionInput.Index(), which this
+// repository types the same way for the equally 2-byte `index : uint .size
+// 2`. The bound is therefore enforced at decode rather than by the field's
+// type.
+const MaxGovActionIdx = math.MaxUint16
 
 type GovActionId struct {
 	cbor.StructAsArray
@@ -549,17 +592,28 @@ func (id *GovActionId) ToPlutusData() data.PlutusData {
 	)
 }
 
-// String returns a CIP-0129 bech32-encoded representation of the governance action ID.
-// The format is: gov_action prefix with tx_id (32 bytes) + action_index (1 byte).
-// Per CIP-0129, the action index must fit in a single byte (0-255).
+// MaxCip0129GovActionIdx is the largest governance action index CIP-0129's
+// bech32 form can carry: its payload is a 32-byte transaction ID followed by
+// a single index byte.
+//
+// The Conway CDDL types the wire field as `uint .size 2`, so a decoded
+// GovActionId may legitimately exceed this. Rejecting such an index at decode
+// would refuse data the ledger accepts, so the excess is handled at
+// rendering instead.
+const MaxCip0129GovActionIdx = 255
+
+// String returns a CIP-0129 bech32-encoded representation of the governance
+// action ID: the gov_action prefix over tx_id (32 bytes) + action_index
+// (1 byte).
+//
+// An index above MaxCip0129GovActionIdx has no CIP-0129 representation, and
+// String has no way to report that, so it renders "<tx_id>#<index>" instead.
+// That form is not valid bech32 and will not round-trip through
+// UnmarshalText. Callers that need the difference reported must use
+// MarshalText, which returns an error for the same values.
 func (id *GovActionId) String() string {
-	if id.GovActionIdx > 255 {
-		panic(
-			fmt.Sprintf(
-				"gov action index %d exceeds maximum value 255 allowed by CIP-0129",
-				id.GovActionIdx,
-			),
-		)
+	if id.GovActionIdx > MaxCip0129GovActionIdx {
+		return fmt.Sprintf("%x#%d", id.TransactionId, id.GovActionIdx)
 	}
 
 	// Build payload: 32-byte transaction ID followed by 1-byte action index
@@ -590,10 +644,11 @@ func (id *GovActionId) MarshalText() ([]byte, error) {
 	if id == nil {
 		return nil, errors.New("nil GovActionId")
 	}
-	if id.GovActionIdx > 255 {
+	if id.GovActionIdx > MaxCip0129GovActionIdx {
 		return nil, fmt.Errorf(
-			"gov action index %d exceeds maximum value 255 allowed by CIP-0129",
+			"gov action index %d exceeds maximum value %d allowed by CIP-0129",
 			id.GovActionIdx,
+			MaxCip0129GovActionIdx,
 		)
 	}
 	return []byte(id.String()), nil
@@ -629,6 +684,13 @@ func NewGovActionId(txId []byte, idx uint32) (GovActionId, error) {
 		return GovActionId{}, fmt.Errorf(
 			"invalid gov action id transaction id length: expected 32 bytes, got %d",
 			len(txId),
+		)
+	}
+	if idx > MaxGovActionIdx {
+		return GovActionId{}, fmt.Errorf(
+			"invalid gov action index: %d exceeds the maximum of %d",
+			idx,
+			MaxGovActionIdx,
 		)
 	}
 	return GovActionId{
@@ -757,7 +819,8 @@ func (a *TreasuryWithdrawalGovAction) UnmarshalCBOR(cborData []byte) error {
 
 func (a *TreasuryWithdrawalGovAction) ToPlutusData() data.PlutusData {
 	pairs := make([][2]data.PlutusData, 0, len(a.Withdrawals))
-	for addr, amount := range a.Withdrawals {
+	for _, addr := range SortRewardAccountAddresses(a.Withdrawals) {
+		amount := a.Withdrawals[addr]
 		pairs = append(pairs, [2]data.PlutusData{
 			addr.ToPlutusData(),
 			data.NewInteger(new(big.Int).SetUint64(amount)),
@@ -851,7 +914,7 @@ type UpdateCommitteeGovAction struct {
 	Type        uint
 	ActionId    *GovActionId
 	Credentials []Credential
-	CredEpochs  map[*Credential]uint
+	CredEpochs  map[*Credential]uint64
 	Quorum      cbor.Rat
 }
 
@@ -861,18 +924,53 @@ func (a *UpdateCommitteeGovAction) UnmarshalCBOR(cborData []byte) error {
 	if _, err := cbor.Decode(cborData, &tmp); err != nil {
 		return err
 	}
-	for credential := range tmp.CredEpochs {
+	decoded := UpdateCommitteeGovAction(tmp)
+	if err := decoded.Validate(); err != nil {
+		return err
+	}
+	*a = decoded
+	return nil
+}
+
+// Validate checks the value domains and logical set identities carried by an
+// UpdateCommittee action. It is called while decoding and by ledger validation
+// for actions built directly by callers.
+func (a *UpdateCommitteeGovAction) Validate() error {
+	if a == nil {
+		return errors.New("update committee action cannot be nil")
+	}
+	for credential := range a.CredEpochs {
 		if credential == nil {
 			return errors.New("update committee contains a nil credential")
 		}
 	}
 	if err := validateCredentialMapKeys(
-		tmp.CredEpochs,
+		a.CredEpochs,
 		"update committee credential epochs",
 	); err != nil {
 		return err
 	}
-	*a = UpdateCommitteeGovAction(tmp)
+	seen := make(map[string]struct{}, len(a.Credentials))
+	for _, credential := range a.Credentials {
+		key, err := credentialLogicalKey(&credential)
+		if err != nil {
+			return err
+		}
+		if _, exists := seen[key]; exists {
+			return fmt.Errorf(
+				"update committee contains duplicate removal credential %x",
+				credential.Credential,
+			)
+		}
+		seen[key] = struct{}{}
+	}
+	quorum := a.Quorum.ToBigRat()
+	if quorum == nil {
+		return errors.New("update committee quorum is required")
+	}
+	if quorum.Sign() < 0 || quorum.Cmp(big.NewRat(1, 1)) > 0 {
+		return fmt.Errorf("update committee quorum %s is outside [0,1]", quorum)
+	}
 	return nil
 }
 
@@ -881,16 +979,37 @@ func (a *UpdateCommitteeGovAction) ToPlutusData() data.PlutusData {
 	if a.ActionId != nil {
 		actionId = data.NewConstr(0, a.ActionId.ToPlutusData())
 	}
-	removedItems := make([]data.PlutusData, 0, len(a.Credentials))
-	for _, cred := range a.Credentials {
+	removedCredentials := append([]Credential(nil), a.Credentials...)
+	sort.Slice(removedCredentials, func(i, j int) bool {
+		return committeeCredentialLess(removedCredentials[i], removedCredentials[j])
+	})
+	removedItems := make([]data.PlutusData, 0, len(removedCredentials))
+	for _, cred := range removedCredentials {
 		removedItems = append(removedItems, cred.ToPlutusData())
 	}
 
-	addedPairs := make([][2]data.PlutusData, 0, len(a.CredEpochs))
+	type credentialEpoch struct {
+		credential Credential
+		epoch      uint64
+	}
+	addedCredentials := make([]credentialEpoch, 0, len(a.CredEpochs))
 	for cred, epoch := range a.CredEpochs {
+		addedCredentials = append(addedCredentials, credentialEpoch{
+			credential: *cred,
+			epoch:      epoch,
+		})
+	}
+	sort.Slice(addedCredentials, func(i, j int) bool {
+		return committeeCredentialLess(
+			addedCredentials[i].credential,
+			addedCredentials[j].credential,
+		)
+	})
+	addedPairs := make([][2]data.PlutusData, 0, len(addedCredentials))
+	for _, entry := range addedCredentials {
 		addedPairs = append(addedPairs, [2]data.PlutusData{
-			cred.ToPlutusData(),
-			data.NewInteger(new(big.Int).SetUint64(uint64(epoch))),
+			entry.credential.ToPlutusData(),
+			data.NewInteger(new(big.Int).SetUint64(entry.epoch)),
 		})
 	}
 
@@ -916,6 +1035,13 @@ func (a *UpdateCommitteeGovAction) ToPlutusData() data.PlutusData {
 	)
 }
 
+func committeeCredentialLess(a, b Credential) bool {
+	if a.CredType != b.CredType {
+		return a.CredType == CredentialTypeScriptHash
+	}
+	return bytes.Compare(a.Credential[:], b.Credential[:]) < 0
+}
+
 func (a UpdateCommitteeGovAction) isGovAction() {}
 
 // NewUpdateCommitteeGovAction builds an update committee governance action.
@@ -925,7 +1051,7 @@ func (a UpdateCommitteeGovAction) isGovAction() {}
 func NewUpdateCommitteeGovAction(
 	actionId *GovActionId,
 	credentials []Credential,
-	credEpochs map[*Credential]uint,
+	credEpochs map[*Credential]uint64,
 	quorum cbor.Rat,
 ) (*UpdateCommitteeGovAction, error) {
 	// A zero-value cbor.Rat has a nil inner *big.Rat and panics when CBOR
@@ -941,13 +1067,17 @@ func NewUpdateCommitteeGovAction(
 			)
 		}
 	}
-	return &UpdateCommitteeGovAction{
+	action := &UpdateCommitteeGovAction{
 		Type:        uint(GovActionTypeUpdateCommittee),
 		ActionId:    actionId,
 		Credentials: credentials,
 		CredEpochs:  credEpochs,
 		Quorum:      quorum,
-	}, nil
+	}
+	if err := action.Validate(); err != nil {
+		return nil, err
+	}
+	return action, nil
 }
 
 type NewConstitutionGovAction struct {

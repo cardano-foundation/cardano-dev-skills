@@ -48,6 +48,27 @@ type StakeCredentialDepositState interface {
 	StakeCredentialDeposit(Credential) (*uint64, error)
 }
 
+// StakeCredentialDepositOrDefault returns the recorded deposit when the
+// ledger state can report it, and fallback otherwise.
+func StakeCredentialDepositOrDefault(
+	ls LedgerState,
+	cred Credential,
+	fallback uint64,
+) (uint64, error) {
+	depositState, ok := UnwrapLedgerState(ls).(StakeCredentialDepositState)
+	if !ok {
+		return fallback, nil
+	}
+	deposit, err := depositState.StakeCredentialDeposit(cred)
+	if err != nil {
+		return 0, err
+	}
+	if deposit == nil {
+		return fallback, nil
+	}
+	return *deposit, nil
+}
+
 // EpochState is the optional ledger-state capability that maps a slot to the
 // epoch containing it. The Shelley POOL rule's retirement bound
 // (StakePoolRetirementWrongEpochPOOL) is expressed relative to the current
@@ -68,6 +89,13 @@ type StakeCredentialDepositState interface {
 type EpochState interface {
 	// EpochForSlot returns the epoch number containing the given slot.
 	EpochForSlot(slot uint64) (uint64, error)
+}
+
+// ClassicProtocolParameterUpdateWindowState supplies the Shelley-family PPUP
+// voting boundary for a slot. SlotOfNoReturn is the first slot at which
+// proposals target the following epoch rather than the current one.
+type ClassicProtocolParameterUpdateWindowState interface {
+	ProtocolParameterUpdateWindow(slot uint64) (currentEpoch, slotOfNoReturn uint64, err error)
 }
 
 // PoolState defines the interface for querying the current pool state
@@ -155,6 +183,32 @@ type TipState interface {
 	Tip() (pcommon.Tip, error)
 }
 
+// DijkstraLeiosCertificateContext is the ledger state needed to verify a
+// Dijkstra block's Leios certificate. Committee seats are ordered by their
+// signer-bitfield index. A nil key represents a keyless seat.
+type DijkstraLeiosCertificateContext struct {
+	AnnouncingBlockHash Blake2b256
+	TotalActiveStake    uint64
+	Committee           []DijkstraLeiosCommitteeMember
+}
+
+// DijkstraLeiosCommitteeMember is one ordered Leios committee seat.
+type DijkstraLeiosCommitteeMember struct {
+	Stake uint64
+	Key   *LeiosKey
+}
+
+// DijkstraLeiosCertificateState is an optional capability required when a
+// Dijkstra block carries a Leios certificate. Implementations resolve the
+// announcing ranking block, epoch stake snapshot, and ordered committee for
+// the supplied header. Returned keys must be from the snapshot's registered
+// pool parameters; verification checks each key's proof of possession.
+type DijkstraLeiosCertificateState interface {
+	DijkstraLeiosCertificateContext(
+		header BlockHeader,
+	) (DijkstraLeiosCertificateContext, error)
+}
+
 // SlotState defines the interface for querying slots
 type SlotState interface {
 	SlotToTime(uint64) (time.Time, error)
@@ -199,14 +253,71 @@ type CommitteeCredentialState interface {
 	CommitteeHotCredentialMember(Credential) (*CommitteeMember, error)
 }
 
+// CommitteeVotingState is the optional exact-identity capability used to
+// validate elected committee voters. It distinguishes enacted committee
+// credentials from members that appear only in pending UpdateCommittee
+// proposals, and preserves the credential tags on both hot and cold keys.
+type CommitteeVotingState interface {
+	// CommitteeHotCredentialColdCredentials returns only cold credentials
+	// currently authorized by this exact tagged key or script hot credential
+	// in the validation snapshot. Implementations must preserve the credential
+	// tag; the same hash under a key and script credential is a different hot
+	// credential. This lookup does not filter cold credentials by enacted
+	// membership or expiry. Callers combine it with CommitteeCredentialIsElected
+	// to apply the reference view. Pending committee proposals do not make a
+	// credential elected.
+	CommitteeHotCredentialColdCredentials(Credential) ([]Credential, error)
+	// CommitteeCredentialIsElected reports whether this cold credential is a
+	// member of the enacted committee at the validation snapshot. Expired
+	// enacted members still count; members present only in pending
+	// UpdateCommittee proposals do not. A snapshot without an enacted committee
+	// has no elected members. Resigned members have no active hot authorization
+	// and therefore must not be returned by CommitteeHotCredentialColdCredentials.
+	CommitteeCredentialIsElected(Credential) (bool, error)
+}
+
+// CommitteeHotCredentialMembers is an optional capability that resolves
+// every committee authorization -- seated or not, elected or not -- for an
+// exact hot credential. Reference: cardano-ledger-core's
+// authorizedHotCommitteeCredentials folds every csCommitteeCreds entry into
+// a Set of hot credentials, because (per that function's own doc comment)
+// "there is no unique mapping from Hot to Cold credential"; GOVCERT's
+// per-cold-credential certificate handlers do not prevent two cold
+// credentials from authorizing the same hot credential at once. A
+// known-voter check must therefore accept a hot credential whenever *any*
+// entry currently authorizes it, which the single-valued
+// CommitteeHotCredentialMember cannot express once more than one cold
+// credential shares a hot credential: it returns one witness, and callers
+// have no way to ask for another when that witness turns out unusable.
+//
+// The hot credential is matched with its key/script tag intact.
+// Implementations must omit a resigned cold credential's entry, and must
+// not otherwise filter by seated, elected, or expiry status -- an
+// authorized-but-unseated cold credential (for example, one named only in a
+// pending UpdateCommittee proposal) is still a known voter at every
+// protocol version; CommitteeVotingState applies the elected-only view
+// separately, from protocol version 11.
+//
+// This capability is optional and additive. It is separate from
+// CommitteeVotingState so that adopting the protocol-version-11 elected-voter
+// capability does not by itself change which committee votes the known-voter
+// rule accepts at earlier protocol versions. A provider that implements
+// only CommitteeCredentialState continues to resolve a shared hot credential
+// to one witness, which the known-voter rule cannot replace when this
+// transaction's own certificates moved that witness away from the hot
+// credential.
+type CommitteeHotCredentialMembers interface {
+	CommitteeHotCredentialMembers(Credential) ([]*CommitteeMember, error)
+}
+
 // DRepRegistration is the ledger state held for a registered DRep.
 type DRepRegistration struct {
-	// Credential is the DRep's credential hash. The reference ledger keys
-	// DRep state by Credential (Cardano.Ledger.Conway.Governance vsDReps),
-	// so the same 28 bytes under a key-hash and a script-hash credential
-	// are two distinct DReps and this hash alone does not identify one.
-	// Widening it is a breaking change for implementors and is deferred.
-	Credential Blake2b224
+	// Credential identifies the DRep by its full credential, credential
+	// type included. The reference ledger keys DRep state by Credential
+	// (Cardano.Ledger.Conway.Governance vsDReps), so the same 28 hash
+	// bytes under a key-hash and a script-hash credential are two
+	// distinct DReps; a hash alone does not identify one.
+	Credential Credential
 	Anchor     *GovAnchor
 	// Deposit is the deposit recorded against this DRep's registration.
 	// It is a pointer for the same reason StakeCredentialDeposit returns
@@ -231,9 +342,16 @@ type DRepDelegationState interface {
 // from a quorum of the currently delegated genesis keys. Ledger states used to
 // validate those eras must implement this interface.
 type GenesisDelegationState interface {
-	// GenesisDelegateKeyHashes returns the key hash of every currently
-	// delegated genesis key.
-	GenesisDelegateKeyHashes() ([]Blake2b224, error)
+	// GenesisDelegateKeyHashes returns the currently delegated signing-key
+	// hashes at slot.
+	GenesisDelegateKeyHashes(slot uint64) ([]Blake2b224, error)
+	// GenesisDelegateForGenesisKey returns the currently delegated signing key
+	// for a genesis key at slot, or false if the key is not in the delegation
+	// map.
+	GenesisDelegateForGenesisKey(
+		genesisKeyHash Blake2b224,
+		slot uint64,
+	) (Blake2b224, bool, error)
 	// GenesisUpdateQuorum returns the number of distinct genesis delegate
 	// signatures required to authorize an MIR certificate.
 	GenesisUpdateQuorum() (uint, error)
@@ -292,17 +410,12 @@ type GovState interface {
 
 	// DRep queries
 	// DRepRegistration returns the registration held for the given DRep
-	// credential hash, or nil when that hash is not a registered DRep.
-	//
-	// The reference ledger keys DRep state by Credential
-	// (Cardano.Ledger.Conway.Governance vsDReps), so a key-hash and a
-	// script-hash DRep sharing the same 28 bytes are distinct DReps. This
-	// lookup takes a bare hash and therefore cannot distinguish them, and
-	// the records DRepRegistrations returns carry the same bare hash.
-	// Widening both to a full Credential is a breaking change for every
-	// implementor and is deferred; until then a same-hash key/script pair
-	// resolves to whichever registration the state holds.
-	DRepRegistration(credential Blake2b224) (*DRepRegistration, error)
+	// credential, or nil when that credential is not a registered DRep.
+	// The credential carries its type: a key-hash and a script-hash DRep
+	// sharing the same hash are distinct registrations.
+	// Callers migrating from the hash-only API must provide the matching
+	// CredentialType in Credential.CredType.
+	DRepRegistration(credential Credential) (*DRepRegistration, error)
 	DRepRegistrations() ([]DRepRegistration, error)
 
 	// Constitution

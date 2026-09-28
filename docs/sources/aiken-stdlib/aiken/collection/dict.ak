@@ -14,6 +14,7 @@
 
 use aiken/builtin
 use aiken/collection/dict/strategy.{InsertStrategy, UnionStrategy}
+use aiken/collection/list
 use aiken/collection/pairs
 
 /// An opaque `Dict`. The type is opaque because the module maintains some
@@ -139,6 +140,16 @@ fn do_from_pairs(xs: Pairs<ByteArray, value>) -> Pairs<ByteArray, value> {
     [] -> []
     [Pair(k, v), ..rest] ->
       do_insert_with(do_from_pairs(rest), k, v, strategy.keep_right())
+  }
+}
+
+/// Construct a dictionary from a builtin `Value`.
+pub fn from_value(value: Value) -> Dict<ByteArray, Dict<ByteArray, Int>> {
+  expect inner: Pairs<ByteArray, Pairs<ByteArray, Int>> = builtin.value_data(
+    value,
+  )
+  Dict {
+    inner: list.map(inner, fn(Pair(k, inner)) { Pair(k, Dict { inner }) }),
   }
 }
 
@@ -379,10 +390,7 @@ fn do_has_key(self: Pairs<ByteArray, value>, key k: ByteArray) -> Bool {
 /// dict.is_empty(dict.empty) == True
 /// ```
 pub fn is_empty(self: Dict<key, value>) -> Bool {
-  when self.inner is {
-    [] -> True
-    _ -> False
-  }
+  self.inner == []
 }
 
 /// Extract all the keys present in a given `Dict`.

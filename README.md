@@ -77,9 +77,11 @@ itself, which can fall back to an SSH URL and fail with
 `git@github.com: Permission denied (publickey)` even though this repository is
 public and clones fine over HTTPS.
 
-### Claude Cowork (desktop, web, mobile)
+### Claude app (web, desktop, mobile)
 
-Cowork uses the same plugin format, so this marketplace works there unchanged.
+The Claude app's Chat side uses the same plugin format as Claude Code, so this
+marketplace works there unchanged. Installing here also syncs the plugin to Claude
+Code sessions signed in with the same account.
 
 1. Open **Customize** and go to the **Plugins** tab.
 2. Under **Personal plugins**, click **+**, then **Add marketplace**.
@@ -87,9 +89,9 @@ Cowork uses the same plugin format, so this marketplace works there unchanged.
    `https://github.com/cardano-foundation/cardano-dev-skills`
 4. Install **cardano-dev-skills** from the marketplace once it syncs.
 
-The skills are the same ones listed above. Note that Cowork syncs the whole
-repository, and `docs/sources/` is roughly 30 MB of bundled documentation — the
-first sync is not instant.
+The skills are the same ones listed above. Note that the Claude app syncs the
+whole repository, and `docs/sources/` is roughly 30 MB of bundled documentation —
+the first sync is not instant.
 
 ### Codex
 

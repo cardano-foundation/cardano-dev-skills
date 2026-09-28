@@ -745,20 +745,6 @@ paths:
   /network/eras:
     $ref: ./paths/api/network/eras.yaml
 
-  # nutlink
-
-  /nutlink/{address}:
-    $ref: ./paths/api/nutlink/{address}/index.yaml
-
-  /nutlink/{address}/tickers:
-    $ref: ./paths/api/nutlink/{address}/tickers/index.yaml
-
-  /nutlink/{address}/tickers/{ticker}:
-    $ref: ./paths/api/nutlink/{address}/tickers/{ticker}/index.yaml
-
-  /nutlink/tickers/{ticker}:
-    $ref: ./paths/api/nutlink/tickers/{ticker}/index.yaml
-
 components:
   schemas:
     onchain_metadata_cip25:

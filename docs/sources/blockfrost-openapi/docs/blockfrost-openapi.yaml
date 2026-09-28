@@ -1316,7 +1316,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Bech32 or hexadecimal DRep ID.
+          description: Bech32 DRep ID (legacy or CIP-129).
           example: drep15cfxz9exyn5rx0807zvxfrvslrjqfchrd4d47kv9e0f46uedqtc
       responses:
         '200':
@@ -1347,7 +1347,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Bech32 or hexadecimal drep ID.
+          description: Bech32 DRep ID (legacy or CIP-129).
           example: drep1mvdu8slennngja7w4un6knwezufra70887zuxpprd64jxfveahn
         - in: query
           name: count
@@ -1410,7 +1410,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Bech32 or hexadecimal DRep ID.
+          description: Bech32 DRep ID (legacy or CIP-129).
           example: drep15cfxz9exyn5rx0807zvxfrvslrjqfchrd4d47kv9e0f46uedqtc
       responses:
         '200':
@@ -1441,7 +1441,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Bech32 or hexadecimal DRep ID.
+          description: Bech32 DRep ID (legacy or CIP-129).
           example: drep15cfxz9exyn5rx0807zvxfrvslrjqfchrd4d47kv9e0f46uedqtc
         - in: query
           name: count
@@ -1504,7 +1504,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Bech32 or hexadecimal drep ID.
+          description: Bech32 DRep ID (legacy or CIP-129).
           example: drep1mvdu8slennngja7w4un6knwezufra70887zuxpprd64jxfveahn
         - in: query
           name: count
@@ -7059,236 +7059,6 @@ paths:
           $ref: '#/components/responses/418'
         '425':
           $ref: '#/components/responses/425'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-  '/nutlink/{address}':
-    get:
-      tags:
-        - Nut.link
-      summary: Specific nut.link address
-      description: List metadata about specific address
-      parameters:
-        - in: path
-          required: true
-          name: address
-          schema:
-            type: string
-            description: Address of a metadata oracle
-      responses:
-        '200':
-          description: Return the metadata about metadata oracle
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/nutlink_address'
-        '400':
-          $ref: '#/components/responses/400'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '418':
-          $ref: '#/components/responses/418'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-  '/nutlink/{address}/tickers':
-    get:
-      tags:
-        - Nut.link
-      summary: List of tickers of an oracle
-      description: List of records of a specific oracle
-      parameters:
-        - in: path
-          required: true
-          name: address
-          schema:
-            type: string
-            description: Address of a metadata oracle
-        - in: query
-          name: count
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 100
-          description: The number of results displayed on one page.
-        - in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 21474836
-            default: 1
-          description: The page number for listing the results.
-        - in: query
-          name: order
-          required: false
-          schema:
-            type: string
-            enum:
-              - asc
-              - desc
-            default: asc
-          description: >
-            The ordering of items from the point of view of the blockchain,
-
-            not the page listing itself. By default, we return oldest first,
-            newest last.
-      responses:
-        '200':
-          description: Return the tickers provided by the metadata oracle
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/nutlink_address_tickers'
-        '400':
-          $ref: '#/components/responses/400'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '418':
-          $ref: '#/components/responses/418'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-  '/nutlink/{address}/tickers/{ticker}':
-    get:
-      tags:
-        - Nut.link
-      summary: Specific ticker for an address
-      description: List of records of a specific ticker
-      parameters:
-        - in: path
-          required: true
-          name: address
-          schema:
-            type: string
-            description: Address of a metadata oracle
-        - in: path
-          required: true
-          name: ticker
-          schema:
-            type: string
-            description: Ticker for the pool record
-        - in: query
-          name: count
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 100
-          description: The number of results displayed on one page.
-        - in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 21474836
-            default: 1
-          description: The page number for listing the results.
-        - in: query
-          name: order
-          required: false
-          schema:
-            type: string
-            enum:
-              - asc
-              - desc
-            default: asc
-          description: >
-            The ordering of items from the point of view of the blockchain,
-
-            not the page listing itself. By default, we return oldest first,
-            newest last.
-      responses:
-        '200':
-          description: Return the tickers provided by the metadata oracle
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/nutlink_address_ticker'
-        '400':
-          $ref: '#/components/responses/400'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '418':
-          $ref: '#/components/responses/418'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-  '/nutlink/tickers/{ticker}':
-    get:
-      tags:
-        - Nut.link
-      summary: Specific ticker
-      description: List of records of a specific ticker
-      parameters:
-        - in: path
-          required: true
-          name: ticker
-          schema:
-            type: string
-            description: Ticker for the pool record
-        - in: query
-          name: count
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 100
-          description: The number of results displayed on one page.
-        - in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 21474836
-            default: 1
-          description: The page number for listing the results.
-        - in: query
-          name: order
-          required: false
-          schema:
-            type: string
-            enum:
-              - asc
-              - desc
-            default: asc
-          description: >
-            The ordering of items from the point of view of the blockchain,
-
-            not the page listing itself. By default, we return oldest first,
-            newest last.
-      responses:
-        '200':
-          description: Return the tickers provided by the metadata oracle
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/nutlink_tickers_ticker'
-        '400':
-          $ref: '#/components/responses/400'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '418':
-          $ref: '#/components/responses/418'
         '429':
           $ref: '#/components/responses/429'
         '500':
@@ -12946,144 +12716,6 @@ components:
             epoch_length: 432000
             slot_length: 1
             safe_zone: 129600
-    nutlink_address:
-      type: object
-      properties:
-        address:
-          type: string
-          description: Bech32 encoded address
-          example: >-
-            addr1qxqs59lphg8g6qndelq8xwqn60ag3aeyfcp33c2kdp46a09re5df3pzwwmyq946axfcejy5n4x0y99wqpgtp2gd0k09qsgy6pz
-        metadata_url:
-          type: string
-          description: URL of the specific metadata file
-          example: 'https://nut.link/metadata.json'
-        metadata_hash:
-          type: string
-          description: Hash of the metadata file
-          example: 6bf124f217d0e5a0a8adb1dbd8540e1334280d49ab861127868339f43b3948af
-        metadata:
-          type: object
-          nullable: true
-          description: The cached metadata of the `metadata_url` file.
-          additionalProperties: true
-      required:
-        - address
-        - metadata_url
-        - metadata_hash
-        - metadata
-    nutlink_address_tickers:
-      type: array
-      items:
-        type: object
-        properties:
-          name:
-            type: string
-            description: Name of the ticker
-          count:
-            type: integer
-            description: Number of ticker records
-          latest_block:
-            type: integer
-            description: Block height of the latest record
-        required:
-          - name
-          - count
-          - latest_block
-      example:
-        - name: ADAUSD
-          count: 1980038
-          latest_block: 2657092
-        - name: ADAEUR
-          count: 1980038
-          latest_block: 2657092
-        - name: ADABTC
-          count: 1980038
-          latest_block: 2657092
-    nutlink_address_ticker:
-      type: array
-      items:
-        type: object
-        properties:
-          tx_hash:
-            type: string
-            description: Hash of the transaction
-          block_height:
-            type: integer
-            description: Block height of the record
-          tx_index:
-            type: integer
-            description: Transaction index within the block
-          payload:
-            anyOf:
-              - type: string
-              - type: object
-              - type: array
-                items: {}
-              - type: integer
-              - type: number
-              - type: boolean
-            additionalProperties: true
-            description: Content of the ticker
-        required:
-          - tx_hash
-          - tx_index
-          - block_height
-          - payload
-      example:
-        - tx_hash: e8073fd5318ff43eca18a852527166aa8008bee9ee9e891f585612b7e4ba700b
-          block_height: 2657092
-          tx_index: 8
-          payload:
-            - source: coinGecko
-              value: '1.29'
-            - source: cryptoCompare
-              value: '1.283'
-    nutlink_tickers_ticker:
-      type: array
-      items:
-        type: object
-        properties:
-          address:
-            type: string
-            description: Address of a metadata oracle
-          tx_hash:
-            type: string
-            description: Hash of the transaction
-          block_height:
-            type: integer
-            description: Block height of the record
-          tx_index:
-            type: integer
-            description: Transaction index within the block
-          payload:
-            anyOf:
-              - type: string
-              - type: object
-              - type: array
-                items: {}
-              - type: integer
-              - type: number
-              - type: boolean
-            additionalProperties: true
-            description: Content of the ticker
-        required:
-          - address
-          - tx_hash
-          - block_height
-          - tx_index
-          - payload
-      example:
-        - address: >-
-            addr_test1qpmtp5t0t5y6cqkaz7rfsyrx7mld77kpvksgkwm0p7en7qum7a589n30e80tclzrrnj8qr4qvzj6al0vpgtnmrkkksnqd8upj0
-          tx_hash: e8073fd5318ff43eca18a852527166aa8008bee9ee9e891f585612b7e4ba700b
-          block_height: 2657092
-          tx_index: 8
-          payload:
-            - source: coinGecko
-              value: '1.29'
-            - source: cryptoCompare
-              value: '1.283'
     asset_onchain_metadata_cip25:
       type: object
       additionalProperties: true

@@ -16,13 +16,16 @@ package dingo
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/blinklabs-io/dingo/chainselection"
 	"github.com/blinklabs-io/dingo/chainsync"
 	"github.com/blinklabs-io/dingo/ledger"
+	"github.com/blinklabs-io/dingo/ledger/leios"
 	ouroboros "github.com/blinklabs-io/gouroboros"
 	"github.com/blinklabs-io/gouroboros/cbor"
+	lcommon "github.com/blinklabs-io/gouroboros/ledger/common"
 	ochainsync "github.com/blinklabs-io/gouroboros/protocol/chainsync"
 	ocommon "github.com/blinklabs-io/gouroboros/protocol/common"
 )
@@ -59,6 +62,7 @@ func (n *Node) chainsyncSyncTarget(
 // n.chainSelector are all replaced by a live rebuild -- a method value
 // would pin the rebuilt ledger to the outgoing instance.
 func (n *Node) ledgerStateConfig() ledger.LedgerStateConfig {
+	healthGeneration := n.health.currentGeneration()
 	return ledger.LedgerStateConfig{
 		ChainManager:       n.chainManager,
 		Database:           n.db,
@@ -123,6 +127,28 @@ func (n *Node) ledgerStateConfig() ledger.LedgerStateConfig {
 		// dingo's forward path applies the current announcement normally
 		// (CIP-conformant).
 		LeiosApplyEndorserBlockTxs: !n.config.isMusashiNetwork(),
+		ValidateLeiosCertificate: func(
+			epoch uint64,
+			announcingBlockHash []byte,
+			signers []byte,
+			aggregatedSignature []byte,
+		) error {
+			if n.config.prototypeTrustBypassesEnabled() {
+				return nil
+			}
+			if n.leiosVoteManager == nil {
+				return errors.New("leios vote manager is unavailable")
+			}
+			message := leios.PrototypeVoteMessageBytes(
+				lcommon.Blake2b256(announcingBlockHash),
+			)
+			return n.leiosVoteManager.ValidateDijkstraCertificate(
+				epoch,
+				signers,
+				aggregatedSignature,
+				message,
+			)
+		},
 		// The leadership stake includes reward-account balances; see
 		// LedgerStateConfig.SkipLeaderStakeThresholdCheck. The check
 		// rejected the dominant pool's eligible blocks on Musashi's
@@ -154,7 +180,7 @@ func (n *Node) ledgerStateConfig() ledger.LedgerStateConfig {
 			connId ouroboros.ConnectionId,
 			start ocommon.Point,
 			end ocommon.Point,
-		) error {
+		) (uint64, error) {
 			return n.ouroboros().
 				BlockfetchClientRequestRange(connId, start, end)
 		},
@@ -286,6 +312,14 @@ func (n *Node) ledgerStateConfig() ledger.LedgerStateConfig {
 				return false, 0
 			}
 			return n.chainSelector.GenesisSelectionState()
+		},
+		// Feeds the node's readiness probe (internal/health) the same
+		// wall-clock-to-tip gap the dingo_tip_gap_slots gauge carries, so
+		// /readyz needs neither the Prometheus listener nor a live
+		// n.ledgerState pointer. A closure over n, not a method value on
+		// n.ledgerState, so a live rebuild keeps reporting.
+		ReportTipGapFunc: func(gapSlots uint64) {
+			n.health.recordTipGap(healthGeneration, gapSlots)
 		},
 		FatalErrorFunc: func(err error) {
 			n.config.logger.Error(

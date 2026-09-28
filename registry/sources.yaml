@@ -577,17 +577,13 @@
   # README matched nothing.
   #
   # `documentation/0*.md` covers the numbered guide series and keeps covering it
-  # as upstream adds to it. It deliberately does NOT cover
-  # `documentation/cip113-substandard-upgrade-guide.md`, whose "How to use this
-  # document" section is written in the imperative to an AI agent performing the
-  # upgrade. The content is benign, but bundled docs are read as data and never
-  # as instructions (DESIGN Decision 13), and scan-docs-delta.py blocks on it.
-  # Including it is a maintainer call — see the PR that introduced this comment.
+  # as upstream adds to it or renames within it. Any unnumbered document added
+  # to documentation/ stays out until a maintainer reviews it: upstream has
+  # shipped one written in the imperative to an AI agent, and bundled docs are
+  # read as data, never as instructions (DESIGN Decision 13).
   glob_patterns:
     - README.md
-    - CONTRACT_SURFACE_CHANGES.md
     - "documentation/0*.md"
-    - documentation/cip113-api-changes-post-audit.md
   description: Reference implementation for programmable token standard
 
 - name: CIP-113 Programmable Tokens Platform
@@ -600,11 +596,10 @@
   priority: medium
   glob_patterns:
     - README.md
-    - "docs/substandards/**/*.md"
-    - "src/substandards/**/README.md"
-    - "src/substandards/**/validators/*.ak"
-    - "src/substandards/**/lib/**/*.ak"
-    - src/programmable-tokens-offchain-java/KYC-SUBSTANDARD.md
+    - "docs/modules/**/*.md"
+    - "src/modules/**/README.md"
+    - "src/modules/**/validators/*.ak"
+    - "src/modules/**/lib/**/*.ak"
   description: Off-chain reference platform for CIP-113 — substandard Aiken validators (KYC, KYC-extended, freeze-and-seize, dummy) and markdown explainers for the KERI / CIP-170 attestation flow. Status R&D.
 
 # --- Off-chain SDKs & Frameworks ---

@@ -7,7 +7,7 @@ The text lives in the registered `Cardano Constitution` source, one directory pe
 version:
 
 ```
-${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-constitution/cardano-constitution-2/cardano-constitution-2.txt.md
+../../docs/sources/cardano-constitution/cardano-constitution-2/cardano-constitution-2.txt.md
 ```
 
 Version and currency: see `constitution-meta.md`. Upstream version directories are immutable

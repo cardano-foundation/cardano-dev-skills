@@ -2,7 +2,7 @@
 
 The constitutional text this skill reasons over is mirrored from Intersect's repository of
 record ([IntersectMBO/cardano-constitution](https://github.com/IntersectMBO/cardano-constitution))
-into `docs/sources/cardano-constitution/`, one directory per enacted version. This skill
+into `../../docs/sources/cardano-constitution/`, one directory per enacted version. This skill
 targets the version below. Every assessment must state these values so a reader can tell
 exactly which text the reasoning rests on.
 
@@ -43,7 +43,7 @@ Interpreting the result:
 - **`enacted_epoch` is 609** — the mirrored version is current. Proceed normally.
 - **`enacted_epoch` is greater than 609** — a newer Constitution is in force. This version is
   stale. Say so plainly, stop, and do not issue findings from superseded text. Check whether
-  `docs/sources/cardano-constitution/` already holds a newer version directory; retargeting
+  `../../docs/sources/cardano-constitution/` already holds a newer version directory; retargeting
   this skill at it is a repo maintenance task, not something to work around mid-assessment.
 - **Check not run, or the command failed** — proceed, but stamp the report
   `Constitution currency: unverified` alongside the version table. Never silently assume

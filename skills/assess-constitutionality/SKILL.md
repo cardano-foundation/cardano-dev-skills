@@ -11,8 +11,8 @@ allowed-tools: Read Grep Glob
 disallowed-tools: Bash Edit Write WebFetch WebSearch
 ---
 
-<!-- Constitutional text: ${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-constitution/ (see references/constitution-index.md) -->
-<!-- Koios API spec: ${CLAUDE_SKILL_DIR}/../../docs/sources/koios/specs/results/koiosapi-mainnet.yaml -->
+<!-- Constitutional text: ../../docs/sources/cardano-constitution/ (see references/constitution-index.md) -->
+<!-- Koios API spec: ../../docs/sources/koios/specs/results/koiosapi-mainnet.yaml -->
 
 # Assess Constitutionality of a Governance Action
 

@@ -5,7 +5,7 @@ assessment reasons over what comes back. Present a command only when its answer 
 change a finding, and say which provision it settles.
 
 Endpoint shapes below are taken from the bundled Koios spec at
-`${CLAUDE_SKILL_DIR}/../../docs/sources/koios/specs/results/koiosapi-mainnet.yaml`. Read that
+`../../docs/sources/koios/specs/results/koiosapi-mainnet.yaml`. Read that
 spec for response fields, filters, and auth. Koios accepts PostgREST-style query filters on
 GET endpoints. Any provider works; Koios is used here because its docs are bundled.
 

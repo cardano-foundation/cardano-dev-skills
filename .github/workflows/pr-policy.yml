@@ -73,7 +73,10 @@ jobs:
           if [ -z "$BASE_REF" ]; then
             BASE_REF=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json baseRefName --jq .baseRefName)
           fi
-          echo "BASE_REF=origin/$BASE_REF" >> "$GITHUB_ENV"
+          # Compare from where the PR branched, not the base tip, so a branch
+          # that has fallen behind doesn't show main's newer commits as reverted.
+          MERGE_BASE=$(git merge-base "origin/$BASE_REF" refs/remotes/pr/head) || MERGE_BASE="origin/$BASE_REF"
+          echo "BASE_REF=$MERGE_BASE" >> "$GITHUB_ENV"
 
       - uses: actions/setup-python@v5
         with:
@@ -154,7 +157,10 @@ jobs:
           if [ -z "$BASE_REF" ]; then
             BASE_REF=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json baseRefName --jq .baseRefName)
           fi
-          echo "BASE_REF=origin/$BASE_REF" >> "$GITHUB_ENV"
+          # Compare from where the PR branched, not the base tip, so a branch
+          # that has fallen behind doesn't show main's newer commits as reverted.
+          MERGE_BASE=$(git merge-base "origin/$BASE_REF" refs/remotes/pr/head) || MERGE_BASE="origin/$BASE_REF"
+          echo "BASE_REF=$MERGE_BASE" >> "$GITHUB_ENV"
 
       - uses: actions/setup-python@v5
         if: steps.key.outputs.present == 'true'
@@ -292,7 +298,10 @@ jobs:
           if [ -z "$BASE_REF" ]; then
             BASE_REF=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json baseRefName --jq .baseRefName)
           fi
-          echo "BASE_REF=origin/$BASE_REF" >> "$GITHUB_ENV"
+          # Compare from where the PR branched, not the base tip, so a branch
+          # that has fallen behind doesn't show main's newer commits as reverted.
+          MERGE_BASE=$(git merge-base "origin/$BASE_REF" refs/remotes/pr/head) || MERGE_BASE="origin/$BASE_REF"
+          echo "BASE_REF=$MERGE_BASE" >> "$GITHUB_ENV"
 
       - uses: actions/setup-python@v5
         if: steps.key.outputs.present == 'true'

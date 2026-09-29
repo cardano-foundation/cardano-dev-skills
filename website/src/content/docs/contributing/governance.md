@@ -22,8 +22,8 @@ terminology. If it appears in any doc, update it.
 
 ## Source-vetting bar
 
-New sources must be actively maintained — recent commits, a release or activity
-signal, no archival banner, and (for forks) the maintained canonical. The repo also
+New sources must be actively maintained — recent commits, no archival banner,
+and (for forks) the maintained canonical. The repo also
 excludes branded dApps: it teaches building on Cardano, not how specific deployed
 products work. The full, authoritative bar and scope policy live in
 [`docs/CONTRIBUTING.md`](https://github.com/cardano-foundation/cardano-dev-skills/blob/main/docs/CONTRIBUTING.md).

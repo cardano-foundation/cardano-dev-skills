@@ -122,12 +122,13 @@ Mithril aggregator node
 Usage: mithril-aggregator [OPTIONS] <COMMAND>
 
 Commands:
-  genesis   Genesis tools
-  era       Era tools
-  serve     Server runtime mode
-  tools     List of tools to upkeep the aggregator
-  database  Database tools
-  help      Print this message or the help of the given subcommand(s)
+  genesis                 Genesis tools
+  era                     Era tools
+  serve                   Server runtime mode
+  tools                   List of tools to upkeep the aggregator
+  database                Database tools
+  protocol-configuration  Protocol configuration command
+  help                    Print this message or the help of the given subcommand(s)
 
 Options:
   -r, --run-mode <RUN_MODE>
@@ -357,6 +358,60 @@ You should see something like:
 ./mithril-aggregator era generate-tx-datum --current-era-epoch **EPOCH_AT_WHICH_CURRENT_ERA_STARTS** --next-era-epoch **EPOCH_AT_WHICH_NEXT_ERA_STARTS** --era-markers-secret-key **YOUR_ERA_ACTIVATION_SECRET_KEY** --target-path **TARGET_PATH**
 ```
 
+## Building for release and running the binary 'protocol-configuration' command
+
+Build in release mode using the default configuration:
+
+```bash
+make build
+```
+
+Display the help menu:
+
+```bash
+./mithril-aggregator protocol-configuration --help
+```
+
+You should see:
+
+```bash
+Protocol configuration command
+
+Usage: mithril-aggregator protocol-configuration <COMMAND>
+
+Commands:
+  export-markers  Protocol configuration export command
+  import-markers  Protocol configuration import command
+  help            Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+```
+
+The 'protocol-configuration' sub-commands read the protocol configuration markers stored on the Cardano chain: they require a running Cardano node and the Cardano network, chain observer and protocol configuration reader adapter configuration parameters, except for the 'export-markers' sub-command with the `--default` option.
+
+Run the 'protocol-configuration export-markers' command to export the protocol configuration markers to a human readable JSON file.
+The markers are read from the Cardano chain with the 'cardano-chain' protocol configuration reader adapter, and the default protocol configuration is exported if no markers are found on chain:
+
+```bash
+./mithril-aggregator protocol-configuration export-markers --target-path **TARGET_PATH**
+```
+
+Add the `--default` option to export the default protocol configuration without reading the Cardano chain:
+
+```bash
+./mithril-aggregator protocol-configuration export-markers --default --target-path **TARGET_PATH**
+```
+
+Run the 'protocol-configuration import-markers' command to create the transaction datum file that will be stored on the Cardano chain, providing protocol configuration markers to the 'cardano-chain' protocol configuration reader adapter.
+The imported configurations are verified for consistency and against the configuration already stored on chain:
+
+```bash
+./mithril-aggregator protocol-configuration import-markers --import-path **IMPORT_PATH** --protocol-configuration-markers-secret-key **YOUR_PROTOCOL_CONFIGURATION_MARKERS_SECRET_KEY** --target-path **TARGET_PATH**
+```
+
+Add the `--force` option to skip the verification against the configuration stored on chain (use at your own risk).
+
 ## Building for release and running the binary 'tools' command
 
 Build in release mode using the default configuration:
@@ -455,21 +510,23 @@ If you wish to delve deeper and access several levels of logs from the Mithril a
 
 Here are the available subcommands:
 
-| Subcommand                            | Performed action                                                                                                                          |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| **serve**                             | The aggregator runs its HTTP server in nominal mode and orchestrates multi-signature production                                           |
-| **help**                              | Prints this message or the help of the given subcommand(s)                                                                                |
-| **genesis export**                    | Exports genesis payload to sign with genesis secret key                                                                                   |
-| **genesis sign**                      | Signs the genesis payload with the genesis secret key                                                                                     |
-| **genesis import**                    | Imports the genesis signature (the payload signed with the genesis secret key) and creates and imports a genesis certificate in the store |
-| **genesis bootstrap**                 | Bootstraps a genesis certificate (test only usage)                                                                                        |
-| **genesis generate-keypair**          | Generates a genesis keypair                                                                                                               |
-| **era list**                          | Lists the supported eras                                                                                                                  |
-| **era generate-tx-datum**             | Generates the era markers transaction datum to be stored on-chain                                                                         |
-| **era generate-keypair**              | Generates an era keypair                                                                                                                  |
-| **database migrate**                  | Migrate databases located in the given stores directory                                                                                   |
-| **database vacuum**                   | Vacuum the aggregator main database                                                                                                       |
-| **tools recompute-certificates-hash** | Loads all certificates in the database, recomputing their hash, and updating all related entities                                         |
+| Subcommand                                | Performed action                                                                                                                          |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **serve**                                 | The aggregator runs its HTTP server in nominal mode and orchestrates multi-signature production                                           |
+| **help**                                  | Prints this message or the help of the given subcommand(s)                                                                                |
+| **genesis export**                        | Exports genesis payload to sign with genesis secret key                                                                                   |
+| **genesis sign**                          | Signs the genesis payload with the genesis secret key                                                                                     |
+| **genesis import**                        | Imports the genesis signature (the payload signed with the genesis secret key) and creates and imports a genesis certificate in the store |
+| **genesis bootstrap**                     | Bootstraps a genesis certificate (test only usage)                                                                                        |
+| **genesis generate-keypair**              | Generates a genesis keypair                                                                                                               |
+| **era list**                              | Lists the supported eras                                                                                                                  |
+| **era generate-tx-datum**                 | Generates the era markers transaction datum to be stored on-chain                                                                         |
+| **era generate-keypair**                  | Generates an era keypair                                                                                                                  |
+| **protocol-configuration export-markers** | Exports the protocol configuration markers to a human readable JSON file                                                                  |
+| **protocol-configuration import-markers** | Generates the protocol configuration markers transaction datum to be stored on-chain                                                      |
+| **database migrate**                      | Migrate databases located in the given stores directory                                                                                   |
+| **database vacuum**                       | Vacuum the aggregator main database                                                                                                       |
+| **tools recompute-certificates-hash**     | Loads all certificates in the database, recomputing their hash, and updating all related entities                                         |
 
 ## Configuration parameters
 
@@ -609,6 +666,32 @@ Here is a list of the available parameters for the serve command:
 | Parameter     | Command line (long) | Command line (short) | Environment variable | Description                           | Default value | Example |     Mandatory      |
 | ------------- | ------------------- | :------------------: | -------------------- | ------------------------------------- | ------------- | ------- | :----------------: |
 | `target_path` | `--target-path`     |          -           | -                    | Target path for the generated keypair | -             | -       | :heavy_check_mark: |
+
+`protocol-configuration export-markers` command:
+
+| Parameter                                      | Command line (long) | Command line (short) | Environment variable                           | Description                                                                   | Default value | Example                                                                                                                                                |     Mandatory      |
+| ---------------------------------------------- | ------------------- | :------------------: | ---------------------------------------------- | ----------------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | :----------------: |
+| `target_path`                                  | `--target-path`     |          -           | -                                              | Target path                                                                   | -             | -                                                                                                                                                      | :heavy_check_mark: |
+| `default`                                      | `--default`         |          -           | -                                              | Use default protocol configurations instead of retrieving them from the chain | `false`       | -                                                                                                                                                      |         -          |
+| `cardano_node_socket_path`                     | -                   |          -           | `CARDANO_NODE_SOCKET_PATH`                     | Path of the socket opened by the Cardano node                                 | -             | `/ipc/node.socket`                                                                                                                                     | :heavy_check_mark: |
+| `network_magic`                                | -                   |          -           | `NETWORK_MAGIC`                                | Cardano Network Magic number<br/><br/>useful for TestNet & DevNet             | -             | `1097911063` or `42`                                                                                                                                   |         -          |
+| `network`                                      | -                   |          -           | `NETWORK`                                      | Cardano network                                                               | -             | `mainnet` or `preprod` or `devnet`                                                                                                                     | :heavy_check_mark: |
+| `chain_observer_type`                          | -                   |          -           | `CHAIN_OBSERVER_TYPE`                          | Cardano chain observer type                                                   | -             | -                                                                                                                                                      | :heavy_check_mark: |
+| `protocol_configuration_reader_adapter_config` | -                   |          -           | `PROTOCOL_CONFIGURATION_READER_ADAPTER_CONFIG` | Protocol configuration reader adapter configuration                           | -             | - cardano-chain:<br/>`{ "type": "cardano-chain", "address": "test_address",  "verification_key": "136372c3138312c3138382c3130352c3233312c3135" }`<br/> | :heavy_check_mark: |
+
+`protocol-configuration import-markers` command:
+
+| Parameter                                      | Command line (long)                           | Command line (short) | Environment variable                           | Description                                                                                                 | Default value | Example                                                                                                                                                |     Mandatory      |
+| ---------------------------------------------- | --------------------------------------------- | :------------------: | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | :----------------: |
+| `import_path`                                  | `--import-path`                               |          -           | -                                              | Import path of the human readable configurations                                                            | -             | -                                                                                                                                                      | :heavy_check_mark: |
+| `target_path`                                  | `--target-path`                               |          -           | -                                              | target path of the tx datum file                                                                            | -             | -                                                                                                                                                      | :heavy_check_mark: |
+| `protocol_configuration_markers_secret_key`    | `--protocol-configuration-markers-secret-key` |          -           | `PROTOCOL_CONFIGURATION_READER_SECRET_KEY`     | Protocol Configuration Markers Secret Key                                                                   | -             | -                                                                                                                                                      | :heavy_check_mark: |
+| `force`                                        | `--force`                                     |          -           | -                                              | Force datum file generation without verifying protocol configuration markers against on chain configuration | `false`       | -                                                                                                                                                      |         -          |
+| `cardano_node_socket_path`                     | -                                             |          -           | `CARDANO_NODE_SOCKET_PATH`                     | Path of the socket opened by the Cardano node                                                               | -             | `/ipc/node.socket`                                                                                                                                     | :heavy_check_mark: |
+| `network_magic`                                | -                                             |          -           | `NETWORK_MAGIC`                                | Cardano Network Magic number<br/><br/>useful for TestNet & DevNet                                           | -             | `1097911063` or `42`                                                                                                                                   |         -          |
+| `network`                                      | -                                             |          -           | `NETWORK`                                      | Cardano network                                                                                             | -             | `mainnet` or `preprod` or `devnet`                                                                                                                     | :heavy_check_mark: |
+| `chain_observer_type`                          | -                                             |          -           | `CHAIN_OBSERVER_TYPE`                          | Cardano chain observer type                                                                                 | -             | -                                                                                                                                                      | :heavy_check_mark: |
+| `protocol_configuration_reader_adapter_config` | -                                             |          -           | `PROTOCOL_CONFIGURATION_READER_ADAPTER_CONFIG` | Protocol configuration reader adapter configuration                                                         | -             | - cardano-chain:<br/>`{ "type": "cardano-chain", "address": "test_address",  "verification_key": "136372c3138312c3138382c3130352c3233312c3135" }`<br/> | :heavy_check_mark: |
 
 `database migrate` command:
 

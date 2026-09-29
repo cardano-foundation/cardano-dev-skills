@@ -81,13 +81,13 @@ Classify the error into one of these categories:
 
 | Category | Common Errors | Likely Cause |
 |----------|---------------|--------------|
-| Value errors | `ValueNotConservedUTxO`, `OutputTooSmallUTxO` | Math error in inputs/outputs, min-UTxO not met |
+| Value errors | `ValueNotConservedUTxO`, `BabbageOutputTooSmallUTxO` | Math error in inputs/outputs, min-UTxO not met |
 | Input errors | `BadInputsUTxO` | UTxO already spent or does not exist |
 | Fee errors | `FeeTooSmallUTxO` | Fee calculation incorrect or overridden |
 | Collateral errors | `InsufficientCollateral`, `CollateralContainsNonADA` | Missing or wrong collateral for Plutus tx |
-| Script errors | `ScriptFailure`, `ExUnitsTooBigUTxO` | Plutus script fails or exceeds budget |
-| Datum errors | `NonOutputSupplimentaryDatums` | Datum provided but not referenced |
-| Signer errors | `MissingRequiredSigners` | Required signature not included |
+| Script errors | `ValidationTagMismatch` (with `PlutusFailure`), `ExUnitsTooBigUTxO` | Plutus script fails or exceeds budget |
+| Datum errors | `NotAllowedSupplementalDatums` | Datum provided but not referenced |
+| Signer errors | `MissingVKeyWitnessesUTXOW` | Required signature not included |
 | Validity errors | `OutsideValidityIntervalUTxO` | Transaction time range does not match current slot |
 
 Search `../../docs/sources/` or see `references/common-errors.md` for
@@ -126,7 +126,7 @@ For each error category, follow these diagnostic steps:
 #### Collateral Errors
 
 1. Verify a collateral input is included in the transaction
-2. Ensure the collateral UTxO contains only ADA (no native tokens)
+2. Ensure the collateral holds only ADA, or that the collateral return output sends back every token it holds
 3. Check collateral amount is at least 150% of the transaction fee
 4. Verify the collateral UTxO has not been consumed
 
@@ -136,7 +136,8 @@ For each error category, follow these diagnostic steps:
 2. Verify the datum (if spending) matches the expected structure
 3. Look at script logs/traces for the specific assertion that failed
 4. Check execution budget -- scripts have CPU and memory limits
-5. Test the script in an emulator or with `evaluate_tx` before submitting
+5. Reproduce the failure locally and test the fix there before submitting
+   (see Stepping Through a Script Failure below)
 
 #### Datum Errors
 
@@ -206,6 +207,50 @@ Most SDKs support evaluating a transaction without submitting:
 - **PyCardano:** `context.evaluate_tx(tx)`
 - **cardano-cli:** `cardano-cli latest transaction calculate-plutus-script-cost` (there is no `transaction evaluate` subcommand; `transaction build` also evaluates implicitly)
 
+### Stepping Through a Script Failure
+
+When a dry run says a script failed but not why, re-run the evaluation locally,
+where you can read traces and swap in a patched validator. These tools evaluate
+the compiled UPLC, so they work whatever language produced the script.
+
+- **Build with traces.** `aiken build` defaults to `--trace-level silent`, which
+  strips every trace. Rebuild with `--trace-level verbose` (or `compact` for
+  line numbers only) while debugging.
+- **`aiken tx simulate tx.hex inputs.hex outputs.hex`** evaluates every redeemer
+  in a transaction and prints per-redeemer budgets and traces. You can run it
+  yourself. The inputs file is a CBOR array of every input the transaction
+  references (spent, reference and collateral), and the outputs file holds their
+  resolved outputs in the same order.
+  - A traced build hashes differently from the deployed script. Pass
+    `--blueprint plutus.json --script-override FROM:TO` to map the hash in the
+    transaction to a script in your blueprint. This also lets you test a fix
+    against the exact transaction that failed without rebuilding it.
+  - Slot-to-time defaults are mainnet's. On testnets pass `--zero-time
+    1666656000000 --zero-slot 0` (preview) or `--zero-time 1655769600000
+    --zero-slot 86400` (preprod). Otherwise validity-range checks run against
+    the wrong POSIX time.
+- **`aiken uplc eval program.uplc <args>`** evaluates one program with arguments
+  and prints the result and budget. Use it to isolate a single function.
+- **Gastronomy** (SundaeSwap's UPLC debugger,
+  https://github.com/SundaeSwap-finance/gastronomy) records the machine state at
+  every evaluation step. It lets you step forward and backward through the run,
+  showing the current term, the bound variables and the budget spent. Suggest it
+  when traces don't locate the failure: an error inside a library, someone
+  else's contract, or a deployed script built without traces. It loads a tx hash
+  or `.tx` file and supports the same `--script-override`. Know its limits
+  before recommending it:
+  - The user drives it. It has only an interactive terminal UI and a desktop
+    app, with no output an agent can read.
+  - It resolves inputs through Blockfrost on preview, preprod or mainnet, so it
+    cannot replay a local devnet transaction.
+  - Its evaluator is a SundaeSwap fork of Aiken pinned in July 2025, and Aiken
+    source maps need that fork too. Trust the ledger or `aiken tx simulate` for
+    pass/fail and budget, and use Gastronomy to find where execution stopped.
+
+See `../../docs/sources/aiken/language-tour/troubleshooting.mdx`
+and `../../docs/sources/aiken/uplc/cli.mdx` for trace syntax
+and UPLC command usage.
+
 ### Block Explorers
 
 - Preview: https://preview.cardanoscan.io
@@ -218,7 +263,7 @@ Look up transaction hashes, UTxOs, and script addresses.
 
 For inspecting raw transaction bytes:
 - https://cbor.me
-- `cardano-cli transaction view --tx-file tx.signed`
+- `cardano-cli debug transaction view --tx-file tx.signed`
 
 ### Script Budget Analysis
 

@@ -48,9 +48,9 @@ Take a developer from "I want to build a Cardano dApp" to a working project skel
 5. **CIP-57 `plutus.json` is the contract between on-chain and off-chain.** Aiken emits this natively at build time. The off-chain code loads it and never re-derives script hashes manually.
 6. **Default to a testnet, always.** Devnet (Yaci DevKit) or a public testnet (preview, preprod) is the right starting point for every new project. Scaffolded code is for learning and testing. Never deploy "hello world" validators to mainnet — bugs in untested validators can lock user funds permanently. Switch to mainnet only after thorough testing and, for anything non-trivial, an audit.
 7. **Devnet from day one.** Wire Yaci DevKit into the scaffold from the start. Local feedback loops shorten iteration time and catch integration mistakes early.
-8. **Pin versions; never commit secrets.** Every manifest pins exact toolchain versions. Every project has `.env.example` (committed) and `.env` (ignored). Provider API keys live in env vars.
-9. **Reproducible builds.** A fresh clone plus the documented install command should produce identical artifacts. No carets (`^`), no tildes (`~`), no `latest` — exact versions only. Commit lockfiles.
-10. **Two-tier pinning policy.** *Aiken-side deps* (compiler, stdlib, vodka, design-patterns) are slow-moving and safe to pin in this skill's templates — the layout files list current pinned values. *Off-chain deps* (Evolution/Mesh/PyCardano/cclib SDKs, Next.js, tooling) move fast and ship frequent fixes — for each, run `npm view <pkg> version` (or `pip index versions <pkg>` / equivalent) at scaffold time and embed the exact returned value. The skill's layout files show current-at-time-of-writing values as defaults, but the agent must re-check.
+8. **Pin what breaks; never commit secrets.** Every manifest follows the pin rule below. Every project has `.env.example` (committed) and `.env` (ignored). Provider API keys live in env vars.
+9. **Reproducible builds.** Pin exactly the packages whose updates break builds: Cardano SDKs (Mesh, Evolution, PyCardano, cardano-client-lib), anything pre-1.0, and build-critical frameworks such as Next.js. Other dependencies take a `^` range on the current version. The project commits its lockfile, so a fresh clone installs the same tree. Never `latest`, never a placeholder.
+10. **Two-tier pinning policy.** *Aiken-side deps* (compiler, stdlib, vodka, design-patterns) are slow-moving and safe to pin in this skill's templates — the layout files list current pinned values. *Off-chain deps* (Evolution/Mesh/PyCardano/cclib SDKs, Next.js, tooling) move fast and ship frequent fixes — for each, run `npm view <pkg> version` (or `pip index versions <pkg>` / equivalent) at scaffold time, and write the returned value exactly or behind a `^` as principle 9 decides. The skill's layout files show current-at-time-of-writing values as defaults, but the agent must re-check.
 11. **Default to monorepo for full-stack; single-repo for solo or library work.** The monorepo splits `onchain/` and `offchain/` (and optionally `frontend/`) into sibling directories with a shared `plutus.json` reference path.
 12. **A scaffold isn't done until it builds.** The final step of scaffolding is verifying `aiken check && aiken build` produces `plutus.json` and `npm install && npm run typecheck && npm run build` (or the language equivalent) completes with zero errors. If the developer says "just scaffold it" without verification, still run the build commands and report the result — silent broken scaffolds waste hours downstream.
 
@@ -85,6 +85,8 @@ Map the team's primary language and constraints to one of four stacks. Use this 
 | 3 | Aiken | PyCardano | Python backend, data team, scripting-heavy |
 | 4 | Aiken | cardano-client-lib | Java/Kotlin team, JVM ecosystem |
 
+For a wallet-connected dApp with no custom validator yet, the developer portal's starters are a ready alternative to this scaffold: `evolution-vite-react` (stack 1, Vite + React) and `mesh-nextjs` (stack 2, Next.js), each keeping the Blockfrost key on the server. Their READMEs are under `../../docs/sources/developer-portal-templates/`.
+
 Search the bundled docs for SDK details:
 
 - `../../docs/sources/aiken/` — Aiken language docs
@@ -93,6 +95,7 @@ Search the bundled docs for SDK details:
 - `../../docs/sources/mesh-sdk/` — Mesh SDK docs
 - `../../docs/sources/pycardano/` — PyCardano docs
 - `../../docs/sources/cardano-client-lib/` — cardano-client-lib docs
+- `../../docs/sources/developer-portal-templates/` — READMEs of the portal's runnable starters
 
 ### Step 3: Pick a network
 
@@ -170,7 +173,7 @@ Each emitted file preserves inline annotations (`#` or `//` comments) explaining
 Versions follow the two-tier pinning policy (Key principle 10):
 
 - **Aiken-side (`aiken.toml`):** paste the pinned values from the layout file directly. They are current and update with each skill revision. `aiken new` writes most of these for you.
-- **Off-chain (`package.json`, `pyproject.toml`, `pom.xml`):** before writing the manifest, run `npm view <pkg> version` (or `pip index versions <pkg>`, or look up Maven Central for cclib) for each direct dep, and embed the exact returned value. The layout file shows defaults that are current-at-time-of-writing; refresh them. Do not write `^X.Y.Z` or version placeholders.
+- **Off-chain (`package.json`, `pyproject.toml`, `pom.xml`):** before writing the manifest, run `npm view <pkg> version` (or `pip index versions <pkg>`, or look up Maven Central for cclib) for each direct dep, and write it exactly for SDKs, pre-1.0 packages and Next.js, or as a `^` range for the rest (Key principle 9). The layout file shows defaults that are current-at-time-of-writing; refresh them. Do not write version placeholders.
 
 ### Step 8: Wire up the local devnet
 
@@ -178,7 +181,7 @@ Yaci DevKit is the default local network. Do not duplicate setup details here; p
 
 What this skill provides in the scaffold:
 
-- `.env.example` includes a `CARDANO_NETWORK` toggle (defaults to a testnet) and a `YACI_STORE_URL=http://localhost:10000` entry
+- `.env.example` includes a `CARDANO_NETWORK` toggle (defaults to a testnet) and a `YACI_STORE_URL=http://localhost:8080` entry
 - The off-chain SDK initialisation snippet reads these env vars and selects the provider accordingly
 - A `scripts/dev-up.sh` (or equivalent) that launches Yaci DevKit; the script body is one line and points to the `setup-devnet` skill for the full command
 - The off-chain code defaults to a testnet on startup; never to mainnet

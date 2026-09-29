@@ -5,6 +5,63 @@ This document lists all available spans in Amaru, auto-generated from the code.
 For information on how to use and filter these spans, see [monitoring/README.md](../monitoring/README.md).
 
 
+## target: `amaru::blockperf::block`
+
+| name | level | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- |
+| `adopted` | `TRACE` | public | The block was adopted locally. \`peer\` is the first peer that delivered the body, when a delivery was recorded. \`slot_latency_ms\` is milliseconds since the onset of this block's slot. | header_hash | peer, slot_latency_ms |
+| `received` | `TRACE` | public | A distinct peer delivered this block body. \`rank\` is 1 for the first delivery, then 2, 3, … in arrival order. \`slot_latency_ms\` is milliseconds since the onset of this block's slot. \`fetch_latency_ms\` is milliseconds since the request was sent to this peer. | peer, header_hash, rank | slot_latency_ms, fetch_latency_ms |
+| `requested` | `TRACE` | public | Peers asked to fetch this block body. \`peers\` is a comma-separated list of socket addresses, sorted. \`slot_latency_ms\` is milliseconds since the onset of this block's slot. | header_hash, peers | slot_latency_ms |
+
+<details><summary>span: `adopted`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `header_hash` | `string` | ✓ |
+| `peer` | `string` |  |
+| `slot_latency_ms` | `integer` |  |
+
+</details>
+
+<details><summary>span: `received`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `header_hash` | `string` | ✓ |
+| `rank` | `integer` | ✓ |
+| `slot_latency_ms` | `integer` |  |
+| `fetch_latency_ms` | `integer` |  |
+
+</details>
+
+<details><summary>span: `requested`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `header_hash` | `string` | ✓ |
+| `peers` | `string` | ✓ |
+| `slot_latency_ms` | `integer` |  |
+
+</details>
+
+## target: `amaru::blockperf::header`
+
+| name | level | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- |
+| `announced` | `TRACE` | public | One of the first three distinct peers to announce this header while it is still being collected. A header that is already stored does not start a new line, and a header that has been adopted is not announced again. \`rank\` is 1, 2, or 3 in arrival order. Later peers are not logged. \`slot_latency_ms\` is milliseconds since the onset of this block's slot. | peer, header_hash, rank | slot_latency_ms |
+
+<details><summary>span: `announced`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `header_hash` | `string` | ✓ |
+| `rank` | `integer` | ✓ |
+| `slot_latency_ms` | `integer` |  |
+
+</details>
+
 ## target: `amaru::bootstrap`
 
 | name | level | public | description | required fields | optional fields |
@@ -242,50 +299,43 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
-| `cancel` | `TRACE` | public | Cancel a long-running bootstrap phase | phase, current, elapsed_seconds | total |
-| `complete` | `TRACE` | public | Complete a long-running bootstrap phase | phase, current, elapsed_seconds | total |
-| `start` | `TRACE` | public | Start a long-running bootstrap phase | phase | total |
-| `update` | `TRACE` | public | Report non-terminal progress for a long-running bootstrap phase | phase, current, elapsed_seconds | total |
-
-<details><summary>span: `cancel`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `phase` | `string` | ✓ |
-| `current` | `integer` | ✓ |
-| `elapsed_seconds` | `number` | ✓ |
-| `total` | `integer` |  |
-
-</details>
+| `complete` | `TRACE` | public | Report successful bootstrap completion | epoch, point |  |
+| `download` | `TRACE` | public | Report absolute aggregate snapshot download progress | downloaded_bytes, completed_snapshots |  |
+| `snapshots_selected` | `TRACE` | public | Report the selected snapshot window and its aggregate compressed size | snapshot_count | total_bytes |
+| `stage` | `TRACE` | public | Enter a canonical bootstrap stage | stage |  |
 
 <details><summary>span: `complete`</summary>
 
 | field | type | required |
 | --- | --- | --- |
-| `phase` | `string` | ✓ |
-| `current` | `integer` | ✓ |
-| `elapsed_seconds` | `number` | ✓ |
-| `total` | `integer` |  |
+| `epoch` | `integer` | ✓ |
+| `point` | `string` | ✓ |
 
 </details>
 
-<details><summary>span: `start`</summary>
+<details><summary>span: `download`</summary>
 
 | field | type | required |
 | --- | --- | --- |
-| `phase` | `string` | ✓ |
-| `total` | `integer` |  |
+| `downloaded_bytes` | `integer` | ✓ |
+| `completed_snapshots` | `integer` | ✓ |
 
 </details>
 
-<details><summary>span: `update`</summary>
+<details><summary>span: `snapshots_selected`</summary>
 
 | field | type | required |
 | --- | --- | --- |
-| `phase` | `string` | ✓ |
-| `current` | `integer` | ✓ |
-| `elapsed_seconds` | `number` | ✓ |
-| `total` | `integer` |  |
+| `snapshot_count` | `integer` | ✓ |
+| `total_bytes` | `integer` |  |
+
+</details>
+
+<details><summary>span: `stage`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `stage` | `string` | ✓ |
 
 </details>
 
@@ -659,8 +709,8 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
 | `download` | `TRACE` | public | Synchronize the cardano-node database from Mithril | from_chunk, target_dir |  |
-| `download_chunks` | `TRACE` | public | Immutable chunks are being fetched from Mithril | tip, from_chunk |  |
 | `ingest_completed` | `TRACE` | public | Finished replaying downloaded blocks into the stores | processed, duration_seconds, processed_per_seconds |  |
+| `recover_chain_tip` | `TRACE` | public | Complete chain-store adoption after an interrupted Mithril ledger update | ledger_tip, chain_tip |  |
 | `skip_download` | `TRACE` | public | Local cardano-node database is recent enough; skipping Mithril download | from_chunk, required_chunk, target_dir, reason |  |
 
 <details><summary>span: `download`</summary>
@@ -672,15 +722,6 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 </details>
 
-<details><summary>span: `download_chunks`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `tip` | `array` | ✓ |
-| `from_chunk` | `integer` | ✓ |
-
-</details>
-
 <details><summary>span: `ingest_completed`</summary>
 
 | field | type | required |
@@ -688,6 +729,15 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `processed` | `integer` | ✓ |
 | `duration_seconds` | `number` | ✓ |
 | `processed_per_seconds` | `number` | ✓ |
+
+</details>
+
+<details><summary>span: `recover_chain_tip`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `ledger_tip` | `array` | ✓ |
+| `chain_tip` | `array` | ✓ |
 
 </details>
 
@@ -1285,6 +1335,7 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
+| `chain_lagging` | `TRACE` | public | Near-now headers have been arriving for a minute and the adopted tip is not getting closer to the wall clock. Sync that is still adopting faster than 10 blocks per second does not raise this. Emitted at most once a minute. | peer, live_slot, our_slot, lag |  |
 | `initialized` | `TRACE` | public | A chainsync session with an upstream peer was initialized | peer, conn_id |  |
 | `intersect_found` | `TRACE` | public | An intersection with the peer's chain was found | peer, conn_id, current, highest |  |
 | `intersect_not_found` | `TRACE` | public | No intersection with the peer's chain was found, so chainsync with it stops | peer, highest |  |
@@ -1293,6 +1344,17 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `roll_backward_failed` | `TRACE` | public | A rollback requested by a peer could not be applied; the peer is adversarial | peer, error |  |
 | `terminated` | `TRACE` | public | A chainsync session terminated and its connection state was purged | peer, conn_id |  |
 | `unknown_intersection_point` | `TRACE` | public | The peer intersected on a point absent from our own store, so chainsync with it stops. Unlike \`INTERSECT_NOT_FOUND\` this points at local state, not at the peer. | peer, current, highest |  |
+
+<details><summary>span: `chain_lagging`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `live_slot` | `integer` | ✓ |
+| `our_slot` | `integer` | ✓ |
+| `lag` | `integer` | ✓ |
+
+</details>
 
 <details><summary>span: `initialized`</summary>
 
@@ -1370,6 +1432,55 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 </details>
 
+## target: `amaru::consensus::forge`
+
+| name | level | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- |
+| `forge_failed` | `TRACE` | public | Forging the header or storing it failed. The node shuts down. Step ∈ {sign_header, validate_header, store_header, store_block}. | slot, step, error |  |
+| `forged` | `TRACE` | public | A block was forged and stored, and its tip sent to chain selection. | slot, header_hash, parent |  |
+| `missed_slot` | `TRACE` | public | A led slot was not forged. Reason ∈ {ocert_not_yet_valid, ocert_expired, tip_ahead, not_led, woke_late}. | slot, reason |  |
+| `schedule` | `TRACE` | public | Leader schedules still held, with how many led slots remain in each epoch and how many of k blocks since freeze have been adopted. \`next_slot\` is the UTC onset of the next armed led slot, \`YYYY-MM-DDTHH:MM:SS.ffffffZ\`. | slots, freeze_depth, settled | next_slot |
+
+<details><summary>span: `forge_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `slot` | `integer` | ✓ |
+| `step` | `string` | ✓ |
+| `error` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `forged`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `slot` | `integer` | ✓ |
+| `header_hash` | `string` | ✓ |
+| `parent` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `missed_slot`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `slot` | `integer` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `schedule`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `slots` | `object` | ✓ |
+| `freeze_depth` | `integer` | ✓ |
+| `settled` | `boolean` | ✓ |
+| `next_slot` | `string` |  |
+
+</details>
+
 ## target: `amaru::consensus::perf::fork`
 
 | name | level | public | description | required fields | optional fields |
@@ -1390,7 +1501,7 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
-| `lifecycle` | `TRACE` | public | Event recorded once per header, when its processing reaches a terminal state. It covers the four network-health processing points of a header's lifecycle: reception of the header, request of its block, reception of its block and local adoption of the block. \`outcome\` describes the terminal state (including headers rejected on reception, which carry no durations). The optional durations are the intervals between those points: - \`block_fetch_wait_micros\`: reception of the header to the request of its block - \`block_fetch_micros\`: request of the block to its reception - \`forward_micros\`: reception of the header to the adoption of its block |  | peer, header_hash, outcome, error, slot_start_to_header_micros, block_fetch_wait_micros, block_fetch_micros, forward_micros |
+| `lifecycle` | `TRACE` | public | Event recorded once per header, when its processing reaches a terminal state. The four network-health points themselves are the \`amaru::blockperf\` events (\`header.announced\`, \`block.requested\`, \`block.received\`, \`block.adopted\`). This event carries the intervals between those points once the header reaches a terminal state. \`outcome\` describes that state (including headers rejected on reception, which carry no durations). The optional durations are: - \`block_fetch_wait_micros\`: reception of the header to the request of its block - \`block_fetch_micros\`: request of the block to its reception - \`forward_micros\`: reception of the header to the adoption of its block |  | peer, header_hash, outcome, error, slot_start_to_header_micros, block_fetch_wait_micros, block_fetch_micros, forward_micros |
 
 <details><summary>span: `lifecycle`</summary>
 
@@ -1413,7 +1524,7 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | --- | --- | --- | --- | --- | --- |
 | `queue_lagging` | `TRACE` | public | The performance operation queue is growing faster than the worker drains it | queue_depth |  |
 | `queue_overflow` | `TRACE` | public | The performance operation queue exceeded its hard limit; the node aborts | queue_depth, threshold |  |
-| `worker_panicked` | `TRACE` | public | The performance worker thread stopped because it panicked |  |  |
+| `worker_panicked` | `TRACE` | public | The performance worker thread stopped because it panicked | error |  |
 
 <details><summary>span: `queue_lagging`</summary>
 
@@ -1432,11 +1543,20 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 </details>
 
+<details><summary>span: `worker_panicked`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `error` | `string` | ✓ |
+
+</details>
+
 ## target: `amaru::consensus::tip`
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
 | `adopt` | `TRACE` | public | Adopt a tip as the next tip in the best chain | slot, header_hash, block_height, max_block_height, suppressed |  |
+| `mode` | `TRACE` | public | The node switched between catching up and live. \`mode\` and \`previous\` ∈ {sync, live}. | mode, previous, slot |  |
 
 <details><summary>span: `adopt`</summary>
 
@@ -1447,6 +1567,16 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `block_height` | `integer` | ✓ |
 | `max_block_height` | `integer` | ✓ |
 | `suppressed` | `integer` | ✓ |
+
+</details>
+
+<details><summary>span: `mode`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `mode` | `string` | ✓ |
+| `previous` | `string` | ✓ |
+| `slot` | `integer` | ✓ |
 
 </details>
 
@@ -2285,13 +2415,70 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 </details>
 
+## target: `amaru::mithril::progress`
+
+| name | level | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- |
+| `complete` | `TRACE` | public | Mithril synchronization completed successfully | point, processed_blocks |  |
+| `download` | `TRACE` | public | Absolute Mithril database download progress | downloaded_bytes, completed_files, total_files | total_bytes |
+| `ingest` | `TRACE` | public | Absolute block ingestion progress | blocks, point |  |
+| `snapshot` | `TRACE` | public | Selected the applicable Mithril snapshot | hash, through_chunk |  |
+| `stage` | `TRACE` | public | Mithril synchronization entered a new stage | stage |  |
+
+<details><summary>span: `complete`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `point` | `array` | ✓ |
+| `processed_blocks` | `integer` | ✓ |
+
+</details>
+
+<details><summary>span: `download`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `downloaded_bytes` | `integer` | ✓ |
+| `completed_files` | `integer` | ✓ |
+| `total_files` | `integer` | ✓ |
+| `total_bytes` | `integer` |  |
+
+</details>
+
+<details><summary>span: `ingest`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `blocks` | `integer` | ✓ |
+| `point` | `array` | ✓ |
+
+</details>
+
+<details><summary>span: `snapshot`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `hash` | `string` | ✓ |
+| `through_chunk` | `integer` | ✓ |
+
+</details>
+
+<details><summary>span: `stage`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `stage` | `string` | ✓ |
+
+</details>
+
 ## target: `amaru::mithril::snapshot`
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
-| `download` | `TRACE` | public | Download and unpack immutable files from a Mithril snapshot | target_dir, from_chunk |  |
+| `download` | `TRACE` | public | Download and unpack immutable files from a Mithril snapshot | target_dir, from_chunk, through_chunk |  |
 | `fetch` | `TRACE` | public | Fetch and verify a Mithril snapshot | hash, from_chunk |  |
 | `ready` | `TRACE` | public | Mithril cardano-node database is ready | target_dir |  |
+| `rebuild_cache` | `TRACE` | public | Rebuild an invalid local immutable cache before retrying once | immutable_dir, reason |  |
 | `verify_database` | `TRACE` | public | Verify the local cardano-node database against a Mithril certificate | target_dir |  |
 | `verify_digests` | `TRACE` | public | Download and verify the digests for a Mithril snapshot | target_dir |  |
 
@@ -2301,6 +2488,7 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | --- | --- | --- |
 | `target_dir` | `string` | ✓ |
 | `from_chunk` | `integer` | ✓ |
+| `through_chunk` | `integer` | ✓ |
 
 </details>
 
@@ -2318,6 +2506,15 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | field | type | required |
 | --- | --- | --- |
 | `target_dir` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `rebuild_cache`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `immutable_dir` | `string` | ✓ |
+| `reason` | `string` | ✓ |
 
 </details>
 

@@ -61,7 +61,7 @@ construction, signing, submission, and verification on a testnet.
    produce the same transaction. This enables dry-run testing before submission.
 
 6. **Collateral is required for Plutus interactions.** Any transaction that
-   executes a Plutus script must include collateral UTxOs containing only ADA.
+   executes a Plutus script needs collateral: ADA-only, or with a collateral return that sends its tokens back.
 
 ## Workflow
 
@@ -193,13 +193,13 @@ cabal build all -O0
 
 - `cabal.project` must contain the CHaP `repository` stanza and a **dual**
   `index-state` (Hackage + `cardano-haskell-packages`). See
-  `docs/sources/chap/README.md`.
+  `../../docs/sources/chap/README.md`.
 - Flake input `CHaP` on `?ref=index-only`, then
   `inputMap = { "https://chap.intersectmbo.org/" = CHaP; }`.
 - iohk-nix overlays `crypto` and `haskell-nix-crypto` (CHaP README: needed
   for `libblst` / `plutus-core`).
 - `source-repository-package` stanzas need a `--sha256` comment
-  (`docs/sources/haskell-nix/tutorials/source-repository-hashes.md`).
+  (`../../docs/sources/haskell-nix/tutorials/source-repository-hashes.md`).
 - Load scripts from Aiken `plutus.json` (CIP-57). Datums/redeemers are
   `plutus-tx` `ToData`, not JSON.
 

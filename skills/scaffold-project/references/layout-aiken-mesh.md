@@ -103,9 +103,9 @@ A trivial validator that succeeds when the spending transaction is signed by a s
 // exists to prove the build + deploy + spend cycle works end-to-end. Replace
 // with real business logic by handing off to the write-validator skill.
 
-use aiken/transaction.{Transaction, ScriptContext, Spend}
-use aiken/transaction/credential.{VerificationKeyHash}
-use aiken/list
+use aiken/collection/list
+use aiken/crypto.{VerificationKeyHash}
+use cardano/transaction.{OutputReference, Transaction}
 
 pub type HelloDatum {
   owner: VerificationKeyHash,
@@ -115,26 +115,36 @@ validator hello {
   spend(
     datum: Option<HelloDatum>,
     _redeemer: Data,
-    _own_ref: Data,
+    _own_ref: OutputReference,
     tx: Transaction,
-  ) -> Bool {
+  ) {
     expect Some(HelloDatum { owner }) = datum
     list.has(tx.extra_signatories, owner)
   }
+
+  else(_) {
+    fail
+  }
 }
 
-// Unit tests live alongside the validator.
+// Unit tests live alongside the validator. `transaction.placeholder` is an
+// empty transaction; override only the fields the validator reads.
+const owner = #"00112233445566778899aabbccddeeff00112233445566778899aabb"
+
+const own_ref = OutputReference { transaction_id: #"", output_index: 0 }
+
 test owner_can_spend() {
-  let owner = #"00112233445566778899aabbccddeeff00112233445566778899aabb"
-  let datum = HelloDatum { owner }
-  // ... build a mock Transaction with `owner` in extra_signatories and assert.
-  // See https://aiken-lang.org/language-tour/testing for the mocking helpers,
-  // or ../../docs/sources/aiken/ for the testing chapter.
-  True
+  let tx = Transaction { ..transaction.placeholder, extra_signatories: [owner] }
+  hello.spend(Some(HelloDatum { owner }), Void, own_ref, tx)
+}
+
+test other_signer_cannot_spend() {
+  let tx = Transaction { ..transaction.placeholder, extra_signatories: [#"ff"] }
+  !hello.spend(Some(HelloDatum { owner }), Void, own_ref, tx)
 }
 ```
 
-Build with `aiken build` from the `onchain/` directory. The resulting `plutus.json` is the contract with the off-chain side.
+Run `aiken check` (compiles and runs both tests), then `aiken build`, from the `onchain/` directory. The resulting `plutus.json` is the contract with the off-chain side.
 
 ### Hello-world off-chain script -- `offchain/src/blueprint.ts`
 
@@ -191,10 +201,10 @@ export function getProvider() {
   const network = process.env.CARDANO_NETWORK ?? "devnet";
 
   if (network === "devnet") {
-    // Yaci Store exposes a Blockfrost-compatible API. The base URL points at
-    // the local devnet; no project ID required.
-    const url = process.env.YACI_STORE_URL ?? "http://localhost:10000";
-    return new BlockfrostProvider(url + "/api/v1/");
+    // Yaci Store exposes a Blockfrost-compatible API under /api/v1. Passing a
+    // URL instead of a project ID points the provider at it.
+    const url = process.env.YACI_STORE_URL ?? "http://localhost:8080";
+    return new BlockfrostProvider(url + "/api/v1");
   }
 
   const projectId = process.env.BLOCKFROST_PROJECT_ID;
@@ -217,24 +227,35 @@ import "dotenv/config";
 import {
   MeshTxBuilder,
   MeshWallet,
+  applyParamsToScript,
+  mConStr0,
   resolvePaymentKeyHash,
-  resolvePlutusScriptAddress,
   serializePlutusScript,
 } from "@meshsdk/core";
 import { getProvider } from "../provider.js";
 import { getValidator } from "../blueprint.js";
 
+const NETWORK_ID = 0;                    // 0 = testnet/devnet, 1 = mainnet
+
 async function main() {
   const provider = getProvider();
   const wallet = new MeshWallet({
-    networkId: 0,                        // 0 = testnet/devnet, 1 = mainnet
+    networkId: NETWORK_ID,
     fetcher: provider,
     submitter: provider,
     key: { type: "mnemonic", words: process.env.DEV_WALLET_MNEMONIC!.split(" ") },
   });
 
   const hello = getValidator("hello.hello.spend");      // title in plutus.json
-  const scriptAddr = serializePlutusScript({ code: hello.compiledCode, version: "V3" }).address;
+  // Pass compiledCode through applyParamsToScript even with no parameters: it
+  // returns the encoding Mesh hashes. Raw compiledCode hashes differently from
+  // the blueprint's `hash`, and funds sent to that address cannot be spent.
+  const script = applyParamsToScript(hello.compiledCode, []);
+  const scriptAddr = serializePlutusScript(
+    { code: script, version: "V3" },
+    undefined,
+    NETWORK_ID,
+  ).address;
 
   const senderAddr = await wallet.getChangeAddress();
   const ownerHash = resolvePaymentKeyHash(senderAddr);
@@ -244,7 +265,7 @@ async function main() {
   const txBuilder = new MeshTxBuilder({ fetcher: provider, submitter: provider });
   const unsignedTx = await txBuilder
     .txOut(scriptAddr, [{ unit: "lovelace", quantity: "5000000" }])
-    .txOutDatumHashValue({ owner: ownerHash })       // simplified; see Mesh docs for inline datum
+    .txOutInlineDatumValue(mConStr0([ownerHash]))    // HelloDatum { owner }: constructor 0, one field
     .changeAddress(senderAddr)
     .selectUtxosFrom(utxos)
     .complete();
@@ -270,7 +291,7 @@ Three places to flip when switching networks:
 2. The provider factory in `provider.ts` (already shown above) switches the Blockfrost URL based on the env var. On devnet the URL points at Yaci Store; on preview/preprod/mainnet, at the matching Blockfrost endpoint.
 3. `MeshWallet.networkId`: 0 for any testnet (devnet, preview, preprod); 1 for mainnet.
 
-Each non-devnet network needs its own Blockfrost project ID from https://blockfrost.io (each has a distinct prefix: `preview...`, `preprod...`, `mainnet...`). Faucets for preview and preprod live at https://docs.cardano.org/cardano-testnets/tools/faucet — pick the matching selector on the page. Yaci DevKit has its own built-in faucet via `yaci-cli faucet send`.
+Each non-devnet network needs its own Blockfrost project ID from https://blockfrost.io (each has a distinct prefix: `preview...`, `preprod...`, `mainnet...`). Faucets for preview and preprod live at https://docs.cardano.org/cardano-testnets/tools/faucet — pick the matching selector on the page. On Yaci DevKit, fund an address with `topup <address> <ada>` at the yaci-cli prompt.
 
 ## Frontend (optional, default ON in the scaffold)
 
@@ -289,17 +310,17 @@ When the developer opts in, scaffold a Next.js App Router app under `frontend/` 
     "start": "next start"
   },
   "dependencies": {
-    "@meshsdk/core": "^X.Y.Z",                  // PIN; same major as the off-chain version
-    "@meshsdk/react": "^X.Y.Z",                 // React components for CIP-30
-    "next": "^15.0.0",
-    "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "@meshsdk/core": "1.9.1",                   // PIN: exact, same version as the off-chain code
+    "@meshsdk/react": "1.9.0-beta.98",          // PIN: the 1.9 line; `latest` is a 2.0 beta
+    "next": "15.5.26",                          // PIN: exact
+    "react": "^19.3.0",                         // Next 15 requires React 19 (its upgrade guide)
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "^18.3.0",
-    "typescript": "^5.4.0"
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^5.4.0"                      // Next 15.5 rejects TypeScript 7
   }
 }
 ```

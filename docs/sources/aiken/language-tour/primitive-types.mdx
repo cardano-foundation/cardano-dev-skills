@@ -248,7 +248,82 @@ So as a rule of thumb, unless you specifically want to serialize external types
 (in datums and redeemers) as CBOR maps, you probably never want to use a
 `Pair<a, b>{:ak}` and can stick to a 2-tuple `(a, b){:ak}`.
 
+## Value
 
+Since Aiken `v1.1.24`, built-in `Value` are also available. A `Value` is a
+mapping between bytearray to a map of bytearray and integer quantities. A map
+of maps, tailored to representing eUTxO multi-assets values.
+
+Of course, while their primary use-case is to store multi-assets, a `Value` can
+also be used to store similarly-shaped objects. They provide efficient access
+to their inner values and be convenient to use as local caches.
+
+### Literal notation
+
+Values can be declared as literals using curly braces, like a record:
+
+```aiken
+{
+  #"00000000000000000000000000000000000000000000000000000000": {
+    "utf-8": 1,
+    #"abcd": -1,
+  }
+}
+```
+
+Keys of each map are limited in size (up to 32 bytes).
+
+When constructing literals as such, the compiler enforces that keys from the
+outer map are exactly 28 bytes in length and always expect them hex-encoded. In
+practice, those keys represent script hashes (a.k.a policy id).
+
+The inner keys are more flexible and can be provided as either plain UTF-8 byte
+strings or as hex-encoded byte strings, very much like `ByteArray`. Use a
+leading `#` to choose between either.
+
+Duplicate keys are not tolerated.
+
+Quantities can be negative, but can not be `0`. Similarly, the assets map for
+a given policy cannot be empty or full of zero quantities.
+
+### Interpolation
+
+Note that keys and values can also interpolate with any identifier in scope.
+Interpolated values can be mixed with literal values:
+
+```aiken
+let my_policy = #"00000000000000000000000000000000000000000000000000000000"
+let my_token = "aiken ✨"
+let my_quantity = 99
+
+let my_value = {
+  my_policy: {
+    my_token: my_quantity,
+    "foo": 99,
+  }
+}
+```
+
+Importantly, the interpolated values must type-check correctly and can be
+dynamically provided!
+
+### Lovelace quantities
+
+A special optional keyword `lovelace` exists in order to specify a lovelace
+quantity. You can create lovelace-only values, or mixed them with other assets:
+
+```aiken
+let my_value_1 = {
+  lovelace: 42
+}
+
+let my_value_2 = {
+  lovelace: 14,
+  #"00000000000000000000000000000000000000000000000000000000": {
+    "foo": -9999,
+  }
+}
+```
 
 ## Option
 

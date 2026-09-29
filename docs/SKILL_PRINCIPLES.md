@@ -18,7 +18,7 @@ Cross-cutting safety and engineering principles that apply to all skills.
 
 ## Transactions
 
-- **Always set collateral** for Plutus transactions. Use a pure-ADA UTxO with sufficient value (typically 5 ADA).
+- **Always set collateral** for Plutus transactions. Use an ADA-only UTxO with sufficient value (typically 5 ADA); a UTxO holding tokens works only with a collateral return that sends them back.
 - **Handle change outputs.** The eUTxO model requires explicit change — always account for the ADA returned to the sender.
 - **Respect minimum UTxO value.** Every output must carry enough ADA to satisfy the min-UTxO requirement (depends on output size).
 - **Use `transaction build` over `build-raw`** when using cardano-cli. The `build` command handles fee estimation and balancing automatically.

@@ -32,25 +32,9 @@ type BootstrapWitness struct {
 	Attributes []byte
 }
 
-// ValidateCollateralVKeyWitnesses ensures collateral inputs are backed by vkey witnesses (payment key).
-// This is a shared helper used across Alonzo, Babbage, and Conway eras.
-//
-// The phase-2 guard below is deliberately broader than the reference's. This
-// helper covers two requirements that cardano-ledger keeps apart:
-//
-//   - collateral must be key-locked, from UTXO's validateScriptsNotPaidUTxO,
-//     which is inside feesOK's redeemer guard; and
-//   - each collateral input must have a matching vkey witness, from UTXOW's
-//     witsVKeyNeeded (Alonzo adds collateral inputs to that set), which is not
-//     redeemer-gated in the reference.
-//
-// Gating both means a no-redeemer transaction with an unwitnessed key-locked
-// collateral input is not rejected here, where the reference would reject it in
-// UTXOW. That is a missed rejection, not a false one: it accepts a transaction
-// the reference rejects rather than rejecting one the reference accepts, so it
-// cannot wedge a node on a canonical block. Splitting the witsVKeyNeeded half
-// back out to run ungated is the correct end state; it is not done here because
-// this change is scoped to the false-rejection fix.
+// ValidateCollateralVKeyWitnesses ensures every key-locked collateral input
+// has a matching vkey witness. This UTXOW requirement applies regardless of
+// whether the transaction has redeemers.
 func ValidateCollateralVKeyWitnesses(
 	tx Transaction,
 	ls LedgerState,
@@ -61,38 +45,29 @@ func ValidateCollateralVKeyWitnesses(
 	}
 	// Collateral exists to pay for phase-2 script execution that fails, so a
 	// transaction that runs no phase-2 scripts has nothing for it to cover and
-	// is not held to these rules. Declaring collateral it does not need is
-	// pointless but harmless, and the chain accepts it: Preview transaction
-	// 9ce59ee0dc6abee0 at slot 15148509 carries two vkey witnesses, one native
-	// script, no Plutus scripts and no redeemers, and a collateral input at an
-	// enterprise-script address. Holding it to the key-locked rule rejected a
-	// canonical block (blinklabs-io/dingo#3896).
+	// is not held to the key-locked rule below. Declaring collateral it does
+	// not need is pointless but harmless, and the chain accepts it: Preview
+	// transaction 9ce59ee0dc6abee0 at slot 15148509 carries two vkey
+	// witnesses, one native script, no Plutus scripts and no redeemers, and a
+	// collateral input at an enterprise-script address. Holding it to the
+	// key-locked rule rejected a canonical block (blinklabs-io/dingo#3896).
 	//
 	// The presence of redeemers is the condition rather than the presence of
 	// Plutus scripts in the witness set: a script supplied by a reference input
 	// is not in the witness set, and gating on that would skip the check for
 	// exactly the transactions that most need it. Every phase-2 execution has a
 	// redeemer regardless of where its script came from.
-	if !TransactionRunsPhase2Scripts(tx) {
-		return nil
+	// Collect vkey hashes from witnesses. A nil witness set or no vkey
+	// witnesses at all is not itself an error here: only a key-locked
+	// collateral input needs a matching one, checked per input below.
+	hashes := make(map[Blake2b224]struct{})
+	if w := tx.Witnesses(); w != nil {
+		for _, vw := range w.Vkey() {
+			hashes[Blake2b224Hash(vw.Vkey)] = struct{}{}
+		}
 	}
-	// Collect vkey hashes from witnesses
-	w := tx.Witnesses()
-	if w == nil || len(w.Vkey()) == 0 {
-		return NewValidationError(
-			ValidationErrorTypeTransaction,
-			"missing vkey witnesses for collateral",
-			nil,
-			nil,
-		)
-	}
-	hashes := make(map[Blake2b224]struct{}, len(w.Vkey()))
-	for _, vw := range w.Vkey() {
-		hashes[Blake2b224Hash(vw.Vkey)] = struct{}{}
-	}
-	// Ensure each collateral input is owned by a provided vkey witness
 	for _, input := range collateral {
-		utxo, err := ls.UtxoById(input)
+		utxo, err := ResolveInputUtxo(ls, input)
 		if err != nil {
 			return NewValidationError(
 				ValidationErrorTypeTransaction,
@@ -101,17 +76,19 @@ func ValidateCollateralVKeyWitnesses(
 				err,
 			)
 		}
+		if utxo.Output == nil {
+			return NewValidationError(
+				ValidationErrorTypeTransaction,
+				"resolved UTxO has nil output",
+				map[string]any{"input": input.String()},
+				nil,
+			)
+		}
 		addr := utxo.Output.Address()
 		cred := addr.PayloadPayload()
 		pk, ok := cred.(AddressPayloadKeyHash)
 		if !ok {
-			// Collateral should be key-locked; scripts cannot serve
-			return NewValidationError(
-				ValidationErrorTypeTransaction,
-				"collateral input must be key-locked",
-				map[string]any{"input": input.String()},
-				nil,
-			)
+			continue
 		}
 		h := pk.Hash
 		if _, ok := hashes[h]; !ok {
@@ -122,6 +99,43 @@ func ValidateCollateralVKeyWitnesses(
 					"input":   input.String(),
 					"keyhash": h.String(),
 				},
+				nil,
+			)
+		}
+	}
+	return nil
+}
+
+// ValidateCollateralKeyLocked enforces the feesOK key-lock rule, which is
+// gated on a transaction level carrying redeemers.
+func ValidateCollateralKeyLocked(tx Transaction, ls LedgerState) error {
+	if tx == nil || !TransactionRunsPhase2Scripts(tx) {
+		return nil
+	}
+	for _, input := range tx.Collateral() {
+		utxo, err := ResolveInputUtxo(ls, input)
+		if err != nil {
+			return NewValidationError(
+				ValidationErrorTypeTransaction,
+				"UTxO not found for collateral input",
+				map[string]any{"input": input.String()},
+				err,
+			)
+		}
+		if utxo.Output == nil {
+			return NewValidationError(
+				ValidationErrorTypeTransaction,
+				"resolved UTxO has nil output",
+				map[string]any{"input": input.String()},
+				nil,
+			)
+		}
+		address := utxo.Output.Address()
+		if _, ok := address.PayloadPayload().(AddressPayloadKeyHash); !ok {
+			return NewValidationError(
+				ValidationErrorTypeTransaction,
+				"collateral input must be key-locked",
+				map[string]any{"input": input.String()},
 				nil,
 			)
 		}

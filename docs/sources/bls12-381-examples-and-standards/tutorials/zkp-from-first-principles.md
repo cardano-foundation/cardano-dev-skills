@@ -1696,6 +1696,8 @@ Total combined scalar = 24201173157750549452052803311470445771241793461781986687
 
 The total combined scalar is `24201173157750549452052803311470445771241793461781986687355534784587037458892`. This encodes the sum of all private-variable CRS contributions plus the quotient term. The exact value is a large field element that the library computes correctly. ✓
 
+> **A note on modular reduction.** For Variable 4, the raw product `3 × psi_scalar` exceeds the field modulus `q`; the printed contribution scalar is `3 · psi_scalar mod q`. All per-variable contributions are computed in `Fr`, so this reduction happens automatically.
+
 ---
 
 ### Step 1.15: Public-input commitment V

@@ -136,6 +136,10 @@ CARDANO_NETWORK=devnet               # devnet | preview | preprod | mainnet
 YACI_STORE_URL=http://localhost:8080
 # DevKit admin API (CLI, wallet page, MCP). Not a chain-query endpoint.
 YACI_ADMIN_URL=http://localhost:10000
+# Ogmios and Kupo, for off-chain code that talks to the node directly
+# (Evolution's Kupmios provider). DevKit's default ports.
+OGMIOS_URL=http://localhost:1337
+KUPO_URL=http://localhost:1442
 # Yaci DevKit auto-seeds wallets with test ADA at startup. Replace with an
 # address printed by `yaci-cli` when you start the devnet.
 DEV_WALLET_ADDRESS=

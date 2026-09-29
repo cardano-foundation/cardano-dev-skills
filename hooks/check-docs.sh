@@ -147,8 +147,17 @@ CWD_REAL=$( { cd . && pwd -P; } 2>/dev/null || echo "" )
 PLUGIN_REAL=$( { cd "${PLUGIN_ROOT}" && pwd -P; } 2>/dev/null || echo "__plugin_unreachable__" )
 
 if [ -n "${CWD_REAL}" ] && [ "${CWD_REAL}" != "${PLUGIN_REAL}" ]; then
+    # The current block version is whatever the cardano-context skill writes, so
+    # the hook never needs a bump of its own. If the skill can't be read, any
+    # block counts as current.
+    CURRENT_BLOCK=$(grep -o '<!-- BEGIN cardano-dev-skills v[0-9]* -->' \
+        "${PLUGIN_ROOT}/skills/cardano-context/SKILL.md" 2>/dev/null | head -1)
     if [ -f "./CLAUDE.md" ] && grep -q '<!-- BEGIN cardano-dev-skills' "./CLAUDE.md" 2>/dev/null; then
-        echo "[Cardano Dev Skills] Cardano context active in this project."
+        if [ -z "${CURRENT_BLOCK}" ] || grep -qF "${CURRENT_BLOCK}" "./CLAUDE.md" 2>/dev/null; then
+            echo "[Cardano Dev Skills] Cardano context active in this project."
+        else
+            echo "[Cardano Dev Skills] The Cardano context block in CLAUDE.md is an older version; run /cardano-dev-skills:cardano-context to update it."
+        fi
     elif [ -d "./.git" ] || [ -f "./CLAUDE.md" ] || [ -d "./.claude" ]; then
         echo "[Cardano Dev Skills] Tip: run /cardano-dev-skills:cardano-context to enable auto-consultation in this project."
     fi

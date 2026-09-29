@@ -86,6 +86,7 @@
 "blockfrost-go": 7c2f324c451977a542722ebcb6ec1c70f3d26b1e
 "cardano-client-lib": 83d4cdbf400955a3267aea77c48aba7bff1b2cef
 "cardano-js-sdk": 48019e49c826ea77d81be0e2d2907f94406f5e04
+"cip30-test-wallet": 4895c26aacfabba5f7a855529317b1cb8e675704
 "gOuroboros": dddf6160589572d0587e70fe6f0096ab7eb63ca0
 "haskell.nix": 1c415e043348e6a6667accb8adbd445e86a02ade
 "iohk-nix": 84287dbfebbfb5d36498c9c816e54252927c13c5

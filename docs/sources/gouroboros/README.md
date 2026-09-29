@@ -1,8 +1,7 @@
 <div align="center">
-  <img src="./.github/assets/gOuroboros-logo-with-text-horizontal.png" alt="gOurobros Logo" width="640">
+  <img src="./.github/assets/gOuroboros-logo-with-text-horizontal.png" alt="gOuroboros logo" width="640">
   <br>
   <img alt="GitHub" src="https://img.shields.io/github/license/blinklabs-io/gouroboros">
-  <a href="https://goreportcard.com/report/github.com/blinklabs-io/gouroboros"><img src="https://goreportcard.com/badge/github.com/blinklabs-io/gouroboros" alt="Go Report Card"></a>
   <a href="https://pkg.go.dev/github.com/blinklabs-io/gouroboros"><img src="https://pkg.go.dev/badge/github.com/blinklabs-io/gouroboros.svg" alt="Go Reference"></a>
   <a href="https://deepwiki.com/blinklabs-io/gouroboros"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
   <a href="https://discord.gg/5fPRZnX4qW"><img src="https://img.shields.io/badge/Discord-7289DA?style=flat&logo=discord&logoColor=white" alt="Discord"></a>
@@ -104,6 +103,9 @@ This is not an exhaustive list of existing and planned features, but it covers t
     - [X] LocalMessageNotification ([CIP-0137](https://cips.cardano.org/cip/CIP-0137) DMQ)
       - [X] Client support
       - [X] Server support
+    - [ ] PerasVotes ([CIP-0140](https://cips.cardano.org/cip/CIP-0140), [Tweag cardano-peras](https://github.com/tweag/cardano-peras)) - mini-protocol number reserved (17); client/server not yet implemented
+      - [ ] Client support
+      - [ ] Server support
 - [ ] Ledger
   - [ ] Eras
     - [X] Byron
@@ -207,8 +209,8 @@ This is not an exhaustive list of existing and planned features, but it covers t
   - [X] Byron consensus (OBFT header validation)
 - [X] Testing
   - [X] Test framework for mocking Ouroboros conversations
-  - [X] Conformance tests (3400+ passing)
-    - [X] Ledger rules (315 tests via Amaru vectors)
+  - [X] Conformance suites (see `internal/test/conformance/README.md`; suites have separate scopes)
+    - [X] Ledger rules (pinned Cardano Blueprint corpus; coverage reported by era and rule family)
     - [X] VRF cryptography (29 vectors + 15 unit tests)
     - [X] KES cryptography (14 tests via input-output-hk/kes vectors)
     - [X] Consensus (222 tests for leader election, threshold, selection)

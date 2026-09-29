@@ -54,6 +54,7 @@ Search the bundled documentation for relevant content:
 - `../../docs/sources/mesh-sdk/` - Mesh SDK docs
 - `../../docs/sources/evolution-sdk/` - Evolution SDK docs
 - `../../docs/sources/cips/` - CIP specifications (CIP-30, CIP-95)
+- `../../docs/sources/developer-portal-templates/` - working CIP-30 starters: `mesh-nextjs`, `evolution-vite-react`, and the `x402-next` paywall
 
 ### Step 3: CIP-30 basics
 
@@ -366,7 +367,7 @@ const registeredPubStakeKeys = await api.cip95.getRegisteredPubStakeKeys();
 const unregisteredPubStakeKeys = await api.cip95.getUnregisteredPubStakeKeys();
 ```
 
-Not all wallets support CIP-95 yet. Check wallet compatibility before relying on it. Wallets listed as CIP-95 implementors in the spec: Eternl, GeroWallet, Lace, NuFi, Typhon, Vespr, Yoroi — but verify against the spec's Implementors list (`docs/sources/cips/CIP-0095/README.md`) rather than trusting a static list.
+Not all wallets support CIP-95 yet. Check wallet compatibility before relying on it. Wallets listed as CIP-95 implementors in the spec: Eternl, GeroWallet, Lace, NuFi, Typhon, Vespr, Yoroi — but verify against the spec's Implementors list (`../../docs/sources/cips/CIP-0095/README.md`) rather than trusting a static list.
 
 ### Step 9: Common issues and solutions
 

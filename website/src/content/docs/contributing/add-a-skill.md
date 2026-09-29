@@ -75,7 +75,8 @@ Instructions...
       sections
 - [ ] No MCP dependency (no `search_docs` references)
 - [ ] Body describes capabilities without requiring Claude or Codex tool names
-- [ ] Bundled-doc paths resolve relative to `SKILL.md`, with no host-specific
+- [ ] Bundled-doc paths are written `../../docs/sources/...`, relative to
+      `SKILL.md`, and exist (`validate.py` checks both), with no host-specific
       environment variables
 - [ ] Required safety behavior appears in the body, not only in Claude's
       `allowed-tools` or `disallowed-tools` metadata

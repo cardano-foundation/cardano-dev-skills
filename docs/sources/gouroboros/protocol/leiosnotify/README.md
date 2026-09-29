@@ -46,6 +46,10 @@ The LeiosNotify protocol provides notifications about new Leios blocks, transact
 | `VotesOffer` | 4 | Server → Client | Offer votes for download |
 | `Done` | 5 | Client → Server | Terminate protocol |
 
+These tags match the [`leios-prototype` CDDL at revision
+8b946c4](https://github.com/cardano-scaling/cardano-blueprint/blob/8b946c431e3209b2aa70bf5362f64f42e56fb849/src/network/node-to-node/leios-notify/messages.cddl).
+That prototype describes its CDDL tags as provisional.
+
 ## State Transitions
 
 ### From Idle (Client Agency)
@@ -64,6 +68,10 @@ The LeiosNotify protocol provides notifications about new Leios blocks, transact
 
 `VotesOffer` advertises available votes by `(SlotNo, VoterId)`, where
 `VoterId` is the voter's index in the epoch's stake-based committee.
+Each offer is limited to `MaxVotesOfferCount` (1,000) entries and
+`MaxVotesOfferBytes` (256 KiB). The byte limit is checked before CBOR parsing;
+the decoder then checks the array header before scanning vote values and
+applies the count limit to definite- and indefinite-length arrays.
 
 ## Timeouts
 

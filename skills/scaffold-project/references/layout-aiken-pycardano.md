@@ -29,6 +29,7 @@ acme-dapp/
 │   │       ├── config.py                   # env/network selection
 │   │       ├── blueprint.py                # load plutus.json
 │   │       ├── chain.py                    # ChainContext factory
+│   │       ├── yaci.py                     # devnet: Yaci Store adapter
 │   │       └── hello/
 │   │           ├── __init__.py
 │   │           ├── lock.py                 # first-tx: lock ADA at validator
@@ -63,6 +64,7 @@ acme-dapp/
 │       ├── config.py
 │       ├── blueprint.py
 │       ├── chain.py
+│       ├── yaci.py
 │       └── hello/
 │           ├── __init__.py
 │           ├── lock.py
@@ -83,7 +85,7 @@ See `references/config-templates.md` for the PyCardano-specific `pyproject.toml`
 
 ### Hello-world validator skeleton -- `onchain/validators/hello.ak`
 
-Identical to stack 1. See `references/layout-aiken-mesh.md` for the annotated Aiken source.
+Identical across stacks. See the hello validator in `references/layout-aiken-mesh.md` for the annotated Aiken source.
 
 ### Hello-world off-chain module -- `src/acme_offchain/blueprint.py`
 
@@ -130,46 +132,120 @@ def get_validator(title: str) -> Validator:
 #
 # Builds a PyCardano ChainContext. Devnet routes through Yaci Store (Blockfrost-
 # compatible); preview/preprod/mainnet routes through real Blockfrost.
-# Mainnet requires an explicit env var; the default is devnet.
+# The default is devnet; mainnet only when CARDANO_NETWORK says so.
 
 import os
-from pycardano import BlockFrostChainContext, Network
+
+from pycardano import BlockFrostChainContext
+
+from acme_offchain.yaci import YaciChainContext
+
+# blockfrost-python appends the API version to the base URL, so these stop at /api.
+BLOCKFROST_URLS = {
+    "preview": "https://cardano-preview.blockfrost.io/api",
+    "preprod": "https://cardano-preprod.blockfrost.io/api",
+    "mainnet": "https://cardano-mainnet.blockfrost.io/api",
+}
 
 
 def get_context() -> BlockFrostChainContext:
     network_name = os.environ.get("CARDANO_NETWORK", "devnet")
 
     if network_name == "devnet":
-        base_url = os.environ.get("YACI_STORE_URL", "http://localhost:10000")
-        # Yaci Store exposes a Blockfrost-compatible API; project_id is unused
-        # but PyCardano requires a non-empty string.
-        return BlockFrostChainContext(
-            project_id="devnet",
-            base_url=base_url + "/api/v1",
-            network=Network.TESTNET,
-        )
+        # Yaci Store serves the API under /api/v1, and blockfrost-python reads
+        # the version from BLOCKFROST_API_VERSION. project_id is unused but
+        # must be non-empty.
+        os.environ.setdefault("BLOCKFROST_API_VERSION", "v1")
+        base_url = os.environ.get("YACI_STORE_URL", "http://localhost:8080")
+        return YaciChainContext(project_id="devnet", base_url=base_url + "/api")
 
+    if network_name not in BLOCKFROST_URLS:
+        raise RuntimeError(f"Unknown CARDANO_NETWORK: {network_name}")
     project_id = os.environ.get("BLOCKFROST_PROJECT_ID")
     if not project_id:
         raise RuntimeError(
             "BLOCKFROST_PROJECT_ID required when CARDANO_NETWORK is not devnet"
         )
-
-    if network_name == "mainnet":
-        return BlockFrostChainContext(
-            project_id=project_id,
-            base_url="https://cardano-mainnet.blockfrost.io/api/v0",
-            network=Network.MAINNET,
-        )
-
-    base_url = {
-        "preview": "https://cardano-preview.blockfrost.io/api/v0",
-        "preprod": "https://cardano-preprod.blockfrost.io/api/v0",
-    }[network_name]
     return BlockFrostChainContext(
-        project_id=project_id, base_url=base_url, network=Network.TESTNET
+        project_id=project_id, base_url=BLOCKFROST_URLS[network_name]
     )
 ```
+
+### Hello-world off-chain module -- `src/acme_offchain/yaci.py`
+
+Devnet only. Yaci Store's Blockfrost-compatible API omits four pre-Conway protocol parameters that PyCardano 0.19 reads, and it answers submit and evaluate with HTTP 202, which PyCardano treats as a failure. This subclass fills the parameters and accepts 202.
+
+```python
+# src/acme_offchain/yaci.py
+#
+# Yaci Store serves Blockfrost's API with two differences PyCardano 0.19 does
+# not expect. Adapted from the YaciChainContext in the Cardano Foundation
+# vesting template (cardano-use-case-templates, vesting/offchain/pycardano).
+
+from typing import Any, Dict, Union
+
+import requests
+from pycardano import BlockFrostChainContext, ExecutionUnits
+from pycardano.backend.blockfrost import ALONZO_COINS_PER_UTXO_WORD
+from pycardano.exception import TransactionFailedException
+
+# Pre-Conway protocol parameters that Yaci omits and PyCardano still reads.
+_PRE_CONWAY_DEFAULTS = (
+    ("decentralisation_param", 0),
+    ("extra_entropy", None),
+    ("min_utxo", 0),
+    ("coins_per_utxo_word", ALONZO_COINS_PER_UTXO_WORD),
+)
+
+
+class YaciChainContext(BlockFrostChainContext):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        latest = self.api.epoch_latest_parameters
+
+        def with_defaults(*a: Any, **k: Any) -> Any:
+            params = latest(*a, **k)
+            for field, default in _PRE_CONWAY_DEFAULTS:
+                if not hasattr(params, field):
+                    setattr(params, field, default)
+            return params
+
+        self.api.epoch_latest_parameters = with_defaults
+
+    # Yaci answers submit and evaluate with HTTP 202, which blockfrost-python
+    # treats as an error, so both calls go through requests directly.
+    def _post(self, path: str, body: Union[bytes, str]) -> requests.Response:
+        response = requests.post(
+            f"{self.api.url}{path}",
+            data=body,
+            headers={"Content-Type": "application/cbor"},
+            timeout=30,
+        )
+        if response.status_code not in (200, 202):
+            raise TransactionFailedException(
+                f"{path} failed: HTTP {response.status_code} {response.text[:400]}"
+            )
+        return response
+
+    def submit_tx_cbor(self, cbor: Union[bytes, str]) -> str:
+        if isinstance(cbor, str):
+            cbor = bytes.fromhex(cbor)
+        return self._post("/tx/submit", cbor).text.strip('"')
+
+    def evaluate_tx_cbor(self, cbor: Union[bytes, str]) -> Dict[str, ExecutionUnits]:
+        if isinstance(cbor, bytes):
+            cbor = cbor.hex()
+        result = self._post("/utils/txs/evaluate", cbor).json()
+        units = result.get("result", {}).get("EvaluationResult")
+        if not units:
+            raise TransactionFailedException(f"evaluation failed: {result}")
+        return {
+            purpose: ExecutionUnits(cost["memory"], cost["steps"])
+            for purpose, cost in units.items()
+        }
+```
+
+On devnet, give script spends a short validity window (`builder.ttl = ctx.last_block_slot + 100`). PyCardano's default reaches past the devnet's short-epoch time horizon, and evaluation fails with `PastHorizon`.
 
 ### Hello-world off-chain module -- `src/acme_offchain/hello/lock.py`
 
@@ -233,10 +309,10 @@ A matching `redeem.py` queries the script address via the chain context, picks t
 Three places to flip when switching networks:
 
 1. `CARDANO_NETWORK` in `.env` (devnet | preview | preprod | mainnet). Default to a testnet; never mainnet.
-2. `chain.py` (already shown above) returns a `BlockFrostChainContext` configured for the active network. The `Network.TESTNET` / `Network.MAINNET` argument matches the CARDANO_NETWORK env.
+2. `chain.py` (already shown above) returns a `BlockFrostChainContext` for the active network, a `YaciChainContext` on devnet. The base URL sets the network: PyCardano treats a URL containing `mainnet` as mainnet and anything else as testnet.
 3. If you scaffold a sibling frontend (see below), its `.env.local` mirrors `CARDANO_NETWORK` and uses its own Blockfrost project ID.
 
-Each non-devnet network needs its own Blockfrost project ID from https://blockfrost.io (distinct prefixes: `preview...`, `preprod...`, `mainnet...`). Faucets for preview and preprod live at https://docs.cardano.org/cardano-testnets/tools/faucet. Yaci DevKit ships its own faucet via `yaci-cli faucet send`.
+Each non-devnet network needs its own Blockfrost project ID from https://blockfrost.io (distinct prefixes: `preview...`, `preprod...`, `mainnet...`). Faucets for preview and preprod live at https://docs.cardano.org/cardano-testnets/tools/faucet. On devnet, fund an address with `topup <address> <ada>` at the yaci-cli prompt.
 
 ## Frontend (optional sibling, default ON in the scaffold)
 

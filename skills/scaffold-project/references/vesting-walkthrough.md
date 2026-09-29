@@ -15,7 +15,7 @@ The redeemer is unused: the validator inspects only the datum and the transactio
 
 ## On-chain (Aiken)
 
-Source of truth: `docs/sources/cardano-use-case-templates/vesting/onchain/aiken/validators/vesting.ak`.
+Source of truth: `../../docs/sources/cardano-use-case-templates/vesting/onchain/aiken/validators/vesting.ak`.
 
 Datum shape:
 
@@ -49,7 +49,7 @@ The contract is identical across stacks. The off-chain code differs only in API.
 
 ### Mesh SDK
 
-Source of truth: `docs/sources/cardano-use-case-templates/vesting/offchain/meshjs/vesting.ts`.
+Source of truth: `../../docs/sources/cardano-use-case-templates/vesting/offchain/meshjs/vesting.ts`.
 
 Patterns to lift into your scaffold:
 
@@ -62,23 +62,22 @@ Mesh quirk noted in the upstream code: do not pass an `evaluator` to `MeshTxBuil
 
 ### Evolution SDK
 
-Source of truth: `docs/sources/cardano-use-case-templates/vesting/offchain/evolutionsdk/vesting.ts`.
+Source of truth: the complete `offchain/src/vesting.ts` in `references/layout-aiken-evolution.md` (Step 6), written for `@evolution-sdk/evolution`. The CF template's `evolutionsdk/vesting.ts` uses the older `@evolution-sdk/lucid` package; don't copy its API.
 
 Patterns to lift:
 
-- `applyParamsToScript(blueprint.validators[0].compiledCode, [])` then wrap as `{ type: "PlutusV3", script }`.
-- `validatorToAddress(NETWORK, validator)` for the script address.
-- Inline datum encoding: `Data.to(new Constr(0, [BigInt(lockUntilMs), ownerVkh, beneficiaryVkh]))`.
-- Deposit: `lucid.newTx().pay.ToContract(scriptAddress, { kind: "inline", value: datum }, { lovelace }).complete()`.
-- Withdraw: `lucid.newTx().collectFrom([utxo], Data.to(new Constr(0, []))).attach.SpendingValidator(validator).addSigner(addr).validFrom(...).validTo(...).complete()`.
+- Script from the blueprint: `new PlutusV3.PlutusV3({ bytes: Bytes.fromHex(compiledCode) })`, and its address from `ScriptHash.fromScript(script)`.
+- Inline datum: a `TSchema.Struct` with the Aiken fields in order, encoded with `Data.withSchema(...).toData(...)` and wrapped in `InlineDatum.InlineDatum`.
+- Deposit: `newTx().payToAddress({ address, assets, datum }).build()`.
+- Withdraw: `newTx().collectFrom({ inputs, redeemer }).attachScript({ script }).addSigner({ keyHash })`, plus `.setValidity({ from, to })` on the beneficiary path.
 
 Evolution wraps the Effect library internally — the public API hides most of it, but you may occasionally see Effect types in advanced usage. See https://effect.website/ if you want to go deeper.
 
-Slot alignment for Yaci DevKit: the upstream code reads `/blocks/latest` and patches `SLOT_CONFIG_NETWORK.Preview.zeroTime` so `validFrom(Date.now())` round-trips against the validator's POSIX view. Copy that block when running locally.
+Time on Yaci DevKit: `setValidity` converts with the chain's `slotConfig`, so the layout's script builds a `Chain` from Ogmios's start time and era summaries. Use Evolution's `preview` or `preprod` chain on a public network.
 
 ### cardano-client-lib (Java)
 
-Source of truth: `docs/sources/cardano-use-case-templates/vesting/offchain/ccl-java/Vesting.java`.
+Source of truth: `../../docs/sources/cardano-use-case-templates/vesting/offchain/ccl-java/Vesting.java`.
 
 Patterns to lift:
 

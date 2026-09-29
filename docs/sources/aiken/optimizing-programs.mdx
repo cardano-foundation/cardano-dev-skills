@@ -212,9 +212,9 @@ Yet, constructing large records to carry context across multiple transaction ele
 </Tabs>
 
 
-In particular, if you can avoid it, do not construct `Value` and prefer `Dict` or `Pairs` over `Value` whenever possible.
+In particular, if you can avoid it, do not construct `Assets` and prefer `Dict` or `Pairs` over `Assets` whenever possible.
 
-`Value` preserves two important invariants: it does not contain assets with null quantities or policies with empty assets. If you do not rely on these invariants, you can safely go down to `Dict`.
+`Assets` preserves two important invariants: it does not contain assets with null quantities or policies with empty assets. If you do not rely on these invariants, you can safely go down to `Dict`.
 
 `Dict` preserves two important invariants: their keys are in ascending orders and contain no duplicate. If you do not rely on these invariants, you can safely go down to `Pairs`
 
@@ -449,11 +449,11 @@ Aiken programs operate over encoded `Data`, and comparing `Data` values directly
 
 This can be particularly helpful when working with datums that represent values or state snapshots.
 
-The standard library already exposes useful helpers for this. For instance, [`assets.match{:ak}`](https://aiken-lang.github.io/stdlib/cardano/assets.html#match) can compare a runtime `Value{:ak}` against a `Data{:ak}` representation while letting you parameterize how lovelace should be checked:
+The standard library already exposes useful helpers for this. For instance, [`assets.match{:ak}`](https://aiken-lang.github.io/stdlib/cardano/assets.html#match) can compare a runtime `Assets{:ak}` against a `Data{:ak}` representation while letting you parameterize how lovelace should be checked:
 
 ```aiken
 pub fn match(
-  left: Value,
+  left: Assets,
   right: Data,
   assert_lovelace: fn(Lovelace, Lovelace) -> Bool,
 ) -> Bool
@@ -484,9 +484,9 @@ expect and {
 }
 ```
 
-This is often much cheaper than re-computing full semantic comparisons over complete `Value{:ak}` structures.
+This is often much cheaper than re-computing full semantic comparisons over complete `Assets{:ak}` structures.
 
-### Use Backpassing When Returning More Than One Value
+### Use Backpassing When Returning More Than One Results
 
 Returning large tuples or records is convenient, but it also means constructing intermediary values only to immediately destructure them again. In hot paths, that overhead can become noticeable.
 

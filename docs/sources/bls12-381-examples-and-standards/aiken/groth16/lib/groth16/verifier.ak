@@ -159,7 +159,7 @@ pub fn verify(proof: Proof, public_inputs: List<Int>, vk: VerificationKey) -> Bo
 ///
 /// Returns the identity point if the input lengths are mismatched or `n_public`
 /// is zero — this causes the pairing check to fail for malformed input.
-fn compute_public_input_commitment(
+pub fn compute_public_input_commitment(
   public_inputs: List<Int>,
   ic: List<ByteArray>,
   n_public: Int,

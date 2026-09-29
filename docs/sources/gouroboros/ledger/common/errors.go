@@ -15,10 +15,77 @@
 package common
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
+	"reflect"
+	"strings"
+
+	"github.com/blinklabs-io/gouroboros/cbor"
 )
+
+// OutsideForecastError reports a transaction whose validity upper bound
+// cannot be converted to time by the validation slot state.
+type OutsideForecastError struct {
+	cbor.StructAsArray
+	Type uint8
+	Slot uint64
+}
+
+func (e *OutsideForecastError) Error() string {
+	return fmt.Sprintf("OutsideForecast (Slot %d)", e.Slot)
+}
+
+// MissingDatumForSpendingScriptError reports a Plutus V1/V2 spending input
+// whose datum hash has no matching witness datum.
+type MissingDatumForSpendingScriptError struct {
+	ScriptHash ScriptHash
+	Input      TransactionInput
+}
+
+func (e MissingDatumForSpendingScriptError) Error() string {
+	return fmt.Sprintf(
+		"missing datum for spending script (hash=%x, input=%s)",
+		e.ScriptHash[:],
+		e.Input.String(),
+	)
+}
+
+// NotAllowedSupplementalDatumsError reports witness datums that are not
+// justified by a Plutus spending input or a datum-hash output.
+type NotAllowedSupplementalDatumsError struct {
+	DatumHashes []Blake2b256
+}
+
+func (e NotAllowedSupplementalDatumsError) Error() string {
+	hashes := make([]string, len(e.DatumHashes))
+	for i, hash := range e.DatumHashes {
+		hashes[i] = hex.EncodeToString(hash[:])
+	}
+	return "not allowed supplemental datums in witness set: " + strings.Join(hashes, ", ")
+}
+
+// TxOut preserves an opaque transaction output embedded in a ledger failure.
+type TxOut struct {
+	cbor.Value
+}
+
+func (t *TxOut) String() string {
+	return fmt.Sprintf("TxOut (%v)", t.Value.Value())
+}
+
+// PtrPresentInCollateralReturn is the Dijkstra UTxO failure for a pointer
+// address in the collateral return output.
+type PtrPresentInCollateralReturn struct {
+	cbor.StructAsArray
+	Type   uint8
+	Output TxOut
+}
+
+func (e *PtrPresentInCollateralReturn) Error() string {
+	return fmt.Sprintf("PtrPresentInCollateralReturn (Output %s)", e.Output.String())
+}
 
 // WrongTransactionNetworkIdError reports a transaction-body network ID that
 // does not match the active ledger network.
@@ -125,6 +192,33 @@ var ErrInputResolution = errors.New(
 
 func (InputResolutionError) Is(target error) bool {
 	return target == ErrInputResolution
+}
+
+// ResolveInputUtxo resolves an input and rejects a state entry without an
+// output. Validators use this for inputs whose absence cannot be treated as an
+// empty value, such as collateral inputs.
+func ResolveInputUtxo(state UtxoState, input TransactionInput) (Utxo, error) {
+	utxo, err := state.UtxoById(input)
+	if err != nil {
+		return Utxo{}, InputResolutionError{Input: input, Err: err}
+	}
+	if utxo.Output == nil {
+		return Utxo{}, InputResolutionError{
+			Input: input,
+			Err:   errors.New("resolved UTxO has nil output"),
+		}
+	}
+	outputValue := reflect.ValueOf(utxo.Output)
+	kind := outputValue.Kind()
+	if (kind == reflect.Chan || kind == reflect.Func ||
+		kind == reflect.Interface || kind == reflect.Map ||
+		kind == reflect.Pointer || kind == reflect.Slice) && outputValue.IsNil() {
+		return Utxo{}, InputResolutionError{
+			Input: input,
+			Err:   errors.New("resolved UTxO has nil output"),
+		}
+	}
+	return utxo, nil
 }
 
 // ReferenceInputResolutionError indicates a failure to resolve a reference input UTxO
@@ -423,6 +517,99 @@ type GenesisDelegationStateUnavailableError struct{}
 
 func (GenesisDelegationStateUnavailableError) Error() string {
 	return "ledger state does not provide genesis delegation state"
+}
+
+// ClassicProtocolParameterUpdateWindowStateUnavailableError indicates that a
+// ledger state cannot provide the PPUP epoch boundary needed for validation.
+type ClassicProtocolParameterUpdateWindowStateUnavailableError struct{}
+
+func (ClassicProtocolParameterUpdateWindowStateUnavailableError) Error() string {
+	return "classic protocol parameter update window state unavailable"
+}
+
+// ProtocolParameterUpdateProtocolVersionUnavailableError indicates that
+// version-dependent update validation lacks the current protocol version.
+type ProtocolParameterUpdateProtocolVersionUnavailableError struct{}
+
+func (ProtocolParameterUpdateProtocolVersionUnavailableError) Error() string {
+	return "protocol parameter update protocol version unavailable"
+}
+
+// ProtocolParameterUpdateCostModelError identifies an invalid cost model in a
+// classic protocol parameter update.
+type ProtocolParameterUpdateCostModelError struct {
+	Language uint
+	Expected int
+	Actual   int
+	Unknown  bool
+}
+
+// ProtocolParameterUpdateVersionError indicates that a proposed protocol
+// version cannot follow the current version.
+type ProtocolParameterUpdateVersionError struct {
+	CurrentMajor  uint
+	CurrentMinor  uint
+	ProposedMajor uint
+	ProposedMinor uint
+}
+
+func (e ProtocolParameterUpdateVersionError) Error() string {
+	return fmt.Sprintf(
+		"protocol parameter update version %d.%d cannot follow current version %d.%d",
+		e.ProposedMajor,
+		e.ProposedMinor,
+		e.CurrentMajor,
+		e.CurrentMinor,
+	)
+}
+
+func (e ProtocolParameterUpdateCostModelError) Error() string {
+	if e.Unknown {
+		return fmt.Sprintf("protocol parameter update contains unknown cost model language %d", e.Language)
+	}
+	return fmt.Sprintf(
+		"protocol parameter update cost model language %d has %d parameters, expected %d",
+		e.Language,
+		e.Actual,
+		e.Expected,
+	)
+}
+
+// ProtocolParameterUpdateDelegateError indicates that an update key is not a
+// currently delegated genesis key.
+type ProtocolParameterUpdateDelegateError struct {
+	Delegate Blake2b224
+}
+
+func (e ProtocolParameterUpdateDelegateError) Error() string {
+	return fmt.Sprintf("protocol parameter update key %s is not a current genesis delegate", e.Delegate)
+}
+
+// ProtocolParameterUpdateWitnessError indicates that an update lacks a
+// witness from its currently delegated genesis key.
+type ProtocolParameterUpdateWitnessError struct {
+	Delegate Blake2b224
+}
+
+func (e ProtocolParameterUpdateWitnessError) Error() string {
+	return fmt.Sprintf("protocol parameter update is missing witness for genesis delegate %s", e.Delegate)
+}
+
+// ProtocolParameterUpdateEpochError identifies an update targeting the wrong
+// current or next epoch.
+type ProtocolParameterUpdateEpochError struct {
+	Current      uint64
+	Expected     uint64
+	Proposed     uint64
+	ForNextEpoch bool
+}
+
+func (e ProtocolParameterUpdateEpochError) Error() string {
+	period := "current"
+	if e.ForNextEpoch {
+		period = "next"
+	}
+	return fmt.Sprintf("protocol parameter update targets epoch %d, expected %s epoch %d (current epoch %d)", e.Proposed, period, e.Expected, e.Current)
 }
 
 // MIRInsufficientGenesisSigsError indicates that a move instantaneous rewards

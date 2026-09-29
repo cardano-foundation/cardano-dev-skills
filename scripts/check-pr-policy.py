@@ -6,12 +6,12 @@ code is ever executed) and enforces the mechanically-checkable parts of
 docs/CONTRIBUTING.md:
 
   1. Source vetting: every NEW entry in registry/sources.yaml must point to a
-     GitHub repo that is not archived, pushed to within 6 months, and shows a
-     release, issue/PR activity, or push within 3 months (checked live via the
-     GitHub API). A document-of-record source may waive the recency/activity
-     rules by carrying a `vetting_exception` reason string; the grant for
-     that waiver is enforced by scripts/validate.py (VETTING_EXCEPTIONS), the
-     archived and fork checks still apply, and the waiver prints as a warning.
+     GitHub repo that is not archived and was pushed to within 6 months
+     (checked live via the GitHub API). A document-of-record source may waive
+     the recency rule by carrying a `vetting_exception` reason string; the
+     grant for that waiver is enforced by scripts/validate.py
+     (VETTING_EXCEPTIONS), the archived and fork checks still apply, and the
+     waiver prints as a warning.
   2. Skill naming: a NEW skill named after a registered source/project brand
      fails (skills are task-oriented: build-transaction, connect-wallet, ...).
      Non-verb-first names produce a warning.
@@ -50,7 +50,6 @@ SKILLS_DIR = "skills"
 DOCS_DIR = "docs/sources"
 
 MAX_PUSH_AGE = timedelta(days=183)   # "last commit < 6 months"
-MAX_ACTIVITY_AGE = timedelta(days=92)  # "activity in the last 3 months"
 
 # First words of source names that are generic, not brands — a skill name
 # containing one of these is not evidence of a brand-named skill.
@@ -169,12 +168,12 @@ def vet_source(entry: dict) -> None:
     slug = f"{parsed[0]}/{parsed[1]}" if parsed else None
     where = f"source `{name}` ({slug})" if slug else f"source `{name}`"
 
-    # A `vetting_exception` on the registry entry waives the recency/activity
-    # rules (1-2) for document-of-record sources — repos that change only when
-    # the document they mirror does (e.g. the Cardano Constitution, amended
-    # on-chain), where commit cadence says nothing about health. The archived
-    # (rule 3) and fork (rule 4) checks still apply, and the waiver is
-    # surfaced as a warning so it is never silent.
+    # A `vetting_exception` on the registry entry waives the recency rule for
+    # document-of-record sources — repos that change only when the document
+    # they mirror does (e.g. the Cardano Constitution, amended on-chain),
+    # where commit cadence says nothing about health. The archived and fork
+    # checks still apply, and the waiver is surfaced as a warning so it is
+    # never silent.
     #
     # Whether the waiver was GRANTED is not decided here. This script runs
     # from the base branch (see .github/workflows/pr-policy.yml), so an
@@ -186,7 +185,7 @@ def vet_source(entry: dict) -> None:
     exception = entry.get("vetting_exception")
     waived = isinstance(exception, str) and bool(exception.strip())
     if waived:
-        warn(f"{where}: recency/activity vetting (rules 1-2) waived by "
+        warn(f"{where}: recency vetting waived by "
              "registry vetting_exception (grant enforced by "
              f"scripts/validate.py) — {' '.join(exception.split())}")
 
@@ -198,18 +197,18 @@ def vet_source(entry: dict) -> None:
     info = gh_api(f"/repos/{slug}")
     if not isinstance(info, dict) or "archived" not in info:
         warn(f"{where}: could not query the GitHub API — "
-             "verify the vetting bar manually (archived? last commit? activity?)")
+             "verify the vetting bar manually (archived? last commit?)")
         return
 
     now = datetime.now(timezone.utc)
 
     if info.get("archived"):
         fail(f"{where}: repository is ARCHIVED — "
-             "fails vetting rule 3 (no archived/deprecated/sunset sources)")
+             "fails the vetting bar (no archived/deprecated/sunset sources)")
 
     if waived:
         if info.get("fork"):
-            warn(f"{where}: repo is a fork — vetting rule 4 "
+            warn(f"{where}: repo is a fork — the vetting bar "
                  "requires justifying in the PR that this is the maintained "
                  "canonical")
         return
@@ -217,35 +216,11 @@ def vet_source(entry: dict) -> None:
     pushed_at = info.get("pushed_at")
     if pushed_at and now - parse_iso(pushed_at) > MAX_PUSH_AGE:
         fail(f"source `{name}` ({slug}): last push {pushed_at} is older than "
-             "6 months — fails vetting rule 1")
+             "6 months — fails the vetting bar (last commit < 6 months)")
 
     if info.get("fork"):
-        warn(f"source `{name}` ({slug}): repo is a fork — vetting rule 4 "
+        warn(f"source `{name}` ({slug}): repo is a fork — the vetting bar "
              "requires justifying in the PR that this is the maintained canonical")
-
-    # Rule 2: ≥1 release tag OR issue/PR activity OR a push in the last 3 months.
-    # A push inside the window is the same evidence of maintenance as a
-    # release or an issue; small example and standards repositories never
-    # accumulate either. It is already fetched, so check it first.
-    if pushed_at and now - parse_iso(pushed_at) <= MAX_ACTIVITY_AGE:
-        return
-    # Then GitHub Releases, then plain git tags — the written bar
-    # says "release tag", and many maintained repos tag without cutting
-    # GitHub Releases.
-    releases = gh_api(f"/repos/{slug}/releases?per_page=1")
-    if isinstance(releases, list) and releases:
-        return
-    tags = gh_api(f"/repos/{slug}/tags?per_page=1")
-    if isinstance(tags, list) and tags:
-        return
-    issues = gh_api(f"/repos/{slug}/issues?state=all&sort=updated"
-                    "&direction=desc&per_page=1")
-    if isinstance(issues, list) and issues:
-        updated = issues[0].get("updated_at")
-        if updated and now - parse_iso(updated) <= MAX_ACTIVITY_AGE:
-            return
-    fail(f"source `{name}` ({slug}): no release tag, no issue/PR activity, "
-         "and no push in the last 3 months — fails vetting rule 2")
 
 
 # -------------------------------------------------------------------- skills

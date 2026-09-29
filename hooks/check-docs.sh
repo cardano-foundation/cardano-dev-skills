@@ -150,7 +150,7 @@ if [ -n "${CWD_REAL}" ] && [ "${CWD_REAL}" != "${PLUGIN_REAL}" ]; then
     if [ -f "./CLAUDE.md" ] && grep -q '<!-- BEGIN cardano-dev-skills' "./CLAUDE.md" 2>/dev/null; then
         echo "[Cardano Dev Skills] Cardano context active in this project."
     elif [ -d "./.git" ] || [ -f "./CLAUDE.md" ] || [ -d "./.claude" ]; then
-        echo "[Cardano Dev Skills] Tip: run /cardano-context to enable auto-consultation in this project."
+        echo "[Cardano Dev Skills] Tip: run /cardano-dev-skills:cardano-context to enable auto-consultation in this project."
     fi
 fi
 

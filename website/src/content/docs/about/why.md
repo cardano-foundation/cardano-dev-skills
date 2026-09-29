@@ -34,7 +34,7 @@ from training data alone gets it wrong more often than right.
 
 This plugin ships:
 
-- **Authoritative bundled docs** from 56 active Cardano projects,
+- **Authoritative bundled docs** from active Cardano projects,
   auto-refreshed weekly from upstream. The agent reads from a known-current
   snapshot, not a year-old memory.
 - **Behavioural skills** that encode common workflows: scaffolding,
@@ -42,8 +42,8 @@ This plugin ships:
   debugging. Skills aren't reference dumps — they're workflow guides that
   tell the agent *what to do* and *when*, then point at the bundled docs
   for *how*.
-- **Hooks that auto-consult bundled context** before the agent reaches for
-  training data or the web.
+- **Durable project context and skill discovery** that steer the agent to
+  bundled sources before training data or the web.
 
 End result: the agent answers from current, project-authoritative sources
 instead of memorised snapshots. The fix isn't "make the model smarter" —

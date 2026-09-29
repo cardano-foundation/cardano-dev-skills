@@ -6,7 +6,7 @@ This document describes the process of adding a new governance action type to th
 
 Every governance action should follow the [CIP-100](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0100) and [CIP-108](https://github.com/cardano-foundation/CIPs/pull/632) (currently on a PR stage) standards.
 
-Person to contact: @Ryun1
+Person to contact: @mesudip
 
 ## Package
 

@@ -1,6 +1,7 @@
 package v1alpha
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -138,10 +139,13 @@ func createHttpClient(enableTls bool, dialTimeout, requestTimeout time.Duration)
 		},
 		Transport: &http2.Transport{
 			AllowHTTP: true,
-			DialTLS: func(network, addr string, tlsConfig *tls.Config) (net.Conn, error) {
+			DialTLSContext: func(ctx context.Context, network, addr string, tlsConfig *tls.Config) (net.Conn, error) {
 				if enableTls {
 					// Establish a TLS connection using the custom TLS configuration
-					conn, err := tls.DialWithDialer(&net.Dialer{Timeout: dialTimeout}, network, addr, tlsConfig)
+					conn, err := (&tls.Dialer{
+						NetDialer: &net.Dialer{Timeout: dialTimeout},
+						Config:    tlsConfig,
+					}).DialContext(ctx, network, addr)
 					if err != nil {
 						return nil, fmt.Errorf(
 							"failed to establish TLS connection: %w",
@@ -150,7 +154,7 @@ func createHttpClient(enableTls bool, dialTimeout, requestTimeout time.Duration)
 					}
 					return conn, nil
 				}
-				return net.DialTimeout(network, addr, dialTimeout)
+				return (&net.Dialer{Timeout: dialTimeout}).DialContext(ctx, network, addr)
 			},
 		},
 	}

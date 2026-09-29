@@ -163,6 +163,16 @@ func (r ResolvedInput) ToPlutusData() data.PlutusData {
 	)
 }
 
+// Equals reports whether this resolved input's underlying UTxO reference
+// identifies the same input as other, compared by (TxId, Index) rather than
+// by formatting both sides through String(): this is the single place that
+// definition lives, used by every input-resolution loop that runs once per
+// input or redeemer per transaction during ledger validation, where the
+// allocation cost of a String()-based comparison compounds quickly.
+func (r ResolvedInput) Equals(other lcommon.TransactionInput) bool {
+	return r.Id.Id() == other.Id() && r.Id.Index() == other.Index()
+}
+
 type Redeemer struct {
 	Tag     lcommon.RedeemerTag
 	Index   uint32
@@ -494,9 +504,16 @@ func (w WithZeroAdaAsset) ToPlutusData() data.PlutusData {
 		addr := v.Address()
 		datumOption := data.NewConstr(0)
 		if tmp := v.Datum(); tmp != nil {
+			// Normalize, not Clone: Clone preserves the wire's
+			// definite/indefinite array encoding, so a definite-encoded inline
+			// datum would reach the script with bytes the reference
+			// implementation never produces (it rebuilds script-visible values
+			// fresh). A script that hashes or compares serialiseData of this
+			// datum then diverges from cardano-ledger. Matches the inline-datum
+			// handling in BabbageTransactionOutput.ToPlutusData.
 			datumOption = data.NewConstr(
 				2,
-				tmp.Data.Clone(),
+				data.Normalize(tmp.Data),
 			)
 		} else if tmp := v.DatumHash(); tmp != nil {
 			datumOption = data.NewConstr(

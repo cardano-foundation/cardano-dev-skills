@@ -1,8 +1,8 @@
 # Install and first transaction
 
 Apollo v2 is the module `github.com/Salvionied/apollo/v2`. It requires **Go
-1.25.13 or newer**. The `go` directive in `go.mod` is a hard floor: an older
-1.25 patch refuses to build the module rather than warning.
+1.26.8 or newer**. The `go` directive in `go.mod` is a hard floor: older
+toolchains refuse to build the module rather than warning.
 
 ```bash
 go get github.com/Salvionied/apollo/v2

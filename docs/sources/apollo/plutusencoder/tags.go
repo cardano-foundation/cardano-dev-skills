@@ -2,6 +2,7 @@ package plutusencoder
 
 import (
 	"fmt"
+	"math/big"
 	"reflect"
 	"strconv"
 	"strings"
@@ -146,7 +147,7 @@ func splitPlutusType(raw string) (string, []string, error) {
 	return tag, options, nil
 }
 
-func readContainerMetadata(typ reflect.Type) (containerTag, uint, bool, error) {
+func readContainerMetadata(typ reflect.Type) (containerTag, uint64, bool, error) {
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 		if field.Name != "_" {
@@ -158,19 +159,23 @@ func readContainerMetadata(typ reflect.Type) (containerTag, uint, bool, error) {
 			return containerIndefList, 0, false, err
 		}
 
-		var constrTag uint
+		var constrTag uint64
 		hasConstr := false
 		if constrStr := field.Tag.Get("plutusConstr"); constrStr != "" {
 			c, err := strconv.ParseUint(constrStr, 10, 32)
 			if err != nil {
 				return containerIndefList, 0, false, fmt.Errorf("invalid plutusConstr tag %q: %w", constrStr, err)
 			}
-			constrTag = uint(c)
+			constrTag = c
 			hasConstr = true
 		}
 		return container, constrTag, hasConstr, nil
 	}
 	return containerIndefList, 0, false, nil
+}
+
+func constrTagEqual(tag *big.Int, expected uint64) bool {
+	return tag != nil && tag.IsUint64() && tag.Uint64() == expected
 }
 
 // isOptionalField reports whether a struct field is marked optional via the

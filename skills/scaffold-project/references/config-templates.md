@@ -2,7 +2,7 @@
 
 Reference snippets for the config files the scaffold prints. Each template is annotated inline so the developer understands what every field does and which fields they need to adjust.
 
-Versions are intentionally left as placeholder markers. At scaffold time, check the project's GitHub releases page or the bundled docs at `${CLAUDE_SKILL_DIR}/../../docs/sources/<source>/` and replace the marker with the latest stable release.
+Versions are intentionally left as placeholder markers. At scaffold time, check the project's GitHub releases page or the bundled docs at `../../docs/sources/<source>/` and replace the marker with the latest stable release.
 
 ## `aiken.toml` (all stacks)
 
@@ -17,9 +17,8 @@ description = "On-chain validators for the Acme dApp."
 
 # Compiler used for this project. Aiken pins itself; do not change unless you
 # also change CI and every developer's local toolchain.
-compiler = "v1.x.y"                       # PIN: latest stable Aiken release.
-                                          # Check ${CLAUDE_SKILL_DIR}/../../docs/sources/aiken/
-                                          # or https://github.com/aiken-lang/aiken/releases.
+compiler = "v1.1.21"                      # PIN: the compiler the templates are tested with.
+                                          # Bump together with the stdlib pin below.
 plutus = "v3"                             # Plutus V3 is the current target; required for
                                           # Conway-era features.
 
@@ -31,14 +30,15 @@ platform = "github"
 # Dependencies. Pin to a tag, never to a branch. Always commit aiken.lock.
 [[dependencies]]
 name = "aiken-lang/stdlib"
-version = "v2.x.y"                        # PIN: latest stdlib release matching your compiler.
-                                          # See ${CLAUDE_SKILL_DIR}/../../docs/sources/aiken-stdlib/.
+version = "v3.1.0"                        # PIN: stdlib v3 provides the aiken/collection,
+                                          # aiken/crypto and cardano/* modules the
+                                          # validators import.
 source = "github"
 
 # Optional but recommended: design-patterns library. Drop if not used.
 # [[dependencies]]
 # name = "Anastasia-Labs/aiken-design-patterns"
-# version = "v0.x.y"
+# version = "v1.6.3"
 # source = "github"
 
 [config]
@@ -129,11 +129,12 @@ The template below covers all supported networks. Leave the variables for the ne
 CARDANO_NETWORK=devnet               # devnet | preview | preprod | mainnet
 
 # --- Yaci DevKit (local devnet) ---
-# Yaci Store exposes a Blockfrost-compatible API on this URL by default.
+# Yaci Store serves a Blockfrost-compatible API under /api/v1 on this URL.
 # Use `yaci-cli` (or the dev-up.sh script in the scaffold) to launch it; see
 # the `setup-devnet` skill for full instructions.
-# Built-in faucet: `yaci-cli faucet send <address> <ada>` while devnet is up.
-YACI_STORE_URL=http://localhost:10000
+# Fund an address: `topup <address> <ada>` at the yaci-cli devnet prompt.
+YACI_STORE_URL=http://localhost:8080
+# DevKit admin API (CLI, wallet page, MCP). Not a chain-query endpoint.
 YACI_ADMIN_URL=http://localhost:10000
 # Yaci DevKit auto-seeds wallets with test ADA at startup. Replace with an
 # address printed by `yaci-cli` when you start the devnet.
@@ -172,7 +173,7 @@ When you flip `CARDANO_NETWORK` between scaffolded environments, update only the
 
 | Network | Blockfrost key prefix | Faucet | Notes |
 |---|---|---|---|
-| devnet | not used | `yaci-cli faucet send ...` (built into Yaci DevKit) | YACI_STORE_URL must be reachable |
+| devnet | not used | `topup <address> <ada>` at the yaci-cli prompt | YACI_STORE_URL must be reachable |
 | preview | `preview...` | https://docs.cardano.org/cardano-testnets/tools/faucet (select Preview) | network ID = 0, ~20s blocks |
 | preprod | `preprod...` | https://docs.cardano.org/cardano-testnets/tools/faucet (select Preprod) | network ID = 0, mainnet-like params |
 | mainnet | `mainnet...` | none — real ADA | network ID = 1, audit before deploying |
@@ -196,9 +197,7 @@ When you flip `CARDANO_NETWORK` between scaffolded environments, update only the
     "tx:redeem": "tsx src/hello/redeem.ts"
   },
   "dependencies": {
-    "@meshsdk/core": "^X.Y.Z",                 // PIN: latest Mesh SDK release.
-                                               // Check ${CLAUDE_SKILL_DIR}/../../docs/sources/mesh-sdk/
-                                               // or https://github.com/MeshJS/mesh/releases.
+    "@meshsdk/core": "1.9.1",                  // PIN: exact; check `npm view @meshsdk/core version`.
     "dotenv": "^16.4.5"
   },
   "devDependencies": {
@@ -228,10 +227,8 @@ When you flip `CARDANO_NETWORK` between scaffolded environments, update only the
     "tx:redeem": "tsx src/hello/redeem.ts"
   },
   "dependencies": {
-    "@evolution-sdk/evolution": "^X.Y.Z",      // PIN: latest Evolution SDK release.
-                                               // Check ${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/.
-    "dotenv": "^16.4.5",
-    "effect": "^3.0.0"                         // peer dep; Evolution is built on Effect-TS
+    "@evolution-sdk/evolution": "0.5.14",      // PIN: exact; check `npm view @evolution-sdk/evolution version`.
+    "dotenv": "^16.4.5"                        // Evolution brings its own Effect dependency
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -277,9 +274,9 @@ packages = [{ include = "acme_offchain", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.11"                          # PIN: match your CI Python version
-pycardano = "^X.Y.Z"                      # PIN: latest PyCardano release.
-                                          # Check ${CLAUDE_SKILL_DIR}/../../docs/sources/pycardano/
-                                          # or https://pypi.org/project/pycardano/.
+pycardano = "0.19.2"                      # PIN: exact; bump deliberately.
+cbor2 = ">=5.6.5,<6"                      # cbor2 6 breaks `import pycardano` 0.19.2;
+                                          # drop once PyCardano supports it.
 python-dotenv = "^1.0.1"                  # reads .env at startup
 requests = "^2.32.0"                      # provider HTTP
 
@@ -287,6 +284,7 @@ requests = "^2.32.0"                      # provider HTTP
 pytest = "^8.0.0"
 ruff = "^0.5.0"
 mypy = "^1.10.0"
+types-requests = "^2.32.0"
 
 [tool.poetry.scripts]
 tx-lock = "acme_offchain.hello.lock:main"      # `poetry run tx-lock`
@@ -303,6 +301,15 @@ target-version = "py311"
 [tool.mypy]
 python_version = "3.11"
 strict = true
+
+# PyCardano and blockfrost-python ship no type information.
+[[tool.mypy.overrides]]
+module = ["pycardano.*", "blockfrost.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["acme_offchain.yaci"]
+disallow_subclassing_any = false
 ```
 
 ## `pom.xml` (Stack 4: cardano-client-lib)
@@ -321,24 +328,15 @@ strict = true
     <maven.compiler.source>21</maven.compiler.source>     <!-- PIN: match your CI JDK -->
     <maven.compiler.target>21</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <!-- PIN: latest cardano-client-lib release.
-         Check ${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/
-         or https://github.com/bloxbean/cardano-client-lib/releases. -->
-    <cclib.version>X.Y.Z</cclib.version>
+    <!-- PIN: one version for every com.bloxbean.cardano artifact; bump deliberately. -->
+    <cclib.version>0.7.2</cclib.version>
   </properties>
 
   <dependencies>
-    <!-- Core transaction builder. -->
+    <!-- Core transaction builder; brings the plutus and blueprint modules with it. -->
     <dependency>
       <groupId>com.bloxbean.cardano</groupId>
       <artifactId>cardano-client-lib</artifactId>
-      <version>${cclib.version}</version>
-    </dependency>
-
-    <!-- Blueprint utilities to load plutus.json. -->
-    <dependency>
-      <groupId>com.bloxbean.cardano</groupId>
-      <artifactId>cardano-client-plutus</artifactId>
       <version>${cclib.version}</version>
     </dependency>
 
@@ -376,8 +374,8 @@ strict = true
 ## Notes on pinning
 
 - Aiken: pin both `compiler` and the stdlib dependency. Mismatched versions cause confusing build errors.
-- TypeScript SDKs: commit `package-lock.json` or `pnpm-lock.yaml`. Caret ranges in `package.json` are fine as long as the lockfile is committed.
-- PyCardano: commit `poetry.lock`. Do not rely on caret ranges alone.
+- TypeScript: exact versions for `@meshsdk/*`, `@evolution-sdk/*`, pre-1.0 packages and `next`; `^` ranges for the rest. Commit `package-lock.json` or `pnpm-lock.yaml`.
+- PyCardano: pin it exactly and commit `poetry.lock`. Poetry's `^0.x` already holds the minor version, so pre-1.0 tools such as `ruff` can keep it.
 - cardano-client-lib: pin a single `cclib.version` property and reuse it across all `com.bloxbean.cardano:*` dependencies. Mixing versions across the cclib family causes runtime classpath errors.
 
 ## Notes on secrets

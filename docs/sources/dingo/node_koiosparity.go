@@ -45,10 +45,11 @@ const defaultKoiosParityCacheSubdir = ".koios/cache.db"
 // the event has already committed.
 //
 // A strict-mode failure (the default — see KoiosParityConfig) calls
-// n.cancel via FatalFunc, matching every other FatalErrorFunc-style
-// composition callback in Run() (ledger, Midnight indexer): a Koios/tool
-// error or exact parity mismatch stops the node rather than being logged as
-// ordinary operation.
+// n.cancelForFatal via FatalFunc: a Koios/tool error or non-pass parity
+// result stops the node and is returned by Run so the process exits non-zero
+// rather than being logged as ordinary operation or mistaken for a clean
+// signal. An epoch whose only significant mismatches are reference_lag never
+// reaches FatalFunc — see koiosparity.Observer.fail.
 func (n *Node) startKoiosParityObserver() error {
 	cfg := n.config.koiosParity
 
@@ -87,22 +88,26 @@ func (n *Node) startKoiosParityObserver() error {
 	}
 
 	observer, err := koiosparity.NewObserver(koiosparity.ObserverConfig{
-		Network:              network,
-		CachePath:            cachePath,
-		APIKey:               cfg.APIKey,
-		Source:               source,
-		Strict:               cfg.Strict,
-		AccountsEnabled:      accountsEnabled,
-		GraceHours:           cfg.GraceHours,
-		AccountChunkSize:     cfg.AccountChunkSize,
-		AccountChunkMaxBytes: cfg.AccountChunkMaxBytes,
-		Logger:               n.config.logger,
+		Network:               network,
+		CachePath:             cachePath,
+		APIKey:                cfg.APIKey,
+		BaseURL:               cfg.BaseURL,
+		AllowInsecureHTTP:     cfg.AllowInsecureHTTP,
+		AllowPrivateAddresses: cfg.AllowPrivateAddresses,
+		Source:                source,
+		Strict:                cfg.Strict,
+		AccountsEnabled:       accountsEnabled,
+		GraceHours:            cfg.GraceHours,
+		AccountChunkSize:      cfg.AccountChunkSize,
+		AccountChunkMaxBytes:  cfg.AccountChunkMaxBytes,
+		PromRegistry:          n.config.promRegistry,
+		Logger:                n.config.logger,
 		FatalFunc: func(err error) {
 			n.config.logger.Error(
 				"fatal koios parity validation failure, initiating shutdown",
 				"error", err,
 			)
-			n.cancel()
+			n.cancelForFatal(err)
 		},
 	})
 	if err != nil {
@@ -127,7 +132,7 @@ func (n *Node) startKoiosParityObserver() error {
 		return fmt.Errorf("start koios parity observer: %w", err)
 	}
 	n.koiosParityObserver = observer
-	n.koiosParitySubId = n.eventBus.SubscribeFunc(
+	n.koiosParitySubId = n.subscribeRequiredEvent(
 		event.EpochTransitionEventType,
 		observer.HandleEpochTransitionEvent,
 	)

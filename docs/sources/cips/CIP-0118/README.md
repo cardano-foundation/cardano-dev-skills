@@ -168,11 +168,14 @@ batch fails, none of the transactions in the batch are applied, only the collate
 4. Transactions using new features are not allowed to run scripts of PlutusV3 or earlier.
 
 5. All scripts are shared across all transactions within a single batch, so attaching one script to either a sub- or a top-level-transaction
-allows other transactions to run it without also including it in its own scripts. This includes references scripts that are sourced from the
-outputs to which reference inputs point in the UTxO. These referenced UTxO entries could be outputs of preceding transactions in the batch.
-Datums (both from reference inputs and ones attached to other transactions) are also shared in this way. As before, only the datums fixed by the
-executing transaction are included in the `TxInfo` constructed for its scripts, however, now they don't necessarily have to be attached to
-that transaction.
+allows other transactions to run it without also including it in its own scripts. This includes:
+    1. reference scripts that are sourced from the outputs to which reference
+    inputs point in the UTxO,
+    2. scripts in transaction witnesses, and
+    3. scripts in transaction outputs (see
+    [CIP-0172](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0172)).
+
+    In contrast, datums are not shared within a single batch.
 
 6. All inputs of all transactions in a single batch must be contained in the UTxO set before any of the
 batch transactions are applied. This ensures that operation of scripts is not disrupted, for example, by
@@ -191,7 +194,6 @@ It is usually not possible to make new features that are added to a transaction 
 
 In order to make this a reality we propose a special mode for the top level transaction validation. This mode will be enabled automatically when a top level transaction uses any of the older PlutusV1, PlutusV2 or PlutusV3 scripts. This special mode will validate the top level transaction in isolation from all of the sub-transactions that were included in it. In particular:
 * top level transaction will have to balance out by itself and all of the sub-transactions will have to balance each other, without relying on the top level transaction.
-* top level transaction cannot use any of the sub-transactions as the source of actual scripts or datums. They will have to be supplied at the top level through the usual means of reference inputs or through the witness set.
 * top level transaction itself cannot use any of the new features. Eg. guards list cannot contain any script hashes at the top level.
 
 With this slight modification to the rules we will be able to guarantee backwards compatibility for PlutusV1 - PlutusV3 scripts. The only change visible to the older scripts in the script context would be potentially slightly higher than usual transaction fee, which is not disallowed today.

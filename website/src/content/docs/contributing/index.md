@@ -23,6 +23,7 @@ in the repo. These pages mirror it; the repo file is authoritative if they
 ever drift.
 
 For feedback on a skill or doc, ask your agent to run the `give-feedback`
-skill, or use the
+skill (`/cardano-dev-skills:give-feedback` in Claude Code or `$give-feedback`
+in Codex), or use the
 [issue templates](https://github.com/cardano-foundation/cardano-dev-skills/issues/new/choose)
 directly.

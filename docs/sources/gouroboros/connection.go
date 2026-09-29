@@ -48,6 +48,7 @@ import (
 	"github.com/blinklabs-io/gouroboros/protocol/localtxmonitor"
 	"github.com/blinklabs-io/gouroboros/protocol/localtxsubmission"
 	"github.com/blinklabs-io/gouroboros/protocol/peersharing"
+	"github.com/blinklabs-io/gouroboros/protocol/perasvotes"
 	"github.com/blinklabs-io/gouroboros/protocol/txsubmission"
 )
 
@@ -69,6 +70,7 @@ type Connection struct {
 	logger                *slog.Logger
 	muxer                 *muxer.Muxer
 	errorChan             chan error
+	ownsErrorChan         bool
 	protoErrorChan        chan error
 	handshakeFinishedChan chan any
 	handshakeVersion      uint16
@@ -101,6 +103,8 @@ type Connection struct {
 	leiosNotifyConfig       *leiosnotify.Config
 	leiosVotes              *leiosvotes.LeiosVotes
 	leiosVotesConfig        *leiosvotes.Config
+	perasVotes              *perasvotes.PerasVotes
+	perasVotesConfig        *perasvotes.Config
 	localStateQuery         *localstatequery.LocalStateQuery
 	localStateQueryConfig   *localstatequery.Config
 	localTxMonitor          *localtxmonitor.LocalTxMonitor
@@ -116,6 +120,9 @@ type Connection struct {
 	localMessageSubmissionConfig   *localmessagesubmission.Config
 	localMessageNotification       *localmessagenotification.LocalMessageNotification
 	localMessageNotificationConfig *localmessagenotification.Config
+	// muxerSegmentReadTimeout overrides the muxer's default segment-read
+	// timeout when non-nil; see WithMuxerSegmentReadTimeout.
+	muxerSegmentReadTimeout *time.Duration
 }
 
 // NewConnection returns a new Connection object with the specified options. If a connection is provided, the
@@ -134,8 +141,12 @@ func NewConnection(options ...ConnectionOptionFunc) (*Connection, error) {
 	for _, option := range options {
 		option(c)
 	}
+	if err := c.synchronizeByronSlotsPerEpoch(); err != nil {
+		return nil, err
+	}
 	if c.errorChan == nil {
 		c.errorChan = make(chan error, 10)
+		c.ownsErrorChan = true
 	}
 	if c.conn != nil {
 		if err := c.setupConnection(); err != nil {
@@ -143,6 +154,45 @@ func NewConnection(options ...ConnectionOptionFunc) (*Connection, error) {
 		}
 	}
 	return c, nil
+}
+
+func (c *Connection) synchronizeByronSlotsPerEpoch() error {
+	var blockFetchSlots, chainSyncSlots uint64
+	if c.blockFetchConfig != nil {
+		blockFetchSlots = c.blockFetchConfig.ByronSlotsPerEpoch
+	}
+	if c.chainSyncConfig != nil {
+		chainSyncSlots = c.chainSyncConfig.ByronSlotsPerEpoch
+	}
+	if blockFetchSlots != 0 && chainSyncSlots != 0 &&
+		blockFetchSlots != chainSyncSlots {
+		return fmt.Errorf(
+			"conflicting Byron slots per epoch: BlockFetch=%d ChainSync=%d",
+			blockFetchSlots,
+			chainSyncSlots,
+		)
+	}
+	slotsPerEpoch := blockFetchSlots
+	if slotsPerEpoch == 0 {
+		slotsPerEpoch = chainSyncSlots
+	}
+	if slotsPerEpoch == 0 {
+		return nil
+	}
+	if c.blockFetchConfig == nil {
+		config, err := blockfetch.NewConfig()
+		if err != nil {
+			return fmt.Errorf("create BlockFetch config: %w", err)
+		}
+		c.blockFetchConfig = &config
+	}
+	if c.chainSyncConfig == nil {
+		config := chainsync.NewConfig()
+		c.chainSyncConfig = &config
+	}
+	c.blockFetchConfig.ByronSlotsPerEpoch = slotsPerEpoch
+	c.chainSyncConfig.ByronSlotsPerEpoch = slotsPerEpoch
+	return nil
 }
 
 // New is an alias to NewConnection for backward compatibility
@@ -160,7 +210,12 @@ func (c *Connection) Muxer() *muxer.Muxer {
 	return c.muxer
 }
 
-// ErrorChan returns the channel for asynchronous errors
+// ErrorChan returns the channel for asynchronous errors. A channel created by
+// the Connection is closed during shutdown; a channel supplied with
+// WithErrorChan remains open and caller-owned. Delivery is non-blocking. A
+// supplied channel should have capacity of at least one for reliable delivery
+// while the connection is active; errors may be dropped when the channel is
+// full or has no receiver ready.
 func (c *Connection) ErrorChan() chan error {
 	return c.errorChan
 }
@@ -196,16 +251,23 @@ func (c *Connection) DialTimeout(
 
 // Close will shutdown the Ouroboros connection
 func (c *Connection) Close() error {
-	c.onceClose.Do(func() {
-		if c.doneChan == nil {
-			return
-		}
-		// Close doneChan to signify that we're shutting down
-		close(c.doneChan)
-		// Wait for connection to be closed
-		<-c.connClosedChan
-	})
+	if c.doneChan == nil {
+		return nil
+	}
+	c.requestClose()
+	// Wait until all connection-owned goroutines have stopped. After this
+	// returns, a caller may safely close a channel supplied with WithErrorChan.
+	<-c.connClosedChan
 	return nil
+}
+
+// requestClose initiates shutdown without waiting for it to complete. Tracked
+// connection goroutines use this method so shutdown can wait for them without
+// deadlocking.
+func (c *Connection) requestClose() {
+	c.onceClose.Do(func() {
+		close(c.doneChan)
+	})
 }
 
 // BlockFetch returns the block-fetch protocol handler
@@ -241,6 +303,11 @@ func (c *Connection) LeiosNotify() *leiosnotify.LeiosNotify {
 // LeiosVotes returns the leios-votes protocol handler
 func (c *Connection) LeiosVotes() *leiosvotes.LeiosVotes {
 	return c.leiosVotes
+}
+
+// PerasVotes returns the Peras vote-diffusion protocol handler, when enabled.
+func (c *Connection) PerasVotes() *perasvotes.PerasVotes {
+	return c.perasVotes
 }
 
 // LocalStateQuery returns the local-state-query protocol handler
@@ -306,13 +373,27 @@ func (c *Connection) shutdown() {
 		if c.muxer != nil {
 			c.muxer.Stop()
 		}
-		// Close channel to let Close() know that it can return
-		close(c.connClosedChan)
 		// Wait for other goroutines to finish
 		c.waitGroup.Wait()
-		// Close consumer error channel to signify connection shutdown
-		close(c.errorChan)
+		// Signal shutdown only on the channel created by this connection.
+		// A channel supplied with WithErrorChan remains caller-owned.
+		if c.ownsErrorChan {
+			close(c.errorChan)
+		}
+		// Signal completion only after all connection-owned goroutines and
+		// channels have finished shutting down.
+		close(c.connClosedChan)
 	})
+}
+
+// forwardError attempts immediate best-effort delivery without allowing a full
+// or undrained consumer channel to prevent connection shutdown.
+func (c *Connection) forwardError(err error) {
+	select {
+	case c.errorChan <- err:
+	case <-c.doneChan:
+	default:
+	}
 }
 
 // allProtocolsIdle returns true if every active protocol is in a terminal or
@@ -417,6 +498,14 @@ func (c *Connection) allProtocolsIdle() bool {
 			protocols = append(protocols, c.leiosVotes.Server.ProtocolInstance())
 		}
 	}
+	if c.perasVotes != nil {
+		if c.perasVotes.Client != nil {
+			protocols = append(protocols, c.perasVotes.Client.Protocol)
+		}
+		if c.perasVotes.Server != nil {
+			protocols = append(protocols, c.perasVotes.Server.Protocol)
+		}
+	}
 	if c.localMessageSubmission != nil {
 		if c.localMessageSubmission.Client != nil {
 			protocols = append(protocols, c.localMessageSubmission.Client.Protocol)
@@ -468,7 +557,14 @@ func (c *Connection) setupConnection() error {
 		RemoteAddr: c.conn.RemoteAddr(),
 	}
 	// Create muxer instance
-	c.muxer = muxer.New(c.conn)
+	if c.muxerSegmentReadTimeout != nil {
+		c.muxer = muxer.NewWithSegmentReadTimeout(
+			c.conn,
+			*c.muxerSegmentReadTimeout,
+		)
+	} else {
+		c.muxer = muxer.New(c.conn)
+	}
 	// Start Goroutine to pass along errors from the muxer
 	c.waitGroup.Go(func() {
 		select {
@@ -487,25 +583,26 @@ func (c *Connection) setupConnection() error {
 			var connErr *muxer.ConnectionClosedError
 			if errors.As(err, &connErr) && c.allProtocolsIdle() {
 				// All protocols finished gracefully; suppress the error
-				c.Close()
+				c.requestClose()
 				return
 			}
 			if errors.As(err, &connErr) {
 				// Pass through ConnectionClosedError from muxer
-				c.errorChan <- err
+				c.forwardError(err)
 			} else {
 				// Wrap error message to denote it comes from the muxer
-				c.errorChan <- fmt.Errorf("muxer error: %w", err)
+				c.forwardError(fmt.Errorf("muxer error: %w", err))
 			}
 			// Close connection on muxer errors
-			c.Close()
+			c.requestClose()
 		}
 	})
 	protoOptions := protocol.ProtocolOptions{
-		ConnectionId: c.id,
-		Muxer:        c.muxer,
-		Logger:       c.logger,
-		ErrorChan:    c.protoErrorChan,
+		ConnectionId:       c.id,
+		ConnectionDoneChan: c.doneChan,
+		Muxer:              c.muxer,
+		Logger:             c.logger,
+		ErrorChan:          c.protoErrorChan,
 	}
 	if c.useNodeToNodeProto {
 		protoOptions.Mode = protocol.ProtocolModeNodeToNode
@@ -531,12 +628,13 @@ func (c *Connection) setupConnection() error {
 			c.queryMode,
 		)
 	} else {
-		protoVersions = protocol.GetProtocolVersionMap(
+		protoVersions = protocol.GetProtocolVersionMapWithPerasSupport(
 			protoOptions.Mode,
 			c.networkMagic,
 			handshakeDiffusionMode,
 			c.peerSharingEnabled,
 			c.queryMode,
+			c.perasVotesConfig != nil,
 		)
 	}
 	// Perform handshake
@@ -600,9 +698,9 @@ func (c *Connection) setupConnection() error {
 			if !ok {
 				return
 			}
-			c.errorChan <- fmt.Errorf("protocol error: %w", err)
+			c.forwardError(fmt.Errorf("protocol error: %w", err))
 			// Close connection on mini-protocol errors
-			c.Close()
+			c.requestClose()
 		}
 	})
 	// Configure the relevant mini-protocols
@@ -641,6 +739,13 @@ func (c *Connection) setupConnection() error {
 		c.leiosNotify = leiosnotify.New(protoOptions, c.leiosNotifyConfig)
 		c.leiosFetch = leiosfetch.New(protoOptions, c.leiosFetchConfig)
 		c.leiosVotes = leiosvotes.New(protoOptions, c.leiosVotesConfig)
+		if c.perasVotesConfig != nil {
+			if versionData, ok := c.handshakeVersionData.(interface {
+				PerasSupported() bool
+			}); ok && versionData.PerasSupported() {
+				c.perasVotes = perasvotes.New(protoOptions, c.perasVotesConfig)
+			}
+		}
 		c.protocolsReady = true
 		c.protocolMu.Unlock()
 		// Register server protocols early to avoid race conditions where messages arrive
@@ -657,6 +762,9 @@ func (c *Connection) setupConnection() error {
 			c.leiosNotify.Server.EnsureRegistered()
 			c.leiosFetch.Server.EnsureRegistered()
 			c.leiosVotes.Server.EnsureRegistered()
+			if c.perasVotes != nil {
+				c.perasVotes.Server.EnsureRegistered()
+			}
 		}
 		// Start protocols
 		if !c.delayProtocolStart {
@@ -673,6 +781,9 @@ func (c *Connection) setupConnection() error {
 				c.leiosNotify.Client.Start()
 				c.leiosFetch.Client.Start()
 				c.leiosVotes.Client.Start()
+				if c.perasVotes != nil {
+					c.perasVotes.Client.Start()
+				}
 			}
 			if (c.fullDuplex && handshakeFullDuplex) || c.server {
 				c.blockFetch.Server.Start()
@@ -687,6 +798,9 @@ func (c *Connection) setupConnection() error {
 				c.leiosNotify.Server.Start()
 				c.leiosFetch.Server.Start()
 				c.leiosVotes.Server.Start()
+				if c.perasVotes != nil {
+					c.perasVotes.Server.Start()
+				}
 			}
 		}
 	} else if c.useDMQProtocol {

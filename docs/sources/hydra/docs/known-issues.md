@@ -27,7 +27,7 @@ Known errors are:
  - `member ... has already been bootstrapped` - missing information in `<persistence-dir>/etcd`
    - restart your hydra-node with the `ETCD_INITIAL_CLUSTER_STATE` environment variable set to `existing` (`new` is the default), see also https://etcd.io/docs/v3.3/op-guide/configuration/
 
-We should be able to work around these UX issues using [etcd discovery](https://etcd.io/docs/v3.5/op-guide/clustering/#etcd-discovery) eventually.
+We should be able to work around these UX issues using [etcd discovery](https://etcd.io/docs/v3.6/op-guide/clustering/#etcd-discovery) eventually.
 
 #### Auto-compaction (amount of time a peer can be offline)
 
@@ -46,6 +46,30 @@ Now, because of etcd, it is important to only delete the `hydra-node` specific f
 - `persistence/state*`
 
 Note that, as with any adjustments of this kind, it is good practice to make a backup first!
+
+#### Pending outbound messages
+
+`<persistence-dir>/pending-broadcast/` holds messages this node has broadcast
+that the cluster has not accepted yet. It fills while the node cannot reach a
+majority of the `etcd` cluster, and drains once it can.
+
+Do not delete it as part of a routine upgrade cleanup. Unlike
+`persistence/state*`, deleting it discards messages the other participants
+never saw, which breaks the reliable-broadcast guarantee the off-chain
+protocol relies on and can leave the head unable to make progress. The
+recovery for a growing `pending-broadcast/` is to restore quorum by bringing
+peers back, not to remove files.
+
+The metrics to watch are `hydra_head_pending_broadcasts`,
+`hydra_head_broadcast_no_progress_seconds` and `hydra_head_broadcast_stalled`
+on the node's `--monitoring-port`; see
+<a href="../benchmarks/metrics#diagnosing-a-stalled-broadcast">runtime metrics</a>.
+
+While the queue is not draining, the node reports `NetworkBroadcastStalled`
+(and later `NetworkBroadcastResumed`) to its clients, and refuses new `NewTx`
+and `Decommit` submissions with `RejectedInputBecauseBroadcastStalled`
+(HTTP 503) to keep the backlog from growing. Closing, contesting and fanning
+out the head are never refused.
 
 ### Training wheels
 

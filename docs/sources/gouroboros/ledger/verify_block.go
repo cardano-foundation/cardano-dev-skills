@@ -33,6 +33,7 @@ import (
 	"github.com/blinklabs-io/gouroboros/ledger/common"
 	"github.com/blinklabs-io/gouroboros/ledger/conway"
 	"github.com/blinklabs-io/gouroboros/ledger/dijkstra"
+	"github.com/blinklabs-io/gouroboros/ledger/leios"
 	"github.com/blinklabs-io/gouroboros/ledger/mary"
 	"github.com/blinklabs-io/gouroboros/ledger/shelley"
 	"github.com/blinklabs-io/gouroboros/vrf"
@@ -45,13 +46,21 @@ import (
 const (
 	HeaderBodyLengthShelleyLike = 15
 	HeaderBodyLengthBabbageLike = 10
-	ProtoMajorShelley           = 2
-	ProtoMajorAllegra           = 3
-	ProtoMajorMary              = 4
-	ProtoMajorAlonzo            = 5
-	ProtoMajorBabbage           = 7
-	ProtoMajorConway            = 9
-	ProtoMajorDijkstra          = 12
+	// HeaderBodyLengthDijkstraLeiosLike is the Dijkstra/Leios-extended header
+	// body: Babbage's 10 fields plus block_body_contains_leios_cert and
+	// eb_announcement (cardano-ledger eras/dijkstra/impl/cddl/data/
+	// dijkstra.cddl header_body; see ledger/dijkstra.DijkstraBlockHeader).
+	// No other era has this shape. Offset 9 is header_version_info, whose
+	// first element is the issuer's highest supported major protocol version
+	// in the position and wire format of protocol_version.
+	HeaderBodyLengthDijkstraLeiosLike = 12
+	ProtoMajorShelley                 = 2
+	ProtoMajorAllegra                 = 3
+	ProtoMajorMary                    = 4
+	ProtoMajorAlonzo                  = 5
+	ProtoMajorBabbage                 = 7
+	ProtoMajorConway                  = 9
+	ProtoMajorDijkstra                = 12
 )
 
 // inProtocolRange reports whether a header's protocol major falls within an
@@ -109,6 +118,117 @@ func validateDijkstraBlockBodyHash(
 				"actual_hash":   actualBodyHash.String(),
 			},
 			nil,
+		)
+	}
+	return nil
+}
+
+func validateDijkstraBlockCertificates(
+	block Block,
+	protocolParameters common.ProtocolParameters,
+	ledgerState common.LedgerState,
+) error {
+	dijkstraBlock, ok := block.(*dijkstra.DijkstraBlock)
+	if !ok {
+		return nil
+	}
+	var certified, hasLeiosHeaderExtension bool
+	if dijkstraBlock.BlockHeader != nil {
+		certified, hasLeiosHeaderExtension = dijkstraBlock.BlockHeader.LeiosCertified()
+		if len(dijkstraBlock.BlockHeader.LeiosHeaderExtension) > 0 &&
+			!hasLeiosHeaderExtension {
+			return common.NewValidationError(
+				common.ValidationErrorTypeProtocol,
+				"invalid Dijkstra Leios certified flag in block header",
+				nil,
+				nil,
+			)
+		}
+	}
+	hasCertificate := dijkstraBlock.BlockBody.LeiosCertificate != nil
+	if hasLeiosHeaderExtension && certified != hasCertificate {
+		return common.NewValidationError(
+			common.ValidationErrorTypeProtocol,
+			"Dijkstra Leios certified flag does not match block-body certificate presence",
+			map[string]any{"certified": certified, "has_certificate": hasCertificate},
+			nil,
+		)
+	}
+	if !hasCertificate {
+		return nil
+	}
+	pparams, ok := protocolParameters.(*dijkstra.DijkstraProtocolParameters)
+	if !ok {
+		return common.NewValidationError(
+			common.ValidationErrorTypeConfiguration,
+			"Dijkstra Leios certificate validation requires "+
+				"Dijkstra protocol parameters",
+			map[string]any{
+				"has_protocol_parameters": protocolParameters != nil,
+				"block_era":               dijkstra.EraNameDijkstra,
+			},
+			nil,
+		)
+	}
+	if pparams.LeiosCommitteeSize == 0 {
+		return common.NewValidationError(
+			common.ValidationErrorTypeConfiguration,
+			"Dijkstra Leios certificate validation requires a non-zero committee size",
+			map[string]any{"committee_size": pparams.LeiosCommitteeSize},
+			nil,
+		)
+	}
+	if pparams.LeiosQuorumStakeThreshold == nil ||
+		pparams.LeiosQuorumStakeThreshold.Rat == nil {
+		return common.NewValidationError(
+			common.ValidationErrorTypeConfiguration,
+			"Dijkstra Leios certificate validation requires a quorum threshold",
+			nil,
+			nil,
+		)
+	}
+	if err := dijkstraBlock.BlockBody.LeiosCertificate.Validate(
+		uint64(pparams.LeiosCommitteeSize),
+	); err != nil {
+		return common.NewValidationError(
+			common.ValidationErrorTypeProtocol,
+			"invalid Dijkstra Leios certificate",
+			map[string]any{
+				"committee_size": pparams.LeiosCommitteeSize,
+			},
+			err,
+		)
+	}
+	state, ok := common.UnwrapLedgerState(ledgerState).(common.DijkstraLeiosCertificateState)
+	if !ok {
+		return common.NewValidationError(
+			common.ValidationErrorTypeConfiguration,
+			"Dijkstra Leios certificate validation requires committee state",
+			map[string]any{"has_ledger_state": ledgerState != nil},
+			nil,
+		)
+	}
+	context, err := state.DijkstraLeiosCertificateContext(dijkstraBlock.Header())
+	if err != nil {
+		return common.NewValidationError(
+			common.ValidationErrorTypeConfiguration,
+			"failed to resolve Dijkstra Leios certificate state",
+			nil,
+			err,
+		)
+	}
+	if err := leios.VerifyDijkstraCertificate(
+		dijkstraBlock.BlockBody.LeiosCertificate.Signers,
+		dijkstraBlock.BlockBody.LeiosCertificate.AggregatedSignature,
+		pparams.LeiosCommitteeSize,
+		pparams.LeiosQuorumStakeThreshold.Rat,
+		context,
+	); err != nil {
+		return common.NewValidationError(
+			common.ValidationErrorTypeProtocol,
+			"invalid Dijkstra Leios certificate",
+			map[string]any{"committee_size": pparams.LeiosCommitteeSize},
+			err,
 		)
 	}
 	return nil
@@ -192,18 +312,9 @@ func DetermineBlockType(headerCbor []byte) (uint, error) {
 		}
 	case HeaderBodyLengthBabbageLike:
 		// Babbage era
-		if len(body) <= 9 {
-			return 0, errors.New(
-				"header body too short for proto version field",
-			)
-		}
-		protoVersion, ok := body[9].([]any)
-		if !ok || len(protoVersion) < 1 {
-			return 0, errors.New("invalid proto version")
-		}
-		protoMajor, ok := protoVersion[0].(uint64)
-		if !ok {
-			return 0, errors.New("invalid proto major")
+		protoMajor, err := praosHeaderProtoMajor(body)
+		if err != nil {
+			return 0, err
 		}
 		switch {
 		case inProtocolRange(
@@ -242,9 +353,48 @@ func DetermineBlockType(headerCbor []byte) (uint, error) {
 				protoMajor,
 			)
 		}
+	case HeaderBodyLengthDijkstraLeiosLike:
+		// Only Dijkstra has this shape, so the shape decides the era. The
+		// major is the issuer's highest supported version, not the era's:
+		// Dijkstra's BBODY rule requires it to be at least the ledger's
+		// current major, with no ceiling beyond its uint .size 4 encoding.
+		// A producer ready for the next hard fork announces a major above
+		// Dijkstra's range, and a pre-Dijkstra major is no valid block.
+		protoMajor, err := praosHeaderProtoMajor(body)
+		if err != nil {
+			return 0, err
+		}
+		if !inProtocolRange(
+			protoMajor,
+			dijkstra.MinProtocolVersionDijkstra,
+			math.MaxUint32,
+		) {
+			return 0, fmt.Errorf(
+				"unknown proto major %d for 12-field header",
+				protoMajor,
+			)
+		}
+		return BlockTypeDijkstra, nil
 	default:
 		return 0, fmt.Errorf("unknown header body length %d", lenBody)
 	}
+}
+
+// praosHeaderProtoMajor reads the major version at offset 9 of a Praos header
+// body: protocol_version through Conway, header_version_info in Dijkstra.
+func praosHeaderProtoMajor(body []any) (uint64, error) {
+	if len(body) <= 9 {
+		return 0, errors.New("header body too short for proto version field")
+	}
+	protoVersion, ok := body[9].([]any)
+	if !ok || len(protoVersion) < 1 {
+		return 0, errors.New("invalid proto version")
+	}
+	protoMajor, ok := protoVersion[0].(uint64)
+	if !ok {
+		return 0, errors.New("invalid proto major")
+	}
+	return protoMajor, nil
 }
 
 // extractOriginalBodyCbor returns the original CBOR bytes for the block
@@ -381,68 +531,96 @@ func blockLevelLimits(
 }
 
 // sumBlockExUnits sums the ExUnits (memory, steps) across every redeemer in
-// every transaction in the block. This reuses the same
+// every transaction level in the block. This reuses the same
 // TransactionWitnessRedeemers mechanism that each era's per-transaction
 // UtxoValidateExUnitsTooBigUtxo rule sums over, so the block-wide total is
 // computed from the same source of truth as the per-transaction check.
 func sumBlockExUnits(txs []common.Transaction) (common.ExUnits, error) {
 	var totalMemory, totalSteps int64
 	for _, tx := range txs {
-		witnesses := tx.Witnesses()
-		if witnesses == nil {
-			continue
-		}
-		redeemers := witnesses.Redeemers()
-		if redeemers == nil {
-			continue
-		}
-		for _, value := range redeemers.Iter() {
-			// Execution units are non-negative by protocol definition even
-			// though ExUnits stores them as signed int64. Reject a negative
-			// Memory or Steps before it is added to the running total: a
-			// malformed redeemer with a negative value would otherwise
-			// reduce the block-wide sum and could mask a budget that
-			// actually exceeds ppMaxBlockExUnits.
-			if value.ExUnits.Memory < 0 {
-				return common.ExUnits{}, fmt.Errorf(
-					"negative execution-unit memory in redeemer: %d",
+		subtransactionWitnessSets := common.SubTransactionWitnessSetsFromTransaction(
+			tx,
+		)
+		witnessSets := make(
+			[]common.TransactionWitnessSet,
+			0,
+			len(subtransactionWitnessSets)+1,
+		)
+		witnessSets = append(witnessSets, tx.Witnesses())
+		witnessSets = append(witnessSets, subtransactionWitnessSets...)
+		for _, witnesses := range witnessSets {
+			if witnesses == nil || witnesses.Redeemers() == nil {
+				continue
+			}
+			for _, value := range witnesses.Redeemers().Iter() {
+				// Execution units are non-negative by protocol definition even
+				// though ExUnits stores them as signed int64. Reject a negative
+				// Memory or Steps before it is added to the running total: a
+				// malformed redeemer with a negative value would otherwise
+				// reduce the block-wide sum and could mask a budget that
+				// actually exceeds ppMaxBlockExUnits.
+				if value.ExUnits.Memory < 0 {
+					return common.ExUnits{}, fmt.Errorf(
+						"negative execution-unit memory in redeemer: %d",
+						value.ExUnits.Memory,
+					)
+				}
+				if value.ExUnits.Steps < 0 {
+					return common.ExUnits{}, fmt.Errorf(
+						"negative execution-unit steps in redeemer: %d",
+						value.ExUnits.Steps,
+					)
+				}
+				var ok bool
+				totalMemory, ok = common.AddInt64Checked(
+					totalMemory,
 					value.ExUnits.Memory,
 				)
-			}
-			if value.ExUnits.Steps < 0 {
-				return common.ExUnits{}, fmt.Errorf(
-					"negative execution-unit steps in redeemer: %d",
+				if !ok {
+					return common.ExUnits{}, errors.New(
+						"block total execution-unit memory overflow",
+					)
+				}
+				totalSteps, ok = common.AddInt64Checked(
+					totalSteps,
 					value.ExUnits.Steps,
 				)
-			}
-			var ok bool
-			totalMemory, ok = common.AddInt64Checked(
-				totalMemory,
-				value.ExUnits.Memory,
-			)
-			if !ok {
-				return common.ExUnits{}, errors.New(
-					"block total execution-unit memory overflow",
-				)
-			}
-			totalSteps, ok = common.AddInt64Checked(
-				totalSteps,
-				value.ExUnits.Steps,
-			)
-			if !ok {
-				return common.ExUnits{}, errors.New(
-					"block total execution-unit steps overflow",
-				)
+				if !ok {
+					return common.ExUnits{}, errors.New(
+						"block total execution-unit steps overflow",
+					)
+				}
 			}
 		}
 	}
 	return common.ExUnits{Memory: totalMemory, Steps: totalSteps}, nil
 }
 
+func verifyNonceVrf(
+	result common.VrfResult,
+	vrfKey []byte,
+	slot int64,
+	eta0 []byte,
+) error {
+	message, err := vrf.MkSeedTPraos(slot, eta0, vrf.SeedEta())
+	if err != nil {
+		return fmt.Errorf("construct nonce VRF input: %w", err)
+	}
+	valid, err := vrf.Verify(vrfKey, result.Proof, result.Output, message)
+	if err != nil {
+		return fmt.Errorf("verify nonce VRF proof: %w", err)
+	}
+	if !valid {
+		return errors.New("nonce VRF output mismatch")
+	}
+	return nil
+}
+
 // VerifyBlock performs block-local structural, cryptographic, and ledger
 // validation. It checks data available from the block and supplied verification
-// config, including body hash, VRF proof bytes, KES signature, transactions,
-// and optional stake pool registration.
+// config, including body hash, leader and nonce VRF proofs, the operational
+// certificate's cold-key signature, KES signature, transactions, and optional
+// stake pool registration.
 //
 // VerifyBlock is not full chain-context consensus validation. It does not
 // receive the previous header, active stake distribution, active slot
@@ -482,22 +660,27 @@ func VerifyBlock(
 	var vrfValid bool
 	var kesValid bool
 	var vrfResult common.VrfResult
+	var nonceVrfResult common.VrfResult
 	var vrfKey []byte
 	var isTPraos bool
 	switch h := block.Header().(type) {
 	case *shelley.ShelleyBlockHeader:
+		nonceVrfResult = h.Body.NonceVrf
 		vrfResult = h.Body.LeaderVrf
 		vrfKey = h.Body.VrfKey
 		isTPraos = true
 	case *allegra.AllegraBlockHeader:
+		nonceVrfResult = h.Body.NonceVrf
 		vrfResult = h.Body.LeaderVrf
 		vrfKey = h.Body.VrfKey
 		isTPraos = true
 	case *mary.MaryBlockHeader:
+		nonceVrfResult = h.Body.NonceVrf
 		vrfResult = h.Body.LeaderVrf
 		vrfKey = h.Body.VrfKey
 		isTPraos = true
 	case *alonzo.AlonzoBlockHeader:
+		nonceVrfResult = h.Body.NonceVrf
 		vrfResult = h.Body.LeaderVrf
 		vrfKey = h.Body.VrfKey
 		isTPraos = true
@@ -545,7 +728,7 @@ func VerifyBlock(
 	//
 	// For verifying the LeaderVrf (bheaderL), use seedL = mkNonceFromNumber(1).
 	// For verifying the NonceVrf (bheaderEta), use seedEta = mkNonceFromNumber(0).
-	// We verify the LeaderVrf here (the one that proves leader election).
+	// Verify the LeaderVrf here and the NonceVrf below.
 	//
 	// Ref: Cardano.Protocol.TPraos.Rules.Overlay.vrfChecks (TPraos)
 	// Ref: Ouroboros.Consensus.Protocol.Praos.VRF.mkInputVRF (CPraos)
@@ -615,6 +798,27 @@ func VerifyBlock(
 			nil,
 		)
 	}
+	if isTPraos {
+		if err := verifyNonceVrf(
+			nonceVrfResult,
+			vrfKey,
+			int64(slot),
+			eta0,
+		); err != nil {
+			return false, "", 0, 0, common.NewValidationError(
+				common.ValidationErrorTypeVRF,
+				"nonce VRF verification failed",
+				map[string]any{
+					"slot":             slot,
+					"block_number":     blockNo,
+					"era":              era,
+					"nonce_vrf_len":    len(nonceVrfResult.Proof),
+					"nonce_output_len": len(nonceVrfResult.Output),
+				},
+				err,
+			)
+		}
+	}
 
 	vrfHex = hex.EncodeToString(vrfResult.Output)
 
@@ -648,6 +852,49 @@ func VerifyBlock(
 			nil,
 		)
 	}
+	// Operational certificate cold-key signature, before the KES check that
+	// depends on it. The KES signature is verified against the hot vkey the
+	// header itself carries, so on its own it proves only that whoever wrote
+	// the header holds the matching KES secret -- not that the pool named by
+	// IssuerVkey ever authorized that hot key. Without this check a header
+	// naming a real pool, carrying an attacker's hot vkey and re-signed with
+	// the attacker's KES key, passes every other test in VerifyBlock.
+	//
+	// The issuer vkey is the cold verification key: a registered pool's pool
+	// id is the Blake2b-224 hash of exactly that key, so verifying against
+	// header.IssuerVkey is verifying against the registered cold key.
+	//
+	// Counter monotonicity and the max-KES-evolutions bound are not checked
+	// here: both need state VerifyBlock does not receive -- the pool's
+	// last-seen counter, and the Shelley genesis maxKESEvolutions.
+	//
+	opCert, err := ExtractOpCertFromHeader(block.Header())
+	if err != nil {
+		return false, "", 0, 0, err
+	}
+	if opCert != nil {
+		issuerVkey, _, err := extractHeaderFields(block.Header())
+		if err != nil {
+			return false, "", 0, 0, err
+		}
+		if err := VerifyOpCertSignature(opCert, issuerVkey); err != nil {
+			return false, "", 0, 0, common.NewValidationError(
+				common.ValidationErrorTypeOpCert,
+				"operational certificate cold signature invalid",
+				map[string]any{
+					"slot":               slot,
+					"block_number":       blockNo,
+					"era":                era,
+					"opcert_counter":     opCert.IssueNumber,
+					"opcert_kes_period":  opCert.KesPeriod,
+					"issuer_vkey_len":    len(issuerVkey),
+					"cold_signature_len": len(opCert.ColdSignature),
+				},
+				err,
+			)
+		}
+	}
+
 	signature, hotVkey, kesPeriod, err := ExtractKesFields(block.Header())
 	if err != nil {
 		return false, "", 0, 0, err
@@ -735,6 +982,13 @@ func VerifyBlock(
 				)
 			}
 		}
+	}
+	if err := validateDijkstraBlockCertificates(
+		block,
+		config.ProtocolParameters,
+		config.LedgerState,
+	); err != nil {
+		return false, "", 0, 0, err
 	}
 
 	// Verify block-wide execution-unit budget (BBODY: sum of every
@@ -887,6 +1141,26 @@ func VerifyBlock(
 
 	// Verify transactions (can be skipped via config)
 	// Requires LedgerState and ProtocolParameters in config if enabled.
+	if block.Era() == byron.EraByron && !config.SkipTransactionValidation {
+		if mainBlock, ok := block.(*byron.ByronMainBlock); ok {
+			for idx := range mainBlock.Body.TxPayload {
+				if err := mainBlock.Body.TxPayload[idx].ValidateVKeyWitnesses(
+					mainBlock.BlockHeader.ProtocolMagic,
+				); err != nil {
+					return false, "", 0, 0, common.NewValidationError(
+						common.ValidationErrorTypeTransaction,
+						"Byron block transaction witness validation failed",
+						map[string]any{
+							"block_slot":   slot,
+							"block_number": blockNo,
+							"transaction":  idx,
+						},
+						err,
+					)
+				}
+			}
+		}
+	}
 	if block.Era() != byron.EraByron && !config.SkipTransactionValidation {
 		var validationRules []common.UtxoValidationRuleFunc
 		switch block.Era().Id {
@@ -937,20 +1211,36 @@ func VerifyBlock(
 				)
 			}
 		}
-		if dijkstraBlock, ok := block.(*dijkstra.DijkstraBlock); ok {
-			if err := dijkstra.ValidateRefScriptSizePerBlock(dijkstraBlock, config.ProtocolParameters); err != nil {
-				return false, "", 0, 0, common.NewValidationError(
-					common.ValidationErrorTypeTransaction,
-					"block reference-script size validation failed",
-					map[string]any{
-						"block_slot":   slot,
-						"block_number": blockNo,
-						"era":          era,
-					},
-					err,
-				)
-			}
+	}
+	var refScriptSizeErr error
+	if block.Era() != byron.EraByron &&
+		!config.SkipBlockLimitsValidation && len(block.Transactions()) > 0 {
+		switch typedBlock := block.(type) {
+		case *conway.ConwayBlock:
+			refScriptSizeErr = conway.ValidateRefScriptSizePerBlock(
+				typedBlock,
+				config.ProtocolParameters,
+				config.LedgerState,
+			)
+		case *dijkstra.DijkstraBlock:
+			refScriptSizeErr = dijkstra.ValidateRefScriptSizePerBlock(
+				typedBlock,
+				config.ProtocolParameters,
+				config.LedgerState,
+			)
 		}
+	}
+	if refScriptSizeErr != nil {
+		return false, "", 0, 0, common.NewValidationError(
+			common.ValidationErrorTypeTransaction,
+			"block reference-script size validation failed",
+			map[string]any{
+				"block_slot":   slot,
+				"block_number": blockNo,
+				"era":          era,
+			},
+			refScriptSizeErr,
+		)
 	}
 
 	// Verify stake pool registration (can be skipped via config)

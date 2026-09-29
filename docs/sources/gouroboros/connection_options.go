@@ -17,6 +17,7 @@ package ouroboros
 import (
 	"log/slog"
 	"net"
+	"time"
 
 	"github.com/blinklabs-io/gouroboros/protocol/blockfetch"
 	"github.com/blinklabs-io/gouroboros/protocol/chainsync"
@@ -30,6 +31,7 @@ import (
 	"github.com/blinklabs-io/gouroboros/protocol/localtxmonitor"
 	"github.com/blinklabs-io/gouroboros/protocol/localtxsubmission"
 	"github.com/blinklabs-io/gouroboros/protocol/peersharing"
+	"github.com/blinklabs-io/gouroboros/protocol/perasvotes"
 	"github.com/blinklabs-io/gouroboros/protocol/txsubmission"
 )
 
@@ -58,7 +60,12 @@ func WithNetworkMagic(networkMagic uint32) ConnectionOptionFunc {
 	}
 }
 
-// WithErrorChan specifies the error channel to use. If none is provided, one will be created
+// WithErrorChan specifies the caller-owned error channel to use. The Connection
+// sends errors to this channel but never closes it. Delivery is non-blocking;
+// use a channel with capacity of at least one for reliable delivery while the
+// connection is active. Errors may be dropped when the channel is full or has
+// no receiver ready. If none is provided, the Connection creates and closes
+// its own channel.
 func WithErrorChan(errorChan chan error) ConnectionOptionFunc {
 	return func(c *Connection) {
 		c.errorChan = errorChan
@@ -101,6 +108,32 @@ func WithDMQ(useDMQ bool) ConnectionOptionFunc {
 func WithKeepAlive(keepAlive bool) ConnectionOptionFunc {
 	return func(c *Connection) {
 		c.sendKeepAlives = keepAlive
+	}
+}
+
+// WithMuxerSegmentReadTimeout overrides how long the muxer waits for the
+// next segment before closing the connection (the default,
+// muxer.defaultSegmentReadTimeout, is 120s). Pass a duration <= 0 to disable
+// the timeout entirely.
+//
+// The default exists to guard an untrusted remote peer (a slowloris-style
+// DoS) and is appropriate for node-to-node connections. It is not a
+// requirement of the Ouroboros Network Specification, which defines no
+// timeout at the mux/transport layer at all -- timeouts are specified per
+// mini-protocol, per state, in each protocol's own chapter, and
+// LocalStateQuery's own timeout table (section 3.13.4) reads "No timeouts":
+// a query is expected to be able to take an arbitrarily long time. Real
+// cardano-node's own mux implementation matches this -- it applies no
+// bearer-level read timeout at all on local Unix-domain-socket connections,
+// which is what node-to-client (and so LocalStateQuery) normally uses.
+//
+// A node-to-client connection over a channel you already trust (a local
+// socket, or a bridge you control) should generally disable this, so a
+// legitimate, still-computing LocalStateQuery reply (e.g. a whole-UTxO-set
+// dump against a large chain) is never killed mid-flight.
+func WithMuxerSegmentReadTimeout(timeout time.Duration) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.muxerSegmentReadTimeout = &timeout
 	}
 }
 
@@ -185,6 +218,14 @@ func WithLeiosNotifyConfig(cfg leiosnotify.Config) ConnectionOptionFunc {
 func WithLeiosVotesConfig(cfg leiosvotes.Config) ConnectionOptionFunc {
 	return func(c *Connection) {
 		c.leiosVotesConfig = &cfg
+	}
+}
+
+// WithPerasVotesConfig opts into Peras vote diffusion on a node-to-node
+// connection. Protocol 17 starts only when both peers negotiate Peras support.
+func WithPerasVotesConfig(cfg perasvotes.Config) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.perasVotesConfig = &cfg
 	}
 }
 

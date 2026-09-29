@@ -95,7 +95,7 @@ See `references/config-templates.md` for the cardano-client-lib-specific `pom.xm
 # Reads from environment variables; .env.example documents the variable names.
 
 cardano.network=${CARDANO_NETWORK:devnet}
-cardano.devnet.url=${YACI_STORE_URL:http://localhost:10000}
+cardano.devnet.url=${YACI_STORE_URL:http://localhost:8080}
 cardano.blockfrost.project-id=${BLOCKFROST_PROJECT_ID:}
 
 # Path to the Aiken-emitted plutus.json. Monorepo default below; for single-repo
@@ -105,7 +105,7 @@ cardano.blueprint.path=${BLUEPRINT_PATH:../onchain/plutus.json}
 
 ### Hello-world validator skeleton -- `onchain/validators/hello.ak`
 
-Identical to stack 1. See `references/layout-aiken-mesh.md` for the annotated Aiken source.
+Identical across stacks. See the hello validator in `references/layout-aiken-mesh.md` for the annotated Aiken source.
 
 ### Hello-world off-chain class -- `Blueprint.java`
 
@@ -118,8 +118,9 @@ Identical to stack 1. See `references/layout-aiken-mesh.md` for the annotated Ai
 
 package org.acme.offchain;
 
-import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
-import com.bloxbean.cardano.client.util.HexUtil;
+import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
+import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
+import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -128,7 +129,7 @@ import java.nio.file.Path;
 
 public final class Blueprint {
 
-    public record Validator(PlutusV3Script script, String scriptHash) {}
+    public record Validator(PlutusScript script, String scriptHash) {}
 
     private final JsonNode root;
 
@@ -140,8 +141,11 @@ public final class Blueprint {
     public Validator getValidator(String title) {
         for (JsonNode v : root.get("validators")) {
             if (title.equals(v.get("title").asText())) {
-                var cbor = HexUtil.decodeHexString(v.get("compiledCode").asText());
-                var script = PlutusV3Script.builder().cborHex(v.get("compiledCode").asText()).build();
+                // Aiken's compiledCode is CBOR-wrapped once; cclib's script type
+                // expects one more layer. This util adds it, so the script's hash
+                // (and address) matches the blueprint's.
+                var script = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(
+                    v.get("compiledCode").asText(), PlutusVersion.v3);
                 return new Validator(script, v.get("hash").asText());
             }
         }
@@ -175,7 +179,7 @@ public final class ChainClient {
         String network = System.getenv().getOrDefault("CARDANO_NETWORK", "devnet");
 
         if ("devnet".equals(network)) {
-            String url = System.getenv().getOrDefault("YACI_STORE_URL", "http://localhost:10000");
+            String url = System.getenv().getOrDefault("YACI_STORE_URL", "http://localhost:8080");
             // Yaci Store exposes a Blockfrost-compatible API on /api/v1.
             var backend = new BFBackendService(url + "/api/v1/", "devnet");
             return new ConfiguredBackend(backend, Networks.testnet());
@@ -223,13 +227,13 @@ import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
-import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
 
 import org.acme.offchain.Blueprint;
 import org.acme.offchain.ChainClient;
 
+import java.math.BigInteger;
 import java.nio.file.Path;
 
 public final class Lock {
@@ -257,7 +261,7 @@ public final class Lock {
         PlutusData datum = ConstrPlutusData.of(0, BytesPlutusData.of(ownerVkh));
 
         var tx = new Tx()
-            .payToContract(scriptAddr.toBech32(), Amount.lovelace(5_000_000L).build(), datum)
+            .payToContract(scriptAddr.toBech32(), Amount.lovelace(BigInteger.valueOf(5_000_000)), datum)
             .from(account.baseAddress());
 
         var result = quickTxBuilder
@@ -270,9 +274,9 @@ public final class Lock {
 }
 ```
 
-`ConstrPlutusData.of(constructorIndex, fields...)` maps onto an Aiken constructor, and field order is the declaration order in the Aiken type. For datums larger than a field or two, generate the Java types from the CIP-57 blueprint with the annotation processor instead of hand-encoding — see `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/annotations/plutus-blueprint-code-generation.mdx`.
+`ConstrPlutusData.of(constructorIndex, fields...)` maps onto an Aiken constructor, and field order is the declaration order in the Aiken type. For datums larger than a field or two, generate the Java types from the CIP-57 blueprint with the annotation processor instead of hand-encoding — see `../../docs/sources/cardano-client-lib/annotations/plutus-blueprint-code-generation.mdx`.
 
-A matching `Redeem.java` queries the script address through the backend service, picks the locked UTxO, and spends it with `ScriptTx().collectFrom(List.of(utxo), redeemer).attachSpendingValidator(script)` — the validator is attached inline, so nothing needs to be published first, and QuickTx selects collateral automatically. The complete pattern, including the `withSigner` vs `withRequiredSigners` distinction, is in `${CLAUDE_SKILL_DIR}/../../skills/build-transaction/references/cclib-quicktx.md`; a full runnable program is at `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-use-case-templates/vesting/offchain/ccl-java/Vesting.java`.
+A matching `Redeem.java` queries the script address through the backend service, picks the locked UTxO, and spends it with `ScriptTx().collectFrom(List.of(utxo), redeemer).attachSpendingValidator(script)` — the validator is attached inline, so nothing needs to be published first, and QuickTx selects collateral automatically. The complete pattern, including the `withSigner` vs `withRequiredSigners` distinction, is in `../../skills/build-transaction/references/cclib-quicktx.md`; a full runnable program is at `../../docs/sources/cardano-use-case-templates/vesting/offchain/ccl-java/Vesting.java`.
 
 ## Network config patterns
 
@@ -282,7 +286,7 @@ Three places to flip when switching networks:
 2. `ChainClient.java` (already shown above) builds a `BFBackendService` with the matching Blockfrost URL and a `Networks.testnet() / preview() / preprod() / mainnet()` selector.
 3. If you scaffold a sibling frontend (see below), its `.env.local` mirrors `CARDANO_NETWORK` and uses its own Blockfrost project ID.
 
-Each non-devnet network needs its own Blockfrost project ID from https://blockfrost.io (distinct prefixes: `preview...`, `preprod...`, `mainnet...`). Faucets for preview and preprod live at https://docs.cardano.org/cardano-testnets/tools/faucet. Yaci DevKit ships its own faucet via `yaci-cli faucet send`.
+Each non-devnet network needs its own Blockfrost project ID from https://blockfrost.io (distinct prefixes: `preview...`, `preprod...`, `mainnet...`). Faucets for preview and preprod live at https://docs.cardano.org/cardano-testnets/tools/faucet. On devnet, fund an address with `topup <address> <ada>` at the yaci-cli prompt.
 
 ## Frontend (optional sibling, default ON in the scaffold)
 
@@ -326,6 +330,6 @@ Spring Boot or Quarkus integration: cclib has Spring Boot starters. If the proje
 
 Search the bundled cclib docs for advanced patterns:
 
-- `${CLAUDE_SKILL_DIR}/../../skills/build-transaction/references/cclib-quicktx.md` -- QuickTx guide: script spending, minting, datum encoding, signer semantics
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/` -- mirrored upstream API reference (`apis/`, `annotations/`, `integrations/`)
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-use-case-templates/<use-case>/offchain/ccl-java/` -- complete runnable programs (`.java`, so markdown-only searches miss them)
+- `../../skills/build-transaction/references/cclib-quicktx.md` -- QuickTx guide: script spending, minting, datum encoding, signer semantics
+- `../../docs/sources/cardano-client-lib/` -- mirrored upstream API reference (`apis/`, `annotations/`, `integrations/`)
+- `../../docs/sources/cardano-use-case-templates/<use-case>/offchain/ccl-java/` -- complete runnable programs (`.java`, so markdown-only searches miss them)

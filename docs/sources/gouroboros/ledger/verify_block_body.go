@@ -52,7 +52,16 @@ func VerifyBlockBody(
 	blockBodyHash string,
 	invalidTxIndices []uint,
 ) (bool, error) {
-	rawDataBytes, _ := hex.DecodeString(data)
+	// hex.DecodeString returns the bytes decoded before the offending
+	// character alongside its error, so discarding the error would verify a
+	// silently truncated body against the caller's hash.
+	rawDataBytes, decodeDataError := hex.DecodeString(data)
+	if decodeDataError != nil {
+		return false, fmt.Errorf(
+			"VerifyBlockBody: data decode error, %v",
+			decodeDataError.Error(),
+		)
+	}
 	var txsRaw [][]string
 	_, err := cbor.Decode(rawDataBytes, &txsRaw)
 	if err != nil {
@@ -98,14 +107,20 @@ func VerifyBlockBody(
 	return true, nil
 }
 
-func EncodeCborTxSeq(data []uint) ([]byte, error) {
-	// Cardano base consider list more than 23 will be ListLenIndef
-	// https://github.com/IntersectMBO/cardano-base/blob/e86a25c54389ddd0f77fdbc3f3615c57bd91d543/cardano-binary/src/Cardano/Binary/ToCBOR.hs#L708C10-L708C28
-
+func encodeCborSequence[T any](data []T) ([]byte, error) {
+	if len(data) == 0 {
+		data = make([]T, 0)
+	}
 	if len(data) <= MAX_LIST_LENGTH_CBOR {
 		return cbor.Encode(data)
 	}
 	return cbor.Encode(cbor.IndefLengthList(convertToAnySlice(data)))
+}
+
+func EncodeCborTxSeq(data []uint) ([]byte, error) {
+	// Cardano base uses an indefinite-length list for more than 23 items.
+	// https://github.com/IntersectMBO/cardano-base/blob/e86a25c54389ddd0f77fdbc3f3615c57bd91d543/cardano-binary/src/Cardano/Binary/ToCBOR.hs#L708C10-L708C28
+	return encodeCborSequence(data)
 }
 
 type AuxData struct {
@@ -124,14 +139,14 @@ func encodeAuxData(data []AuxData) ([]byte, error) {
 		// Use definite length map
 		metadataMap := make(map[uint64]any)
 		for _, aux := range data {
-			metadataMap[aux.index] = aux.data
+			metadataMap[aux.index] = cbor.RawMessage(aux.data)
 		}
 		return cbor.Encode(metadataMap)
 	}
 	// Use indefinite length map
 	metadataMap := make(map[any]any)
 	for _, aux := range data {
-		metadataMap[aux.index] = aux.data
+		metadataMap[aux.index] = cbor.RawMessage(aux.data)
 	}
 	return cbor.Encode(cbor.IndefLengthMap(metadataMap))
 }
@@ -195,9 +210,7 @@ func CalculateBlockBodyHash(
 			})
 		}
 	}
-	txSeqBodyBytes, txSeqBodyBytesError := cbor.Encode(
-		cbor.IndefLengthList(convertToAnySlice(txSeqBody)),
-	)
+	txSeqBodyBytes, txSeqBodyBytesError := encodeCborSequence(txSeqBody)
 	if txSeqBodyBytesError != nil {
 		return nil, fmt.Errorf(
 			"CalculateBlockBodyHash: encode txSeqBody error, %v",
@@ -208,9 +221,7 @@ func CalculateBlockBodyHash(
 	txSeqBodySum32Bytes := blake2b.Sum256(txSeqBodyBytes)
 	txSeqBodySumBytes := txSeqBodySum32Bytes[:]
 
-	txSeqWitsBytes, txSeqWitsBytesError := cbor.Encode(
-		cbor.IndefLengthList(convertToAnySlice(txSeqWit)),
-	)
+	txSeqWitsBytes, txSeqWitsBytesError := encodeCborSequence(txSeqWit)
 	if txSeqWitsBytesError != nil {
 		return nil, fmt.Errorf(
 			"CalculateBlockBodyHash: encode txSeqWit error, %v",
@@ -270,6 +281,12 @@ func CalculateBlockBodyHash(
 func GetTxBodies(txsRaw [][]string) ([]BabbageTransactionBody, error) {
 	bodies := make([]BabbageTransactionBody, 0, len(txsRaw))
 	for index, tx := range txsRaw {
+		if len(tx) == 0 {
+			return nil, fmt.Errorf(
+				"CalculateBlockBodyHash: transaction at index %d: expected at least 1 field, got 0",
+				index,
+			)
+		}
 		var tmp BabbageTransactionBody
 		bodyTmpHex := tx[0]
 		bodyTmpBytes, bodyTmpBytesError := hex.DecodeString(bodyTmpHex)

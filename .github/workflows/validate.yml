@@ -14,6 +14,17 @@ on:
       # at all until its tests landed: PRs touching only hooks/ reported zero
       # checks.
       - "hooks/**"
+      - ".claude-plugin/**"
+      - ".codex-plugin/**"
+      - ".claude/skills"
+      - ".agents/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "README.md"
+      - "website/src/content/docs/getting-started.md"
+      - "website/src/content/docs/how-it-works.md"
+      - "website/src/content/docs/contributing/add-a-skill.md"
+      - "website/src/content/docs/about/roadmap.md"
   push:
     branches: [main]
     paths:
@@ -25,12 +36,35 @@ on:
       # at all until its tests landed: PRs touching only hooks/ reported zero
       # checks.
       - "hooks/**"
+      - ".claude-plugin/**"
+      - ".codex-plugin/**"
+      - ".claude/skills"
+      - ".agents/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "README.md"
+      - "website/src/content/docs/getting-started.md"
+      - "website/src/content/docs/how-it-works.md"
+      - "website/src/content/docs/contributing/add-a-skill.md"
+      - "website/src/content/docs/about/roadmap.md"
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      # `--paths-only` promises to run with nothing installed, on whatever
+      # python3 is already there, which is what the weekly refresh gates on.
+      # Running it here on the oldest supported interpreter is what keeps that
+      # a fact rather than an intention: the rest of the job is 3.12, where
+      # 3.10-only syntax and a missing dependency both pass unnoticed.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: "--paths-only runs on a bare interpreter"
+        run: python scripts/validate.py --paths-only
 
       - uses: actions/setup-python@v5
         with:
@@ -39,7 +73,7 @@ jobs:
       - name: Install dependencies
         run: pip install pyyaml
 
-      - name: Validate skills and sources
+      - name: Validate skills, sources, and Claude/Codex compatibility
         run: python scripts/validate.py
 
       # Runs in the existing job on purpose — it needs no Python, no network and

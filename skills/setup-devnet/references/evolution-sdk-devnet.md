@@ -6,12 +6,12 @@ and UTxO queries are all TypeScript code. It orchestrates Docker containers for
 cardano-node and (optionally) Kupo and Ogmios.
 
 Sourced from the bundled docs under
-`${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/devnet/`.
+`../../docs/sources/evolution-sdk/devnet/`.
 
 ## When to choose it over Yaci DevKit
 
 Both run standard `cardano-node` instances, so on-chain behaviour is identical. The
-choice is about workflow (per `docs/sources/evolution-sdk/devnet/index.mdx`):
+choice is about workflow (per `../../docs/sources/evolution-sdk/devnet/index.mdx`):
 
 | | Yaci DevKit | Evolution SDK devnet |
 |---|---|---|
@@ -113,7 +113,7 @@ const cluster = await Cluster.make({
 
 Protocol parameters (fees, size limits, Plutus cost models) are customised via
 `Config.ShelleyGenesis.protocolParams`, `Config.DEFAULT_ALONZO_GENESIS`, and
-`Config.ConwayGenesis` — see `docs/sources/evolution-sdk/devnet/configuration.mdx`.
+`Config.ConwayGenesis` — see `../../docs/sources/evolution-sdk/devnet/configuration.mdx`.
 
 ## Genesis UTxOs do NOT appear in Kupo
 
@@ -220,7 +220,7 @@ Always clean up in `afterAll` to avoid leaking containers.
 
 ## References
 
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/devnet/index.mdx` — overview, Yaci comparison
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/devnet/getting-started.mdx` — cluster lifecycle
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/devnet/configuration.mdx` — genesis & protocol params
-- `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/devnet/integration.mdx` — end-to-end client workflow
+- `../../docs/sources/evolution-sdk/devnet/index.mdx` — overview, Yaci comparison
+- `../../docs/sources/evolution-sdk/devnet/getting-started.mdx` — cluster lifecycle
+- `../../docs/sources/evolution-sdk/devnet/configuration.mdx` — genesis & protocol params
+- `../../docs/sources/evolution-sdk/devnet/integration.mdx` — end-to-end client workflow

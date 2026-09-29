@@ -238,7 +238,7 @@ Key points:
 - For fungible tokens with ongoing minting, gate on an admin signature or a
   supply cap instead of UTxO consumption (which only ever permits one mint).
 
-**Canonical reference:** `docs/sources/aiken-examples/gift_card/validators/oneshot.ak`
+**Canonical reference:** `../../docs/sources/aiken-examples/gift_card/validators/oneshot.ak`
 (Aiken's own example) is the compile-tested version of this pattern; read it verbatim.
 
 **Minting many unique NFTs at once (derive the name).** For a *batch* of unique
@@ -247,7 +247,7 @@ parameterizing it: hash the (unique) spent `output_reference`, e.g.
 `blake2b_256(builtin.serialise_data(output_reference))`, or the first input's
 reference concatenated with a counter. Because the seed reference is itself unique,
 the derived names are unforgeable and collision-free — no `expected_name` parameter
-needed. See `docs/sources/aiken-examples/gift_card/validators/multi.ak`.
+needed. See `../../docs/sources/aiken-examples/gift_card/validators/multi.ak`.
 
 **Burn-to-unlock (multi-purpose validators).** A common idiom pairs this `mint`
 handler with a `spend` handler in the *same* validator, so a UTxO locked at the
@@ -264,6 +264,7 @@ Use a staking validator as a shared checker for batch operations.
 use aiken/collection/pairs
 use aiken/crypto.{ScriptHash}
 use cardano/address.{Credential, Script}
+use cardano/certificate.{Certificate, RegisterCredential}
 use cardano/transaction.{OutputReference, Transaction}
 
 pub type BatchRedeemer {
@@ -283,6 +284,21 @@ validator shared_logic {
     // Shared validation runs once per transaction
     // instead of once per input -- saves execution cost
     validate_batch(redeemer, tx)
+  }
+
+  // A stake credential must be REGISTERED before it can withdraw, and
+  // registering a script credential with the Conway `reg_cert` runs the
+  // script under the `publish` purpose. Without this handler the implicit
+  // `else` fails, and the credential can only be registered through the
+  // legacy no-witness `stake_registration` certificate -- which the era
+  // after Conway withdraws. Allow registration; refuse everything else
+  // (deregistering a co-validator's credential disables every spend that
+  // depends on it).
+  publish(_redeemer: Data, certificate: Certificate, _tx: Transaction) {
+    when certificate is {
+      RegisterCredential { .. } -> True
+      _ -> False
+    }
   }
 }
 
@@ -308,6 +324,14 @@ Key points:
 - The staking validator runs once per transaction, reducing total cost for batch operations
 - The spending validator MUST verify the withdrawal exists in `tx.withdrawals`
 - The staking validator MUST perform real validation (never just return True)
+- The staking validator MUST carry a `publish` handler that accepts `RegisterCredential`.
+  A validator with no `publish` arm (or an `else` that fails) is registrable in Conway only
+  through the legacy `stake_registration` certificate, which needs no script witness; the
+  Plutus documentation states that certificate is withdrawn in the era after Conway, after
+  which every registration requires the script to run. A withdraw-zero validator that
+  cannot be registered cannot withdraw, and every spend that requires its withdrawal is
+  dead. Deploy-time registration hides this until the first *new* instance after the era
+  change -- typically a rotation or an upgrade. (`../../docs/sources/plinth/docs/working-with-scripts/script-purposes.md`)
 - Use this pattern for DEX order matching, batch settlements, and similar operations
 
 ## State Machine
@@ -406,9 +430,9 @@ The patterns above show *how* to write specific validators. This section is abou
 *what to reach for when* — the design decisions that recur across real Aiken code.
 Every claim here is distilled from validators you can read in the bundle: the
 Cardano Foundation use-case templates under
-`docs/sources/cardano-use-case-templates/` (cited by use-case directory; each
+`../../docs/sources/cardano-use-case-templates/` (cited by use-case directory; each
 validator lives at `<use-case>/onchain/aiken/validators/`) and Aiken's own examples
-under `docs/sources/aiken-examples/`.
+under `../../docs/sources/aiken-examples/`.
 
 The mechanical security checks (double-satisfaction, datum hijacking, value
 preservation, staking-credential theft…) live in the review-contract skill's
@@ -472,7 +496,7 @@ singleton state machines. Derive the token's asset name from a **hash of the see
 (or of caller data) to make names unforgeable and self-describing:
 `sha2_256(snapshot_id)` (storage), `sha3_256(tx_id ‖ output_index)` (upgradable-proxy
 state token), `blake2b_256(pkh ‖ nonce)` (anonymous-data). See the "Token Minting
-Policy" pattern above and `docs/sources/aiken-examples/gift_card/`.
+Policy" pattern above and `../../docs/sources/aiken-examples/gift_card/`.
 
 ## Locate outputs by criteria, never by index
 

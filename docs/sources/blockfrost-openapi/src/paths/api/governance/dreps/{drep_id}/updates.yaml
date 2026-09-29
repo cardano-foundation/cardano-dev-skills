@@ -9,7 +9,7 @@ get:
       required: true
       schema:
         type: string
-      description: Bech32 or hexadecimal DRep ID.
+      description: Bech32 DRep ID (legacy or CIP-129).
       example: "drep15cfxz9exyn5rx0807zvxfrvslrjqfchrd4d47kv9e0f46uedqtc"
     - in: query
       name: count

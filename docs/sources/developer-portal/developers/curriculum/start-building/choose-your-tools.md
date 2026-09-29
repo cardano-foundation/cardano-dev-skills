@@ -24,7 +24,7 @@ An SDK handles the parts of Cardano you do not want to reimplement: assembling a
 
 The code tabs across this curriculum use **Evolution** and **Mesh**, both TypeScript. That is the only reason they appear here: with one of them installed, every example on the site runs as written. Nothing you learn depends on either one.
 
-Cardano has SDKs in Python (PyCardano), Rust (Whisky), Go (Apollo), C# (Chrysalis), Java, Swift, and more, alongside lower-level serialization libraries. [Builder Tools](/tools/?tags=sdk) lists them by language and by what each one covers.
+Cardano has SDKs in Python, Rust, Go, C#, Java, Swift, and more, alongside lower-level serialization libraries. [Builder Tools](/tools/?tags=sdk) lists them by language and by what each one covers.
 
 ## Install it
 
@@ -81,10 +81,10 @@ Model training data on Cardano drifts. APIs change, libraries get renamed, and p
 /plugin install cardano-dev-skills@cardano-dev-skills
 ```
 
-Then run `/cardano-context` once per project. [Set up your AI assistant](/docs/developers/curriculum/start-building/ai-assisted-development) covers other agents, what the skills contain, and the extra context individual SDKs ship on top.
+Then run `/cardano-context` once per project. [Cardano Dev Skills](/docs/developers/curriculum/start-building/ai-assisted-development) covers other agents, what the skills contain, and the extra context individual SDKs ship on top.
 
 :::tip Beyond writing code
-An assistant can also read live chain state and draft transactions for you to sign. [Connect an AI assistant with MCP](/docs/developers/curriculum/dapps/ai-agents/mcp) covers that.
+An agent can also read live chain state and draft transactions for you to sign. [Chain access over MCP](/docs/developers/curriculum/dapps/ai-agents/overview#chain-access-over-mcp) covers that.
 :::
 
 ## What you are not choosing yet

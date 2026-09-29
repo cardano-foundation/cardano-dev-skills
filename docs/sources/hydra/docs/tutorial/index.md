@@ -45,20 +45,16 @@ that you have a good version of jq with this command:
 ```shell
 mkdir -p bin
 
-hydra_version=2.3.0
+hydra_version=2.4.1
 curl -L -O https://github.com/cardano-scaling/hydra/releases/download/${hydra_version}/hydra-x86_64-linux-${hydra_version}.zip
 unzip -d bin hydra-x86_64-linux-${hydra_version}.zip
 
-cardano_node_version=11.0.1
+cardano_node_version=11.1.2
 curl -L -O https://github.com/IntersectMBO/cardano-node/releases/download/${cardano_node_version}/cardano-node-${cardano_node_version}-linux-amd64.tar.gz
 tar xf cardano-node-${cardano_node_version}-linux-amd64.tar.gz ./bin/cardano-node ./bin/cardano-cli
 tar xf cardano-node-${cardano_node_version}-linux-amd64.tar.gz ./share/preprod --strip-components=3
 
 curl --proto '=https' --tlsv1.2 -sSfL https://raw.githubusercontent.com/IntersectMBO/mithril/refs/heads/main/mithril-install.sh | sh -s -- -c mithril-client -d latest -p bin
-
-etcd_version=v3.5.21
-curl -L https://github.com/etcd-io/etcd/releases/download/${etcd_version}/etcd-${etcd_version}-linux-amd64.tar.gz \
-  | tar xz -C bin --strip-components=1
 
 chmod +x bin/*
 ```
@@ -71,21 +67,16 @@ Finally, verify your node installation by running `./bin/hydra-node --help`
 ```shell
 mkdir -p bin
 
-hydra_version=2.3.0
+hydra_version=2.4.1
 curl -L -O https://github.com/cardano-scaling/hydra/releases/download/${hydra_version}/hydra-aarch64-darwin-${hydra_version}.zip
 unzip -d bin hydra-aarch64-darwin-${hydra_version}.zip
 
-cardano_node_version=11.0.1
+cardano_node_version=11.1.2
 curl -L -O https://github.com/IntersectMBO/cardano-node/releases/download/${cardano_node_version}/cardano-node-${cardano_node_version}-macos.tar.gz
 tar xf cardano-node-${cardano_node_version}-macos.tar.gz ./bin/cardano-node ./bin/cardano-cli './bin/*.dylib'
 tar xf cardano-node-${cardano_node_version}-macos.tar.gz --strip-components=3 ./share/preprod/
 
 curl --proto '=https' --tlsv1.2 -sSfL https://raw.githubusercontent.com/IntersectMBO/mithril/refs/heads/main/mithril-install.sh | sh -s -- -c mithril-client -d latest -p bin
-
-etcd_version=v3.5.21
-curl -L -O https://github.com/etcd-io/etcd/releases/download/${etcd_version}/etcd-${etcd_version}-darwin-arm64.zip
-unzip -d bin etcd-${etcd_version}-darwin-arm64.zip
-mv bin/etcd-${etcd_version}-darwin-arm64/* bin
 
 chmod +x bin/*
 ```
@@ -415,7 +406,7 @@ Start the `hydra-node` using these parameters:
 <TabItem value="alice" label="Alice">
 
 ```shell
-hydra_version=2.3.0
+hydra_version=2.4.1
 hydra-node \
   --node-id "alice-node" \
   --persistence-dir persistence-alice \
@@ -437,7 +428,7 @@ hydra-node \
 <TabItem value="bob" label="Bob">
 
 ```shell
-hydra_version=2.3.0
+hydra_version=2.4.1
 hydra-node \
   --node-id "bob-node" \
   --persistence-dir persistence-bob \

@@ -45,7 +45,7 @@ Both stacks consume the same `plutus.json`, so switching later is moderate-cost 
 
 ## Enterprise / JVM constraints
 
-If the organisation mandates JVM for backend services (common in fintech, government, or established enterprises), stack 4 is the only option. cardano-client-lib is mature, has Spring Boot integration, and fits naturally into existing JVM CI/CD. Trade-off: smaller community than the TypeScript options, fewer end-to-end tutorials. Start from `${CLAUDE_SKILL_DIR}/../../skills/build-transaction/references/cclib-quicktx.md` for the QuickTx API, and read a complete worked program under `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-use-case-templates/<use-case>/offchain/ccl-java/`. The mirrored upstream docs at `${CLAUDE_SKILL_DIR}/../../docs/sources/cardano-client-lib/` are the API reference.
+If the organisation mandates JVM for backend services (common in fintech, government, or established enterprises), stack 4 is the only option. cardano-client-lib is mature, has Spring Boot integration, and fits naturally into existing JVM CI/CD. Trade-off: smaller community than the TypeScript options, fewer end-to-end tutorials. Start from `../../skills/build-transaction/references/cclib-quicktx.md` for the QuickTx API, and read a complete worked program under `../../docs/sources/cardano-use-case-templates/<use-case>/offchain/ccl-java/`. The mirrored upstream docs at `../../docs/sources/cardano-client-lib/` are the API reference.
 
 ## Python data and scripting
 
@@ -55,7 +55,7 @@ Stack 3 (PyCardano) is the natural fit when:
 - The dApp's off-chain logic is a backend service, not a browser app
 - You want to integrate with existing Python infrastructure (FastAPI, Celery, Airflow)
 
-PyCardano is lighter-weight than the TypeScript SDKs but covers the full transaction-building surface for Plutus V3. Bundled docs at `${CLAUDE_SKILL_DIR}/../../docs/sources/pycardano/`.
+PyCardano is lighter-weight than the TypeScript SDKs but covers the full transaction-building surface for Plutus V3. Bundled docs at `../../docs/sources/pycardano/`.
 
 ## Deferred stacks: why they are not v1 defaults
 

@@ -21,14 +21,7 @@ Bump these when a new Aiken minor lands and the standard libraries follow. Don't
 
 **Look up at scaffold time (off-chain side, fast-moving):**
 
-Before writing `package.json`, run `npm view <pkg> version` for each off-chain dep and embed the exact result. Do not write `^X.Y.Z`. Concrete deps to look up:
-
-- `@evolution-sdk/lucid` (the SDK)
-- `@evolution-sdk/plutus` (slot config helpers)
-- `typescript`, `tsx`, `@types/node`
-- (Frontend, if enabled) `next`, `react`, `react-dom`
-
-Pin **exactly** (no carets) so reinstalls reproduce. Commit `package-lock.json`.
+Before writing `package.json`, run `npm view <pkg> version` for each off-chain dep. Pin `@evolution-sdk/evolution` exactly (pre-1.0, and its API still moves between minor releases); give `typescript`, `tsx` and `@types/node` a `^` range. For the frontend, pin `next` exactly as well. Commit `package-lock.json`.
 
 ## Directory tree -- monorepo (default)
 
@@ -87,7 +80,7 @@ source = "github"
 For the `vesting` use case, copy from the bundled CF reference:
 
 ```
-docs/sources/cardano-use-case-templates/vesting/onchain/aiken/validators/vesting.ak
+../../docs/sources/cardano-use-case-templates/vesting/onchain/aiken/validators/vesting.ak
                                                                     →  onchain/validators/vesting.ak
 ```
 
@@ -111,24 +104,24 @@ This produces `onchain/plutus.json` — the CIP-57 blueprint that off-chain code
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20.6"
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "vesting": "tsx src/vesting.ts"
+    "vesting": "tsx --env-file=../.env src/vesting.ts"
   },
   "dependencies": {
-    "@evolution-sdk/lucid": "2.0.1",
-    "@evolution-sdk/plutus": "2.0.0"
+    "@evolution-sdk/evolution": "0.5.14"
   },
   "devDependencies": {
-    "typescript": "5.6.3",
-    "tsx": "4.19.2",
-    "@types/node": "20.17.6"
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
   }
 }
 ```
-
-Replace the version strings with whatever `npm view <pkg> version` returns at scaffold time. The values shown above are current at the time of writing.
 
 `offchain/tsconfig.json`:
 
@@ -152,33 +145,188 @@ Replace the version strings with whatever `npm view <pkg> version` returns at sc
 }
 ```
 
-The `"type": "module"` in `package.json` combined with `NodeNext` module resolution is the right pair. Native JSON-module imports (`import x from "./y.json" with { type: "json" }`) require Node ≥22 or `--experimental-vm-modules`.
+The script reads `plutus.json` from disk rather than importing it, so it stays outside `rootDir` and the same path works from `src/` (with `tsx`) and from `dist/` (after `npm run build`).
 
-### Step 6. Drop in the off-chain scenario script
+### Step 6. Write the scenario script
 
-Copy from the bundled CF reference:
-
-```
-docs/sources/cardano-use-case-templates/vesting/offchain/evolutionsdk/vesting.ts
-                                                                  →  offchain/src/vesting.ts
-```
-
-Edit the blueprint import path to match your monorepo layout:
+`offchain/src/vesting.ts` runs the whole use case against the local devnet: it funds a beneficiary, locks 5 ADA twice, reclaims one lock as the owner (the clawback path, no time condition), then waits out the second lock and claims it as the beneficiary. Both parties come from `DEV_WALLET_MNEMONIC` (accounts 0 and 1), which `npm run vesting` reads from the project-root `.env` (Node's `--env-file`, hence Node 20.6 or newer).
 
 ```typescript
-import blueprint from "../../onchain/plutus.json" with { type: "json" };
-```
+// offchain/src/vesting.ts
+//
+// Vesting on a local Yaci DevKit devnet, through Ogmios and Kupo: fund the
+// beneficiary, lock twice, reclaim one lock as the owner, and claim the other
+// as the beneficiary once its lock time has passed.
 
-If the script ends with a `import.meta.main` guard (Deno/Bun-specific), replace with:
+import { readFileSync } from "node:fs"
+import {
+  Address,
+  Assets,
+  Bytes,
+  Client,
+  Data,
+  InlineDatum,
+  KeyHash,
+  PlutusV3,
+  ScriptHash,
+  TransactionHash,
+  TSchema,
+  preview,
+  type Chain,
+  type UTxO,
+} from "@evolution-sdk/evolution"
 
-```typescript
-import { fileURLToPath } from "node:url";
-const isMain =
-  process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
-if (isMain) {
-  await runScenario();
+const OGMIOS_URL = process.env.OGMIOS_URL ?? "http://localhost:1337"
+const KUPO_URL = process.env.KUPO_URL ?? "http://localhost:1442"
+const MNEMONIC = process.env.DEV_WALLET_MNEMONIC
+if (!MNEMONIC) throw new Error("Set DEV_WALLET_MNEMONIC in .env (a devnet-only wallet)")
+
+// Monorepo layout: offchain/src (or dist) -> ../../onchain/plutus.json
+type Blueprint = { validators: { title: string; compiledCode: string; hash: string }[] }
+const blueprint: Blueprint = JSON.parse(
+  readFileSync(new URL("../../onchain/plutus.json", import.meta.url), "utf8"),
+)
+
+// Must match the Aiken type field for field: lock_until, owner, beneficiary.
+const VestingDatum = TSchema.Struct({
+  lock_until: TSchema.Integer, // POSIX milliseconds
+  owner: TSchema.ByteArray, // payment key hash, 28 bytes
+  beneficiary: TSchema.ByteArray,
+})
+const VestingCodec = Data.withSchema(VestingDatum)
+const ANY_REDEEMER = Data.constr(0n, []) // the validator ignores its redeemer
+
+function loadValidator() {
+  const v = blueprint.validators.find((x) => x.title === "vesting.vesting.spend")
+  if (!v) throw new Error("vesting.vesting.spend not in plutus.json; run `aiken build`")
+  const script = new PlutusV3.PlutusV3({ bytes: Bytes.fromHex(v.compiledCode) })
+  const hash = ScriptHash.fromScript(script)
+  if (Bytes.toHex(hash.hash) !== v.hash) throw new Error("script hash differs from plutus.json")
+  return { script, address: new Address.Address({ networkId: 0, paymentCredential: hash }) }
 }
+
+// The devnet's own slot timing, read from Ogmios. Validity ranges are
+// converted with it, so they match the time the validator sees.
+async function devnetChain(): Promise<Chain> {
+  const rpc = async (method: string) => {
+    const res = await fetch(OGMIOS_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", method, id: 1 }),
+    })
+    return (await res.json()).result
+  }
+  const startTime: string = await rpc("queryNetwork/startTime")
+  const era = (await rpc("queryLedgerState/eraSummaries")).at(-1)
+  const slotLength: number = era.parameters.slotLength.milliseconds
+  const zeroTime =
+    BigInt(Date.parse(startTime)) +
+    BigInt(era.start.time.seconds) * 1000n -
+    BigInt(era.start.slot) * BigInt(slotLength)
+  return { ...preview, name: "Yaci DevKit", networkMagic: 42, slotConfig: { zeroTime, zeroSlot: 0n, slotLength } }
+}
+
+const chain = await devnetChain()
+const clientAt = (accountIndex: number) =>
+  Client.make(chain)
+    .withKupmios({ ogmiosUrl: OGMIOS_URL, kupoUrl: KUPO_URL })
+    .withSeed({ mnemonic: MNEMONIC, accountIndex })
+
+async function keyHashOf(client: ReturnType<typeof clientAt>): Promise<KeyHash.KeyHash> {
+  const credential = (await client.address()).paymentCredential
+  if (!(credential instanceof KeyHash.KeyHash)) throw new Error("expected a key address")
+  return credential
+}
+
+async function findUtxo(
+  client: ReturnType<typeof clientAt>,
+  address: Address.Address,
+  txHash: TransactionHash.TransactionHash,
+): Promise<UTxO.UTxO> {
+  const hex = TransactionHash.toHex(txHash)
+  for (let i = 0; i < 60; i++) {
+    const found = (await client.getUtxos(address)).find((u) => TransactionHash.toHex(u.transactionId) === hex)
+    if (found) return found
+    await new Promise((r) => setTimeout(r, 1000))
+  }
+  throw new Error(`no UTxO from ${hex} at the script address`)
+}
+
+type Built = { sign(): Promise<{ submit(): Promise<TransactionHash.TransactionHash> }> }
+
+async function submit(label: string, built: Built, client: ReturnType<typeof clientAt>) {
+  const txHash = await (await built.sign()).submit()
+  await client.awaitTx(txHash)
+  console.log(`${label} ok. tx=${TransactionHash.toHex(txHash)}`)
+  return txHash
+}
+
+const owner = clientAt(0)
+const beneficiary = clientAt(1)
+const ownerKey = await keyHashOf(owner)
+const beneficiaryKey = await keyHashOf(beneficiary)
+const { script, address: scriptAddress } = loadValidator()
+
+console.log(`Owner ${Address.toBech32(await owner.address())}`)
+await submit(
+  "FUND beneficiary",
+  await owner.newTx().payToAddress({ address: await beneficiary.address(), assets: Assets.fromLovelace(20_000_000n) }).build(),
+  owner,
+)
+
+async function lock(lockUntil: bigint) {
+  const datum = VestingCodec.toData({ lock_until: lockUntil, owner: ownerKey.hash, beneficiary: beneficiaryKey.hash })
+  const built = await owner
+    .newTx()
+    .payToAddress({
+      address: scriptAddress,
+      assets: Assets.fromLovelace(5_000_000n),
+      datum: new InlineDatum.InlineDatum({ data: datum }),
+    })
+    .build()
+  return findUtxo(owner, scriptAddress, await submit(`LOCK until ${new Date(Number(lockUntil)).toISOString()}`, built, owner))
+}
+
+const farLock = await lock(BigInt(Date.now()) + 3_600_000n)
+const shortLockUntil = BigInt(Date.now()) + 20_000n
+const shortLock = await lock(shortLockUntil)
+
+// Owner: the clawback path, no time condition.
+await submit(
+  "RECLAIM (owner)",
+  await owner
+    .newTx()
+    .collectFrom({ inputs: [farLock], redeemer: ANY_REDEEMER })
+    .attachScript({ script })
+    .addSigner({ keyHash: ownerKey })
+    .build(),
+  owner,
+)
+
+// Beneficiary: only after lock_until, which the validator reads from the
+// validity range's lower bound.
+while (BigInt(Date.now()) <= shortLockUntil + 1_000n) await new Promise((r) => setTimeout(r, 1000))
+const from = BigInt(Date.now())
+await submit(
+  "CLAIM (beneficiary)",
+  await beneficiary
+    .newTx()
+    .collectFrom({ inputs: [shortLock], redeemer: ANY_REDEEMER })
+    .attachScript({ script })
+    .addSigner({ keyHash: beneficiaryKey })
+    .setValidity({ from, to: from + 120_000n })
+    .build(),
+  beneficiary,
+)
+
+console.log("Vesting scenario complete.")
 ```
+
+What the script depends on, so you can adapt it:
+
+- **The datum schema must match the Aiken type field for field.** `VestingDatum` in `vesting.ak` is `lock_until: Int, owner: ByteArray, beneficiary: ByteArray`; the `TSchema.Struct` has the same fields in the same order.
+- **The script comes straight from `compiledCode`.** `PlutusV3` takes the blueprint bytes as they are, and the script check against the blueprint's `hash` catches a stale `plutus.json`.
+- **Time comes from the devnet.** `setValidity` converts POSIX milliseconds to slots with the chain's `slotConfig`, so the script builds a `Chain` from Ogmios's start time and era summaries. With a public network, use Evolution's `preview` or `preprod` chain instead.
 
 ### Step 7. Install + verify
 
@@ -189,24 +337,25 @@ npm run typecheck            # tsc --noEmit
 npm run build                # produces dist/
 ```
 
-A working scaffold reaches this point with zero errors. If `typecheck` reports unknown identifiers, the most likely cause is a `@evolution-sdk/lucid` version mismatch — re-check `npm view @evolution-sdk/lucid version` and update the pin.
+A working scaffold reaches this point with zero errors. If `typecheck` reports unknown identifiers, the most likely cause is an `@evolution-sdk/evolution` version mismatch: re-check `npm view @evolution-sdk/evolution version` and the API notes below.
 
 ### Step 8. Run end-to-end against Yaci DevKit
 
-Start the local devnet (see `setup-devnet` skill for full details):
+Start the local devnet with Ogmios and Kupo (see `setup-devnet` for the details):
 
 ```bash
-docker run -d --name yaci-devkit -p 8080:8080 -p 10000:10000 bloxbean/yaci-cli:latest
-# … wait ~30s for the chain to start producing blocks …
+devkit start                        # opens yaci-cli
+yaci-cli:> create-node -o --start   # create + start a default devnet
+devnet:default> enable-kupomios     # Ogmios on :1337, Kupo on :1442
 ```
 
-The bundled `vesting.ts` hard-codes `YACI_URL = "http://localhost:8080/api/v1"` and `NETWORK = "Preview"`. The test mnemonic is the standard Yaci devnet seed:
+The script talks to Ogmios and Kupo through Evolution's Kupmios provider. The Yaci Store that DevKit bundles (the 2.0 line) returns `drep_deposit` as a number where Blockfrost's API returns a string, and Evolution 0.5.14's Blockfrost provider rejects the response, so the script doesn't use Yaci Store's Blockfrost-compatible API. `OGMIOS_URL` and `KUPO_URL` override the default ports.
+
+Fund the owner (account 0 of `DEV_WALLET_MNEMONIC`) before the first run. The script prints the address; at the devnet prompt:
 
 ```
-test test test test test test test test test test test test test test test test test test test test test test test sauce
+devnet:default> topup <owner address> 1000
 ```
-
-Yaci pre-funds account 0 from this seed. The scenario funds account 1 (beneficiary) from account 0, deposits twice, then exercises the owner-clawback path and the beneficiary-after-lock path.
 
 Run:
 
@@ -217,85 +366,65 @@ npm run vesting
 Expected log lines:
 
 ```
-=== vesting scenario: deposit×2 → owner-withdraw / beneficiary-withdraw ===
-Funded 1 target(s). tx=<hash>
-DEPOSIT ok. lockUntilMs=… tx=<hash>
-DEPOSIT ok. lockUntilMs=… tx=<hash>
-WITHDRAW (owner) ok. tx=<hash>
-Waiting for chain slot …
-WITHDRAW (beneficiary) ok. tx=<hash>
-=== Scenario complete ===
+Owner addr_test1…
+FUND beneficiary ok. tx=<hash>
+LOCK until <one hour from now> ok. tx=<hash>
+LOCK until <20 s from now> ok. tx=<hash>
+RECLAIM (owner) ok. tx=<hash>
+CLAIM (beneficiary) ok. tx=<hash>
+Vesting scenario complete.
 ```
 
 ### Step 9. (Optional) Switch from Yaci to a public testnet
 
-To use a real network (preview or preprod) instead of Yaci, edit `offchain/src/vesting.ts`:
+Replace the devnet chain and provider with a public network and Blockfrost:
 
 ```typescript
-const NETWORK = "Preprod" as const;                          // or "Preview"
-const lucid = await Lucid(
-  new Blockfrost(
-    "https://cardano-preprod.blockfrost.io/api/v0",         // or preview
-    process.env.BLOCKFROST_PROJECT_ID!,
-  ),
-  NETWORK,
-);
+import { Client, preprod } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)                          // or preview
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",   // or preview
+    projectId: process.env.BLOCKFROST_PROJECT_ID!,
+  })
+  .withSeed({ mnemonic: process.env.DEV_WALLET_MNEMONIC!, accountIndex: 0 })
 ```
 
-Get a project ID free at https://blockfrost.io. Each network has a separate key prefix (`preview…`, `preprod…`); they are not interchangeable. Test ADA from the public faucet at https://docs.cardano.org/cardano-testnets/tools/faucet.
+Drop `devnetChain()`: `preprod` and `preview` carry their own slot configuration. Get a project ID free at https://blockfrost.io; each network has a separate key prefix (`preview…`, `preprod…`) and they are not interchangeable. Test ADA comes from the public faucet at https://docs.cardano.org/cardano-testnets/tools/faucet.
 
-Remove or comment out the `alignSlotConfig()` call — that helper is Yaci-specific and only needed to compensate for Yaci's fake era timeline.
+## API surface used (verified against `@evolution-sdk/evolution` 0.5.14)
 
-## API surface used (verified against `@evolution-sdk/lucid` 2.0.1)
-
-The patterns below are the real public API. Do not invent new method names.
+The calls below are the real public API. Do not invent new method names; for the wider surface, search `../../docs/sources/evolution-sdk/` (start with `smart-contracts/` and `time/`).
 
 ```typescript
-import {
-  Lucid,
-  Blockfrost,
-  Constr,
-  Data,
-  applyParamsToScript,
-  getAddressDetails,
-  validatorToAddress,
-  type LucidEvolution,
-  type Validator,
-} from "@evolution-sdk/lucid";
-import { SLOT_CONFIG_NETWORK } from "@evolution-sdk/plutus";
+// Client: chain + provider + wallet
+Client.make(chain).withKupmios({ ogmiosUrl, kupoUrl }).withSeed({ mnemonic, accountIndex })
 
-// Client init
-const lucid = await Lucid(new Blockfrost(url, projectId), "Preview");
-lucid.selectWallet.fromSeed(MNEMONIC, { accountIndex: 0 });
+// Script and its address from the blueprint
+const script = new PlutusV3.PlutusV3({ bytes: Bytes.fromHex(compiledCode) })
+const address = new Address.Address({ networkId: 0, paymentCredential: ScriptHash.fromScript(script) })
 
-// Validator from blueprint
-const script = applyParamsToScript(blueprint.validators[0].compiledCode, []);
-const validator: Validator = { type: "PlutusV3", script };
-const scriptAddress = validatorToAddress("Preview", validator);
+// Inline datum from a schema
+const Codec = Data.withSchema(TSchema.Struct({ lock_until: TSchema.Integer, owner: TSchema.ByteArray }))
+payToAddress({ address, assets: Assets.fromLovelace(5_000_000n), datum: new InlineDatum.InlineDatum({ data: Codec.toData(value) }) })
 
-// Pay to script with inline datum
-const datum = Data.to(new Constr(0, [lockUntilMs, ownerVkh, benVkh]));
-const tx = await lucid
-  .newTx()
-  .pay.ToContract(scriptAddress, { kind: "inline", value: datum }, { lovelace: 5_000_000n })
-  .complete();
+// Spend from the script
+collectFrom({ inputs: [utxo], redeemer: Data.constr(0n, []) })
+  .attachScript({ script })
+  .addSigner({ keyHash })
+  .setValidity({ from, to })        // POSIX ms; converted with the chain's slotConfig
 
-// Spend script UTxO
-const tx = await lucid
-  .newTx()
-  .collectFrom([utxo], Data.to(new Constr(0, [])))
-  .attach.SpendingValidator(validator)
-  .addSigner(addr)
-  .complete();
+// Build, sign, submit, wait
+const built = await client.newTx() /* … */ .build()
+const txHash = await (await built.sign()).submit()   // a TransactionHash, not a string
+await client.awaitTx(txHash)
 ```
-
-For the wider surface, search `${CLAUDE_SKILL_DIR}/../../docs/sources/evolution-sdk/` and `evolution-sdk-packages/`.
 
 ## Frontend (optional)
 
-When the developer opts in, scaffold a sibling Next.js App Router app under `frontend/`. It runs independently of `offchain/` — it imports the same blueprint and uses `@evolution-sdk/lucid` directly with Blockfrost as the chain provider.
+When the developer opts in, scaffold a sibling Next.js App Router app under `frontend/`. It imports the same blueprint. Keep `BLOCKFROST_PROJECT_ID` on the server: build transactions in a route handler with `withBlockfrost` and the wallet's address, and let the browser only sign, with `Client.make(chain).withCip30(walletApi)` after the user connects through `window.cardano.<wallet>.enable()`. The developer portal's `evolution-vite-react` starter shows this split end to end. Hand wallet UI work to `connect-wallet`.
 
-`frontend/package.json` (look up versions at scaffold time — current as of writing):
+`frontend/package.json` (look up versions at scaffold time):
 
 ```jsonc
 {
@@ -308,28 +437,25 @@ When the developer opts in, scaffold a sibling Next.js App Router app under `fro
     "start": "next start"
   },
   "dependencies": {
-    "@evolution-sdk/lucid": "2.0.1",
-    "@evolution-sdk/plutus": "2.0.0",
-    "next": "16.2.6",
-    "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "@evolution-sdk/evolution": "0.5.14",
+    "next": "16.3.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@types/node": "20.17.6",
-    "@types/react": "19.0.0",
-    "@types/react-dom": "19.0.0",
-    "typescript": "5.6.3"
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "typescript": "^5.6.3"
   }
 }
 ```
-
-CIP-30 wallet integration: hand off to `connect-wallet`. The pattern is `lucid.selectWallet.fromAPI(walletApi)` after the user connects via `window.cardano.<wallet>.enable()`. Keep `BLOCKFROST_PROJECT_ID` server-side (Next.js route handler); wallet calls stay client-side.
 
 ## Next steps
 
 1. **Run `aiken check && aiken build` in `onchain/`** — produces `plutus.json`. All validator unit tests must pass.
 2. **Run `npm install && npm run typecheck && npm run build` in `offchain/`** — must complete with zero errors.
-3. **Start Yaci DevKit** — hand off to `setup-devnet`.
+3. **Start Yaci DevKit with Ogmios and Kupo** — hand off to `setup-devnet`.
 4. **Run `npm run vesting`** (or the equivalent for your use case) — exercises the on-chain / off-chain bridge end-to-end.
 5. **Replace the use-case skeleton with your real logic** — hand off to `write-validator`.
 6. **Build production transactions** — hand off to `build-transaction`.

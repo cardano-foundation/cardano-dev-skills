@@ -19,6 +19,8 @@ import (
 	"crypto/sha3"
 	"errors"
 	"fmt"
+
+	"github.com/blinklabs-io/gouroboros/internal/ed25519strict"
 )
 
 // VerifyVKeySignature verifies an ed25519 signature against the provided public key and message.
@@ -29,7 +31,7 @@ func VerifyVKeySignature(pubKey, sig, msg []byte) error {
 	if len(sig) != ed25519.SignatureSize {
 		return fmt.Errorf("invalid signature size: %d", len(sig))
 	}
-	if !ed25519.Verify(ed25519.PublicKey(pubKey), msg, sig) {
+	if !ed25519strict.Verify(pubKey, msg, sig) {
 		return errors.New("signature verification failed")
 	}
 	return nil
@@ -40,11 +42,23 @@ func VerifyVKeySignature(pubKey, sig, msg []byte) error {
 // invalid signature encountered.
 func ValidateVKeyWitnesses(tx Transaction) error {
 	w := tx.Witnesses()
-	txHash := tx.Hash()
+	if verifier, ok := tx.(ByronVKeyWitnessVerifier); ok {
+		if err := verifier.ValidateByronVKeyWitnesses(); err != nil {
+			return NewValidationError(
+				ValidationErrorTypeTransaction,
+				"invalid Byron vkey witness",
+				map[string]any{"err": err.Error()},
+				err,
+			)
+		}
+		return nil
+	}
+	txHash := transactionWitnessHash(tx)
 	msg := txHash[:]
 	if w != nil {
 		for _, vw := range w.Vkey() {
-			if err := VerifyVKeySignature(vw.Vkey, vw.Signature, msg); err != nil {
+			err := VerifyVKeySignature(vw.Vkey, vw.Signature, msg)
+			if err != nil {
 				return NewValidationError(
 					ValidationErrorTypeTransaction,
 					"invalid vkey signature",
@@ -55,6 +69,19 @@ func ValidateVKeyWitnesses(tx Transaction) error {
 		}
 	}
 	return nil
+}
+
+func transactionWitnessHash(tx Transaction) Blake2b256 {
+	if wireHashed, ok := tx.(interface{ WireId() Blake2b256 }); ok {
+		return wireHashed.WireId()
+	}
+	return tx.Hash()
+}
+
+// ByronVKeyWitnessVerifier marks transactions whose vkey witness signatures
+// require Byron's protocol-magic and constructor-specific signing data.
+type ByronVKeyWitnessVerifier interface {
+	ValidateByronVKeyWitnesses() error
 }
 
 // computeByronAddressRoot computes the address root for a Byron address
@@ -195,7 +222,7 @@ func ValidateBootstrapWitnesses(tx Transaction) error {
 	if w == nil {
 		return nil
 	}
-	txHash := tx.Hash()
+	txHash := transactionWitnessHash(tx)
 	msg := txHash[:]
 	for _, bw := range w.Bootstrap() {
 		// Validate sizes first; reject malformed bootstrap witnesses rather
@@ -217,11 +244,10 @@ func ValidateBootstrapWitnesses(tx Transaction) error {
 				nil,
 			)
 		}
-		if !ed25519.Verify(
-			ed25519.PublicKey(bw.PublicKey),
-			msg,
-			bw.Signature,
-		) {
+		// Cardano.Ledger.Keys.Bootstrap.verifyBootstrapWit routes through the
+		// same verifySignedDSIGN as an ordinary vkey witness, not through the
+		// Byron primitive, despite the witness being Byron-shaped.
+		if !ed25519strict.Verify(bw.PublicKey, msg, bw.Signature) {
 			return NewValidationError(
 				ValidationErrorTypeTransaction,
 				"invalid bootstrap signature",

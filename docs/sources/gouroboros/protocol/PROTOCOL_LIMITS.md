@@ -1,222 +1,248 @@
-# Ouroboros Mini-Protocol Limits Implementation
+# Ouroboros mini-protocol limits
 
-## Overview
+This document records the limits and state-transition timeouts implemented by
+the protocol state maps in this repository. Values are source-level defaults;
+an option passed to a client or server can replace the timeout where noted.
+An entry with a zero timeout or pending-message limit has no framework limit.
 
-This document describes the implementation of queue/pipeline/message limits for the Ouroboros mini-protocols as specified in the Ouroboros Network Specification. These limits prevent resource exhaustion and ensure protocol compliance by terminating connections when limits are violated.
+The protocol framework applies a state's `PendingMessageByteLimit` while that
+state is active. A state timeout closes the protocol when its agency does not
+make the expected transition before the timeout expires. These are transport
+and state-machine safeguards, not application-level transaction or block
+validation.
 
-## Reference
+## Connection read buffer allowance
 
-All limits are based on the [Ouroboros Network Specification](https://ouroboros-network.cardano.intersectmbo.org/pdfs/network-spec/network-spec.pdf).
+`MaxReadBufferSize` bounds one mini-protocol in one role. A full-duplex
+node-to-node connection runs eight mini-protocols in both roles, so sixteen
+read loops each hold their own buffer.
 
-## Implemented Limits
+The muxer carries a connection-wide allowance for those buffers. Each
+protocol raises it to its own effective `MaxReadBufferSize` as it registers,
+so the allowance is the largest registered cap (16 MB by default), not the
+sum of all of them. A mini-protocol whose reassembly would take the
+connection past the allowance fails with a
+`connection read buffer budget exhausted` error rather than growing; the
+allowance is returned as messages are consumed and when a read loop exits.
 
-### ChainSync Protocol
+The largest message any node-to-node mini-protocol admits is bounded by its
+own pending-message byte limit, and the largest of those is Block Fetch's
+2,500,000 bytes, so one protocol's 16 MB cap covers every legitimate
+reassembly on the connection with room to spare. A caller that needs more
+headroom raises `MaxReadBufferSize` on the protocol that needs it, which
+raises the connection allowance with it.
 
-**Constants defined in `protocol/chainsync/chainsync.go`:**
-- `MaxPipelineLimit = 100` - Maximum number of pipelined ChainSync requests
-- `MaxRecvQueueSize = 100` - Maximum size of the receive message queue
-- `DefaultPipelineLimit = 50` - Conservative default for pipeline limit
-- `DefaultRecvQueueSize = 50` - Conservative default for receive queue size
-- `MaxPendingMessageBytes = 462000` - NtN mux ingress buffer per spec Table 3.15 (462KB)
+## Muxer socket deadlines
 
-**State timeout constants:**
-- `IdleTimeout = 60s` - Timeout for client to send next request
-- `CanAwaitTimeout = 300s` - Timeout for server to provide next block or await
-- `IntersectTimeout = 5s` - Timeout for server to respond to intersect request
-- `MustReplyTimeout = 300s` - Timeout for server to provide next block
+The muxer sets a 120-second write deadline immediately before each segment
+write, after acquiring its connection-wide send lock. A deadline-setting error
+is returned without attempting the write. The deadline bounds the socket write,
+not time spent waiting for the send lock or the protocol's outbound queue.
 
-**Enforcement:**
-- Client-side pipeline tracking with disconnect on violation
-- Configuration validation with panic on invalid values
-- Server-side queue size limits enforced by protocol framework
-- Per-state pending message byte limits enforced with connection teardown on violation
-- State transition timeouts enforced with connection teardown on timeout
+Read deadlines remain independently managed per segment. Connection wrappers
+must preserve those read deadlines and support `SetWriteDeadline`. The muxer
+replaces an existing write deadline; wrappers that enforce a shorter external
+deadline must cap the requested value. Stopping the muxer closes the underlying
+connection to interrupt pending socket operations.
 
-**Files modified:**
-- `protocol/chainsync/chainsync.go` - Added constants, validation, and documentation
-- `protocol/chainsync/client.go` - Added pipeline count tracking and enforcement
+## Chain Sync
 
-### BlockFetch Protocol
+The N2N map (`protocol/chainsync/chainsync.go`) has the following limits:
 
-**Constants defined in `protocol/blockfetch/blockfetch.go`:**
-- `MaxRecvQueueSize = 512` - Maximum size of the receive message queue
-- `DefaultRecvQueueSize = 256` - Default receive queue size
-- `MaxPendingMessageBytes = 5242880` - Maximum pending message bytes (5MB)
+| State | Timeout | Pending bytes |
+| --- | ---: | ---: |
+| Idle | 3673 seconds | 462,000 |
+| CanAwait | 10 seconds | 462,000 |
+| Intersect | 10 seconds | 462,000 |
+| MustReply | random in `[135, 269)` seconds | 462,000 |
+| Done | none | 462,000 |
 
-**State timeout constants:**
-- `IdleTimeout = 60s` - Timeout for client to send block range request
-- `BusyTimeout = 5s` - Timeout for server to start batch or respond no blocks
-- `StreamingTimeout = 60s` - Timeout for server to send next block in batch
+The N2C map has no state timeouts or pending-message byte limits. `MustReply`
+uses a fresh random timeout for each state entry; `MustReplyTimeout` is the
+fixed maximum retained for compatibility and configuration defaults.
 
-**Request pipelining constants:**
-- `DefaultMaxInFlightBytes = 9011200` - Bound on the expected size of
-  outstanding pipelined range requests, matching `cardano-node`'s
-  `blockFetchProtocolLimits`: `blockFetchPipeliningMax` (100) times the maximum
-  block body size (88 KiB)
-- `DefaultRequestExpectedBytes = 90112` - Size charged to a request whose
-  caller supplied no estimate (one maximum-size block body), which makes the
-  default bound degrade to 100 outstanding requests
-- `PipelinedIdleMaxPendingMessageBytes` - Idle-state ingress limit for a
-  pipelining client, which must admit a block because the peer's response to
-  the next request can arrive while the state machine is momentarily back in
-  Idle
+Configuration limits are:
 
-**Enforcement:**
-- Configuration validation with panic on invalid values
-- Queue size limits enforced by protocol framework
-- Per-state pending message byte limits enforced with connection teardown on violation
-- State transition timeouts enforced with connection teardown on timeout
-- Outstanding pipelined requests bounded in bytes, blocking the caller of
-  `Client.RequestRange` rather than terminating the connection
+| Setting | Maximum | Default |
+| --- | ---: | ---: |
+| Pipeline limit | 100 requests | 75 |
+| Receive queue size | 100 messages | 75 |
 
-**Files modified:**
-- `protocol/blockfetch/blockfetch.go` - Added constants, validation, and documentation
-- `protocol/blockfetch/client.go` - Outstanding request queue and in-flight byte bound
+`MaxPendingMessageBytes` is 462,000 bytes. `WithPipelineLimit` and
+`WithRecvQueueSize` reject negative values and values above their maximum.
 
-### TxSubmission Protocol
+## Block Fetch
 
-**Constants defined in `protocol/txsubmission/txsubmission.go`:**
-- `MaxRequestCount = 65535` - Maximum number of transactions per request (uint16 limit)
-- `MaxAckCount = 65535` - Maximum number of transaction acknowledgments (uint16 limit)
-- `DefaultRequestLimit = 1000` - Reasonable default for transaction requests
-- `DefaultAckLimit = 1000` - Reasonable default for transaction acknowledgments
-- Pending message byte limits: Not enforced (0 = no limit)
+The base map (`protocol/blockfetch/blockfetch.go`) is:
 
-**State timeout constants:**
-- `InitTimeout = 30s` - Timeout for client to send init message
-- `IdleTimeout = 300s` - Timeout for server to send tx request when idle
-- `TxIdsBlockingTimeout = 60s` - Timeout for client to reply with tx IDs (blocking)
-- `TxIdsNonblockingTimeout = 30s` - Timeout for client to reply with tx IDs (non-blocking)
-- `TxsTimeout = 120s` - Timeout for client to reply with full transactions
+| State | Timeout | Pending bytes |
+| --- | ---: | ---: |
+| Idle | none | 65,535 |
+| Busy | 60 seconds | 2,500,000 |
+| Streaming | 60 seconds | 2,500,000 |
+| Done | none | 0 |
 
-**Enforcement:**
-- Server-side validation with disconnect on excessive request counts
-- Client-side validation with disconnect on excessive received counts
-- State transition timeouts enforced with connection teardown on timeout
+Client and server instances copy the map and apply their configured
+`BatchStartTimeout` and `BlockTimeout` to Busy and Streaming. A pipelining
+client raises its Idle pending-message limit to 2,500,000 bytes so a block can
+arrive during the Idle transition.
 
-**Files modified:**
-- `protocol/txsubmission/txsubmission.go` - Added constants and documentation
-- `protocol/txsubmission/server.go` - Added request count validation
-- `protocol/txsubmission/client.go` - Added received count validation
+| Setting | Maximum | Default |
+| --- | ---: | ---: |
+| Receive queue size | 512 messages | 384 |
+| Expected bytes per unestimated range request | — | 90,112 (88 KiB) |
+| Total expected in-flight request bytes | — | 9,011,200 (100 × 88 KiB) |
 
-### Handshake Protocol
+`WithRecvQueueSize` rejects values outside the receive-queue range. The
+in-flight byte bound applies to client request pipelining and blocks the
+request caller when the bound is full; it does not terminate the connection.
 
-**State timeout constants:**
-- `ProposeTimeout = 5s` - Timeout for client to propose protocol version
-- `ConfirmTimeout = 5s` - Timeout for server to confirm or refuse version
+## Transaction Submission
 
-**Files modified:**
-- `protocol/handshake/handshake.go` - Added timeout constants and StateMap integration
+| State | Timeout | Pending bytes |
+| --- | ---: | ---: |
+| Init | none | 721,424 |
+| Idle | none | 721,424 |
+| TxIdsBlocking | none | 721,424 |
+| TxIdsNonBlocking | 10 seconds | 721,424 |
+| Txs | 10 seconds | 721,424 |
+| Done | none | 721,424 |
 
-### Keepalive Protocol
+`MaxPendingMessageBytes` is 721,424 bytes: `MaxUnackedTxIds` (10) maximum-size
+transactions of `MaxTxSizeBytes` (65,540) plus the `TxIdReplyEntryBytes` (44)
+tx-id reply entry that announced each, with a 10% safety margin. It matches
+the tx-submission mux ingress limit the reference implementation enforces, so
+a conforming peer never exceeds it.
 
-**State timeout constants:**
-- `ClientTimeout = 60s` - Timeout for client to send keepalive request
-- `ServerTimeout = 10s` - Timeout for server to respond to keepalive
+Both requests are bounded by the outstanding window, not by the `uint16` wire
+ranges. `MaxRequestCount` and `MaxAckCount` (65,535) describe the ranges of the
+`MsgRequestTxIds` count fields and no longer bound either request path;
+`MaxUnackedTxIds` (10) does, and it is also what sizes the byte limit.
 
-**Files modified:**
-- `protocol/keepalive/keepalive.go` - Added timeout constants and StateMap integration
+A request for transaction IDs must leave the peer inside that window. The
+client's `MsgRequestTxIds` handler rejects an acknowledgement larger than what
+it has outstanding, and rejects a request where `unacknowledged - ack + req`
+exceeds `MaxUnackedTxIds`; `Server.RequestTxIds` applies the same condition
+before putting a request on the wire. Both return
+`ErrProtocolViolationRequestExceeded`. This is the reference implementation's
+condition in `Ouroboros.Network.TxSubmission.Outbound`, which throws
+`ProtocolErrorAckedTooManyTxids` and `ProtocolErrorRequestedTooManyTxids`
+respectively.
 
-## Protocol Violation Errors
+A request for transaction bodies is bounded the same way: `Server.RequestTxs`
+and the client's request handler both reject more than `MaxUnackedTxIds`
+transaction IDs. A peer may only request transactions it has left
+unacknowledged, and a reply to a larger request cannot fit
+`MaxPendingMessageBytes`, which is derived from that same window.
 
-**New error types defined in `protocol/error.go`:**
-- `ErrProtocolViolationQueueExceeded` - Message queue limit exceeded
-- `ErrProtocolViolationPipelineExceeded` - Pipeline limit exceeded  
-- `ErrProtocolViolationRequestExceeded` - Request count limit exceeded
-- `ErrProtocolViolationInvalidMessage` - Invalid message received
+Without these bounds a peer requesting 65,535 transaction IDs draws a reply of
+roughly 2.6 MB, which `Protocol.enqueueMessage` refuses against
+`MaxPendingMessageBytes` and then fails the protocol over, dropping the
+connection.
 
-These errors cause connection termination as per the network specification.
+`DefaultRequestLimit` and `DefaultAckLimit` are exported guidance constants
+(1,000). They are not configuration fields, are not applied automatically, and
+are larger than `MaxUnackedTxIds`: a caller using either as a request count is
+refused.
 
-## Other Mini-Protocols
+## Handshake
 
-All remaining protocols have appropriate timeout implementations:
+For N2N, `Propose` and `Confirm` each have a 10-second timeout. The framework
+does not arm the initial state's timer by default; the N2N handshake server
+opts into its configured `Propose` timeout. N2C has no state timeouts and does
+not opt in. After the initial transition, `Confirm` uses the normal state
+timeout. Client and server instances copy the N2N map and can override the
+applicable timeout with `WithTimeout`; the N2C map remains timeout-free.
 
-- **LocalStateQuery** - Has AcquireTimeout (5s) and QueryTimeout (180s) for database queries
-- **LocalTxMonitor** - Has AcquireTimeout (5s) and QueryTimeout (30s) for mempool monitoring  
-- **LocalTxSubmission** - Has Timeout (30s) for local transaction submission
-- **PeerSharing** - Has Timeout (5s) for peer discovery requests
-- **LeiosFetch** - Has Timeout (5s) for fetching Leios blocks, block
-  transactions, votes, and block ranges
-- **LeiosNotify** - Has Timeout (60s) for Leios block announcements/offers,
-  block transaction offers, and vote offers
-- **LeiosVotes** - Has Timeout (60s) for Leios vote diffusion
-- **Handshake** - Has ProposeTimeout (5s) and ConfirmTimeout (5s) for protocol negotiation
-- **Keepalive** - Has ClientTimeout (60s) and ServerTimeout (10s) for connection health
+## Keep Alive
 
-## Validation and Testing
+| State | Timeout |
+| --- | ---: |
+| Client | 97 seconds |
+| Server | 60 seconds |
+| Done | none |
 
-**Test file:** `protocol/limits_test.go`
-- Validates that all limits are properly defined and positive
-- Tests configuration validation and panic behavior  
-- Verifies protocol violation errors are defined
-- Ensures default values are reasonable and within limits
-- Comprehensive timeout validation for all 12 mini-protocols
-- Verifies StateMap entries use correct timeout constants
+The keep-alive configuration separately defaults to a 60-second period and a
+10-second response timeout for the keep-alive loop. Those values do not change
+the exported state-map constants above.
 
-## Protocol State Timeouts
+## Local mini-protocols
 
-### Implementation
+These protocols have no static state-map timeout; the client copies the map and
+applies the configured operation timeout where indicated:
 
-Each protocol state can define a timeout value that is enforced by the protocol framework. When a state transition takes too long, the connection is automatically terminated to prevent hanging connections and ensure protocol compliance.
+| Protocol | State/operation | Default |
+| --- | --- | ---: |
+| Local State Query | Acquiring | 5 seconds |
+| Local State Query | Querying | 180 seconds |
+| Local Tx Monitor | Acquiring | 5 seconds |
+| Local Tx Monitor | Busy queries | 30 seconds |
+| Local Tx Submission | Busy submit | 30 seconds |
 
-### Timeout Values
+The local protocols have no additional queue, pipeline, or pending-message
+byte limits in their state maps.
 
-The timeout values are based on the Ouroboros Network Specification and real-world network conditions:
+## Peer Sharing
 
-- **Short timeouts (5-30s)**: For rapid protocol handshakes and responses
-- **Medium timeouts (60-120s)**: For normal message exchanges and client requests  
-- **Long timeouts (300s)**: For waiting on new blocks or mempool queries
+The map (`protocol/peersharing/peersharing.go`) is:
 
-### Timeout Behavior
+| State | Timeout | Pending bytes |
+| --- | ---: | ---: |
+| Idle | none | 5,760 |
+| Busy | 60 seconds | 5,760 |
+| Done | none | none |
 
-- Timeouts are set when entering a state with `StateMapEntry.Timeout > 0`
-- If no state transition occurs within the timeout period, the protocol terminates
-- Connection teardown includes proper error logging for debugging
-- Terminal states (`AgencyNone`) do not have timeouts
+`MaxPendingMessageBytes` is 5,760 bytes, the reference implementation's
+`peerSharingProtocolLimits` ingress queue and `byteLimitsPeerSharing` per-state
+limit (4 x 1440, one TCP initial congestion window). The Busy timeout is
+configurable via `WithTimeout`.
 
-## Behavior Changes
+The server clamps a `SharePeers` reply to the smaller of the requested
+`Amount` and `MaxSharedPeers` (230), the largest number of addresses that
+still encodes within `MaxPendingMessageBytes`. The client rejects a reply
+carrying more addresses than it requested.
 
-**Before:**
-- No enforced limits on pipeline depth or queue sizes
-- Potential for memory exhaustion from excessive pipelining
-- No disconnect on protocol violations
-- No state transition timeouts
+## Leios mini-protocols
 
-**After:**
-- Strict limits enforced as per network specification
-- Automatic connection termination on limit violations
-- Comprehensive logging of violations before disconnect
-- Configuration validation prevents invalid setups
-- State transition timeouts prevent hanging connections
+| Protocol | State | Default timeout | Pending bytes |
+| --- | --- | ---: | ---: |
+| Leios Fetch client | Votes | 5 seconds | none |
+| Leios Fetch client | BlockRange | 5 seconds | 64 MiB |
+| Leios Notify client | Busy | 60 seconds | none |
+| Leios Votes client | Busy | 60 seconds | none |
+| Leios Votes server with a configured request callback | Busy | 60 seconds | none |
 
-## Usage Examples
+Leios Fetch `Block` and `BlockTxs` requests are bounded by the caller's
+context, not by a protocol state timeout. Leios Notify has no pending-message
+byte limit. Leios Fetch `BlockRangeRequest` retains at most 1,000 response
+messages and 64 MiB of encoded response data per request by default; both
+limits can be configured. The byte limit also bounds pending range messages in
+the protocol receive queue. Exceeding either retained-response limit is a
+protocol error and closes the connection. Leios Notify allows up to 100
+pipelined requests and defaults to 10. Leios Votes allows up to 100 pipelined
+requests, defaults to 1, and limits one request to 1,000 votes (the default is
+also 1,000). Leios Notify limits each VotesOffer to 1,000 entries and 256 KiB
+before parsing the vote list. Nonpositive Leios Fetch range limits select the
+defaults; other invalid configured values are rejected by their constructors.
 
-### ChainSync with Custom Limits
+## Peras Vote Diffusion
 
-```go
-cfg := chainsync.NewConfig(
-    chainsync.WithPipelineLimit(75),        // Max 100
-    chainsync.WithRecvQueueSize(80),        // Max 100
-)
-```
+| State | Timeout | Pending bytes |
+| --- | ---: | ---: |
+| Init, Idle, ObjectIDsBlocking | none | `maxObjectsUnacknowledged × 1,100 + 256` |
+| ObjectIDsNonBlocking, Objects | 5 seconds by default | `maxObjectsUnacknowledged × 1,100 + 256` |
+| Done | none | none |
 
-### BlockFetch with Custom Queue Size
+The outstanding object window defaults to 50 and can be configured up to
+1,000. The timeout is configurable and bounds non-blocking ID and object
+requests; blocking ID requests wait for an available vote.
 
-```go
-cfg := blockfetch.NewConfig(
-    blockfetch.WithRecvQueueSize(400),      // Max 512
-)
-```
+## Enforcement scope
 
-### TxSubmission (limits enforced automatically)
+State-map timeouts and pending-message limits are enforced by the protocol
+framework. Message-specific limits and configuration validation are enforced
+by the owning protocol implementation. This document intentionally does not
+claim limits for protocols or states whose current map contains no such entry.
 
-The TxSubmission protocol enforces limits automatically in the client and server message handlers.
-
-## Network Specification Compliance
-
-This implementation ensures compliance with the Ouroboros Network Specification by:
-1. Defining appropriate limits for each mini-protocol
-2. Enforcing limits at both client and server sides
-3. Terminating connections on protocol violations
-4. Preventing resource exhaustion attacks
-5. Maintaining protocol state machine integrity
+The repository's `build-examples` workflow runs `make build` on pull requests;
+that target builds every module under `examples/` against the public API.

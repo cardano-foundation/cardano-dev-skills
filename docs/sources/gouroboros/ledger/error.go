@@ -23,6 +23,7 @@ import (
 	"github.com/blinklabs-io/gouroboros/cbor"
 	"github.com/blinklabs-io/gouroboros/ledger/byron"
 	"github.com/blinklabs-io/gouroboros/ledger/common"
+	"github.com/blinklabs-io/gouroboros/ledger/dijkstra"
 	"github.com/blinklabs-io/gouroboros/ledger/shelley"
 )
 
@@ -31,6 +32,7 @@ const (
 
 	// LEDGER incomplete withdrawals failure tags.
 	ShelleyLedgerIncompleteWithdrawals = 3
+	ConwayLedgerUtxowFailure           = 1
 	ConwayLedgerIncompleteWithdrawals  = 9
 
 	// Shelley UTXOW failure tags (also used by Allegra and Mary)
@@ -436,8 +438,8 @@ func (e *GenericError) Error() string {
 	return fmt.Sprintf("GenericError (%v)", e.Value)
 }
 
-// UnknownApplyTxFailureError preserves the era, the raw LEDGER-level
-// failure constructor tag, and the raw CBOR bytes for an ApplyTxError
+// UnknownApplyTxFailureError preserves the era, constructor tag, and raw CBOR
+// for a LEDGER-level (or Dijkstra MEMPOOL-level) ApplyTxError
 // failure that this era-aware decoder does not recognize. It is returned
 // instead of silently decoding the failure as a GenericError, which would
 // otherwise discard the tag/era context needed to diagnose a
@@ -646,7 +648,22 @@ func (e *ApplyTxError) UnmarshalCBOR(data []byte) error {
 		}
 		var newErr error
 		switch {
-		case failureType == ApplyTxErrorUtxowFailure:
+		case e.era == EraIdDijkstra:
+			newErr, err = decodeDijkstraMempoolFailure(
+				failure,
+				tmpFailure,
+				failureType,
+			)
+			if err != nil {
+				return err
+			}
+		case isLedgerUtxowFailure(e.era, failureType):
+			if len(tmpFailure) < 2 {
+				return fmt.Errorf(
+					"ApplyTxError UtxowFailure: expected at least 2 elements, got %d",
+					len(tmpFailure),
+				)
+			}
 			// Use era-aware UTXOW failure decoding
 			utxowErr := &UtxowFailure{era: e.era}
 			if _, err := cbor.Decode(tmpFailure[1], utxowErr); err != nil {
@@ -672,6 +689,56 @@ func (e *ApplyTxError) UnmarshalCBOR(data []byte) error {
 		e.Failures = append(e.Failures, newErr)
 	}
 	return nil
+}
+
+// Dijkstra ApplyTxError contains MEMPOOL failures, not LEDGER failures.
+// Only MEMPOOL LedgerFailure (1) -> LEDGER UtxowFailure (1) reaches UTXOW.
+func decodeDijkstraMempoolFailure(
+	raw cbor.RawMessage,
+	fields []cbor.RawMessage,
+	tag int,
+) (error, error) {
+	unknown := &UnknownApplyTxFailureError{
+		Era: EraIdDijkstra, FailureType: tag, Cbor: raw,
+	}
+	if tag != 1 {
+		return unknown, nil
+	}
+	if len(fields) != 2 {
+		return nil, errors.New(
+			"dijkstra MEMPOOL LedgerFailure: expected 2 elements",
+		)
+	}
+	var ledgerFields []cbor.RawMessage
+	if _, err := cbor.Decode(fields[1], &ledgerFields); err != nil {
+		return nil, err
+	}
+	ledgerTag, err := cbor.DecodeIdFromList(fields[1])
+	if err != nil {
+		return nil, err
+	}
+	if ledgerTag != 1 {
+		// Preserve the complete MEMPOOL envelope for unhandled LEDGER tags.
+		return unknown, nil
+	}
+	if len(ledgerFields) != 2 {
+		return nil, errors.New(
+			"dijkstra LEDGER UtxowFailure: expected 2 elements",
+		)
+	}
+	utxow := &UtxowFailure{era: EraIdDijkstra}
+	if _, err := cbor.Decode(ledgerFields[1], utxow); err != nil {
+		return nil, err
+	}
+	return utxow, nil
+}
+
+func isLedgerUtxowFailure(era uint8, failureType int) bool {
+	if era == EraIdConway {
+		// Conway LEDGER renumbers UtxowFailure from 0 to 1.
+		return failureType == 1
+	}
+	return failureType == ApplyTxErrorUtxowFailure
 }
 
 func isLedgerIncompleteWithdrawalsFailure(era uint8, failureType int) bool {
@@ -752,7 +819,11 @@ func (e *UtxowFailure) UnmarshalCBOR(data []byte) error {
 
 // unmarshalShelley handles Shelley, Allegra, and Mary era UTXOW failures.
 // These eras share the same UTXOW failure structure (direct tags, no wrapping).
-func (e *UtxowFailure) unmarshalShelley(data []byte, tmpFailure []cbor.RawMessage, failureType int) error {
+func (e *UtxowFailure) unmarshalShelley(
+	data []byte,
+	tmpFailure []cbor.RawMessage,
+	failureType int,
+) error {
 	var newErr error
 	switch failureType {
 	case ShelleyUtxowInvalidWitnesses:
@@ -787,7 +858,20 @@ func (e *UtxowFailure) unmarshalShelley(data []byte, tmpFailure []cbor.RawMessag
 		}
 		return nil
 	}
+	if failureType == ShelleyUtxowUtxoFailure && len(tmpFailure) < 2 {
+		return errors.New(
+			"UtxowFailure (Shelley): UTXO failure missing payload",
+		)
+	}
 	if len(tmpFailure) >= 2 {
+		if failureType == ShelleyUtxowUtxoFailure {
+			utxoErr := &UtxoFailure{}
+			if err := utxoErr.unmarshalPayload(tmpFailure[1], e.era); err != nil {
+				return err
+			}
+			e.Err = utxoErr
+			return nil
+		}
 		if _, err := cbor.Decode(tmpFailure[1], newErr); err != nil {
 			return err
 		}
@@ -798,7 +882,11 @@ func (e *UtxowFailure) unmarshalShelley(data []byte, tmpFailure []cbor.RawMessag
 
 // unmarshalAlonzo handles Alonzo era UTXOW failures.
 // Alonzo wraps Shelley failures in tag 0 and adds Plutus-related tags.
-func (e *UtxowFailure) unmarshalAlonzo(data []byte, tmpFailure []cbor.RawMessage, failureType int) error {
+func (e *UtxowFailure) unmarshalAlonzo(
+	data []byte,
+	tmpFailure []cbor.RawMessage,
+	failureType int,
+) error {
 	if len(tmpFailure) < 2 {
 		return errors.New("UtxowFailure (Alonzo): expected at least 2 elements")
 	}
@@ -806,7 +894,12 @@ func (e *UtxowFailure) unmarshalAlonzo(data []byte, tmpFailure []cbor.RawMessage
 	switch failureType {
 	case AlonzoUtxowShelleyInAlonzo:
 		// Shelley UTXOW failures wrapped in Alonzo
-		newErr = &ShelleyUtxowFailure{}
+		shelleyErr := &ShelleyUtxowFailure{}
+		if err := shelleyErr.unmarshalCBORWithEra(tmpFailure[1], e.era); err != nil {
+			return err
+		}
+		e.Err = shelleyErr
+		return nil
 	case AlonzoUtxowMissingRedeemers:
 		newErr = &MissingRedeemers{}
 	case AlonzoUtxowMissingRequiredDatums:
@@ -836,18 +929,34 @@ func (e *UtxowFailure) unmarshalAlonzo(data []byte, tmpFailure []cbor.RawMessage
 
 // unmarshalBabbage handles Babbage era UTXOW failures.
 // Babbage wraps Alonzo failures in tag 1 and adds Babbage-specific tags.
-func (e *UtxowFailure) unmarshalBabbage(data []byte, tmpFailure []cbor.RawMessage, failureType int) error {
+func (e *UtxowFailure) unmarshalBabbage(
+	data []byte,
+	tmpFailure []cbor.RawMessage,
+	failureType int,
+) error {
 	if len(tmpFailure) < 2 {
-		return errors.New("UtxowFailure (Babbage): expected at least 2 elements")
+		return errors.New(
+			"UtxowFailure (Babbage): expected at least 2 elements",
+		)
 	}
 	var newErr error
 	switch failureType {
 	case BabbageUtxowAlonzoInBabbage:
 		// Alonzo UTXOW failures wrapped in Babbage
-		newErr = &AlonzoUtxowFailure{}
+		alonzoErr := &AlonzoUtxowFailure{}
+		if err := alonzoErr.unmarshalCBORWithEra(tmpFailure[1], e.era); err != nil {
+			return err
+		}
+		e.Err = alonzoErr
+		return nil
 	case BabbageUtxowUtxoFailure:
 		// UTXO failures (may be Babbage-specific or wrapped Alonzo)
-		newErr = &BabbageUtxoFailure{}
+		babbageErr := &BabbageUtxoFailure{}
+		if err := babbageErr.unmarshalPayload(tmpFailure[1], e.era); err != nil {
+			return err
+		}
+		e.Err = babbageErr
+		return nil
 	case BabbageUtxowMalformedScriptWitnesses:
 		newErr = &MalformedScriptWitnesses{}
 	case BabbageUtxowMalformedReferenceScripts:
@@ -876,7 +985,11 @@ func (e *UtxowFailure) unmarshalBabbage(data []byte, tmpFailure []cbor.RawMessag
 	return nil
 }
 
-func (e *UtxowFailure) unmarshalConway(data []byte, tmpFailure []cbor.RawMessage, failureType int) error {
+func (e *UtxowFailure) unmarshalConway(
+	data []byte,
+	tmpFailure []cbor.RawMessage,
+	failureType int,
+) error {
 	var newErr error
 	switch failureType {
 	case ConwayUtxowUtxoFailure:
@@ -936,7 +1049,18 @@ func (e *UtxowFailure) unmarshalConway(data []byte, tmpFailure []cbor.RawMessage
 		}
 		return nil
 	}
+	if failureType == ConwayUtxowUtxoFailure && len(tmpFailure) < 2 {
+		return errors.New("UtxowFailure (Conway): UTXO failure missing payload")
+	}
 	if len(tmpFailure) >= 2 {
+		if failureType == ConwayUtxowUtxoFailure {
+			utxoErr := &UtxoFailure{}
+			if err := utxoErr.unmarshalPayload(tmpFailure[1], e.era); err != nil {
+				return err
+			}
+			e.Err = utxoErr
+			return nil
+		}
 		if _, err := cbor.Decode(tmpFailure[1], newErr); err != nil {
 			return err
 		}
@@ -993,29 +1117,7 @@ func (e *UtxowFailure) Error() string {
 // CBOR (constructor payload only, tag already stripped by the caller):
 //
 //	[credential, ...]
-type MissingRequiredGuards struct {
-	Guards []common.Credential
-}
-
-func (e *MissingRequiredGuards) UnmarshalCBOR(cborData []byte) error {
-	if _, err := cbor.Decode(cborData, &e.Guards); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (e *MissingRequiredGuards) Error() string {
-	var sb strings.Builder
-	sb.WriteString("MissingRequiredGuards ([")
-	for idx, cred := range e.Guards {
-		sb.WriteString(cred.Credential.String())
-		if idx < len(e.Guards)-1 {
-			sb.WriteString(", ")
-		}
-	}
-	sb.WriteString("])")
-	return sb.String()
-}
+type MissingRequiredGuards = dijkstra.MissingRequiredGuards
 
 // MalformedGuardDatums represents guard credentials whose datum presence in
 // requiredTopLevelGuards is inconsistent. Dijkstra-only (UTXOW constructor
@@ -1027,29 +1129,7 @@ func (e *MissingRequiredGuards) Error() string {
 // CBOR (constructor payload only, tag already stripped by the caller):
 //
 //	[credential, ...]
-type MalformedGuardDatums struct {
-	Guards []common.Credential
-}
-
-func (e *MalformedGuardDatums) UnmarshalCBOR(cborData []byte) error {
-	if _, err := cbor.Decode(cborData, &e.Guards); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (e *MalformedGuardDatums) Error() string {
-	var sb strings.Builder
-	sb.WriteString("MalformedGuardDatums ([")
-	for idx, cred := range e.Guards {
-		sb.WriteString(cred.Credential.String())
-		if idx < len(e.Guards)-1 {
-			sb.WriteString(", ")
-		}
-	}
-	sb.WriteString("])")
-	return sb.String()
-}
+type MalformedGuardDatums = dijkstra.MalformedGuardDatums
 
 type UtxoFailure struct {
 	cbor.StructAsArray
@@ -1066,16 +1146,23 @@ func (e *UtxoFailure) UnmarshalCBOR(data []byte) error {
 	if _, err := cbor.Decode(data, &tmpData); err != nil {
 		return err
 	}
-	e.Era = tmpData.Era
+	return e.unmarshalPayload(tmpData.Err, tmpData.Era)
+}
 
-	// Extract the raw constructor tag. A failure here means tmpData.Err
+// unmarshalPayload decodes the bare UTXO predicate failure payload used by
+// nested UTXOW constructors. The public UtxoFailure CBOR form includes the
+// era wrapper; nested ledger errors carry that context in their parent.
+func (e *UtxoFailure) unmarshalPayload(data []byte, era uint8) error {
+	e.Era = era
+
+	// Extract the raw constructor tag. A failure here means data
 	// is structurally malformed (e.g. a CBOR string/map where a
 	// constructor-tagged list was expected), which is a genuine decode
 	// error, not an unknown-failure case: UnknownUtxoFailureError is
 	// reserved for when tag extraction succeeds but the resulting tag
 	// isn't present in the era's map. Propagate idErr instead of masking
 	// it behind a placeholder tag.
-	failureType, idErr := cbor.DecodeIdFromList(tmpData.Err)
+	failureType, idErr := cbor.DecodeIdFromList(data)
 	if idErr != nil {
 		return fmt.Errorf(
 			"UtxoFailure: failed to extract constructor tag: %w",
@@ -1084,7 +1171,7 @@ func (e *UtxoFailure) UnmarshalCBOR(data []byte) error {
 	}
 
 	errorMap, _, _, _, _, mapErr := getEraSpecificUtxoFailureConstants(
-		tmpData.Era,
+		era,
 	)
 	if mapErr != nil {
 		// Unrecognized era: we don't know this era's constructor
@@ -1093,14 +1180,14 @@ func (e *UtxoFailure) UnmarshalCBOR(data []byte) error {
 		// typed UnknownUtxoFailureError value instead of a hard decode
 		// failure.
 		e.Err = &UnknownUtxoFailureError{
-			Era:         tmpData.Era,
+			Era:         era,
 			FailureType: failureType,
-			Cbor:        tmpData.Err,
+			Cbor:        data,
 		}
 		return nil //nolint:nilerr
 	}
 
-	newErr, err := cbor.DecodeById(tmpData.Err, errorMap)
+	newErr, err := cbor.DecodeById(data, errorMap)
 	if err != nil {
 		if _, known := errorMap[failureType]; known {
 			// Recognized constructor tag whose payload we couldn't
@@ -1112,9 +1199,9 @@ func (e *UtxoFailure) UnmarshalCBOR(data []byte) error {
 		// instead of silently decoding as an opaque GenericError. err
 		// is deliberately not propagated for the same reason as above.
 		e.Err = &UnknownUtxoFailureError{
-			Era:         tmpData.Era,
+			Era:         era,
 			FailureType: failureType,
-			Cbor:        tmpData.Err,
+			Cbor:        data,
 		}
 		return nil //nolint:nilerr
 	}
@@ -1168,7 +1255,22 @@ type OutsideValidityIntervalUtxo struct {
 }
 
 func (e *OutsideValidityIntervalUtxo) Error() string {
-	validityInterval := e.ValidityInterval.Value().([]any)
+	value := e.ValidityInterval.Value()
+	validityInterval, ok := value.([]any)
+	if !ok {
+		return fmt.Sprintf(
+			"OutsideValidityIntervalUtxo (invalid ValidityInterval type %T, Slot %d)",
+			value,
+			e.Slot,
+		)
+	}
+	if len(validityInterval) < 2 {
+		return fmt.Sprintf(
+			"OutsideValidityIntervalUtxo (invalid ValidityInterval length %d, Slot %d)",
+			len(validityInterval),
+			e.Slot,
+		)
+	}
 	return fmt.Sprintf(
 		"OutsideValidityIntervalUtxo (ValidityInterval { invalidBefore = %v, invalidHereafter = %v }, Slot %d)",
 		validityInterval[0],
@@ -1245,13 +1347,7 @@ func (e *OutputTooSmallUtxo) Error() string {
 	return sb.String()
 }
 
-type TxOut struct {
-	cbor.Value
-}
-
-func (t *TxOut) String() string {
-	return fmt.Sprintf("TxOut (%v)", t.Value.Value())
-}
+type TxOut = common.TxOut
 
 type UtxosFailure struct {
 	UtxoFailureErrorBase
@@ -1666,14 +1762,7 @@ func (e *WrongNetworkInTxBody) Error() string {
 	)
 }
 
-type OutsideForecast struct {
-	UtxoFailureErrorBase
-	Slot uint32
-}
-
-func (e *OutsideForecast) Error() string {
-	return fmt.Sprintf("OutsideForecast (Slot %d)", e.Slot)
-}
+type OutsideForecast = common.OutsideForecastError
 
 type TooManyCollateralInputs struct {
 	UtxoFailureErrorBase
@@ -1825,17 +1914,7 @@ func (e *BabbageNonDisjointRefInputs) Error() string {
 // return output uses a pointer-address stake reference, which Dijkstra
 // disallows.
 // CBOR: [22, txout]
-type PtrPresentInCollateralReturn struct {
-	UtxoFailureErrorBase
-	Output TxOut
-}
-
-func (e *PtrPresentInCollateralReturn) Error() string {
-	return fmt.Sprintf(
-		"PtrPresentInCollateralReturn (Output %s)",
-		e.Output.String(),
-	)
-}
+type PtrPresentInCollateralReturn = common.PtrPresentInCollateralReturn
 
 // WithdrawalsExceedAccountBalance represents the Dijkstra-only
 // WithdrawalsExceedAccountBalance error from cardano-ledger: total
@@ -2009,6 +2088,13 @@ func (e *ShelleyUtxowFailure) Error() string {
 }
 
 func (e *ShelleyUtxowFailure) UnmarshalCBOR(data []byte) error {
+	return e.unmarshalCBORWithEra(data, EraIdShelley)
+}
+
+func (e *ShelleyUtxowFailure) unmarshalCBORWithEra(
+	data []byte,
+	era uint8,
+) error {
 	tmpFailure := []cbor.RawMessage{}
 	if _, err := cbor.Decode(data, &tmpFailure); err != nil {
 		return err
@@ -2031,7 +2117,25 @@ func (e *ShelleyUtxowFailure) UnmarshalCBOR(data []byte) error {
 	case ShelleyUtxowScriptWitnessNotValidating:
 		newErr = &ScriptWitnessNotValidatingUTXOW{}
 	case ShelleyUtxowUtxoFailure:
-		newErr = &UtxoFailure{}
+		if len(tmpFailure) < 2 {
+			return errors.New(
+				"ShelleyUtxowFailure: expected at least 2 elements",
+			)
+		}
+		if era == EraIdBabbage {
+			utxoErr := &BabbageUtxoFailure{}
+			if err := utxoErr.unmarshalPayload(tmpFailure[1], era); err != nil {
+				return err
+			}
+			e.Err = utxoErr
+			return nil
+		}
+		utxoErr := &UtxoFailure{}
+		if err := utxoErr.unmarshalPayload(tmpFailure[1], era); err != nil {
+			return err
+		}
+		e.Err = utxoErr
+		return nil
 	case ShelleyUtxowMissingTxBodyMetadataHash:
 		newErr = &MissingTxBodyMetadataHash{}
 	case ShelleyUtxowMissingTxMetadata:
@@ -2047,7 +2151,7 @@ func (e *ShelleyUtxowFailure) UnmarshalCBOR(data []byte) error {
 		newErr = &ExtraneousScriptWitnessesUTXOW{}
 	default:
 		e.Err = &UnknownUtxowFailureError{
-			Era:         EraIdShelley,
+			Era:         era,
 			FailureType: failureType,
 			Cbor:        data,
 		}
@@ -2073,6 +2177,13 @@ func (e *AlonzoUtxowFailure) Error() string {
 }
 
 func (e *AlonzoUtxowFailure) UnmarshalCBOR(data []byte) error {
+	return e.unmarshalCBORWithEra(data, EraIdAlonzo)
+}
+
+func (e *AlonzoUtxowFailure) unmarshalCBORWithEra(
+	data []byte,
+	era uint8,
+) error {
 	tmpFailure := []cbor.RawMessage{}
 	if _, err := cbor.Decode(data, &tmpFailure); err != nil {
 		return err
@@ -2088,7 +2199,12 @@ func (e *AlonzoUtxowFailure) UnmarshalCBOR(data []byte) error {
 	switch failureType {
 	case AlonzoUtxowShelleyInAlonzo:
 		// Shelley failures wrapped in Alonzo - use ShelleyUtxowFailure
-		newErr = &ShelleyUtxowFailure{}
+		shelleyErr := &ShelleyUtxowFailure{}
+		if err := shelleyErr.unmarshalCBORWithEra(tmpFailure[1], era); err != nil {
+			return err
+		}
+		e.Err = shelleyErr
+		return nil
 	case AlonzoUtxowMissingRedeemers:
 		newErr = &MissingRedeemers{}
 	case AlonzoUtxowMissingRequiredDatums:
@@ -2103,7 +2219,7 @@ func (e *AlonzoUtxowFailure) UnmarshalCBOR(data []byte) error {
 		newErr = &ExtraRedeemers{}
 	default:
 		e.Err = &UnknownUtxowFailureError{
-			Era:         EraIdAlonzo,
+			Era:         era,
 			FailureType: failureType,
 			Cbor:        data,
 		}
@@ -2127,6 +2243,10 @@ func (e *BabbageUtxoFailure) Error() string {
 }
 
 func (e *BabbageUtxoFailure) UnmarshalCBOR(data []byte) error {
+	return e.unmarshalPayload(data, EraIdBabbage)
+}
+
+func (e *BabbageUtxoFailure) unmarshalPayload(data []byte, era uint8) error {
 	tmpFailure := []cbor.RawMessage{}
 	if _, err := cbor.Decode(data, &tmpFailure); err != nil {
 		return err
@@ -2138,11 +2258,16 @@ func (e *BabbageUtxoFailure) UnmarshalCBOR(data []byte) error {
 	if err != nil {
 		return err
 	}
+	if failureType == BabbageUtxoAlonzoInBabbage {
+		utxoErr := &UtxoFailure{}
+		if err := utxoErr.unmarshalPayload(tmpFailure[1], era); err != nil {
+			return err
+		}
+		e.Err = utxoErr
+		return nil
+	}
 	var newErr error
 	switch failureType {
-	case BabbageUtxoAlonzoInBabbage:
-		// Alonzo UTXO failures wrapped - delegate to existing UtxoFailure logic
-		newErr = &UtxoFailure{}
 	case BabbageUtxoIncorrectTotalCollateral:
 		newErr = &IncorrectTotalCollateralField{}
 	case BabbageUtxoOutputTooSmallUTxO:
@@ -2151,13 +2276,11 @@ func (e *BabbageUtxoFailure) UnmarshalCBOR(data []byte) error {
 		newErr = &BabbageNonDisjointRefInputs{}
 	default:
 		e.Err = &UnknownUtxoFailureError{
-			Era:         EraIdBabbage,
-			FailureType: failureType,
-			Cbor:        data,
+			Era: era, FailureType: failureType, Cbor: data,
 		}
 		return nil
 	}
-	if _, err := cbor.Decode(tmpFailure[1], newErr); err != nil {
+	if _, err := cbor.Decode(data, newErr); err != nil {
 		return err
 	}
 	e.Err = newErr
@@ -2177,7 +2300,10 @@ type InvalidWitnessesUTXOW struct {
 }
 
 func (e *InvalidWitnessesUTXOW) Error() string {
-	return fmt.Sprintf("InvalidWitnessesUTXOW (%d invalid witnesses)", len(e.VKeys))
+	return fmt.Sprintf(
+		"InvalidWitnessesUTXOW (%d invalid witnesses)",
+		len(e.VKeys),
+	)
 }
 
 // MissingVKeyWitnessesUTXOW represents missing VKey witnesses
@@ -2346,7 +2472,17 @@ func (e *ConwayUtxowFailure) UnmarshalCBOR(data []byte) error {
 	switch failureType {
 	case ConwayUtxowUtxoFailure:
 		// UTXO failures use Conway's renumbered tags
-		newErr = &UtxoFailure{}
+		utxoErr := &UtxoFailure{}
+		if len(tmpFailure) < 2 {
+			return errors.New(
+				"ConwayUtxowFailure: expected at least 2 elements",
+			)
+		}
+		if err := utxoErr.unmarshalPayload(tmpFailure[1], EraIdConway); err != nil {
+			return err
+		}
+		e.Err = utxoErr
+		return nil
 	case ConwayUtxowInvalidWitnesses:
 		newErr = &InvalidWitnessesUTXOW{}
 	case ConwayUtxowMissingVKeyWitnesses:

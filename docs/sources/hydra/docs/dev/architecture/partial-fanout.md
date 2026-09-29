@@ -8,9 +8,11 @@ until the head is empty.
 
 There are two ways to drive it:
 
-- a plain `Fanout` builds the single full transaction and checks whether it would
-  fit; when it would not, the head is drained automatically over as many steps as
-  it takes
+- a plain `Fanout` distributes the whole set in one transaction where that can be
+  valid at all, and otherwise drains the head automatically over as many steps as
+  it takes. A head holding more outputs than the deployed CRS can verify (see
+  [How much fits in one step](#how-much-fits-in-one-step)) takes the second path
+  without building the single transaction, which could only be rejected
 - a `PartialFanout` names the subset to distribute next, so a client decides what
   leaves the head first and in which order
 
@@ -37,9 +39,9 @@ The head does not store the individual UTxOs on-chain while it is open. Instead
 it keeps a single _commitment_ to the confirmed snapshot, a
 [`HydraAccumulator`](pathname:///haddocks/hydra-tx/Hydra-Tx-Accumulator.html).
 
-The snapshot's UTxO set, together with any pending commit or decommit, is turned
-into elements: each output is serialised to its `BuiltinData` bytes and hashed
-down to one _element_, a scalar. The elements `s₁, …, sₙ` define a polynomial
+A UTxO set is turned into elements: each output is serialised to its
+`BuiltinData` bytes and hashed down to one _element_, a scalar. The elements
+`s₁, …, sₙ` define a polynomial
 
 ```
 A(X) = (X − s₁)·(X − s₂)·…·(X − sₙ)
@@ -49,11 +51,30 @@ which is committed as a single `BLS12-381` G1 point `A(τ)·G1`. This point is t
 _accumulator commitment_. Identical outputs hash to identical elements, so the
 accumulator is a multiset and keeps their multiplicity.
 
-While the head is open, all parties sign a blake2b-256 hash of that commitment,
-the `accumulatorHash`, and the `OpenDatum` carries it. `Close` verifies the
-signature and stores the commitment point itself in the `ClosedDatum`, checking
-that hashing the point reproduces the signed hash. So a whole snapshot, however
-many outputs it has, is pinned on-chain by one 48-byte group element.
+The commitment stored in a closed head has to describe exactly the outputs the
+head still owes, because that is what the fanout paths distribute and what the
+head output's value backs. Which outputs those are depends on something not
+known when a snapshot is signed: whether the snapshot's pending increment or
+decrement lands on chain before the head is closed. A pending decommit stays
+inside the head until its decrement lands, and a pending commit only enters the
+head once its increment lands. So every snapshot carries _two_ accumulators and
+the parties sign both hashes:
+
+- the snapshot accumulator, over the snapshot UTxO plus a pending decommit:
+  what the head owes while it stays at the snapshot's version
+- the applied accumulator, over the snapshot UTxO plus a pending commit: what
+  the head owes once the pending action has been applied on chain
+
+With nothing pending the two are the same value. While the head is open the
+`OpenDatum` carries the snapshot accumulator's hash for reference. `Close` and
+`Contest` verify the signature over both hashes and store one commitment point
+in the `ClosedDatum`, selected by redeemer kind: `Unused`/`Any` (the head is
+still at the snapshot's version) store the snapshot accumulator, `Used` (the
+pending action was applied) stores the applied one, each checked by hashing the
+point and comparing against the signed hash. Storing the other candidate would
+let a fanout pay out an output whose value already left the head, or leave value
+no output can claim. So a whole snapshot, however many outputs it has, is pinned
+on-chain by one 48-byte group element that means "still owed".
 
 ## Membership proofs
 
@@ -86,6 +107,15 @@ over the distributed subset is exactly the accumulator over the outputs that
 remain, which the step has to publish in the continuing head output anyway. The
 validator uses that new commitment as the proof, which both verifies membership
 and forces the remaining accumulator to be correct.
+
+Since the commitment covers exactly the owed outputs, the two terminal
+transactions also require _completeness_: their proof, the quotient after
+removing everything they distribute, has to be the commitment to the empty set
+(the G1 generator). Leaving an owed output out of a `Fanout` or
+`FinalPartialFanout` is rejected with `FanoutIncomplete` or
+`FinalPartialFanoutIncomplete`, and an intermediate step that would empty the
+accumulator is rejected because the last batch has to be the token-burning final
+one.
 
 ## The CRS
 
@@ -162,16 +192,48 @@ needs to know. The chain layer runs a binary search
 ([`findFittingFanoutTx`](pathname:///haddocks/hydra-node/Hydra-Chain-Direct-Handlers.html#v:findFittingFanoutTx))
 for the largest number of outputs whose transaction still fits the layer 1 size
 limit and script execution budget, so a large selection is drained over as many
-steps as needed. The search is local: candidate transactions are built and
-evaluated against those limits in the node, and only the winning one is submitted.
-Nothing is submitted speculatively and rejected by the chain.
+steps as needed. The search never looks above what the deployed CRS can verify,
+since no larger subset could be valid however cheap its transaction turns out to
+be, which is what keeps the number of candidates independent of how much is left
+in the head. The search is local: candidate transactions are built and evaluated
+against those limits in the node, and only the winning one is submitted. Nothing
+is submitted speculatively and rejected by the chain.
 
 The last transaction cannot be an ordinary partial step: it must be the _final_
 fanout, which distributes the rest and burns the head tokens. The node handles
-that boundary itself. Once the head is in `FanoutProgress`, a selection covering
-everything that is left is posted as the final transaction. Selecting the whole
-set out of a freshly closed head is instead treated as a plain `Fanout`, which is
-what it means, and takes the single-transaction or automatic-drain path above.
+that boundary itself. Once a first chunk has landed, a selection covering
+everything that is left is posted as the final transaction.
+
+Before that it cannot be: the head output still carries the `Closed` datum, which
+the final fanout is not valid against. A selection covering the whole remainder
+at that point is treated as a plain `Fanout` instead — which is what it means —
+and takes the single-transaction or automatic-drain path above, with the node
+draining whatever is left automatically. That applies both to selecting the whole
+set out of a freshly closed head and to selecting the whole remainder while an
+earlier selection is still in flight.
+
+In that second case the two transactions race for the head output, and only one
+of them can win. If the full fanout wins, it drains the head and the earlier step
+never lands.
+
+If the earlier step wins, the full fanout is aimed at a head output that has
+moved on and cannot succeed. What the node makes of that depends on what it has
+observed by the time the failure reaches it, and a rejected post is deliberately
+held back for one block so the observation usually gets there first:
+
+- it had already observed the step, so the transaction is never built: the
+  failure is ignored, since the observation drives the next step anyway
+- it built and submitted the transaction, and observed the step before the
+  rejection came back: the client is told the post failed, and the node carries
+  on draining from the observation
+- it still has not observed the step: the client is told, and since nothing has
+  been distributed the head reverts to `Closed`
+
+After such a revert, observing the earlier step puts the head back into
+`FanoutProgress`, this time with the node waiting for a selection rather than
+driving, the same as any other party's step. Further `PartialFanout` commands
+drain it from there; a plain `Fanout` is refused, since the head is in
+`FanoutProgress` by then.
 
 A selection that is empty, or that is not contained in what is left, is refused
 with a `CommandFailed` and changes nothing.
@@ -194,6 +256,14 @@ A requested snapshot that would exceed this is rejected with
 `ReqSnUTxOSetTooLarge`, so the head cannot reach a state it would be unable to fan
 out.
 
+The same bound applies to a snapshot supplied by a client rather than by a peer.
+A [side-loaded snapshot](/docs/how-to/sideload-snapshot) above the limit is
+refused by the API with a `400` before it reaches the head logic, which keeps its
+own backstop (`SideLoadUTxOSetTooLarge`). The check has to happen at the
+boundary: an accumulator over more elements than the setup supports has no
+computable commitment at all, and the node forces that commitment as soon as it
+logs, echoes or signature-checks the snapshot.
+
 ### How much fits in one step
 
 Two separate limits bound a single fanout transaction:
@@ -203,9 +273,10 @@ Two separate limits bound a single fanout transaction:
   benchmarks for the measured chunk sizes
 - the length of the deployed CRS. Verifying a subset of `N` outputs needs `N + 1`
   G2 points, and the CRS output currently carries 30 of them (`defaultItems`), so
-  no step can distribute more than **29** outputs regardless of budget. Raising
-  this means re-publishing the CRS output with more points, up to the 65 G2 points
-  the trusted setup provides
+  no step can distribute more than **29** outputs regardless of budget. The head
+  validator is compiled against the hash of that CRS and rejects any other one, so
+  raising this means re-publishing the CRS output with more points _and_
+  recompiling the scripts, up to the 65 G2 points the trusted setup provides
 
 ### UTxO sizing
 

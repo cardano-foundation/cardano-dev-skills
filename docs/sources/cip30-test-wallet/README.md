@@ -14,31 +14,99 @@ It injects a CIP-30 test wallet into the page under test. The wallet holds real 
 
 A Playwright test in the trace viewer. The wallet is detected, connects on preprod and signs the commit transaction without a popup, and `expectSignedBy` proves the submitted transaction carries its signature.
 
-**Status: 0.x.** The signing core, the Playwright fixture and the `doctor` command are covered by unit tests and by browser tests in Chromium, Firefox and WebKit, and they run in the end-to-end suites of real dApps. Until 1.0 a minor release can still change the API, the notes of each GitHub release say what changed. Not yet supported: `getCollateral`, native assets, governance transactions.
+**Status: 0.x.** The signing core, the Playwright fixture and the `doctor` command are covered by unit tests and by browser tests in Chromium, Firefox and WebKit, and they run in the end-to-end suites of real dApps. Until 1.0 a minor release can still change the API, the notes of each GitHub release say what changed.
 
-Coding agents start with [AGENTS.md](AGENTS.md).
+Coding agents start with [AGENTS.md](https://github.com/Lichtstaub/cip30-test-wallet/blob/main/AGENTS.md).
 
 ## What is in the box
 
-- A CIP-30 provider for the page: `apiVersion`, `name`, `icon`, `supportedExtensions`, `enable`, `isEnabled`, and the api methods `getNetworkId`, `getUtxos` (with `amount` and `paginate`), `getBalance`, `getUsedAddresses`, `getUnusedAddresses`, `getChangeAddress`, `getRewardAddresses`, `getExtensions`, `signTx`, `submitTx`, `signData`.
+- A CIP-30 provider for the page: `apiVersion`, `name`, `icon`, `supportedExtensions`, `enable`, `isEnabled`, and the api methods `getNetworkId`, `getUtxos` (with `amount` and `paginate`), `getBalance` (with native assets), `getCollateral`, `experimental.getCollateral`, `getUsedAddresses`, `getUnusedAddresses`, `getChangeAddress`, `getRewardAddresses`, `getExtensions`, `signTx`, `submitTx`, `signData`.
 - The `cip95` namespace: `getPubDRepKey`, `getRegisteredPubStakeKeys`, `getUnregisteredPubStakeKeys`, `signData`.
 - A Playwright fixture: `test.use({ walletOptions })` configures the wallet, `wallet` in the test reads the journal and flips quirks at runtime.
-- `expectSignedBy(txHex, wallet)`: proves the transaction your dApp submitted really carries the wallet's signature over its body hash. Recording `submitTx` alone proves nothing.
+- `expectSignedBy(txHex, wallet, { roles? })`: proves the transaction your dApp submitted really carries the wallet's signature (payment by default, optionally stake and DRep) over its body hash. Recording `submitTx` alone proves nothing.
 - `expectSignedData(result, expected)`: proves a `signData` or `cip95.signData` result the way a careful verifier does, checking the COSE signature, key and address.
 - The quirk catalogue in [`quirks/`](quirks/README.md), a provenance note for every switch.
 - `doctor`: a command line check of a deployed dApp for the secure-context and content-security-policy traps, with a browser mode that measures wallet detection.
 
-`signData` follows CIP-30 and CIP-8 byte for byte with Emurgo's message-signing library: payment key for base, pointer and enterprise addresses, stake key for reward addresses. CIP-95 is announced by default: `getPubDRepKey`, the registered and unregistered stake keys, and `cip95.signData` with the bare DRep ID or a type 6 address. Governance transactions (certificates, votes, proposals) are not signed yet.
+`signData` follows CIP-30 and CIP-8 byte for byte with Emurgo's message-signing library: payment key for base, pointer and enterprise addresses, stake key for reward addresses. CIP-95 is announced by default: `getPubDRepKey`, the registered and unregistered stake keys, and `cip95.signData` with the bare DRep ID or a type 6 address. `signTx` signs Conway governance transactions: stake and vote delegation certificates with the stake key, DRep registration, update and retirement and DRep votes with the DRep key. Pool and committee certificates are never witnessed by the wallet, as CIP-95 requires. Pre-Conway certificates are refused with `TxSignError` `DeprecatedCertificate` (3).
 
 ## Not in the box yet
 
-This release is a CIP-30 subset for transaction tests plus the first half of CIP-95. Missing on purpose, tracked for later milestones: `getCollateral`, native assets in balances and UTxOs, script inputs, certificates, and every transaction form outside the supported set below. `submitTx` is simulated: it records the transaction and returns its id, it never talks to a node. Fees, validity and script execution are not checked.
+This release is a CIP-30 subset for transaction tests plus CIP-95, including governance transactions. Missing on purpose, tracked for later milestones: script inputs, script credentials in certificates and votes, guardrail scripts in proposals, and every transaction form outside the supported set below. `submitTx` is simulated: it records the transaction and returns its id, it never talks to a node. Fees, validity and script execution are not checked.
 
-## Quick start
+## Getting started
+
+You have a dApp with a wallet connect and want its wallet flows under test. Each step below stands on its own, stop wherever the coverage is enough.
+
+### 1. Install and point Playwright at your app
 
 ```bash
 npm install --save-dev cip30-test-wallet @playwright/test
+npx playwright install chromium
 ```
+
+```ts
+// playwright.config.ts
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  testDir: 'tests',
+  use: { baseURL: 'http://localhost:5173' },
+  webServer: { command: 'npm run dev', url: 'http://localhost:5173', reuseExistingServer: !process.env.CI },
+});
+```
+
+Use your dev server's command and port. A deployed URL works as `baseURL` too, without `webServer`.
+
+### 2. Connect
+
+```ts
+// tests/connect.spec.ts
+import { test, expect } from 'cip30-test-wallet/playwright';
+
+test.use({ walletOptions: { name: 'eternl', networkId: 0 } });
+
+test('connects to the wallet', async ({ page, wallet }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Connect' }).click();
+  await expect(page.getByText('Connected')).toBeVisible(); // whatever your app shows after a connect
+
+  expect(await wallet.calls('enable')).toHaveLength(1);
+});
+```
+
+Import `test` and `expect` from `cip30-test-wallet/playwright`, not from `@playwright/test`. `name` is the key under `window.cardano`. Use one your dApp lists, many dApps only offer wallets they know. `networkId` is `0` for a testnet dApp and `1` for mainnet. This test needs no chain, no funds and no transaction builder.
+
+### 3. What your users do to it
+
+The failures users report and nobody can reproduce on a developer machine. Each is one line of `walletOptions`:
+
+```ts
+test.use({ walletOptions: { networkId: 1 } });                        // wallet on mainnet, your dApp expects preprod
+test.use({ walletOptions: { quirks: { enableRejected: true } } });    // the user declines the connection
+test.use({ walletOptions: { quirks: { lateInjection: 1500 } } });     // the wallet appears after 1.5 seconds
+test.use({ walletOptions: { quirks: { signRejected: true } } });      // the user declines the signature
+```
+
+A user who never answers the signing prompt, answered by the test when your assertion is done:
+
+```ts
+test.use({ walletOptions: { quirks: { signHangs: true } } });
+await page.getByRole('button', { name: 'Commit' }).click();
+await expect(page.getByText('Waiting for your wallet')).toBeVisible();
+await wallet.release('signTx');
+```
+
+Wallet errors are plain `{ code, info }` objects as CIP-30 requires, so a dApp that shows `err.message` shows nothing. That is the most common bug these tests find. The full list is in [User-side failures](docs/recipes.md#user-side-failures) and the [quirk catalogue](quirks/README.md).
+
+### 4. Transactions
+
+Two questions decide how a transaction test is wired, answer them for your dApp first:
+
+- **Where does the builder get its inputs?** The wallet's UTxOs exist only in the wallet. A builder connected to the CIP-30 api reads them through `getUtxos()` and works. One that looks the address up at an indexer finds nothing.
+- **Who submits?** The wallet's `submitTx` records the transaction and never reaches a chain. A library or backend that submits on its own has to be intercepted with `page.route`.
+
+The details and a recipe per library follow in [Building and submitting transactions](#building-and-submitting-transactions). A test then proves the signature instead of counting calls:
 
 ```ts
 // tests/commit.spec.ts
@@ -58,20 +126,11 @@ test('commit writes the expected metadata', async ({ page, wallet }) => {
 });
 ```
 
-Reproduce a wrong-network user in one line:
+### 5. Pages behind a wallet login, and the deployment
 
-```ts
-test.use({ walletOptions: { networkId: 1 } });   // wallet on mainnet, your dApp expects preprod
-```
-
-Reproduce a user who never answers the signing prompt, and let them answer when your assertion is done:
-
-```ts
-test.use({ walletOptions: { quirks: { signHangs: true } } });
-await page.getByRole('button', { name: 'Commit' }).click();
-await expect(page.getByText('Waiting for your wallet')).toBeVisible();
-await wallet.release('signTx');
-```
+- A dApp that logs in with a signed message becomes testable behind the login, see [Pages behind a wallet login](#pages-behind-a-wallet-login).
+- `npx cip30-test-wallet doctor <url>` checks the deployed site for the content security policy and detection problems that break wallets in mobile in-app browsers, see [doctor](#doctor).
+- Let a coding agent run and extend these tests on its own, see [CI and coding agents](#ci-and-coding-agents).
 
 The full option and handle reference is in [docs/fixture-api.md](docs/fixture-api.md).
 
@@ -168,8 +227,8 @@ What decides whether a login works:
 
 - **Roles without chain state** work with any mnemonic, the default one included, for example a plain account login with the reward address.
 - **Roles the dApp checks on chain** need a wallet that really has that role on the dApp's network, for example a DRep registered on preprod. Pass its mnemonic through an environment variable, never commit it. Its keys end up in traces like any other, so use a testnet wallet only.
-- **Reading works, most governance actions do not yet.** The wallet signs messages and plain transactions. Votes, certificates and proposals are not signed yet, so pages whose main action is one of those can be opened and checked, but the action itself cannot complete.
-- **Token-gated pages** check real holdings on chain. The wallet's synthetic UTxOs do not count there, the address itself has to hold the tokens.
+- **Governance actions are signed.** Votes, vote delegation and DRep updates are signed with the right keys. `submitTx` still only records the transaction, so a vote never reaches the chain from a test.
+- **Token-gated pages** that check ownership on chain, through an indexer or their backend, do not see the synthetic UTxOs, the address itself has to hold the tokens. Pages that read `getBalance` or `getUtxos` in the browser do see them.
 
 The fixture injects into any URL, so this also works against a deployed site, not only a local dev server. The wallet's network has to match the site's. Against a mainnet site only flows that cost nothing make sense, such as a message-signing login, and only with a mnemonic that holds nothing. Remember that a production login creates real accounts and sessions on that site.
 
@@ -181,9 +240,11 @@ The wallet's extended private keys are serialised into the page's init script by
 
 Errors are plain `{ code, info }` objects, as CIP-30 requires, never `Error` instances. Code that reads `err.message` shows up immediately. `getUtxos()` returns `[]` for an empty wallet and `null` when the requested amount cannot be reached. Addresses are hex CBOR bytes. A test that is green with the defaults already tells you something.
 
+One compatibility exception: `getCollateral()` without an argument means 5 ADA. CIP-30 calls that form possible but not specified, Mesh calls it this way and Lace answers it this way. An amount of 0 or above 5 ADA is InvalidRequest. Collateral comes from pure ADA UTxOs without datum or reference script, at most three: first in configuration order, then the largest ones if that is not enough. `null` when even that does not cover the amount.
+
 ## Supported transaction forms
 
-The wallet decides what to sign for these body fields: inputs at key addresses, `required_signers`, withdrawals, plus outputs, fee, ttl, validity start, auxiliary data hash and network id. A requirement it does not own must already be covered by a valid witness in the transaction (multi-party flows), otherwise `signTx` refuses with `TxSignError` ProofGeneration. Anything else (script inputs, certificates, mint, collateral, governance fields, unknown keys) raises a harness diagnosis `ChwError` with code `CHW_UNSUPPORTED_TX_FORM` at `partialSign: false`. A harness diagnosis is never disguised as a wallet error. An input the mock ledger does not know raises `CHW_UNRESOLVED_INPUT` with a hint to add it to `utxos` or `foreignUtxos`.
+The wallet decides what to sign for these body fields: inputs at key addresses, `required_signers`, withdrawals, certificates, voting procedures, proposal procedures, treasury value and donation, collateral inputs, collateral return and total collateral, plus outputs, fee, ttl, validity start, auxiliary data hash and network id. A requirement it does not own must already be covered by a valid witness in the transaction (multi-party flows), otherwise `signTx` refuses with `TxSignError` ProofGeneration. Anything else (script inputs, script credentials anywhere, guardrail scripts, mint, unknown keys) raises a harness diagnosis `ChwError` with code `CHW_UNSUPPORTED_TX_FORM` at `partialSign: false`. A harness diagnosis is never disguised as a wallet error. An input the mock ledger does not know raises `CHW_UNRESOLVED_INPUT` with a hint to add it to `utxos` or `foreignUtxos`.
 
 Evolution SDK always calls `signTx(cbor, true)`, so with Evolution the form check above never refuses. The wallet signs only its own share and logs a `console.warn` naming every skipped form instead.
 
@@ -193,7 +254,7 @@ A consumer SDK expecting real-wallet behaviour can still misbehave against a spe
 
 ## The demo dApp
 
-`examples/minimal-dapp` is a framework-free page served under a strict and a permissive Content Security Policy. It scans `window.cardano`, connects, checks the network, signs and submits a fixed transaction, signs a message with the stake key, and runs a DRep login that tries the bare DRep ID and the type 6 address in turn. `npm run serve:demo` starts it on port 4173, `npm run test:browser` runs the browser suite against it in Chromium, Firefox and WebKit. `npm run doctor:demo` runs `doctor --deep` against its strict, permissive and hashed variants in one go, arguments after `--` go to every run, for example `npm run doctor:demo -- --browser webkit`.
+`examples/minimal-dapp` is a framework-free page served under a strict and a permissive Content Security Policy. It scans `window.cardano`, connects, checks the network, signs and submits a fixed transaction, casts a DRep vote, delegates its vote to its own DRep, signs a message with the stake key, and runs a DRep login that tries the bare DRep ID and the type 6 address in turn. `npm run serve:demo` starts it on port 4173, `npm run test:browser` runs the browser suite against it in Chromium, Firefox and WebKit. `npm run doctor:demo` runs `doctor --deep` against its strict, permissive and hashed variants in one go, arguments after `--` go to every run, for example `npm run doctor:demo -- --browser webkit`.
 
 ## doctor
 

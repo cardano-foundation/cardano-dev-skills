@@ -293,6 +293,45 @@ test.describe('the user never answers the wallet', () => {
 });
 ```
 
+## Vote as a DRep
+
+A vote is signed with the DRep key, so the test proves the payment and the DRep signature. The demo dApp only needs the wallet to have a DRep key, the default mnemonic works.
+
+```ts
+test('a DRep vote is signed with the payment and the DRep key', async ({ page, wallet }) => {
+  await page.goto('/strict/');
+  await expect(page.locator('#wallets')).toHaveText('chw');
+  await page.locator('#connect').click();
+  await expect(page.locator('#connect-result')).toHaveText('network 0');
+  await page.locator('#vote').click();
+  await expect(page.locator('#vote-result')).toHaveText(/^submitted [0-9a-f]{64}$/);
+  expectSignedBy((await wallet.lastSubmittedTx())!, wallet, { roles: ['payment', 'drep'] });
+});
+```
+
+A dApp that checks the DRep on chain needs a testnet wallet registered as DRep. Pass its mnemonic through an environment variable and skip the test when it is missing, as in [Pages behind a wallet login](../README.md#pages-behind-a-wallet-login). For a vote delegation use `{ roles: ['payment', 'stake'] }`.
+
+## A wallet that holds a token
+
+Give the wallet a UTxO with a token and read it back through the demo's Balance button. The unit is the policy id hex followed by the asset name hex.
+
+```ts
+const POLICY = 'ab'.repeat(28);
+
+test.use({ walletOptions: { utxos: [{ lovelace: 10_000_000, assets: { [POLICY + '41']: 1 } }] } });
+
+test('the wallet holds one token kind', async ({ page }) => {
+  await page.goto('/strict/');
+  await expect(page.locator('#wallets')).toHaveText('chw');
+  await page.locator('#connect').click();
+  await expect(page.locator('#connect-result')).toHaveText('network 0');
+  await page.locator('#balance').click();
+  await expect(page.locator('#balance-result')).toHaveText('10000000 lovelace, 1 token kind');
+});
+```
+
+A page that checks token ownership on chain, through an indexer or its backend, does not see the synthetic UTxOs. A page that reads `getBalance` or `getUtxos` in the browser does. See [Pages behind a wallet login](../README.md#pages-behind-a-wallet-login).
+
 ## Reading the journal
 
 `wallet.calls()` lists every CIP-30 call of the current page in order, with arguments and result or error. It answers questions a screenshot cannot: did the dApp check the network before building, did it ask for a partial signature, did it retry.

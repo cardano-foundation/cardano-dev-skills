@@ -205,7 +205,7 @@ A `SessionStart` hook (`hooks/check-docs.sh`) inspects the bundled corpus and th
   - Local clone: `cd <plugin-root> && git pull && ./scripts/fetch-docs.sh`.
   - Marketplace install: `claude plugin update cardano-dev-skills@cardano-dev-skills` from a shell, or auto-update turned on for the marketplace in `/plugin`.
 - **Plugin clone behind upstream.** Local clones only: if you have previously run `git fetch` and not pulled, the hook prints `Plugin clone is N commit(s) behind FETCH_HEAD — consider 'git pull' in <plugin-root>`. The hook never fetches itself (no network on session start).
-- **Cardano context active.** When `./CLAUDE.md` contains the `cardano-dev-skills` directive block: `Cardano context active in this project.` Codex reads the corresponding `AGENTS.md` block directly and does not depend on this hook.
+- **Cardano context active.** When `./CLAUDE.md` contains the current `cardano-dev-skills` directive block: `Cardano context active in this project.` An older block gets a prompt to re-run `/cardano-dev-skills:cardano-context` instead. Codex reads the corresponding `AGENTS.md` block directly and does not depend on this hook.
 - **Cardano context nudge.** When cwd looks like a project (`.git`, `.claude`, or existing `CLAUDE.md`) but has no block: `Tip: run /cardano-dev-skills:cardano-context to enable auto-consultation in this project.`
 
 The hook is fail-open: any failure exits 0 silently and never blocks the session. The cwd nudge is suppressed when working inside the plugin repo itself.

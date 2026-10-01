@@ -88,6 +88,7 @@ VALID_PRIORITIES = {"high", "medium", "low"}
 # name-only grant would follow an entry to whatever upstream it is later
 # repointed at. The waiver takes effect in scripts/check-pr-policy.py.
 VETTING_EXCEPTIONS: dict[str, str] = {
+    "Cardano Constitution": "IntersectMBO/cardano-constitution",
 }
 
 # Claude Code tool-grant policy. `allowed-tools` entries are PRE-APPROVED in

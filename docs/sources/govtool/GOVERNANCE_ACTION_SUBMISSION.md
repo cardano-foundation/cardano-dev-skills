@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Follow the steps of setting up the [GovTool Frontend](../govtool/frontend/README.md).
-- Provide any backend that provides the Epoch params (for the wallet connection), can be the current [GovTool Backend](../govtool/backend/README.md).
+- Provide any backend that provides the Epoch params (for the wallet connection), can be the current [GovTool Backend](../govtool/govtool-backend/README.md).
 - Have a wallet with the 50k of ADA to pay for the transaction and fee.
 
 ## Development guide
@@ -287,6 +287,9 @@ enum MetadataValidationStatus {
   INVALID_JSONLD = "INVALID_JSONLD",
   INVALID_HASH = "INVALID_HASH",
   INCORRECT_FORMAT = "INCORRECT_FORMAT",
+  EXCEEDS_LIMIT = "EXCEEDS_LIMIT",
+  URL_BLOCKED = "URL_BLOCKED",
+  INTERNAL_ERROR = "INTERNAL_ERROR",
 }
 // Using the props passed to the component
 type Props = {
@@ -302,6 +305,15 @@ type Props = {
     metadata?: any;
     status?: MetadataValidationStatus;
     valid: boolean;
+    // Fields at fault: errors with INCORRECT_FORMAT, or warnings alone on a
+    // valid document (e.g. a CIP-108 title over 80 characters).
+    issues?: {
+      field: string;
+      rule: "required" | "maxLength";
+      severity: "error" | "warning";
+      limit?: number;
+      actual?: number;
+    }[];
   }>;
 };
 

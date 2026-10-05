@@ -58,6 +58,189 @@ await client.awaitTx(txHash);
 | `@easy1staking/cip113-sdk-ts/freeze-and-seize` | Freeze-and-Seize substandard |
 | `@easy1staking/cip113-sdk-ts/dummy` | Dummy substandard |
 
+## Migrating to 0.16.0 (the upgrade lifecycle, exported — additive, and proven on preview)
+
+**Nothing existing changes.** This release adds the transactions that manage a deployed protocol:
+rotate the upgrade authority's signers, rewrite the live wiring, and hand the authority over to a
+different one. Every builder returns an **unsigned** transaction, reads the UTxOs you hand it, and
+never signs, submits, awaits, holds a key or names an endpoint.
+
+```ts
+import {
+  locateProtocolParams, locateUpgradeMultisig,          // read the governable state
+  buildRotateMultisigTx,                                // signer rotation
+  buildProtocolUpgradeTx,                               // rewrite the wiring
+  buildNominateAuthorityTx, buildPromoteAuthorityTx,     // hand the authority over
+  buildStandaloneMultisigGenesisTx, buildRegisterCredentialTx,  // stand up a successor
+  satisfiesMultisigTree,                                // offline preflight
+  assembleMultiSignedTx, assertVKeyWitnessCount,        // M-of-N assembly
+  spendableWalletUtxos,                                 // never spend a live reference script
+} from "@easy1staking/cip113-sdk-ts";
+```
+
+**All three operations were executed on the preview testnet** before this release — twelve
+transactions, listed with their hashes in [`docs/upgrade-lifecycle.md`](docs/upgrade-lifecycle.md).
+Before that run the signer rotation had never been executed anywhere by anything, and the authority
+handover had only ever been run multisig → *key*.
+
+### Four things that will bite you, and are not visible from the validators
+
+**1. A transaction's signer set is the UNION of two unrelated requirements.** The authority's
+satisfying subset is read out of `required_signers` — so a wallet that merely *signs* is not enough,
+the key hash must be **named** — and separately, whoever **owns the inputs** must sign for the fee.
+Signing a promotion with the nominee's quorum alone is refused with ledger code **3101** naming a
+key and nothing else. `signerKeyHashes` on the authorisation is the first set; your signing set is
+the union.
+
+**2. Recorded UTxO coordinates go stale, by construction.** `protocolParams.utxo` moves on every
+upgrade and `upgradeMultisig.utxo` moves on every rotation. Use `locateProtocolParams` /
+`locateUpgradeMultisig` over a fresh read; the recorded coordinate is a record of the bootstrap, not
+an identity. The identity is the NFT.
+
+**3. An authority handover is a minimum of FOUR ordered transactions.** The ledger applies
+withdrawals against reward-account state **before** certificates, so a credential cannot be
+registered and withdrawn from in one transaction: successor genesis → registration → nomination →
+promotion. Omitting the registration reports as code **3141**, which reads as a balance problem.
+
+**4. A rotation and an upgrade can never share a transaction.** The config UTxO cannot be both spent
+and referenced — `ConwayUtxoBabbageNonDisjointRefInputs` — which is exactly why rotation is a datum
+edit that leaves `upgrade_cred` untouched.
+
+### What the SDK refuses, and what it deliberately does not
+
+It refuses only the **provably fatal** and the **honestly unbuildable**: a credential that is not a
+28-byte hash (the one-way brick — every future upgrade is authorised by a withdrawal, and a
+wrong-length hash can never appear in one); a tree upstream's `well_formed` rejects, including
+`AllOf []`, which is **vacuously true on chain** and therefore a permissionless authority; an arm
+asked to move a field it freezes; a promotion with no standing nomination, or authorised by the
+sitting authority instead of the nominee; a quorum that cannot satisfy the current tree; and a
+current tree with `Before`/`After`/`Script` leaves, which need a validity interval or another
+script's withdraw-0 that these builders do not marshal.
+
+It does **not** check that a credential is live on chain. A nomination to an unregistered credential
+is legal and recoverable — the promotion simply cannot run until it is registered — and only a
+malformed credential is terminal.
+
+⚠ `satisfiesMultisigTree` is a second implementation of an on-chain rule and can drift. Its contract
+is **one-directional**: consult it to refuse, never to permit. A `true` is a prediction; the ledger
+decides. Note that its `Before`/`After` arms return **false** for an absent bound, because upstream's
+do — reading "unbounded" as "therefore fine" is the inversion that makes a port say yes where the
+chain says no.
+
+## Migrating to 0.15.0 (`transfer` stops destroying CIP-68 metadata — BREAKING, and you want it)
+
+**What breaks:** `transfer` and `seize` now refuse the CIP-68 **(100) reference token** outright,
+on its CIP-67 label, whatever datum its UTxO currently holds; `transfer` additionally refuses any
+input carrying a non-void inline datum. Calls that used to succeed now throw.
+
+**Why that is the fix and not a regression.** Asked to move a CIP-68 (100) reference token, 0.14.0
+built the transaction without complaint, **the ledger accepted it**, and the output's datum changed:
+
+```
+before: d8799fbf446e616d654543656c6c31…ff0101ff   the CIP-68 metadata
+after:  d87980                                    Constr(0, []) — the void datum
+```
+
+Measured twice on devnet (txs `df4db48f…`, `7ee37fd2…`). The metadata was **gone from the live
+UTxO set** and the reference NFT sat at an address its issuer no longer controlled. Nothing failed
+anywhere — not the build, the evaluation, the submission, or this package's test suite.
+
+⚠ **And the independent Java implementation had the same hole**, checked and confirmed after an
+early report that it refused the operation turned out to be wrong: `Cip68.LABEL_REFERENCE` existed
+and nothing on its transfer or seize path called it. Two implementations lost the same data in two
+languages, and neither side's tests saw it — which is the useful fact here, because it says the
+defect was invisible to the way both were being tested rather than to one team.
+
+**What to do:** move the **(333)** user token — the one holders are meant to hold — and leave the
+(100) reference token where `register` put it, at the issuer's programmable-logic-base address.
+
+```diff
+- protocol.transfer({ assetName: labeledAssetName(100, name), … })   // erased the metadata
++ protocol.transfer({ assetName: labeledAssetName(333, name), … })
+```
+
+**Two guards, and the label one is the important half.** `assertNotReferenceToken` keys on the
+label because a reference token carries metadata *by construction*: that settles it offline, with
+no chain read and no race against an indexer, and a UTxO whose datum merely *looks* empty cannot
+slip the asset through. A (100) token whose metadata is already gone still must not move — the
+canonical reference NFT would land at an address the issuer does not control, and nothing restores
+either. `assertNoDatumLoss` stays as the broader net for any *other* datum-carrying output. Both
+are exported. (The label keying is the independent Java implementation's reasoning, adopted here
+after it proved stronger than mine.)
+
+It does **not** widen to "any CIP-67 label": the (333) user token is labelled too, and refusing it
+would block every CIP-68 transfer — a worse defect than the one being fixed, and one that would
+pass every assertion about refusals. There is a control for exactly that.
+
+⚠ **There is no supported way to move a datum-carrying programmable output.** A carry-forward is
+the operation a caller actually wants and it is deliberately **not** shipped here: whether the
+on-chain scripts accept a non-void datum on a transfer output is untested, and shipping an
+untested carry-forward would trade silent data loss for a submission failure nobody can read. Ask
+for it if you need it; do not work around the refusal.
+
+`seize`'s guard is **narrower** than `transfer`'s: seize carries the input's datum onto output 1,
+so a datum-carrying input does not lose it — only the (100) token is inseparable from the metadata
+it describes. Seizing a (333) token out of the metadata UTxO is still allowed, and asserted to be.
+
+### Four error messages now name their own cause
+
+Nothing to change in your code; everything to change in what you conclude when you see them.
+
+| was | now |
+|---|---|
+| `Sender <hash> is blacklisted — transfer denied`, raised on an **empty** blacklist | names `compliance.init()` and says `THIS IS NOT A BLACKLISTING` — nobody was blacklisted, the proof did not exist yet |
+| the same message when the list is populated but nothing brackets the sender | states **both** readings (the sender is blocked / the list has a gap) with the node count, and picks neither |
+| `ParseError: BaseAddress.FromHex`, three frames deep | names the **missing staking credential**, the address, and that CIP-113 needs a base address |
+| `Registry node not found for <policyId>` | states all three readings: never registered / **belongs to a different deployment** / the read is stale |
+
+The third message matters because only `transfer` and `freeze` need a blacklist non-membership
+proof — register, mint, burn, seize and unfreeze do not. A deployment that skipped
+`compliance.init()` therefore looks healthy through bootstrap, register, mint and **seize**, and
+fails first and only on a transfer.
+
+The fourth matters because a programmable token is **deployment-bound**: its policy id is the hash
+of `issuance_mint` parameterised by its deployment's protocol params, so a protocol re-bootstrap
+produces a new directory that does not contain it. There is no repointing — mint a fresh token
+under the deployment you serve. That reading is invisible to every other check: the token exists,
+its UTxOs exist, and every credential the transaction derives is correct *for the other
+deployment*.
+
+### New exports
+
+`isVoidDatum`, `assertNoDatumLoss`, `assertNotReferenceToken`, `registryNodeMissingError`,
+`coveringRegistryNodeMissingError`. If you pre-flight these checks in your own backend, raise
+**these** messages rather than a paraphrase — two texts drifting apart is how one of them ends up
+naming the wrong cause.
+
+## Migrating to 0.14.0 (provenance on the multisig genesis — additive, nothing to do)
+
+**Nothing changes unless you opt in.** `buildMultisigGenesisTx` gains an optional
+`provenancePin`. Omit it and the transaction it returns is exactly the one 0.13.0 returned — that
+is asserted, and the assertion was proven to catch a regression by making the attach unconditional
+and watching it go red.
+
+```diff
+  buildMultisigGenesisTx({
+    plan, seedUtxo, upgradeMultisigTree,
++   provenancePin: pin,   // optional: attaches the CIP-171 record under label 1984
+  })
+```
+
+**Why it is worth opting in, and it is about timing rather than coverage.** CIP-171 keys a record by
+script hash, so the protocol-genesis record already names `upgrade_multisig` — publishing again adds
+no new *fact*. What it adds is *when* the fact exists. Between the multisig genesis and the protocol
+genesis there is no provenance on chain at all, and that gap is precisely when a driver wants to
+verify the upgrade authority it has just installed. Measured on a real preview bootstrap
+(2026-09-30): the multisig transaction carried no metadata label; the protocol genesis carried 1984.
+
+⚠ **Build the record from the pin, never by hand.** `buildCip171RecordFromPin` derives each entry's
+arity from the blueprint and the parameterisation events. A record with the wrong arity is
+**discarded silently** by the reference registry — it does not error, it simply never appears.
+
+**Not extended to the stake-registration or reference-script transactions**, deliberately: records
+are keyed by script hash and the genesis record already names those hashes, so it would be
+duplication rather than earlier availability.
+
 ## Migrating to 0.13.0 (CIP-113 `v0.0.1` — a relabel, breaking at `init` and inert on chain)
 
 Upstream cut **`v0.0.1`**, its first mainnet release candidate. It is a **relabel of

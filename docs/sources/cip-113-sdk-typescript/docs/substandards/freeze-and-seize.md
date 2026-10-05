@@ -117,7 +117,35 @@ const txHash = await result._signBuilder.signAndSubmit();
 await client.awaitTx(txHash);
 ```
 
-If the sender is blacklisted, throws: `"Sender ... is blacklisted — transfer denied"`.
+**The blacklist proof can fail for two different reasons, and the SDK distinguishes them**
+(it previously reported both as a blacklisting, which was false for the commoner one):
+
+- **The blacklist has no nodes at all** — `compliance.init()` was never called for this FES
+  instance. Nobody is blacklisted; the proof simply does not exist yet. The refusal says
+  `THE BLACKLIST HAS NO NODES … THIS IS NOT A BLACKLISTING` and names `compliance.init()`.
+  Note that only `transfer` and `freeze` need this proof, so a deployment that skipped the init
+  looks healthy through bootstrap, register, mint and seize and fails first on a transfer.
+- **The list is populated but nothing brackets the sender** — the sender *is* blacklisted (a
+  freeze splits the covering node, which is how a block is represented), *or* the list has a gap.
+  The refusal states both readings and prints the node count; it does not pick one.
+
+**⛔ The CIP-68 (100) reference token cannot be moved.** `transfer` and `seize` refuse it on its
+CIP-67 label, whatever datum its UTxO currently holds. Before the guard existed, `transfer` built
+every token output with the void datum, so moving the reference token **replaced its metadata
+datum with `Constr(0, [])`** — and the ledger accepts such a transaction, so the metadata was
+destroyed silently and irreversibly (measured on devnet). Even with the datum already gone the
+move is refused, because it would relocate the canonical reference NFT to an address the issuer
+does not control. Move the **(333)** user token and leave the (100) token where `register` put it
+(the issuer's programmable-logic-base address). `transfer` additionally refuses any input carrying
+a non-void inline datum; there is no operation in this SDK that moves a datum-carrying
+programmable output while preserving its datum.
+
+**If the token has no registry node**, the refusal states all three readings — never registered,
+registered under a **different deployment**, or a stale read — because the SDK cannot tell them
+apart from one directory read. The middle one is the one that surprises people: a programmable
+token's policy id is the hash of `issuance_mint` parameterised by its deployment's protocol
+params, so a token is **deployment-bound** and a protocol re-bootstrap produces a new directory
+that does not contain it. There is no repointing; mint a fresh token under the served deployment.
 
 `transfer`, `seize`, `freeze`, and `unfreeze` neither mint nor burn, so they need no
 `issuance_logic` withdrawal. Adding one to those operations instead produces an
@@ -240,6 +268,11 @@ Asset names are always **raw hex** — the full on-chain byte representation:
 
 - Non-CIP-68: `stringToHex("DEMO")` = `"44454d4f"`
 - CIP-68 FT: `labeledAssetName(333, stringToHex("DEMO"))` = `"0014df1044454d4f"`
+- CIP-68 (100) reference token: `labeledAssetName(100, …)` = `"000643b0…"` — minted by
+  `register` alongside the (333) token, carries the metadata datum, and **cannot be moved**:
+  `transfer` and `seize` both refuse it, on the label rather than on the datum, because
+  separating the metadata from the asset leaves it unresolvable and relocating the reference NFT
+  is irreversible either way.
 
 The CIP-68 prefix is part of the raw name. Only strip it for display purposes.
 

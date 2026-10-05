@@ -161,7 +161,7 @@ async fn main() -> MithrilResult<()> {
         "7769e8b78cc86890660ff5451c110b0a0d0413c8b8ebb17a64e017b4cd881777",
     ];
     let cardano_transaction_proof = client
-        .cardano_transaction_v2().c
+        .cardano_transaction_v2()
         .get_proof(&transactions_hashes)
         .await
         .unwrap();

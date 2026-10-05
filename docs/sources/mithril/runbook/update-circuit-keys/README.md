@@ -25,23 +25,26 @@ Reviewers:
 - Make sure the degree of the circuits did not increase
 - Reviews the update of the key values (golden and production)
 - Run the tests for the integrity of the production keys
+- Review the updated circuit verification key digests: the integrity tests compare key bytes, which do not cover the constraint system
 
 Commands to run the integrity tests, once the [production SRS is downloaded](#download-of-the-production-srs):
 
 ```bash
-cargo test -p mithril-stm --features future_snark --release integrity_test_for_non_recursive_production_key -- --ignored
+cargo test -p mithril-stm --features snark --release integrity_test_for_non_recursive_production_key -- --ignored
 ```
 
 and
 
 ```bash
-cargo test -p mithril-stm --features future_snark --release integrity_test_for_recursive_production_key -- --ignored
+cargo test -p mithril-stm --features snark --release integrity_test_for_recursive_production_key -- --ignored
 ```
 
 Release manager:
 
 - Prepares the release of this update
 - Schedule the re-genesis of the certificate chain
+- Publishes the new version of the circuit verification key registry (see
+  [circuit-key-registry](../circuit-key-registry/README.md))
 
 ## Download of the production SRS
 
@@ -71,21 +74,35 @@ On macOS, `sha256sum -c` is `shasum -a 256 -c`.
 
 The author needs to update the golden value of the verification keys in the golden test in `mithril-stm/src/circuits/halo2/tests/golden/mod.rs` and `mithril-stm/src/circuits/halo2_ivc/tests/golden/mod.rs`. The failing tests (in red) need to be updated by changing the golden value used (in the golden files) to turn them green again.
 
+The circuit verification key digests are pinned as well, in `mithril-stm/src/circuits/verification_key_digest.rs`: `golden_digests_of_production_circuit_keys` for the two production keys, and `golden_digests_of_embedded_verification_context_keys` for the two keys of the recursive circuit test assets. A digest is computed from the key's transcript representation, which covers the constraint system that the key bytes omit, so a circuit change can turn these tests red while the golden verification key tests stay green. Update a failing digest with the value its test computes, the right-hand side of the assertion, once the key it is computed from has been updated: the production keys as described below, the test asset keys as described in the [recursive circuit test assets README](../../../mithril-stm/src/circuits/halo2_ivc/tests/assets/README.md).
+
+Three more pinned values depend on the circuits. The public input counts, `CERTIFICATE_CIRCUIT_PUBLIC_INPUT_COUNT` in `mithril-stm/src/circuits/halo2/mod.rs` and `RECURSIVE_CIRCUIT_PUBLIC_INPUT_COUNT` in `mithril-stm/src/circuits/halo2_ivc/mod.rs`, must match the keys: the key decoders reject a key declaring another count, so a circuit change that alters the number of public inputs updates them together with the keys, to the values their `the_pinned_public_input_count_*` tests compute (the left-hand side of the assertion). The cache directory name pinned in `certificate_cache_identity_is_unchanged_by_the_recursive_binding` (`mithril-stm/src/circuits/key_provider.rs`) includes the production certificate key digest, so it moves with that key: update it once the production keys are updated, with the value its test computes (the left-hand side of the assertion).
+
 ## Update of the production circuit verification key
 
 To update the production circuit verification keys, one needs to run the following commands, once the [production SRS is downloaded](#download-of-the-production-srs):
 
 ```bash
-cargo test -p mithril-stm --features future_snark --release write_non_recursive_circuit_verification_key_for_production_to_file -- --ignored
+cargo test -p mithril-stm --features snark --release write_non_recursive_circuit_verification_key_for_production_to_file -- --ignored
 ```
 
 and
 
 ```bash
-cargo test -p mithril-stm --features future_snark --release write_recursive_circuit_verification_key_for_production_to_file -- --ignored
+cargo test -p mithril-stm --features snark --release write_recursive_circuit_verification_key_for_production_to_file -- --ignored
 ```
 
 that will update the files holding the values of the production keys, `mithril-stm/src/circuits/halo2/non_recursive_circuit_verification_key_for_production.vkey` and `mithril-stm/src/circuits/halo2_ivc/recursive_circuit_verification_key_for_production.vkey`.
+
+## Update of the circuit verification key registry
+
+Changing a circuit changes its verification key, and thus its digest in the circuit verification key
+registry. A new registry version must be signed with the genesis key and published for the Mithril
+network, whitelisting the new keys from the epoch of the re-genesis and expiring the outgoing ones
+at the epoch preceding it (or revoking them, in case of a vulnerability), following the
+[circuit-key-registry](../circuit-key-registry/README.md) runbook.
+Clients resolve and download the registry through the published `networks.json`, so without this
+publication they reject the certificates produced with the new keys.
 
 ## Scheduling of the re-genesis
 

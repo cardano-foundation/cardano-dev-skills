@@ -124,21 +124,76 @@ The recursive SNARK aggregation flavor collapses this entire walk into a single 
 
 :::
 
-## The coexistence of multiple certificate chains
+## The certificate chains of multiple aggregators
 
-What would happen if some **Mithril aggregator** claims that not enough signatures were received? This doesn’t really matter, as there will be a different Mithril aggregator that would collect sufficient signatures and aggregate them into a valid certificate.
+A Mithril network can be served by several aggregators:
 
-Similarly, different Mithril aggregators might have different views of the individual signatures submitted (one aggregator might receive 10 signatures, and a different one could receive 11), which would result in different certificates signing the same message.
+- The **leader aggregator** creates the genesis certificate and produces the first certificates of the chain
+- A **follower aggregator** synchronizes the certificate chain of the leader aggregator, from its genesis certificate to its latest certificate, then produces its own certificates chained to the last synchronized certificate.
 
-This would result in different certificate chains that would all link back to the genesis certificate. Indeed they would be represented by a tree of certificates where each traversal path from the root to a leaf represents a valid certificate chain.
+Each aggregator collects its own set of individual signatures, so different aggregators produce different certificates for the same message.
+Their certificate chains share the synchronized certificates and then diverge, so the certificates of a network form a **tree of certificate chains**: each path from a certificate back to the genesis certificate, the root of the tree, is a valid certificate chain.
 
-## The need for backward compatibility
+:::info
 
-The certificate chain is designed to last. At a certain point, a multi-signature from legacy versions of the Mithril cryptographic library will require certification.
+A client verifies a certificate chain in the same way whatever aggregator produced it: all the certificate chains of a network are validated with the same genesis verification key.
 
-To achieve this backward compatibility, some options are available:
+Read the [run a Mithril aggregator node](../../../manual/operate/run-aggregator-node.md) guide for more details about the leader and follower aggregators.
 
-- Handle multi-signature verification functions of legacy versions
-- Recreate genesis certificates from time to time (a requirement for some aggregation flavors — see [aggregation flavors](./aggregation/) for details)
-- Create intermediate **milestone certificates** (with both a multi-signature and a genesis signature)
-- Design a format migration algorithm.
+:::
+
+## The certificate chain cache
+
+Verifying a certificate chain requires downloading and verifying every certificate back to the genesis certificate.
+A client that verifies certificates regularly verifies the same older certificates again and again.
+The certificate chain cache stores the certificates of a verified chain so that the next verifications can reuse them.
+
+The cache works as follows:
+
+- Each certificate verified during a chain verification is **staged** in the cache
+- The staged certificates are **committed** only once the whole chain is validated, so a failed verification never populates the cache
+- The committed certificates are stored in a **space** bound to the genesis verification key that validated them, so a certificate is only reused by a client using the same genesis verification key
+- A committed certificate **expires** after a delay (one week in the client CLI) and is then ignored.
+
+As the certificate chains of a network share the certificates close to the genesis certificate, the certificates cached while verifying the chain of an aggregator are also reused when verifying the chain of another aggregator of the same network.
+
+The cache supports two verification modes:
+
+| Mode                      | Verification                                                                                          | Saving                                              |
+| ------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| **FullVerification**      | The whole chain is verified back to the genesis certificate, cached certificates included             | Network round-trips only                            |
+| **EarlyStopVerification** | The chain is verified until a cached certificate is reached, which is trusted without re-verification | Network round-trips and cryptographic verifications |
+
+In the **EarlyStopVerification** mode, the certificate chained to a cached certificate is verified exactly as in the **FullVerification** mode.
+A previous certificate is only trusted from the cache when it is identical to the certificate committed under its hash.
+
+:::danger
+
+The verification modes have a different security impact:
+
+- **FullVerification**: the cache is never trusted, as every cached certificate is cryptographically re-verified.
+  A tampered cache can make a verification fail, but can never make an invalid chain valid.
+- **EarlyStopVerification**: the cache becomes part of the trust base of the client.
+  Anyone able to write to the cache can make the client accept a certificate chain that does not link back to the genesis certificate.
+  The storage of the cache must be protected against tampering (e.g., with restricted file permissions) and must never be shared with an untrusted party.
+
+When the storage of the cache cannot be protected, use the **FullVerification** mode.
+
+:::
+
+:::note
+
+The certificate chain cache is not intended to be used with the recursive SNARK aggregation flavor: the verification of a recursive aggregate signature already attests to the whole chain back to the genesis certificate, so there is no chain to walk and nothing to save.
+Enabling the cache with this flavor is harmless.
+
+:::
+
+:::info
+
+The certificate chain cache is an unstable feature, available in:
+
+- The [Mithril client library](../../../manual/develop/nodes/mithril-client-library.md#certificate-chain-cache) with the `unstable` feature
+- The [Mithril client CLI](../../../manual/develop/nodes/mithril-client.md#certificate-chain-cache) with the `--unstable` and `--use-certificate-chain-cache` options
+- The [Mithril client WASM library](../../../manual/develop/nodes/mithril-client-library-wasm.md#certificate-chain-cache) with the `unstable` and `enable_certificate_chain_verification_cache` options.
+
+:::

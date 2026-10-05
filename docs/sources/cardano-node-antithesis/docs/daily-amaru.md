@@ -58,12 +58,50 @@ the scheduled job uploads that file on every outcome, so a broken precondition
 leaves the day, stage, `outcome=FAILED`, and a specific error behind even when
 the transport cannot publish its issue receipt.
 
+## Consumer App identity
+
+The consumer branch push and pull request are created with an installation
+token of the same App, minted by the transport at the moment of the write —
+never at job start, because the token lives one hour and the bootstrap wait
+before the write may outlast it. It is scoped to repository
+`cardano-node-antithesis` alone, with exactly three permissions: contents write,
+pull requests write, metadata read. Pull request events authored with the
+workflow's own token wait for manual approval and run no checks, so only an App
+token lets the seven consumer checks run unattended. The mint signs a five
+minute App JWT with `openssl`, asks `GET /repos/<repository>/installation` for
+the installation and `POST /app/installations/<id>/access_tokens` for the token.
+The private key is read through a descriptor, the JWT travels in an
+`Authorization: Bearer` header read by `curl` from a descriptor, and the token
+only in `GH_TOKEN`; none appears in argv, logs, receipts or git remotes. There
+is no fallback: the workflow token never stands in for it.
+
+Absent App credentials fail at `stage=consumer-identity` with
+`error=missing-consumer-credentials-<names>` before any claim or effect. A mint
+that fails at the write boundary names its step (`app-credentials-absent`,
+`jwt-signing`, `installation-lookup`, `token-request`) and stops before any
+consumer effect.
+
+## Consumer check observation
+
+A freshly created consumer pull request starts with no checks, then queued and
+running ones. `require-consumer-checks` therefore observes the exact candidate
+head until every required check is uniquely successful, polling every
+`DAILY_AMARU_CONSUMER_CHECK_POLL_SECONDS` (default 30) up to an absolute
+ceiling `DAILY_AMARU_CONSUMER_CHECK_MAX_SECONDS` (default 2700; with the 7200
+second bootstrap ceiling this fits the 180 minute job). Absence and pending
+states are waited out; a terminal non-success, a skipped required job, a
+duplicate success, a run awaiting approval (`action_required`) or a transport
+error fails at once, and rows for any other head never count. At the ceiling the
+failure names the check, the poll count and the checks actually observed
+(`still-running` or `never-reported`).
+
 ## Operator setup gate
 
-Creating the App, installing it on `lambdasistemi/amaru-bootstrap`, approving
+Creating the App, installing it on `lambdasistemi/amaru-bootstrap` and on
+`cardano-foundation/cardano-node-antithesis`, approving
 its permissions, and placing the variable and secret are operator actions
 outside this repository. Until they are done the scheduled run is expected to
-fail at `stage=identity`; that is the contract working, not a regression. No
+fail at `stage=identity` or `stage=consumer-identity`; that is the contract working, not a regression. No
 secret value is recorded anywhere in this repository.
 
 ## Decision and durable guards

@@ -143,9 +143,9 @@ Protocols resolve against the default registry (`https://oci.tx3.land`) unless `
 
 ### `trix codegen`
 
-Generate code that can interact with your protocol by interpreting the interfaces defined by your Tx3 project. Code is generated from templates that use handlebars and can target multiple languages, including TypeScript, Rust, Go, and Python.
+Generate code that can interact with your protocol by interpreting the interfaces defined by your Tx3 project. Code is generated from templates that use handlebars and can target multiple languages, including TypeScript, Rust, Go, Python, Java, and Swift.
 
-Targets live in `trix.toml` under `[[codegen]]` entries, each pairing a `plugin` (`ts-client`, `rust-client`, `go-client`, or `python-client`) with an optional `output_dir`. `trix codegen` is the canonical way to add the first target: passing `--plugin <name>` appends a matching `[[codegen]]` entry to `trix.toml` (if one does not already exist) and then generates. Hand-editing `trix.toml` remains supported — useful for custom plugins or a bespoke `output_dir`. A client is generated for the project's own protocol and for every interface added with `trix use`.
+Targets live in `trix.toml` under `[[codegen]]` entries, each pairing a `plugin` (`ts-client`, `rust-client`, `go-client`, `python-client`, `java-client`, or `swift-client`) with an optional `output_dir`. `trix codegen` is the canonical way to add the first target: passing `--plugin <name>` appends a matching `[[codegen]]` entry to `trix.toml` (if one does not already exist) and then generates. Hand-editing `trix.toml` remains supported — useful for custom plugins or a bespoke `output_dir`. A client is generated for the project's own protocol and for every interface added with `trix use`.
 
 If no targets are configured and `--plugin` is not passed, `trix codegen` prompts interactively when run from a terminal. In non-interactive contexts it errors and points at `--plugin`.
 
@@ -157,7 +157,7 @@ trix codegen [OPTIONS]
 
 **Options:**
 
-- `--plugin <NAME>`: Seed a `[[codegen]]` entry for this plugin (`ts-client` / `rust-client` / `go-client` / `python-client`) if one does not already exist, then generate. Unknown values fail with a suggestion before any codegen runs.
+- `--plugin <NAME>`: Seed a `[[codegen]]` entry for this plugin (`ts-client` / `rust-client` / `go-client` / `python-client` / `java-client` / `swift-client`) if one does not already exist, then generate. Unknown values fail with a suggestion before any codegen runs.
 - `--no-save`: Generate without persisting a newly-seeded `[[codegen]]` entry back to `trix.toml`. Intended for CI / scripted one-offs.
 
 ### `trix check`

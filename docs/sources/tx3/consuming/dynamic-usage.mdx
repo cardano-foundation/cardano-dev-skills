@@ -49,6 +49,22 @@ Instead of importing a generated client, you load a compiled interface (`.tii`) 
     protocol = Protocol.from_file("./transfer.tii")
     ```
   </TabItem>
+  <TabItem label="Java">
+    ```java
+    import land.tx3.sdk.Protocol;
+
+    var protocol = Protocol.fromFile(java.nio.file.Path.of("./transfer.tii"));
+    ```
+  </TabItem>
+  <TabItem label="Swift">
+    ```swift
+    import Foundation
+    import Tx3SDK
+
+    // `protocol` is a Swift keyword, so the examples use `protocolValue`.
+    let protocolValue = try Protocol.fromFile(URL(fileURLWithPath: "./transfer.tii"))
+    ```
+  </TabItem>
 </Tabs>
 
 ## Build a client and drive a transaction
@@ -154,6 +170,56 @@ From the built client, address each transaction by string name with `tx("...")` 
     signed = await resolved.sign()
     submitted = await signed.submit()
     status = await submitted.wait_for_confirmed(PollConfig.default())
+    ```
+  </TabItem>
+  <TabItem label="Java">
+    ```java
+    import land.tx3.sdk.Address;
+    import land.tx3.sdk.CardanoSigner;
+    import land.tx3.sdk.Party;
+    import land.tx3.sdk.PollConfig;
+
+    var signer = new CardanoSigner("word1 ... word24", new Address("addr_test1..."));
+
+    var tx3 = protocol
+        .client()
+        .trpEndpoint(java.net.URI.create("http://localhost:8164"))
+        .withProfile("local")
+        .withParty("sender", Party.signer(signer))
+        .withParty("receiver", Party.address(new Address("addr_test1...")))
+        .build();
+
+    var status = tx3
+        .tx("transfer")
+        .arg("quantity", 10_000_000)
+        .resolve()
+        .join()
+        .sign()
+        .submit()
+        .join()
+        .waitForConfirmed(PollConfig.defaults())
+        .join();
+    ```
+  </TabItem>
+  <TabItem label="Swift">
+    ```swift
+    let signer = try CardanoSigner(mnemonic: "word1 ... word24", address: Address("addr_test1..."))
+
+    let tx3 = try protocolValue
+        .client()
+        .trpEndpoint(URL(string: "http://localhost:8164")!)
+        .withProfile("local")
+        .withParty("sender", .signer(signer))
+        .withParty("receiver", .address(Address("addr_test1...")))
+        .build()
+
+    let status = try await tx3
+        .tx("transfer")
+        .arg("quantity", 10_000_000)
+        .resolve()
+        .sign()
+        .submit()
+        .waitForConfirmed(PollConfig())
     ```
   </TabItem>
 </Tabs>

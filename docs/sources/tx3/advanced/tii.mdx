@@ -122,7 +122,7 @@ Three patterns cover almost everything tools do with a TII document.
 
 ### Typed clients via `trix codegen`
 
-The most common path. `trix codegen` reads the `.tii` and emits a typed module in TypeScript, Rust, Go, or Python — one builder method per `tx` declared in the source, with argument types derived from each transaction's `params` schema. Your application imports the generated module and gets compile-time errors when it passes the wrong shape.
+The most common path. `trix codegen` reads the `.tii` and emits a typed module in TypeScript, Rust, Go, Python, Java, or Swift — one builder method per `tx` declared in the source, with argument types derived from each transaction's `params` schema. Your application imports the generated module and gets compile-time errors when it passes the wrong shape.
 
 Go deeper in the [codegen guide](/tx3/consuming/codegen) or follow the end-to-end walkthrough in the [consuming quick-start](/tx3/consuming/quick-start).
 

@@ -46,13 +46,31 @@ The Python SDK exposes an async lifecycle, a low-level TRP client, and custom si
 - **Package:** [`tx3-sdk` on PyPI](https://pypi.org/project/tx3-sdk/)
 - **Install:** `pip install tx3-sdk`
 
+## Java
+
+The Java SDK targets Java 21 on macOS, Linux, and Windows. Its lifecycle returns cancellable `CompletableFuture`s, failures are typed unchecked `Tx3Exception`s, and a low-level TRP client is exposed for callers that bypass the builder. Kotlin and other JVM languages consume it as an ordinary dependency.
+
+- **Source:** [`tx3-lang/java-sdk`](https://github.com/tx3-lang/java-sdk)
+- **Package:** [`land.tx3:tx3-sdk` on Maven Central](https://central.sonatype.com/artifact/land.tx3/tx3-sdk)
+- **Install:** add the `land.tx3:tx3-sdk` dependency to your `pom.xml` or Gradle build
+
+## Swift
+
+The Swift SDK targets macOS 14+ and iOS 18+ (Swift 6.1 / Xcode 16.4). It uses native `async`/`await` with cancellation, typed `Tx3Error` cases, and is distributed as a SwiftPM source package.
+
+- **Source:** [`tx3-lang/swift-sdk`](https://github.com/tx3-lang/swift-sdk)
+- **Package:** [`Tx3SDK` on GitHub](https://github.com/tx3-lang/swift-sdk/releases)
+- **Install:** `.package(url: "https://github.com/tx3-lang/swift-sdk", from: "0.15.0")` in `Package.swift`
+
 ## Per-language reference
 
-Each SDK ships its own README — the canonical reference for browser usage, CIP-30 wallet bridges, framework integrations, the low-level TRP client, custom signers, error handling, and version compatibility. It lives on each package's registry page:
+Each SDK ships its own README — the canonical reference for browser usage, CIP-30 wallet bridges, framework integrations, the low-level TRP client, custom signers, error handling, and version compatibility. It lives on each package's registry or repository page:
 
 <CardGrid>
   <LinkCard title="tx3-sdk on npm" href="https://www.npmjs.com/package/tx3-sdk" description="TypeScript — Node.js, browsers, Bun, Deno, CIP-30, bundler plugins" />
   <LinkCard title="tx3-sdk on crates.io" href="https://crates.io/crates/tx3-sdk" description="Rust — Cargo features, low-level TRP client, custom signers" />
   <LinkCard title="go-sdk on pkg.go.dev" href="https://pkg.go.dev/github.com/tx3-lang/go-sdk/sdk" description="Go — context-aware lifecycle, typed errors, low-level TRP client" />
   <LinkCard title="tx3-sdk on PyPI" href="https://pypi.org/project/tx3-sdk/" description="Python — async lifecycle, low-level TRP client, custom signers" />
+  <LinkCard title="tx3-sdk on Maven Central" href="https://central.sonatype.com/artifact/land.tx3/tx3-sdk" description="Java — CompletableFuture lifecycle, typed exceptions, low-level TRP client" />
+  <LinkCard title="swift-sdk on GitHub" href="https://github.com/tx3-lang/swift-sdk" description="Swift — async/await lifecycle, typed errors, SwiftPM package" />
 </CardGrid>

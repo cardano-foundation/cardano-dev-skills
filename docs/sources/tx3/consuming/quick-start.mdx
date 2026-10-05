@@ -6,13 +6,13 @@ sidebar:
 
 import { Aside, Tabs, TabItem } from "@astrojs/starlight/components"
 
-This guide walks through consuming an existing Tx3 protocol from your application with the **codegen workflow**: pull a published protocol with `trix use`, generate a typed client with `trix codegen`, and drive transactions through that client. Every code step is shown in TypeScript, Rust, Go, and Python — pick the tab that matches your stack and the narrative still applies.
+This guide walks through consuming an existing Tx3 protocol from your application with the **codegen workflow**: pull a published protocol with `trix use`, generate a typed client with `trix codegen`, and drive transactions through that client. Every code step is shown in TypeScript, Rust, Go, Python, Java, and Swift — pick the tab that matches your stack and the narrative still applies.
 
 We're assuming you already have:
 
 - An empty directory to work in. `trix use` bootstraps a minimal consumer-shape `trix.toml` automatically when none is found; if you're already inside an existing Tx3 project it pins into that one instead. (Authors who want the full project skeleton with `main.tx3` and tests still use `trix init`.)
 - A TRP server reachable from your machine. The simplest setup is `trix devnet`, which exposes a local TRP endpoint at `http://localhost:8164`; for testnet/mainnet, point at a hosted TRP endpoint (Demeter, Blockfrost-via-TRP, etc.).
-- The toolchain for your target language installed (Node.js 18+, Rust 1.78+, Go 1.22+, or Python 3.10+).
+- The toolchain for your target language installed (Node.js 18+, Rust 1.78+, Go 1.22+, Python 3.10+, Java 21+, or Swift 6.1+ / Xcode 16.4).
 
 <Aside type="note">
 Make sure you have followed the **[installation steps](/tx3/installation)** before you attempt to follow this guide.
@@ -65,6 +65,16 @@ Pick a language and let `trix codegen` add the matching `[[codegen]]` entry to `
     trix codegen --plugin python-client
     ```
   </TabItem>
+  <TabItem label="Java">
+    ```sh
+    trix codegen --plugin java-client
+    ```
+  </TabItem>
+  <TabItem label="Swift">
+    ```sh
+    trix codegen --plugin swift-client
+    ```
+  </TabItem>
 </Tabs>
 
 Subsequent runs can drop the flag — bare `trix codegen` re-emits every configured target. To customize where output lands, edit the `output_dir` on the `[[codegen]]` entry in `trix.toml` (it defaults to `.tx3/codegen/<plugin>/`). Add a second `--plugin` invocation to target multiple languages from one project.
@@ -98,6 +108,42 @@ The generated client is a thin typed layer: it delegates to the runtime SDK for 
   <TabItem label="Python">
     ```sh
     pip install tx3-sdk
+    ```
+  </TabItem>
+  <TabItem label="Java">
+    The generated client is a standalone Maven project that already depends on the SDK. Build it (`mvn install` in its directory) and add both to your application:
+
+    ```xml
+    
+    <dependency>
+      <groupId>land.tx3</groupId>
+      <artifactId>tx3-sdk</artifactId>
+      <version>0.15.0</version>
+    </dependency>
+    <dependency>
+      <groupId>land.tx3.generated</groupId>
+      <artifactId>transfer-client</artifactId>
+      <version>0.0.0-SNAPSHOT</version>
+    </dependency>
+    ```
+  </TabItem>
+  <TabItem label="Swift">
+    The generated client is a local SwiftPM package that already depends on the SDK. Add both to your `Package.swift`:
+
+    ```swift
+    dependencies: [
+        .package(url: "https://github.com/tx3-lang/swift-sdk", from: "0.15.0"),
+        .package(name: "TransferClient", path: ".tx3/codegen/swift-client/transfer"),
+    ],
+    targets: [
+        .executableTarget(
+            name: "App",
+            dependencies: [
+                .product(name: "Tx3SDK", package: "swift-sdk"),
+                .product(name: "TransferClient", package: "TransferClient"),
+            ]
+        ),
+    ]
     ```
   </TabItem>
 </Tabs>
@@ -183,6 +229,43 @@ Each SDK ships two signer kinds: a `CardanoSigner` that derives keys from a BIP3
     )
     ```
   </TabItem>
+  <TabItem label="Java">
+    ```java
+    import java.net.URI;
+    import land.tx3.generated.transfer.TransferClient;
+    import land.tx3.sdk.Address;
+    import land.tx3.sdk.CardanoSigner;
+    import land.tx3.sdk.ClientOptions;
+    import land.tx3.sdk.Party;
+
+    var signer = new CardanoSigner("word1 word2 ... word24", new Address("addr_test1..."));
+
+    var client = new TransferClient(
+            ClientOptions.forEndpoint(URI.create("http://localhost:8164")),
+            TransferClient.Profile.LOCAL)
+        .withSender(Party.signer(signer))
+        .withReceiver(Party.address(new Address("addr_test1...")));
+    ```
+  </TabItem>
+  <TabItem label="Swift">
+    ```swift
+    import Foundation
+    import Tx3SDK
+    import TransferClient
+
+    let signer = try CardanoSigner(
+        mnemonic: "word1 word2 ... word24",
+        address: try Address("addr_test1...")
+    )
+
+    let client = TransferClient(
+        options: ClientOptions(endpoint: URL(string: "http://localhost:8164")!),
+        profile: .local
+    )
+    .withSender(.signer(signer))
+    .withReceiver(.address(try Address("addr_test1...")))
+    ```
+  </TabItem>
 </Tabs>
 
 ## Drive a transaction end-to-end
@@ -255,6 +338,34 @@ Every `tx` in the protocol becomes a typed method on the client — `client.tran
 
     status = await submitted.wait_for_confirmed(PollConfig.default())
     print(f"Confirmed at stage: {status.stage}")
+    ```
+  </TabItem>
+  <TabItem label="Java">
+    ```java
+    import java.math.BigInteger;
+    import land.tx3.sdk.PollConfig;
+
+    var resolved = client
+        .transfer(new TransferClient.TransferParams(BigInteger.valueOf(10_000_000)))
+        .resolve()
+        .join();
+
+    var submitted = resolved.sign().submit().join();
+    var status = submitted.waitForConfirmed(PollConfig.defaults()).join();
+
+    System.out.println("Confirmed at stage: " + status.stage().wireValue());
+    ```
+  </TabItem>
+  <TabItem label="Swift">
+    ```swift
+    let resolved = try await client
+        .transfer(TransferParams(quantity: 10_000_000))
+        .resolve()
+
+    let submitted = try await resolved.sign().submit()
+    let status = try await submitted.waitForConfirmed(try PollConfig())
+
+    print("Confirmed at stage: \(status.stage.rawValue)")
     ```
   </TabItem>
 </Tabs>

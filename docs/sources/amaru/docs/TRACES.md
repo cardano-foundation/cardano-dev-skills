@@ -1438,7 +1438,8 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | --- | --- | --- | --- | --- | --- |
 | `forge_failed` | `TRACE` | public | Forging the header or storing it failed. The node shuts down. Step ∈ {sign_header, validate_header, store_header, store_block}. | slot, step, error |  |
 | `forged` | `TRACE` | public | A block was forged and stored, and its tip sent to chain selection. | slot, header_hash, parent |  |
-| `missed_slot` | `TRACE` | public | A led slot was not forged. Reason ∈ {ocert_not_yet_valid, ocert_expired, tip_ahead, not_led, woke_late}. | slot, reason |  |
+| `kes_period` | `TRACE` | public | The in-memory KES key moved to a new period. | period |  |
+| `missed_slot` | `TRACE` | public | A led slot was not forged. Reason ∈ {ocert_not_yet_valid, ocert_expired, tip_ahead, not_led, woke_late, parent_not_stored}. | slot, reason |  |
 | `schedule` | `TRACE` | public | Leader schedules still held, with how many led slots remain in each epoch and how many of k blocks since freeze have been adopted. \`next_slot\` is the UTC onset of the next armed led slot, \`YYYY-MM-DDTHH:MM:SS.ffffffZ\`. | slots, freeze_depth, settled | next_slot |
 
 <details><summary>span: `forge_failed`</summary>
@@ -1458,6 +1459,14 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `slot` | `integer` | ✓ |
 | `header_hash` | `string` | ✓ |
 | `parent` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `kes_period`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `period` | `string` | ✓ |
 
 </details>
 
@@ -2561,8 +2570,19 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 
 | name | level | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- |
+| `forging` | `TRACE` | public | Block forging is configured from key files. | pool_id, sequence, kes_period |  |
 | `ledger_opened` | `TRACE` | public | Opened the ledger state; reports the ledger tip at startup | tip |  |
 | `stake_dist_notify_failed` | `TRACE` | public | Failed to notify the peer tracker of a stake distribution update |  |  |
+
+<details><summary>span: `forging`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `pool_id` | `string` | ✓ |
+| `sequence` | `integer` | ✓ |
+| `kes_period` | `string` | ✓ |
+
+</details>
 
 <details><summary>span: `ledger_opened`</summary>
 
@@ -2787,7 +2807,6 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | `close_failed` | `TRACE` | public | Closing the socket of a dead connection failed | peer, error |  |
 | `connect` | `TRACE` | public | Initiating an outbound connection to a peer | peer |  |
 | `connect_discarded` | `TRACE` | public | A connection request for a peer was discarded. Reason ∈ {already_connected_or_scheduled, already_connected, not_added}. | peer, reason |  |
-| `connect_exhausted` | `TRACE` | public | A peer is dropped after exhausting its connection attempts | peer |  |
 | `connect_failed` | `TRACE` | public | An outbound connection attempt failed | peer, error |  |
 | `connected` | `TRACE` | public | An outbound connection to a peer was established | peer, conn_id |  |
 | `connection_died` | `TRACE` | public | A peer connection has died | peer, conn_id, role |  |
@@ -2840,14 +2859,6 @@ For information on how to use and filter these spans, see [monitoring/README.md]
 | --- | --- | --- |
 | `peer` | `string` | ✓ |
 | `reason` | `string` | ✓ |
-
-</details>
-
-<details><summary>span: `connect_exhausted`</summary>
-
-| field | type | required |
-| --- | --- | --- |
-| `peer` | `string` | ✓ |
 
 </details>
 

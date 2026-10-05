@@ -85,7 +85,32 @@ func decodePlutusScript(script []byte, rejectTrailing bool) ([]byte, error) {
 	return innerScript, nil
 }
 
+// decodePlutusProgram returns the decoded and execution-validated program
+// for innerScript. Programs are cached and shared across callers, so the
+// result must be treated as read-only.
 func decodePlutusProgram(
+	innerScript []byte,
+	ledgerLanguage lang.LanguageVersion,
+	evalContext *cek.EvalContext,
+) (*syn.Program[syn.DeBruijn], error) {
+	if evalContext == nil {
+		return nil, errors.New("evaluation context is required")
+	}
+	return defaultProgramCache.decode(
+		innerScript,
+		ledgerLanguage,
+		evalContext.ProtoMajor,
+		func() (*syn.Program[syn.DeBruijn], error) {
+			return decodePlutusProgramUncached(
+				innerScript,
+				ledgerLanguage,
+				evalContext,
+			)
+		},
+	)
+}
+
+func decodePlutusProgramUncached(
 	innerScript []byte,
 	ledgerLanguage lang.LanguageVersion,
 	evalContext *cek.EvalContext,
@@ -274,15 +299,12 @@ func (s PlutusV1Script) Evaluate(
 		Argument: contextTerm,
 	}
 	// Execute wrapped program
-	machine := cek.NewMachine[syn.DeBruijn](
+	consumedBudget, runErr := runPooledMachine(
 		cek.LanguageVersionV1,
-		200,
 		evalContext,
+		machineBudget,
+		wrappedProgram,
 	)
-	machine.ExBudget = machineBudget
-	_, runErr := machine.Run(wrappedProgram)
-	// Always calculate consumed budget, even on error
-	consumedBudget := machineBudget.Sub(&machine.ExBudget)
 	usedExUnits.Memory = consumedBudget.Mem
 	usedExUnits.Steps = consumedBudget.Cpu
 	if runErr != nil {
@@ -366,15 +388,12 @@ func (s PlutusV2Script) Evaluate(
 		Argument: contextTerm,
 	}
 	// Execute wrapped program
-	machine := cek.NewMachine[syn.DeBruijn](
+	consumedBudget, runErr := runPooledMachine(
 		cek.LanguageVersionV2,
-		200,
 		evalContext,
+		machineBudget,
+		wrappedProgram,
 	)
-	machine.ExBudget = machineBudget
-	_, runErr := machine.Run(wrappedProgram)
-	// Always calculate consumed budget, even on error
-	consumedBudget := machineBudget.Sub(&machine.ExBudget)
 	usedExUnits.Memory = consumedBudget.Mem
 	usedExUnits.Steps = consumedBudget.Cpu
 	if runErr != nil {
@@ -436,15 +455,12 @@ func (s PlutusV3Script) Evaluate(
 		Argument: contextTerm,
 	}
 	// Execute wrapped program
-	machine := cek.NewMachine[syn.DeBruijn](
+	consumedBudget, runErr := runPooledMachine(
 		cek.LanguageVersionV3,
-		200,
 		evalContext,
+		machineBudget,
+		wrappedProgram,
 	)
-	machine.ExBudget = machineBudget
-	_, runErr := machine.Run(wrappedProgram)
-	// Always calculate consumed budget, even on error
-	consumedBudget := machineBudget.Sub(&machine.ExBudget)
 	usedExUnits.Memory = consumedBudget.Mem
 	usedExUnits.Steps = consumedBudget.Cpu
 	if runErr != nil {
@@ -502,14 +518,12 @@ func (s PlutusV4Script) Evaluate(
 		Function: program.Term,
 		Argument: contextTerm,
 	}
-	machine := cek.NewMachine[syn.DeBruijn](
+	consumedBudget, runErr := runPooledMachine(
 		cek.LanguageVersionV4,
-		200,
 		evalContext,
+		machineBudget,
+		wrappedProgram,
 	)
-	machine.ExBudget = machineBudget
-	_, runErr := machine.Run(wrappedProgram)
-	consumedBudget := machineBudget.Sub(&machine.ExBudget)
 	usedExUnits.Memory = consumedBudget.Mem
 	usedExUnits.Steps = consumedBudget.Cpu
 	if runErr != nil {

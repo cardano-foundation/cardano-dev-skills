@@ -3,8 +3,8 @@ name: explain-zk
 description: >-
   Zero-knowledge and the BLS12-381 primitive family on Cardano: verify SNARK
   proofs on-chain, aggregate BLS signatures, run VRFs, derive keys, and check
-  BBS+ credentials in Aiken. Triggers: "explain zero-knowledge", "ZK on Cardano",
-  "verify a SNARK on-chain", "Groth16 in Aiken", "zk-SNARK verifier", "BLS
+  BBS+ credentials in Aiken or Java. Triggers: "explain zero-knowledge", "ZK on Cardano",
+  "verify a SNARK on-chain", "Groth16 in Aiken", "ZK proofs in Java", "zk-SNARK verifier", "BLS
   signatures in Aiken", "aggregate signatures", "VRF on Cardano", "verifiable
   randomness", "BBS+ / selective disclosure", "anonymous credentials",
   "range proof", "Bulletproofs", "prove knowledge without revealing it".
@@ -125,6 +125,14 @@ lightest tool; see `references/proof-systems.md`.
   — Groth16, PLONK, and Bulletproofs (range proof) verifiers in Aiken, with the protocol math
   worked step by step under `zkp/docs/`; its README says the PLONK verifier is still being optimised
   to fit resource limits and marks Bulletproofs early-stage
+- `../../docs/sources/zeroj/`
+  — ZeroJ, the Java route: circuits written as Java classes, a pure-Java Groth16 prover, and a
+  Plutus V3 verifier compiled from Java by JuLC. Start at `www/src/content/docs/start/status.md`.
+  Its on-chain Groth16 is Beta and testnet-only, PlonK is experimental, nothing is externally
+  audited, and the authors say the code is AI-generated
+- `../../docs/sources/zeroj-use-cases/`
+  — runnable ZeroJ applications (private voting, proof of reserves, KYC and selective disclosure,
+  NFT ownership, sybil-resistant airdrop, account recovery), each with its circuit and Cardano flow
 - `../../docs/sources/cips/CIP-0381/`, `CIP-0133/`, `CIP-0109/`
   — the builtins these all rest on
 
@@ -160,7 +168,8 @@ For aggregation, VRF, KDF, and BBS+, see `references/bls-primitives.md`.
 The validator is only the last step. For a SNARK the full path runs off-chain first: write the
 circuit (Circom or gnark, targeting BLS12-381), run a trusted setup, generate the proof (in the
 browser or on a backend), then compress the verification key and proof to Cardano's format. Only
-then does the Aiken validator verify it as the spending condition. `references/proof-systems.md`
+then does the Aiken validator verify it as the spending condition. A team on the JVM can keep every
+step in Java with ZeroJ, whose verifier is a Plutus V3 script rather than an Aiken one. `references/proof-systems.md`
 covers this pipeline and points to a complete written walkthrough.
 
 ### Step 5: Flag the sharp edges

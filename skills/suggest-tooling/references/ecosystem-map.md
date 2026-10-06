@@ -155,7 +155,7 @@ below carry only facts (language, license) and a project's own stated caveats.
 | **plutus-plonk-example** | Plutus | End-to-end PLONK verifier with published cost benchmarks. |
 | **ak-381** (Modulo-P) | Aiken | Groth16 verifier with Circom conversion scripts; the repository ships no license. |
 | **adaocommunity/zk** | Aiken | Apache-2.0. Groth16, PLONK, and Bulletproofs (range proof) verifiers for Plutus V3, with protocol walkthroughs and negative-path tests; the README emphasises educational/demonstrative use, states PLONK is still being optimized to fit resource limits, and marks Bulletproofs early-stage; no external audit. Bundled as a source: `../../docs/sources/aiken-zkp-verifiers/`. |
-| **ZeroJ** (bloxbean) | Java | Full Java ZK pipeline with generated Plutus V3 verifiers; the authors state the code is AI-generated and not for production. |
+| **ZeroJ** (bloxbean) | Java | MIT. Full Java ZK pipeline: circuits as Java classes, a pure-Java Groth16 prover, and a Plutus V3 verifier compiled by JuLC. On-chain Groth16 is Beta and testnet-only, PlonK experimental, no external audit; the authors state the code is AI-generated and not for production. Bundled as sources: `../../docs/sources/zeroj/` and the worked applications in `../../docs/sources/zeroj-use-cases/`. |
 
 ### BLS-family libraries and learning
 

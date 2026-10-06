@@ -1,0 +1,534 @@
+---
+title: Installation
+description: Add ZeroJ to a Gradle or Maven project with the BOM, wire up the annotation processor, and enable the dev-only trusted setup for local runs.
+sidebar:
+  order: 2
+---
+import ReleaseNotice from '../../../components/ReleaseNotice.astro';
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+ZeroJ is a set of Maven artifacts under the group `org.zeroj`. A single BOM,
+`org.zeroj:zeroj-bom-core`, keeps the core module versions in sync. This page gets a Gradle or
+Maven project ready for the [Quickstart](/start/quickstart/).
+
+<ReleaseNotice />
+
+## Prerequisites
+
+| Requirement | Version | Notes |
+|-------------|---------|-------|
+| Java | 25 or newer | GraalVM is recommended if you want native images |
+| Build tool | Gradle or Maven | ZeroJ itself builds with Gradle 9.2; use a Gradle version that runs on Java 25 |
+
+The simplest way to install Java 25 is [SDKMAN!](https://sdkman.io/):
+
+```bash
+sdk install java 25.0.2-graal
+sdk use java 25.0.2-graal
+```
+
+The default path of circuit, witness, prove, and verify needs **nothing installed beyond a JDK**:
+no native toolchain and no external CLIs. Everything below the "Optional tools" heading is only for
+specific scenarios.
+
+:::note[About the blst jar on your classpath]
+`zeroj-verifier-groth16` depends on `zeroj-blst`, which brings the `blst-java` JNI binding (a jar
+with prebuilt native code) for the module's optional native verifier. The pure-Java prover and
+`Groth16BLS12381PureJavaVerifier` never load it. If you discover verifiers with
+`VerifierRegistry.withServiceLoader()`, note that the native `Groth16BLS12381Verifier` is listed
+first; construct `Groth16BLS12381PureJavaVerifier` explicitly when you want a pure-Java path.
+:::
+
+## Add ZeroJ to your build
+
+The dependencies below are everything the [Quickstart](/start/quickstart/) needs: annotation-based
+circuits, the gadget library, the pure-Java Groth16 prover, and the pure-Java verifier.
+
+<Tabs syncKey="build">
+<TabItem label="Gradle (Groovy)">
+
+```groovy title="build.gradle"
+plugins {
+    id 'java'
+}
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(25) }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // One BOM for all core ZeroJ modules
+    implementation platform('org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%')
+    // The BOM must also apply to the annotation processor path
+    annotationProcessor platform('org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%')
+
+    // Circuits: @ZKCircuit annotations + the generated *Circuit companions
+    implementation 'org.zeroj:zeroj-circuit-annotation-api'
+    annotationProcessor 'org.zeroj:zeroj-circuit-annotation-processor'
+
+    // Gadgets (Poseidon, Merkle, comparators, ...)
+    implementation 'org.zeroj:zeroj-circuit-lib'
+
+    // Pure-Java Groth16 prover + setup
+    implementation 'org.zeroj:zeroj-crypto'
+
+    // Pure-Java verification: verifier, envelopes, snarkjs JSON codec
+    implementation 'org.zeroj:zeroj-verifier-groth16'
+    implementation 'org.zeroj:zeroj-codec'
+}
+```
+
+</TabItem>
+<TabItem label="Gradle (Kotlin)">
+
+```kotlin title="build.gradle.kts"
+plugins {
+    java
+}
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(25) }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // One BOM for all core ZeroJ modules
+    implementation(platform("org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%"))
+    // The BOM must also apply to the annotation processor path
+    annotationProcessor(platform("org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%"))
+
+    // Circuits: @ZKCircuit annotations + the generated *Circuit companions
+    implementation("org.zeroj:zeroj-circuit-annotation-api")
+    annotationProcessor("org.zeroj:zeroj-circuit-annotation-processor")
+
+    // Gadgets (Poseidon, Merkle, comparators, ...)
+    implementation("org.zeroj:zeroj-circuit-lib")
+
+    // Pure-Java Groth16 prover + setup
+    implementation("org.zeroj:zeroj-crypto")
+
+    // Pure-Java verification: verifier, envelopes, snarkjs JSON codec
+    implementation("org.zeroj:zeroj-verifier-groth16")
+    implementation("org.zeroj:zeroj-codec")
+}
+```
+
+</TabItem>
+<TabItem label="Maven">
+
+```xml title="pom.xml"
+<properties>
+  <maven.compiler.release>25</maven.compiler.release>
+  <zeroj.version>%ZEROJ_VERSION%</zeroj.version>
+</properties>
+
+<dependencyManagement>
+  <dependencies>
+    
+    <dependency>
+      <groupId>org.zeroj</groupId>
+      <artifactId>zeroj-bom-core</artifactId>
+      <version>${zeroj.version}</version>
+      <type>pom</type>
+      <scope>import</scope>
+    </dependency>
+  </dependencies>
+</dependencyManagement>
+
+<dependencies>
+  
+  <dependency>
+    <groupId>org.zeroj</groupId>
+    <artifactId>zeroj-circuit-annotation-api</artifactId>
+  </dependency>
+  
+  <dependency>
+    <groupId>org.zeroj</groupId>
+    <artifactId>zeroj-circuit-lib</artifactId>
+  </dependency>
+  
+  <dependency>
+    <groupId>org.zeroj</groupId>
+    <artifactId>zeroj-crypto</artifactId>
+  </dependency>
+  
+  <dependency>
+    <groupId>org.zeroj</groupId>
+    <artifactId>zeroj-verifier-groth16</artifactId>
+  </dependency>
+  <dependency>
+    <groupId>org.zeroj</groupId>
+    <artifactId>zeroj-codec</artifactId>
+  </dependency>
+</dependencies>
+
+<build>
+  <plugins>
+    <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-compiler-plugin</artifactId>
+      <version>3.14.0</version>
+      <configuration>
+        
+        <annotationProcessorPaths>
+          <path>
+            <groupId>org.zeroj</groupId>
+            <artifactId>zeroj-circuit-annotation-processor</artifactId>
+            <version>${zeroj.version}</version>
+          </path>
+        </annotationProcessorPaths>
+      </configuration>
+    </plugin>
+  </plugins>
+</build>
+```
+
+</TabItem>
+</Tabs>
+
+:::note[Why the BOM appears twice in Gradle]
+Gradle resolves the `annotationProcessor` configuration separately from `implementation`, so
+a platform declared only on `implementation` doesn't reach the processor. Without the second
+`platform(...)` line, `zeroj-circuit-annotation-processor` has no version and resolution fails.
+Maven's `annotationProcessorPaths` has the same gap, which is why the processor path above names
+`${zeroj.version}` explicitly.
+
+If you write circuits in test sources, add the same two lines to `testAnnotationProcessor`
+as well.
+:::
+
+`zeroj-codec` is listed explicitly because the verifier doesn't expose it transitively on your
+compile classpath, and the Quickstart uses its `SnarkjsJsonCodec` class directly.
+
+## Which modules do I need?
+
+All modules in this table are managed by `zeroj-bom-core`, so you declare them without a version.
+
+| I want to… | Add… |
+|------------|------|
+| Write circuits with `@ZKCircuit` annotations | `zeroj-circuit-annotation-api` + `zeroj-circuit-annotation-processor` (processor path) |
+| Write circuits with the `CircuitSpec` or inline DSL | `zeroj-circuit-dsl` |
+| Use Poseidon, Merkle proofs, comparators, Blake2b, SHA-512, Ed25519, CIP-1852 gadgets | `zeroj-circuit-lib` |
+| Run trusted setup and prove with Groth16 (pure Java) | `zeroj-crypto` |
+| Speed up Groth16 proving with native `blst` | `zeroj-crypto-blst` (opt-in; see [below](#native-blst-acceleration)) |
+| Verify Groth16 proofs off-chain | `zeroj-verifier-groth16` + `zeroj-codec` |
+| Work with proof envelopes and verification results | `zeroj-api` (comes in transitively with most modules) |
+| Route proofs through pluggable verifier backends | `zeroj-backend-spi` |
+| Verify proofs on-chain in a Plutus V3 validator | `zeroj-onchain-julc` plus JuLC and Cardano Client Lib (see [below](#on-chain-verification-dependencies)) |
+| Contribute to a Groth16 ceremony from your own code (`ZkeyContributor`) | `zeroj-tools` (also home of the `zeroj-ceremony` CLI) |
+| Use BLS12-381 field, curve, and pairing primitives directly | `zeroj-bls12381` |
+
+For a description of every module, see [Modules](/reference/modules/).
+
+## Opt-in modules outside the BOM
+
+Four published modules are deliberately **outside** `zeroj-bom-core`, so they never slip into a
+dependency graph by accident. Give each one an explicit version:
+
+<Tabs syncKey="build">
+<TabItem label="Gradle (Groovy)">
+
+```groovy
+dependencies {
+    implementation 'org.zeroj:zeroj-bbs:%ZEROJ_VERSION%'            // BBS selective-disclosure credentials
+    implementation 'org.zeroj:zeroj-mpf-poseidon:%ZEROJ_VERSION%'   // Poseidon MPF authenticated state (experimental)
+    implementation 'org.zeroj:zeroj-jmt-poseidon:%ZEROJ_VERSION%'   // Poseidon JMT authenticated state (experimental)
+    implementation 'org.zeroj:zeroj-verifier-plonk:%ZEROJ_VERSION%' // PlonK verification (experimental)
+}
+```
+
+</TabItem>
+<TabItem label="Gradle (Kotlin)">
+
+```kotlin
+dependencies {
+    implementation("org.zeroj:zeroj-bbs:%ZEROJ_VERSION%")            // BBS selective-disclosure credentials
+    implementation("org.zeroj:zeroj-mpf-poseidon:%ZEROJ_VERSION%")   // Poseidon MPF authenticated state (experimental)
+    implementation("org.zeroj:zeroj-jmt-poseidon:%ZEROJ_VERSION%")   // Poseidon JMT authenticated state (experimental)
+    implementation("org.zeroj:zeroj-verifier-plonk:%ZEROJ_VERSION%") // PlonK verification (experimental)
+}
+```
+
+</TabItem>
+<TabItem label="Maven">
+
+```xml
+<dependency>
+  <groupId>org.zeroj</groupId>
+  <artifactId>zeroj-bbs</artifactId>
+  <version>${zeroj.version}</version>
+</dependency>
+
+```
+
+</TabItem>
+</Tabs>
+
+:::caution[PlonK is experimental]
+ZeroJ's PlonK support, including pure-Java proving, `zeroj-verifier-plonk`, and the on-chain
+validators, is experimental. It isn't a recommended alternative to Groth16. Use it only for
+evaluation. See [Status & maturity](/start/status/).
+:::
+
+## On-chain verification dependencies
+
+To compile Plutus V3 validators in Java you also need [JuLC](https://github.com/bloxbean/julc),
+and to build and submit transactions you need Cardano Client Lib. Both keep their own
+`com.bloxbean.cardano` group and have their own versions. This block mirrors the builds in
+[zeroj-usecases](https://github.com/bloxbean/zeroj-usecases):
+
+```groovy title="build.gradle (on-chain additions)"
+dependencies {
+    implementation 'org.zeroj:zeroj-onchain-julc'
+    // Put ZeroJ's on-chain libraries on the processor path so JuLC can compile validators that use them
+    annotationProcessor 'org.zeroj:zeroj-onchain-julc'
+
+    // JuLC: write Plutus V3 validators in Java
+    implementation "org.julclang:julc-stdlib:%JULC_VERSION%"
+    annotationProcessor "org.julclang:julc-annotation-processor:%JULC_VERSION%"
+    implementation "org.julclang:julc-cardano-client-lib:%JULC_VERSION%"
+    runtimeOnly "org.julclang:julc-vm-java:%JULC_VERSION%"
+
+    // Cardano Client Lib: build and submit transactions
+    implementation "com.bloxbean.cardano:cardano-client-lib:%CCL_VERSION%"
+    implementation "com.bloxbean.cardano:cardano-client-backend-blockfrost:%CCL_VERSION%"
+}
+```
+
+The zeroj-usecases builds also fork `javac` with `--enable-native-access=ALL-UNNAMED` for the JuLC
+annotation processor on Java 25:
+
+```groovy
+compileJava {
+    options.fork = true
+    options.forkOptions.jvmArgs = ['--enable-native-access=ALL-UNNAMED']
+}
+```
+
+[Verify your proof on Cardano](/tutorials/verify-on-cardano/) walks through a complete
+on-chain setup.
+
+## Enable the development trusted setup
+
+Groth16 needs a trusted setup before you can prove anything. For local experiments ZeroJ can run
+a quick single-party setup in-process (`PowersOfTauBLS381.generate`, `Groth16Keys.setupInMemory`,
+`Groth16SetupBLS381.setup`). That setup is **insecure by design**: the process knows the secret
+randomness (the "toxic waste") and could forge proofs. So ZeroJ refuses to run it unless you opt
+in, and the call fails with an `IllegalStateException` that explains why.
+
+To opt in for local runs and tests, set the system property `zeroj.allowInsecureTrustedSetup`
+to `true` or the environment variable `ZEROJ_ALLOW_INSECURE_TRUSTED_SETUP=true`. In code, the
+property name is available as `TrustedSetupPolicy.ALLOW_INSECURE_TRUSTED_SETUP_PROPERTY`.
+
+<Tabs syncKey="build">
+<TabItem label="Gradle (Groovy)">
+
+```groovy title="build.gradle"
+plugins {
+    id 'application'   // only if you use the run task
+}
+
+application {
+    mainClass = 'com.example.Main'
+}
+
+// Dev/test only: allows the insecure single-party setup
+tasks.named('test') {
+    systemProperty 'zeroj.allowInsecureTrustedSetup', 'true'
+}
+tasks.named('run') {
+    systemProperty 'zeroj.allowInsecureTrustedSetup', 'true'
+}
+```
+
+</TabItem>
+<TabItem label="Gradle (Kotlin)">
+
+```kotlin title="build.gradle.kts"
+plugins {
+    application   // only if you use the run task
+}
+
+application {
+    mainClass = "com.example.Main"
+}
+
+// Dev/test only: allows the insecure single-party setup
+tasks.test {
+    systemProperty("zeroj.allowInsecureTrustedSetup", "true")
+}
+tasks.named<JavaExec>("run") {
+    systemProperty("zeroj.allowInsecureTrustedSetup", "true")
+}
+```
+
+</TabItem>
+<TabItem label="Maven">
+
+```xml title="pom.xml"
+
+<plugin>
+  <groupId>org.apache.maven.plugins</groupId>
+  <artifactId>maven-surefire-plugin</artifactId>
+  <configuration>
+    <systemPropertyVariables>
+      <zeroj.allowInsecureTrustedSetup>true</zeroj.allowInsecureTrustedSetup>
+    </systemPropertyVariables>
+  </configuration>
+</plugin>
+
+
+<plugin>
+  <groupId>org.codehaus.mojo</groupId>
+  <artifactId>exec-maven-plugin</artifactId>
+  <version>3.5.0</version>
+  <configuration>
+    <mainClass>com.example.Main</mainClass>
+    <systemProperties>
+      <systemProperty>
+        <key>zeroj.allowInsecureTrustedSetup</key>
+        <value>true</value>
+      </systemProperty>
+    </systemProperties>
+  </configuration>
+</plugin>
+```
+
+</TabItem>
+<TabItem label="Plain java">
+
+```bash
+java -Dzeroj.allowInsecureTrustedSetup=true -cp app.jar com.example.Main
+
+# or, for any launcher:
+export ZEROJ_ALLOW_INSECURE_TRUSTED_SETUP=true
+```
+
+</TabItem>
+</Tabs>
+
+:::caution[Development keys only]
+Keys from the in-process setup must never protect anything of value. Keep the flag in test and
+local run configurations only, never in production launch scripts. Real deployments import
+proving and verification keys from a multi-party ceremony (a snarkjs `.zkey`). See
+[Trusted setup, explained](/learn/trusted-setup/) and
+[Running a trusted setup ceremony](/guides/proving/trusted-setup-ceremony/).
+:::
+
+## Snapshots
+
+Snapshot builds are published on demand to the BloxBean Maven repository,
+`https://repo.bloxbean.org/maven/snapshots`. Their versions embed the short Git commit they were
+built from, in the form `<next-version>-<short-commit>-SNAPSHOT`. Snapshots aren't published for
+every commit, so check
+[`maven-metadata.xml`](https://repo.bloxbean.org/maven/snapshots/org/zeroj/zeroj-crypto/maven-metadata.xml)
+for the exact version you want. Snapshots are development builds, so prefer a release for anything
+you share with others. From the next release on, releases are also in the BloxBean Maven repository
+(`https://repo.bloxbean.org/maven/releases`), with the same files as on Maven Central.
+
+<Tabs syncKey="build">
+<TabItem label="Gradle (Groovy)">
+
+```groovy
+repositories {
+    mavenCentral()
+    maven {
+        url = uri('https://repo.bloxbean.org/maven/snapshots')
+        mavenContent { snapshotsOnly() }
+    }
+}
+```
+
+</TabItem>
+<TabItem label="Gradle (Kotlin)">
+
+```kotlin
+repositories {
+    mavenCentral()
+    maven {
+        url = uri("https://repo.bloxbean.org/maven/snapshots")
+        mavenContent { snapshotsOnly() }
+    }
+}
+```
+
+</TabItem>
+<TabItem label="Maven">
+
+```xml
+<repositories>
+  <repository>
+    <id>bloxbean-snapshots</id>
+    <url>https://repo.bloxbean.org/maven/snapshots</url>
+    <releases><enabled>false</enabled></releases>
+    <snapshots><enabled>true</enabled></snapshots>
+  </repository>
+</repositories>
+```
+
+</TabItem>
+</Tabs>
+
+:::note[Upgrading from 0.1.0-pre11 or earlier?]
+Up to `0.1.0-pre11`, ZeroJ was published as `com.bloxbean.cardano:zeroj-*` with packages under
+`com.bloxbean.cardano.zeroj.*`. From `0.1.0-pre12` the group is `org.zeroj` and packages start with
+`org.zeroj`. Artifact IDs, class names, and proof/key bytes are unchanged. Cardano Client Lib and
+JuLC keep their `com.bloxbean.cardano` coordinates. See [Migration](/reference/migration/).
+:::
+
+## Optional tools
+
+None of these are needed for the pure-Java path.
+
+| Tool | Version | When you need it |
+|------|---------|------------------|
+| [Yaci DevKit](https://github.com/bloxbean/yaci-devkit) | latest | Running on-chain verification against a local Cardano devnet |
+| circom | 2.x | Compiling existing circom circuits you want to prove with ZeroJ |
+| snarkjs (Node.js) | 0.7.x (ZeroJ's interop CI pins 0.7.6) | Interop only: MPC ceremony tooling, or cross-checking ZeroJ proofs with snarkjs |
+
+Install them so they're on your `PATH`. ZeroJ's own interop tests find snarkjs through the
+`SNARKJS_BIN` environment variable, common npm locations, or `PATH`. See
+[Bring circom & snarkjs circuits](/tutorials/snarkjs-interop/).
+
+## Native blst acceleration
+
+`zeroj-crypto-blst` plugs the native [blst](https://github.com/supranational/blst) library into
+the Groth16 prover through Java's Foreign Function & Memory API. It produces bit-identical proofs
+and is purely a performance option; since the large-circuit memory work, the pure-Java prover
+matches it at large sizes, so measure before you adopt it. The JVM needs native access at
+runtime:
+
+```bash
+java --enable-native-access=ALL-UNNAMED ...
+```
+
+See [Performance](/guides/proving/performance/) for when it helps.
+
+## GraalVM native image
+
+ZeroJ's pure-Java path doesn't call into JNI, so it suits GraalVM. (The `blst-java` jar that
+`zeroj-verifier-groth16` brings along is only used by its native verifier; test your image with
+the verifier you actually use.) Several
+modules ship native-image metadata under `META-INF/native-image/org.zeroj/<artifact>/`, which
+`native-image` picks up from the classpath automatically: `zeroj-api`, `zeroj-codec`,
+`zeroj-backend-spi`, `zeroj-verifier-groth16`, `zeroj-verifier-plonk`, `zeroj-bls12381`,
+`zeroj-blst`, `zeroj-bbs`, and `zeroj-onchain-julc`. The `zeroj-ceremony` CLI is itself
+distributed as a native binary.
+
+Build and test your own native image as part of your pipeline. If `native-image` reports missing
+reflection or resource configuration for your application classes, the GraalVM tracing agent is
+the usual way to generate it.
+
+## Next steps
+
+- [Quickstart: your first proof](/start/quickstart/)
+- [Zero-knowledge in plain English](/learn/zero-knowledge-basics/), if the concepts are new
+- [Configuration reference](/reference/configuration/) for all system properties and flags

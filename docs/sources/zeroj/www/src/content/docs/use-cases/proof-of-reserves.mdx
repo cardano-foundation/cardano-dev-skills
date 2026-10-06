@@ -1,0 +1,192 @@
+---
+title: Proof of reserves
+description: A custodian proves its reserves cover every customer balance without publishing any balance, and each customer can check they were counted.
+sidebar:
+  order: 3
+---
+
+import ReservesWalkthrough from '../../../components/walkthrough/ReservesWalkthrough.astro';
+
+When an exchange or custodian fails, customers find out too late that the money wasn't there. The
+usual remedies are weak. An auditor's report asks you to trust the auditor. Publishing every
+account balance destroys customer privacy. A plain Merkle proof lets you see your neighbours'
+balances. Stablecoin issuers, bridges, lending protocols and DAO treasuries face the same question:
+*can you prove you're solvent without opening your books?*
+
+<ReservesWalkthrough />
+
+## The zero-knowledge idea
+
+**The custodian proves "the balances committed in this published liabilities root are all
+non-negative, add up to exactly this total, and that total is covered by our reserves", without
+revealing any balance.**
+
+Each customer account becomes a leaf `Poseidon(accountId, balance)` in a Merkle tree, and the root
+is published. The circuit rebuilds the whole tree from the private balances, so the root commits to
+exactly the numbers being summed. The custodian can't sum one set of balances and publish another.
+Every balance is a 64-bit unsigned integer, and range checks rule out a negative "balance" that
+would quietly shrink the total.
+
+Customers close the loop. Each gets the Merkle path for their own leaf and checks that it hashes up
+to the published root. If the custodian left someone out or understated a balance, that customer
+can tell.
+
+:::caution[Reserves are claimed, not proven]
+In this design `totalReserves` is a public input the custodian supplies. The circuit proves
+liabilities ≤ that number. It does not prove the custodian controls the funds. On Cardano you can
+check reserves held at known addresses directly; off-chain reserves need an attestation or oracle
+you trust.
+:::
+
+## What stays private, what's public
+
+| Input | Visibility | Why |
+|---|---|---|
+| `accountIds` | Secret | Customer identities stay private |
+| `balances` | Secret | Individual balances; each is range-checked to 64 bits |
+| `totalReserves` | Public | The custodian's claimed reserves, which must be checked independently |
+| `liabilitiesRoot` | Public | Commits to every leaf; customers check their inclusion against it |
+| `totalLiabilities` | Public | The exact sum of all balances |
+| `isSolvent` | Public | Proven equal to `totalReserves ≥ totalLiabilities`; the validator requires 1 |
+
+## How it works
+
+1. **Snapshot.** The custodian takes the customer balances at a point in time and builds the
+   Poseidon Merkle tree.
+2. **Prove.** It generates a Groth16 proof over the private balances with the four public inputs
+   above.
+3. **Attest on-chain.** It locks an attestation UTxO whose datum holds the public inputs. Spending
+   it with the proof runs the verifier on-chain. An insolvent claim can't pass.
+4. **Customers verify.** Each customer receives their Merkle path and checks their leaf against
+   `liabilitiesRoot`, off-chain, whenever they like.
+5. **Repeat.** A fresh proof every period keeps the attestation current.
+
+```text
+custodian (private)                  public
+───────────────────                  ──────
+16 × (accountId, balance)  ─prove─▶  datum: [totalReserves, liabilitiesRoot, totalLiabilities, isSolvent=1]
+                                     redeemer: Groth16 proof
+customer: my leaf + Merkle path ───▶ hashes up to liabilitiesRoot? ✓
+```
+
+## The circuit
+
+This is simplified from the demo's `SolvencyProof`: constructor validation is trimmed, and the demo
+requires `numLeaves == 1 << treeDepth`.
+
+```java title="SolvencyProof.java"
+import org.zeroj.circuit.annotation.*;
+import org.zeroj.circuit.lib.poseidon.PoseidonParams;
+import org.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
+import org.zeroj.circuit.lib.zk.ZkPoseidon;
+
+@ZKCircuit(name = "solvency-proof",
+           nameTemplate = "solvency-proof-d{treeDepth}-n{numLeaves}-bls-poseidon", version = 1)
+public class SolvencyProof {
+    private static final PoseidonParams POSEIDON = PoseidonParamsBLS12_381T3.INSTANCE;
+    private final int treeDepth;
+    private final int numLeaves;
+
+    public SolvencyProof(@CircuitParam("treeDepth") int treeDepth,
+                         @CircuitParam("numLeaves") int numLeaves) {
+        this.treeDepth = treeDepth;
+        this.numLeaves = numLeaves;
+    }
+
+    @Prove
+    ZkBool prove(ZkContext zk,
+                 @Public @UInt(bits = 64) ZkUInt totalReserves,
+                 @Public ZkField liabilitiesRoot,
+                 @Public @UInt(bits = 64) ZkUInt totalLiabilities,
+                 @Public ZkBool isSolvent,
+                 @Secret @FixedSize(param = "numLeaves") ZkArray<ZkField> accountIds,
+                 @Secret @UInt(bits = 64) @FixedSize(param = "numLeaves") ZkArray<ZkUInt> balances) {
+
+        // Leaves and running sum over the private balances
+        ZkUInt sum = balances.get(0);
+        ZkField[] level = new ZkField[numLeaves];
+        for (int i = 0; i < numLeaves; i++) {
+            level[i] = ZkPoseidon.hash(zk, POSEIDON, accountIds.get(i), balances.get(i).asField());
+            if (i > 0) sum = sum.add(balances.get(i));
+        }
+
+        // Rebuild the Merkle root from the same leaves
+        for (int d = 0; d < treeDepth; d++) {
+            ZkField[] next = new ZkField[level.length / 2];
+            for (int i = 0; i < next.length; i++) {
+                next[i] = ZkPoseidon.hash(zk, POSEIDON, level[2 * i], level[2 * i + 1]);
+            }
+            level = next;
+        }
+
+        return level[0].isEqual(liabilitiesRoot)
+                .and(sum.asField().isEqual(totalLiabilities.asField()))
+                .and(isSolvent.isEqual(totalReserves.gte(totalLiabilities)));
+    }
+}
+```
+
+The circuit covers a fixed batch. The demo defaults to depth 4, which is 16 accounts. A real book
+of accounts needs a much larger circuit or a batching scheme, and proving cost grows with it. See
+[Performance](/guides/proving/performance/).
+
+## On Cardano
+
+The demo's `ReserveAttestationValidator` is a Plutus V3 spending validator written with JuLC. Its
+datum is the list `[totalReserves, liabilitiesRoot, totalLiabilities, isSolvent]`, its redeemer is
+the proof `(piA, piB, piC)`, and it calls `Groth16BLS12381Lib.verify(datum, …)` from
+`zeroj-onchain-julc` with the verification key baked in as script parameters. It also requires
+`isSolvent == 1`, so an honest proof of insolvency is rejected.
+
+A valid proof is not authorization. This demo validator checks the math and the solvency flag,
+nothing else. A real attestation also has to bind who is attesting (the custodian's signature),
+when (a period or slot as a public input, checked against the transaction's validity range, so an
+old proof can't be replayed) and where the reserves figure comes from. See
+[Application security](/guides/verifying/application-security/).
+
+:::caution[Experimental PlonK variant]
+An experimental PlonK variant of a reserve statement lives in
+[`examples/minimal-circuits/plonk/proof-of-reserves`](https://github.com/bloxbean/zeroj-usecases/tree/main/examples/minimal-circuits/plonk/proof-of-reserves).
+PlonK is experimental in ZeroJ and not a recommended path; use Groth16.
+:::
+
+## Security considerations
+
+- **Reserves need their own evidence.** Check on-chain holdings directly, or rely on an attestation
+  you trust. Watch for reserves borrowed just for the snapshot. Proving over several periods, or at
+  unpredictable times, makes that harder.
+- **Omissions are only caught by customers.** The proof covers the accounts in the tree. If few
+  customers check their inclusion, a missing account can go unnoticed. Make checking easy.
+- **Freshness and replay.** Put the snapshot period in the public inputs and enforce it on-chain.
+- **Salt the leaves.** An inclusion path contains neighbouring leaf hashes. If account IDs are
+  guessable and balances fall in a small range, `Poseidon(accountId, balance)` can be brute-forced.
+  A per-account random salt in the leaf prevents that.
+- **Trusted setup.** The demo uses a single-party development setup. Production keys come from a
+  multi-party ceremony ([Trusted setup, explained](/learn/trusted-setup/)).
+
+## Try it
+
+The demo lives in
+[`proof-of-reserves`](https://github.com/bloxbean/zeroj-usecases/tree/main/proof-of-reserves). With
+Yaci DevKit running (see [Run the demos](/use-cases/overview/#run-the-demos)):
+
+```bash
+./demo.sh proof-of-reserves --run
+```
+
+`--run` builds the liabilities tree over the demo accounts and proves solvency against 10,000 ADA of
+declared reserves. The proof is verified on-chain. In the UI you can add accounts, try a reserve
+figure below total liabilities to see the attestation rejected and verify a single account's
+inclusion. The first start generates a development setup cache, which can take a few minutes.
+
+Design notes:
+[Proof of reserves — detailed design](https://github.com/bloxbean/zeroj/blob/main/docs/usecases/proof-of-reserves.md)
+(Merkle sum trees, stake pool pledge, stablecoin and bridge variants).
+
+## Related
+
+- [Prove you're over 18](/tutorials/age-check/): the range-check pattern on a single value
+- [Annotations](/guides/circuits/annotations/): `@UInt`, `@FixedSize` and `@CircuitParam`
+- [Verify your proof on Cardano](/tutorials/verify-on-cardano/): lock and unlock with a proof on
+  Yaci DevKit
+- [Performance](/guides/proving/performance/): sizing larger circuits

@@ -1,0 +1,171 @@
+---
+title: One claim per person
+description: A Sybil-resistant airdrop where each personhood credential claims once per epoch, anonymously, with the payout bound to a chosen recipient.
+sidebar:
+  order: 6
+---
+
+import AirdropWalkthrough from '../../../components/walkthrough/AirdropWalkthrough.astro';
+
+Airdrops, faucets and community rewards get farmed. One person spins up a thousand wallets and
+claims a thousand times. Checking identity at claim time stops that, but then every claimant hands
+over personal data and every claim is linked to a person. What you want is **one claim per real
+human per period**, where the distributor learns only that *some* eligible person claimed.
+
+<AirdropWalkthrough />
+
+## The zero-knowledge idea
+
+**The claimant proves "a personhood issuer signed my credential, and this nullifier is the one my
+credential produces for this epoch", and binds the payout to a recipient, without revealing the
+credential.**
+
+A personhood issuer checks, out of band, that each human gets exactly one credential. That's the
+part zero knowledge can't do for you. The issuer signs `Poseidon(personhoodId, 0)` with EdDSA over
+Jubjub. From then on:
+
+- **Nullifier = `Poseidon(personhoodId, epoch)`.** It's the same for every claim in an epoch, so
+  repeats are caught. A new epoch gives an unrelated value, so claims can't be linked across epochs.
+- **Recipient binding.** The payout address is a public input the proof commits to. Someone who
+  copies a proof from the mempool can't redirect the payout without invalidating it.
+
+This is the same building block behind Semaphore-style signals and "one-per-human" claim tokens.
+
+## What stays private, what's public
+
+| Input | Visibility | Why |
+|---|---|---|
+| `personhoodId` | Secret | The credential's unique ID; revealing it would link every claim |
+| Issuer signature (`sigRU`, `sigRV`, `sigS`) and helpers (`kModL`, `kQuotient`) | Secret | Revealing the signature would also link claims |
+| `pkU`, `pkV` | Public | The issuer's Jubjub key; pinned by the minting policy |
+| `epoch` | Public | The claim period; pinned by the policy |
+| `nullifier` | Public | One per credential per epoch; becomes the minted receipt's asset name |
+| `recipient` | Public | The payout destination, committed to by the proof |
+| `eligible` | Public | Must be 1 |
+
+## How it works
+
+1. **Enrol.** The issuer verifies the person is unique, generates `personhoodId`, signs it and
+   delivers the credential privately.
+2. **Claim.** The holder proves with the current `epoch` and the recipient they choose.
+3. **Mint a receipt.** The faucet minting policy verifies the proof and mints one "claim NFT" whose
+   asset name is the nullifier. The claim pays out ADA.
+4. **Repeat in the same epoch?** Same credential and same epoch give the same nullifier, so the
+   claim is refused.
+5. **Next epoch.** A fresh nullifier space opens and everyone can claim again.
+
+```text
+issuer ──sig(Poseidon(personhoodId, 0))──▶ holder
+holder ──proof(epoch, recipient)─────────▶ faucet policy: issuer ✓ epoch ✓ eligible ✓ pairing ✓
+                                             mint 1 × <nullifier> receipt, pay recipient
+```
+
+## The circuit
+
+This is the demo's `PersonhoodAirdropProof`, unchanged apart from imports:
+
+```java title="PersonhoodAirdropProof.java"
+import org.zeroj.circuit.annotation.*;
+import org.zeroj.circuit.lib.poseidon.PoseidonParams;
+import org.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
+import org.zeroj.circuit.lib.zk.ZkEdDSAJubjub;
+import org.zeroj.circuit.lib.zk.ZkPoseidon;
+
+@ZKCircuit(name = "personhood-airdrop", version = 1)
+public class PersonhoodAirdropProof {
+    private static final PoseidonParams POSEIDON = PoseidonParamsBLS12_381T3.INSTANCE;
+
+    @Prove
+    ZkBool prove(ZkContext zk,
+                 @Public ZkField pkU,
+                 @Public ZkField pkV,
+                 @Public ZkField epoch,
+                 @Public ZkField nullifier,
+                 @Public ZkField recipient,
+                 @Public ZkBool eligible,
+                 @Secret ZkField personhoodId,
+                 @Secret ZkField sigRU,
+                 @Secret ZkField sigRV,
+                 @Secret @UInt(bits = 252) ZkUInt sigS,
+                 @Secret @UInt(bits = 252) ZkUInt kModL,
+                 @Secret @UInt(bits = 4) ZkUInt kQuotient) {
+
+        var claimsMsg = ZkPoseidon.hash(zk, POSEIDON, personhoodId, zk.constant(0));
+        ZkEdDSAJubjub.verifyWithRegisteredKey(
+                zk, pkU, pkV, claimsMsg, sigRU, sigRV, sigS, kModL, kQuotient);
+
+        // Bind the public recipient into a real (non-degenerate) R1CS row.
+        recipient.mul(personhoodId);
+
+        var computedNullifier = ZkPoseidon.hash(zk, POSEIDON, personhoodId, epoch);
+        return eligible.and(computedNullifier.isEqual(nullifier));
+    }
+}
+```
+
+The line `recipient.mul(personhoodId)` deserves a closer look. The circuit doesn't *compute*
+anything with `recipient`, but a Groth16 proof only commits to a public input that appears in at
+least one constraint. Multiplying two variables emits a real constraint row. A constant
+multiplication such as `recipient * 1` gets folded away and wouldn't bind anything. ZeroJ's native
+Groth16 setup refuses a relation with an unbound public input rather than silently producing a key
+that ignores it.
+
+## On Cardano
+
+The demo's `FaucetMintingPolicy` is a JuLC minting policy parameterized by the verification key,
+the issuer's key and the epoch. It reads the six public inputs from the claim output's inline datum,
+checks the issuer and epoch against its parameters, requires `eligible == 1`, requires exactly one
+minted token whose asset name equals the nullifier, and verifies the proof with
+`Groth16BLS12381Lib.verify(...)`.
+
+A valid proof is not authorization, and this demo shows two gaps you'd close before real use:
+
+- **Double claims are blocked off-chain.** The service keeps an in-memory set of used nullifiers.
+  Cardano lets a policy mint another unit under the same asset name, so the receipt NFT alone
+  doesn't prevent a second claim. A production faucet needs on-chain uniqueness: a sorted-list
+  registry like the [voting](/use-cases/private-voting/) and [NFT](/use-cases/nft-ownership/) demos,
+  or a state-thread token carrying the used-nullifier set.
+- **The payout isn't checked against `recipient`.** The proof commits to the recipient, but the
+  demo policy doesn't verify that an output actually pays it. The
+  [account-recovery validator](/use-cases/account-recovery/#on-cardano) shows how to enforce this.
+
+## Security considerations
+
+- **Uniqueness lives at the issuer.** ZK enforces "one claim per credential". It can't tell whether
+  a person holds two credentials. Sybil resistance is only as good as the issuer's enrolment
+  checks.
+- **Stolen credentials claim once per epoch.** If a `personhoodId` and signature leak, the thief
+  can claim. Plan for revocation.
+- **On-chain nullifier state and recipient enforcement,** as above.
+- **Epoch source.** The demo reads the epoch from configuration and pins it into the policy, so a
+  new epoch means a new policy ID. Tie it to chain time for a long-running faucet.
+- **Keep issuance offline.** The demo signs with `EdDSAJubjub.signCompatibilityOffline`, which is
+  meant for offline, isolated use, not a network signing service.
+- **Trusted setup.** The demo uses a single-party development setup; production needs an MPC
+  ceremony ([Trusted setup, explained](/learn/trusted-setup/)).
+
+## Try it
+
+The demo lives in
+[`personhood-airdrop`](https://github.com/bloxbean/zeroj-usecases/tree/main/personhood-airdrop).
+Its [tutorial](https://github.com/bloxbean/zeroj-usecases/blob/main/personhood-airdrop/SYBIL_AIRDROP_TUTORIAL.md)
+walks through the design. With Yaci DevKit running (see
+[Run the demos](/use-cases/overview/#run-the-demos)):
+
+```bash
+./demo.sh airdrop --run
+```
+
+`--run` has Alice claim for the current epoch (proof generated, receipt minted on-chain, ADA paid
+out) and prints the faucet status. Claim for Alice again from the UI and the service refuses it
+because the nullifier is the same. Bob's claim succeeds because his credential produces a
+different nullifier.
+
+## Related
+
+- [Private voting](/use-cases/private-voting/): nullifiers stored in an on-chain sorted list
+- [Age & KYC eligibility](/use-cases/age-and-kyc/): the same in-circuit issuer signature, without
+  rate limiting
+- [Circuits, constraints & witnesses](/learn/circuits-and-witnesses/): why unconstrained inputs are
+  dangerous
+- [Application security](/guides/verifying/application-security/)

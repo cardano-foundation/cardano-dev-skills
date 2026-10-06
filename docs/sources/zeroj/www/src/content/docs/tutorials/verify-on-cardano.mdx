@@ -1,0 +1,795 @@
+---
+title: Verify your proof on Cardano
+description: Lock test ADA behind a Groth16 verifier on a local Yaci DevKit devnet, unlock it with a proof, and learn why a bare verifier must never guard real value.
+sidebar:
+  order: 3
+---
+
+import { Steps, FileTree, Aside } from '@astrojs/starlight/components';
+import CardanoProofWalkthrough from '../../../components/walkthrough/CardanoProofWalkthrough.astro';
+
+In the [Quickstart](/start/quickstart/) a Java method checked your proof. Here, every Cardano
+node checks it. You'll take the same `3 × b = 33` proof, lock some test ADA at a Plutus V3
+script that verifies Groth16 proofs, and unlock it by presenting the proof. Then comes the most
+important part of this page: why that script, on its own, must never guard real value.
+
+**What you'll build:** a Java program that proves, packages the proof for Plutus, derives the
+verifier's script address, locks 5 ADA there, and unlocks it with the proof on a local devnet.
+Then a custom validator, compiled from Java with JuLC, that binds each proof to the UTxO it
+spends.
+
+**What you'll learn:**
+
+- how a Groth16 proof maps onto Cardano's eUTxO model: script parameters, datum, redeemer
+- how `ProverToCardano` and `JulcScriptLoader` turn keys and proofs into Plutus data
+- how to lock and unlock with Cardano Client Lib against Yaci DevKit
+- why a valid proof is not authorization, and what binding a proof to a spend looks like
+
+<Aside type="note" title="Prerequisites">
+
+- Java 25 and Gradle (see [Installation](/start/installation/)).
+- [Yaci DevKit](https://github.com/bloxbean/yaci-devkit), a local Cardano devnet. Follow its
+  README to install it, then start a node:
+
+  ```bash
+  devkit start
+  # then, at the yaci-cli prompt:
+  create-node -o --start
+  ```
+
+  This tutorial expects DevKit's defaults: the Blockfrost-compatible API at
+  `http://localhost:8080/api/v1/` and the admin API (which includes a faucet) at
+  `http://localhost:10000`.
+
+</Aside>
+
+## How a proof lives on Cardano
+
+Cardano doesn't have contract storage the way account-based chains do. Value sits in
+**UTxOs**, and a UTxO locked at a **script address** can only be spent if that script approves
+the spending transaction. The Groth16 flow fits this model neatly:
+
+| Groth16 piece | Where it goes on Cardano | Why |
+|---------------|--------------------------|-----|
+| Verification key | Baked into the script as **parameters** | The key becomes part of the script, so a different key gives a different script hash and address |
+| Public inputs | The locked UTxO's **datum** | Fixed when the ADA is locked: this is the statement that must be proven |
+| Proof | The spending transaction's **redeemer** | Supplied by whoever wants to spend |
+| Verification | Plutus V3's built-in BLS12-381 operations | The pairing check runs inside the validator |
+
+<CardanoProofWalkthrough />
+
+ZeroJ ships the validator: `Groth16BLS12381Verifier`, a Plutus V3 spending script written in
+Java with [JuLC](https://github.com/bloxbean/julc) and precompiled into `zeroj-onchain-julc`.
+(It lives in `org.zeroj.onchain.julc.groth16.validator`. Don't confuse it with the off-chain
+verifier of the same simple name in `org.zeroj.verifier.groth16.bls12381`.)
+It accepts any number of public inputs. See [ZK on Cardano](/learn/zk-on-cardano/) for the
+bigger picture.
+
+## Build it
+
+<Steps>
+
+1. **Create the project.** The last four files come later, in
+   [Bind the proof to the UTxO it spends](#bind-the-proof-to-the-utxo-it-spends).
+
+   <FileTree>
+
+   - zeroj-verify-on-cardano/
+     - settings.gradle
+     - build.gradle
+     - src/main/java/com/example/onchain/
+       - SecretMultiplier.java
+       - Main.java
+       - BoundSecretMultiplier.java
+       - SpendBoundGroth16Verifier.java
+       - SpendBinding.java
+       - BoundMain.java
+
+   </FileTree>
+
+   ```groovy title="settings.gradle"
+   rootProject.name = 'zeroj-verify-on-cardano'
+   ```
+
+   ```groovy title="build.gradle"
+   plugins {
+       id 'application'
+   }
+
+   repositories {
+       mavenCentral()
+   }
+
+   java {
+       toolchain {
+           languageVersion = JavaLanguageVersion.of(25)
+       }
+   }
+
+   dependencies {
+       implementation platform('org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%')
+       annotationProcessor platform('org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%')
+
+       implementation 'org.zeroj:zeroj-circuit-annotation-api'
+       annotationProcessor 'org.zeroj:zeroj-circuit-annotation-processor'
+       implementation 'org.zeroj:zeroj-circuit-dsl'
+       implementation 'org.zeroj:zeroj-crypto'
+       implementation 'org.zeroj:zeroj-onchain-julc'  // Plutus V3 verifiers + ProverToCardano
+
+       implementation 'org.julclang:julc-cardano-client-lib:%JULC_VERSION%'  // JulcScriptLoader
+       implementation 'com.bloxbean.cardano:cardano-client-lib:%CCL_VERSION%'
+       implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:%CCL_VERSION%'
+
+       // Only for compiling your own validator (SpendBoundGroth16Verifier) to Plutus V3:
+       implementation 'org.julclang:julc-stdlib:%JULC_VERSION%'
+       annotationProcessor 'org.julclang:julc-annotation-processor:%JULC_VERSION%'
+       annotationProcessor 'org.zeroj:zeroj-onchain-julc'  // lets JuLC find Groth16BLS12381Lib's source
+   }
+
+   application {
+       mainClass = 'com.example.onchain.Main'
+       // Dev-only: allows the in-process, single-party trusted setup.
+       applicationDefaultJvmArgs = ['-Dzeroj.allowInsecureTrustedSetup=true']
+   }
+
+   // `gradle runBound` runs the spend-bound flow (BoundMain) from the security section.
+   tasks.register('runBound', JavaExec) {
+       classpath = sourceSets.main.runtimeClasspath
+       mainClass = 'com.example.onchain.BoundMain'
+       jvmArgs '-Dzeroj.allowInsecureTrustedSetup=true'
+   }
+   ```
+
+   JuLC and Cardano Client Lib keep their own `com.bloxbean.cardano` group and versions. The
+   bare verifier in `Main` is precompiled inside `zeroj-onchain-julc`, so `Main` only *loads*
+   it. The three lines marked "Only for compiling your own validator" are for the
+   spend-bound validator later on this page: they run the JuLC compiler inside `javac`.
+
+2. **Add the circuit.** It's the Quickstart circuit, in this project's package.
+
+   ```java title="src/main/java/com/example/onchain/SecretMultiplier.java"
+   package com.example.onchain;
+
+   import org.zeroj.circuit.annotation.Prove;
+   import org.zeroj.circuit.annotation.Public;
+   import org.zeroj.circuit.annotation.Secret;
+   import org.zeroj.circuit.annotation.ZKCircuit;
+   import org.zeroj.circuit.annotation.ZkBool;
+   import org.zeroj.circuit.annotation.ZkContext;
+   import org.zeroj.circuit.annotation.ZkField;
+
+   /** "I know a secret b such that a × b = product." */
+   @ZKCircuit(name = "secret-multiplier", version = 1)
+   public class SecretMultiplier {
+
+       @Prove
+       ZkBool prove(ZkContext zk,
+                    @Public ZkField a,
+                    @Public ZkField product,
+                    @Secret ZkField b) {
+           return a.mul(b).isEqual(product);
+       }
+   }
+   ```
+
+3. **Write the program.** `proveAndPackage` does everything off-chain; `lockThenUnlock` talks to
+   the chain.
+
+   ```java title="src/main/java/com/example/onchain/Main.java"
+   package com.example.onchain;
+
+   import com.bloxbean.cardano.client.account.Account;
+   import com.bloxbean.cardano.client.address.AddressProvider;
+   import com.bloxbean.cardano.client.api.model.Amount;
+   import com.bloxbean.cardano.client.backend.api.BackendService;
+   import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
+   import com.bloxbean.cardano.client.common.model.Networks;
+   import com.bloxbean.cardano.client.function.helper.SignerProviders;
+   import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
+   import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+   import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
+   import com.bloxbean.cardano.client.plutus.spec.ListPlutusData;
+   import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+   import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
+   import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
+   import com.bloxbean.cardano.client.quicktx.ScriptTx;
+   import com.bloxbean.cardano.client.quicktx.Tx;
+   import org.julclang.clientlib.JulcScriptLoader;
+   import org.zeroj.api.CurveId;
+   import org.zeroj.crypto.groth16.Groth16Keys;
+   import org.zeroj.crypto.setup.PowersOfTauBLS381;
+   import org.zeroj.onchain.julc.groth16.codec.ProverToCardano;
+   import org.zeroj.onchain.julc.groth16.codec.SnarkjsToCardano;
+   import org.zeroj.onchain.julc.groth16.validator.Groth16BLS12381Verifier;
+
+   import java.math.BigInteger;
+   import java.net.URI;
+   import java.net.http.HttpClient;
+   import java.net.http.HttpRequest;
+   import java.net.http.HttpResponse;
+
+   public class Main {
+
+       static final String YACI_API = "http://localhost:8080/api/v1/"; // Blockfrost-compatible
+       static final String YACI_ADMIN = "http://localhost:10000";      // DevKit admin API (faucet)
+
+       /** Everything the chain needs: the script, its address, the datum and the redeemer. */
+       record OnChainProof(PlutusV3Script script, String scriptAddress, PlutusData datum, PlutusData redeemer) {}
+
+       public static void main(String[] args) throws Exception {
+           OnChainProof onChain = proveAndPackage();
+           System.out.println("Verifier script address: " + onChain.scriptAddress());
+
+           // Connect to Yaci DevKit and fund a throwaway devnet account.
+           BackendService backend = new BFBackendService(YACI_API, "not-needed-for-yaci");
+           Account alice = new Account(Networks.testnet());
+           topUp(alice.baseAddress(), 100);
+
+           lockThenUnlock(new QuickTxBuilder(backend), alice, onChain);
+       }
+
+       static OnChainProof proveAndPackage() {
+           // 1. Prove "I know b such that 3 × b = 33" — exactly as in the quickstart.
+           var circuit = SecretMultiplierCircuit.build();
+           var r1cs = circuit.compileR1CS(CurveId.BLS12_381);
+           var inputs = SecretMultiplierCircuit.inputs().a(3).product(33).b(11);
+           BigInteger[] witness = inputs.calculateWitness(circuit, CurveId.BLS12_381);
+
+           BigInteger tau = PowersOfTauBLS381.generate(4).tauScalar(); // DEV-ONLY setup
+           try (var keys = Groth16Keys.setupInMemory(
+                   r1cs.constraints(), r1cs.numWires(), r1cs.numPublicInputs(), tau)) {
+               var proof = keys.prove(witness, r1cs.constraints());
+
+               // 2. Compress VK and proof into the byte format Plutus' BLS12-381 builtins expect.
+               SnarkjsToCardano.VkCompressed vk = ProverToCardano.compressVk(keys);
+               SnarkjsToCardano.ProofCompressed p = ProverToCardano.compressProof(proof);
+
+               // 3. Bake the VK into the reusable verifier script. A different VK gives a different script.
+               PlutusV3Script script = verifierScript(vk);
+               String address = AddressProvider.getEntAddress(script, Networks.testnet()).toBech32();
+
+               // 4. Datum = public inputs in schema order; redeemer = the proof.
+               PlutusData datum = publicInputsDatum(inputs.publicValues().toArray(BigInteger[]::new));
+               PlutusData redeemer = ConstrPlutusData.builder()
+                       .alternative(0)
+                       .data(ListPlutusData.of(
+                               new BytesPlutusData(p.piA()),
+                               new BytesPlutusData(p.piB()),
+                               new BytesPlutusData(p.piC())))
+                       .build();
+               return new OnChainProof(script, address, datum, redeemer);
+           }
+       }
+
+       static void lockThenUnlock(QuickTxBuilder quickTx, Account alice, OnChainProof onChain) {
+           // 5. Lock 5 ADA at the script address, with the public inputs as inline datum.
+           var lock = new Tx()
+                   .payToContract(onChain.scriptAddress(), Amount.ada(5), onChain.datum())
+                   .from(alice.baseAddress());
+           var locked = quickTx.compose(lock)
+                   .withSigner(SignerProviders.signerFrom(alice))
+                   .completeAndWait(System.out::println);
+           if (!locked.isSuccessful()) {
+               throw new IllegalStateException("Lock failed: " + locked.getResponse());
+           }
+           String lockTxHash = locked.getValue();
+           System.out.println("Locked 5 ADA in tx " + lockTxHash);
+
+           // 6. Unlock: spend that UTxO with the proof as redeemer. Every node runs the verifier.
+           var unlock = new ScriptTx()
+                   .collectFrom(onChain.scriptAddress(), utxo -> utxo.getTxHash().equals(lockTxHash),
+                           onChain.redeemer())
+                   .payToAddress(alice.baseAddress(), Amount.ada(4.5))
+                   .attachSpendingValidator(onChain.script());
+           var unlocked = quickTx.compose(unlock)
+                   .withSigner(SignerProviders.signerFrom(alice))
+                   .feePayer(alice.baseAddress())
+                   .collateralPayer(alice.baseAddress())
+                   .completeAndWait(System.out::println);
+           System.out.println(unlocked.isSuccessful()
+                   ? "Proof verified on-chain. Unlock tx " + unlocked.getValue()
+                   : "Unlock failed: " + unlocked.getResponse());
+       }
+
+       /** Groth16BLS12381Verifier parameters, in order: alpha, beta, gamma, delta, IC list. */
+       static PlutusV3Script verifierScript(SnarkjsToCardano.VkCompressed vk) {
+           var ic = ListPlutusData.of();
+           for (byte[] point : vk.ic()) {
+               ic.add(new BytesPlutusData(point));
+           }
+           return JulcScriptLoader.load(Groth16BLS12381Verifier.class,
+                   new BytesPlutusData(vk.alpha()),
+                   new BytesPlutusData(vk.beta()),
+                   new BytesPlutusData(vk.gamma()),
+                   new BytesPlutusData(vk.delta()),
+                   ic);
+       }
+
+       static PlutusData publicInputsDatum(BigInteger[] publicInputs) {
+           var list = ListPlutusData.of();
+           for (BigInteger value : publicInputs) {
+               list.add(BigIntPlutusData.of(value));
+           }
+           return list;
+       }
+
+       /** Yaci DevKit's faucet (devnet only). */
+       static void topUp(String address, int ada) throws Exception {
+           var request = HttpRequest.newBuilder(URI.create(YACI_ADMIN + "/local-cluster/api/addresses/topup"))
+                   .header("Content-Type", "application/json")
+                   .POST(HttpRequest.BodyPublishers.ofString(
+                           "{\"address\":\"" + address + "\",\"adaAmount\":" + ada + "}"))
+                   .build();
+           var response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+           if (response.statusCode() != 200) {
+               throw new IllegalStateException("Top-up failed: " + response.body());
+           }
+           Thread.sleep(2000); // give the devnet a moment to include the faucet transaction
+       }
+   }
+   ```
+
+4. **Run it** with DevKit's node running: `gradle run` (or `./gradlew run`). You should see
+   output like this (hashes shortened; there may also be `[PENDING]` lines while the devnet
+   produces blocks):
+
+   ```text
+   Verifier script address: addr_test1w...
+   [SUBMITTED] Tx: 1d1054a6...
+   [CONFIRMED] Tx: 1d1054a6...
+   Locked 5 ADA in tx 1d1054a6...
+   [SUBMITTED] Tx: 3d1f3a28...
+   [CONFIRMED] Tx: 3d1f3a28...
+   Proof verified on-chain. Unlock tx 3d1f3a28...
+   ```
+
+   If the unlock fails, the most common causes are a DevKit node that isn't running, and a datum
+   whose public inputs don't match the proof. Cardano Client Lib evaluates the script while
+   building the transaction, so a wrong proof or datum fails before anything is submitted. If
+   the error mentions `blst` or a failure to evaluate script cost, the DevKit build itself
+   can't evaluate Plutus' BLS12-381 builtins (ZeroJ's own end-to-end test skips in that case);
+   check the Yaci DevKit release notes for a build that supports them.
+
+</Steps>
+
+## What each piece does
+
+- **`ProverToCardano.compressVk` / `compressProof`** convert ZeroJ's curve points into the
+  compressed encodings Plutus' BLS12-381 builtins take: 48 bytes per G1 point, 96 per G2
+  point. The proof becomes `piA`, `piB`, `piC`. (For proofs and keys that came from snarkjs,
+  `SnarkjsToCardano` produces the same shapes from JSON.)
+- **`JulcScriptLoader.load(Groth16BLS12381Verifier.class, ...)`** takes the precompiled
+  validator and applies its parameters in declaration order: `vkAlpha`, `vkBeta`, `vkGamma`,
+  `vkDelta`, then `vkIc`, the list of IC points (one more than the number of public inputs).
+  The result is a `PlutusV3Script`. Change the key and you get a different script hash and a
+  different address.
+- **`AddressProvider.getEntAddress`** derives the script's enterprise address (no staking
+  part).
+- **The datum** is a plain list of integers, `[3, 33]`, in the circuit's public-input order.
+- **The redeemer** is constructor 0 with the three compressed proof points.
+- **`ScriptTx`** spends the script UTxO. Recent Cardano Client Lib versions mark `ScriptTx` as
+  deprecated in favour of the same operations on `Tx`; this tutorial uses `ScriptTx` because
+  it's the path ZeroJ's end-to-end tests run against Yaci DevKit.
+
+Verifying this two-input proof inside the validator costs roughly 2.8 billion CPU steps and
+212,000 memory units, measured in the JuLC VM. More public inputs cost more, because each one
+adds a scalar multiplication.
+
+## A valid proof is not authorization
+
+:::danger[Never protect real value with the bare verifier]
+`Groth16BLS12381Verifier` answers exactly one question: *is this a valid proof for the public
+inputs in the datum?* It does not look at who is spending, where the ADA goes, or which UTxO
+is being spent. So **anyone who sees a valid proof can reuse it** to spend UTxOs locked at this
+script, and send the ADA wherever they like.
+:::
+
+Here's the attack. When you submit the unlock transaction, your proof becomes public in its
+redeemer. If another UTxO is locked at the same address with the same datum, anyone can copy
+that redeemer and spend it, sending the ADA wherever they like. They can even copy a proof from
+the mempool and race your own transaction. We checked this: the same redeemer that unlocks
+the first UTxO also unlocks a second one locked with the same datum. Nothing in the statement
+`3 × b = 33` mentions a transaction, a recipient or a UTxO, so nothing stops the replay.
+
+A real validator has to bind the proof to its context. The rest of this section binds it to the
+UTxO being spent.
+
+### Bind the proof to the UTxO it spends
+
+The idea: make the UTxO part of the statement. Hash the out-ref of the UTxO being spent into a
+field element,
+
+```text
+spendRef = blake2b_256(txId || outputIndex as 32-byte big-endian) mod r
+```
+
+make `spendRef` the circuit's first public input, and have the validator compute the same value
+from the `ScriptContext` of the spending transaction. A proof made for one UTxO then fails for
+every other UTxO, because the validator feeds it a different `spendRef`.
+
+Where `spendRef` comes from matters. The datum can't carry it: a UTxO's out-ref only exists
+once the transaction that creates it exists, and that transaction's id is a hash over the
+output, datum included. So the datum holds only the application's inputs, and the order of
+operations is **lock first, then prove**:
+
+```text
+lock     datum = [a, product]                        creates UTxO txId#index
+prove    public inputs = [spendRef(txId#index), a, product]
+unlock   validator: spendRef from ScriptContext, verify proof against [spendRef] ++ datum
+```
+
+<Aside type="caution" title="Why not Groth16BLS12381TxOutRefBindingVerifier?">
+
+ZeroJ ships `Groth16BLS12381TxOutRefBindingVerifier`, which performs the same check but
+expects `spendRef` *inside the datum* of the UTxO it protects. That would need a datum
+containing a hash of the very transaction that creates it, a hash fixed point nobody can find in
+practice, so the bundled class can't guard real funds as it stands. It's useful as a reference for the check itself; the
+validator below computes `spendRef` instead of reading it.
+
+</Aside>
+
+<Steps>
+
+1. **The circuit.** It's the Quickstart statement with `spendRef` added as the first public
+   input.
+
+   ```java title="src/main/java/com/example/onchain/BoundSecretMultiplier.java"
+   package com.example.onchain;
+
+   import org.zeroj.circuit.annotation.Prove;
+   import org.zeroj.circuit.annotation.Public;
+   import org.zeroj.circuit.annotation.Secret;
+   import org.zeroj.circuit.annotation.ZKCircuit;
+   import org.zeroj.circuit.annotation.ZkBool;
+   import org.zeroj.circuit.annotation.ZkContext;
+   import org.zeroj.circuit.annotation.ZkField;
+
+   /** The quickstart statement, plus a first public input that names the UTxO being spent. */
+   @ZKCircuit(name = "bound-secret-multiplier", version = 1)
+   public class BoundSecretMultiplier {
+
+       @Prove
+       ZkBool prove(ZkContext zk,
+                    @Public ZkField spendRef,   // must be the FIRST public input
+                    @Public ZkField a,
+                    @Public ZkField product,
+                    @Secret ZkField b) {
+           spendRef.mul(b); // puts spendRef into a real constraint so the proof commits to it
+           return a.mul(b).isEqual(product);
+       }
+   }
+   ```
+
+   The `spendRef.mul(b)` line matters. A public input that takes part in no constraint isn't
+   bound by the proof at all, so ZeroJ's setup refuses such a circuit with
+   `IllegalArgumentException: R1CS public wire 1 ... is not referenced by any constraint`.
+
+2. **The validator.** A JuLC spending validator that composes `Groth16BLS12381Lib`, ZeroJ's
+   reusable on-chain Groth16 check. It computes `spendRef` for the UTxO it is validating,
+   prepends it to the datum's list, and verifies the proof against the result.
+
+   ```java title="src/main/java/com/example/onchain/SpendBoundGroth16Verifier.java"
+   package com.example.onchain;
+
+   import org.julclang.core.PlutusData;
+   import org.julclang.ledger.ScriptContext;
+   import org.julclang.ledger.ScriptInfo;
+   import org.julclang.ledger.TxOutRef;
+   import org.julclang.stdlib.Builtins;
+   import org.julclang.stdlib.annotation.Entrypoint;
+   import org.julclang.stdlib.annotation.Param;
+   import org.julclang.stdlib.annotation.SpendingValidator;
+   import org.zeroj.onchain.julc.groth16.lib.Groth16BLS12381Lib;
+
+   import java.math.BigInteger;
+
+   /**
+    * Groth16 verifier whose statement is bound to the UTxO being spent.
+    *
+    * <p>The datum holds only the application's public inputs, e.g. [a, product]. The validator
+    * computes spendRef = blake2b_256(txId || outputIndex as 32 bytes) mod r for the UTxO it is
+    * validating and prepends it, so the proof is checked against [spendRef, a, product]. A proof
+    * made for one UTxO therefore fails for every other UTxO.</p>
+    */
+   @SpendingValidator
+   public class SpendBoundGroth16Verifier {
+
+       @Param static byte[] vkAlpha;   // G1 compressed, 48 bytes
+       @Param static byte[] vkBeta;    // G2 compressed, 96 bytes
+       @Param static byte[] vkGamma;   // G2 compressed, 96 bytes
+       @Param static byte[] vkDelta;   // G2 compressed, 96 bytes
+       @Param static PlutusData vkIc;  // list of G1 compressed IC points
+
+       record Groth16Proof(byte[] piA, byte[] piB, byte[] piC) {}
+
+       @Entrypoint
+       public static boolean validate(PlutusData datum, Groth16Proof proof, ScriptContext ctx) {
+           PlutusData publicInputs = Builtins.listData(
+                   Builtins.mkCons(Builtins.iData(spendRef(ctx)), Builtins.unListData(datum)));
+           return Groth16BLS12381Lib.verify(publicInputs, proof.piA(), proof.piB(), proof.piC(),
+                   vkAlpha, vkBeta, vkGamma, vkDelta, vkIc);
+       }
+
+       /** blake2b_256(txId || outputIndex as 32-byte big-endian) mod r; -1 (always rejected) if not a spend. */
+       private static BigInteger spendRef(ScriptContext ctx) {
+           ScriptInfo scriptInfo = ctx.scriptInfo();
+           if (scriptInfo instanceof ScriptInfo.SpendingScript spendingScript) {
+               TxOutRef txOutRef = spendingScript.txOutRef();
+               byte[] indexBytes = Builtins.integerToByteString(true, 32, txOutRef.index());
+               byte[] preimage = Builtins.appendByteString(txOutRef.txId().hash(), indexBytes);
+               return Builtins.byteStringToInteger(true, Builtins.blake2b_256(preimage)).mod(fr());
+           } else {
+               return BigInteger.valueOf(-1);
+           }
+       }
+
+       /** The BLS12-381 scalar field order r. */
+       private static BigInteger fr() {
+           BigInteger base = BigInteger.valueOf(1000000000000000000L);
+           return BigInteger.valueOf(52435L).multiply(base)
+                   .add(BigInteger.valueOf(875175126190479447L)).multiply(base)
+                   .add(BigInteger.valueOf(740508185965837690L)).multiply(base)
+                   .add(BigInteger.valueOf(552500527637822603L)).multiply(base)
+                   .add(BigInteger.valueOf(658699938581184513L));
+       }
+   }
+   ```
+
+   This is Java, but it never runs on the JVM. When you build, the JuLC annotation processor
+   compiles it to a Plutus V3 script and writes `META-INF/plutus/SpendBoundGroth16Verifier.plutus.json`
+   next to your classes; `JulcScriptLoader` loads it from there. That's what the three
+   "Only for compiling your own validator" lines in `build.gradle` are for. The
+   `annotationProcessor 'org.zeroj:zeroj-onchain-julc'` line puts the source of
+   `Groth16BLS12381Lib` where JuLC can find it; without it the build fails with
+   `Plutus compilation error: Undefined variable: Groth16BLS12381Lib`.
+
+   A few details keep the check tight. `Groth16BLS12381Lib.verify` rejects the proof unless the
+   list has exactly one entry per public input and every entry lies in `[0, r)`, so a datum
+   that already contains a `spendRef`, or a non-spending context (where `spendRef` is `-1`),
+   fails. `fr()` builds `r` from `long` pieces, the same way ZeroJ's own validators do.
+
+3. **The prover-side hash.** The prover computes the same `spendRef` off-chain with Cardano
+   Client Lib's Blake2b:
+
+   ```java title="src/main/java/com/example/onchain/SpendBinding.java"
+   package com.example.onchain;
+
+   import com.bloxbean.cardano.client.crypto.Blake2bUtil;
+   import com.bloxbean.cardano.client.util.HexUtil;
+   import org.zeroj.circuit.FieldConfig;
+
+   import java.math.BigInteger;
+   import java.nio.ByteBuffer;
+
+   public final class SpendBinding {
+
+       private static final BigInteger R = FieldConfig.BLS12_381.prime();
+
+       /**
+        * blake2b_256(txId || outputIndex as 32-byte big-endian) mod r — the value
+        * SpendBoundGroth16Verifier computes on-chain from the ScriptContext.
+        */
+       public static BigInteger spendRef(String txHash, int outputIndex) {
+           byte[] preimage = ByteBuffer.allocate(64)
+                   .put(HexUtil.decodeHexString(txHash)) // 32-byte transaction id
+                   .putInt(60, outputIndex)              // index, left-padded to 32 bytes
+                   .array();
+           return new BigInteger(1, Blake2bUtil.blake2bHash256(preimage)).mod(R);
+       }
+
+       private SpendBinding() {
+       }
+   }
+   ```
+
+4. **The flow.** `BoundMain` sets up keys (so the script address exists), locks 5 ADA with
+   datum `[3, 33]`, reads the new UTxO's out-ref, proves for it, and unlocks. Then it locks a
+   second UTxO with the same datum and tries the same proof on it.
+
+   ```java title="src/main/java/com/example/onchain/BoundMain.java"
+   package com.example.onchain;
+
+   import com.bloxbean.cardano.client.account.Account;
+   import com.bloxbean.cardano.client.address.AddressProvider;
+   import com.bloxbean.cardano.client.api.UtxoSupplier;
+   import com.bloxbean.cardano.client.api.model.Amount;
+   import com.bloxbean.cardano.client.api.model.Utxo;
+   import com.bloxbean.cardano.client.backend.api.BackendService;
+   import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
+   import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
+   import com.bloxbean.cardano.client.common.model.Networks;
+   import com.bloxbean.cardano.client.function.helper.SignerProviders;
+   import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+   import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
+   import com.bloxbean.cardano.client.plutus.spec.ListPlutusData;
+   import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+   import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
+   import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
+   import com.bloxbean.cardano.client.quicktx.ScriptTx;
+   import com.bloxbean.cardano.client.quicktx.Tx;
+   import org.julclang.clientlib.JulcScriptLoader;
+   import org.zeroj.api.CurveId;
+   import org.zeroj.crypto.groth16.Groth16Keys;
+   import org.zeroj.crypto.setup.PowersOfTauBLS381;
+   import org.zeroj.onchain.julc.groth16.codec.ProverToCardano;
+   import org.zeroj.onchain.julc.groth16.codec.SnarkjsToCardano;
+
+   import java.math.BigInteger;
+
+   /** Lock first, then prove for that exact UTxO, then unlock. A copied proof can't spend another UTxO. */
+   public class BoundMain {
+
+       public static void main(String[] args) throws Exception {
+           BackendService backend = new BFBackendService(Main.YACI_API, "not-needed-for-yaci");
+           Account alice = new Account(Networks.testnet());
+           Main.topUp(alice.baseAddress(), 100);
+
+           run(new QuickTxBuilder(backend), new DefaultUtxoSupplier(backend.getUtxoService()), alice);
+       }
+
+       static void run(QuickTxBuilder quickTx, UtxoSupplier utxos, Account alice) {
+           // 1. Circuit and DEV-ONLY setup. The keys, and so the script address, exist before any proof.
+           var circuit = BoundSecretMultiplierCircuit.build();
+           var r1cs = circuit.compileR1CS(CurveId.BLS12_381);
+           BigInteger tau = PowersOfTauBLS381.generate(4).tauScalar();
+           try (var keys = Groth16Keys.setupInMemory(
+                   r1cs.constraints(), r1cs.numWires(), r1cs.numPublicInputs(), tau)) {
+               PlutusV3Script script = spendBoundScript(ProverToCardano.compressVk(keys));
+               String scriptAddress = AddressProvider.getEntAddress(script, Networks.testnet()).toBech32();
+
+               // 2. Lock with the application's public inputs only: datum = [a, product].
+               PlutusData datum = Main.publicInputsDatum(new BigInteger[]{BigInteger.valueOf(3), BigInteger.valueOf(33)});
+               Utxo locked = lock(quickTx, utxos, alice, scriptAddress, datum);
+
+               // 3. The out-ref now exists. Compute spendRef for it and prove [spendRef, a, product].
+               BigInteger spendRef = SpendBinding.spendRef(locked.getTxHash(), locked.getOutputIndex());
+               var inputs = BoundSecretMultiplierCircuit.inputs().spendRef(spendRef).a(3).product(33).b(11);
+               var proof = keys.prove(inputs.calculateWitness(circuit, CurveId.BLS12_381), r1cs.constraints());
+               PlutusData redeemer = redeemer(ProverToCardano.compressProof(proof));
+
+               // 4. Unlock that UTxO with its proof.
+               System.out.println("Unlock the bound UTxO: " + unlock(quickTx, alice, script, locked, redeemer));
+
+               // 5. Replay: lock another UTxO with the same datum and try the same proof on it.
+               Utxo other = lock(quickTx, utxos, alice, scriptAddress, datum);
+               System.out.println("Replay on another UTxO: " + unlock(quickTx, alice, script, other, redeemer));
+           }
+       }
+
+       static Utxo lock(QuickTxBuilder quickTx, UtxoSupplier utxos, Account alice,
+                        String scriptAddress, PlutusData datum) {
+           var tx = new Tx()
+                   .payToContract(scriptAddress, Amount.ada(5), datum)
+                   .from(alice.baseAddress());
+           var result = quickTx.compose(tx)
+                   .withSigner(SignerProviders.signerFrom(alice))
+                   .completeAndWait(System.out::println);
+           if (!result.isSuccessful()) {
+               throw new IllegalStateException("Lock failed: " + result.getResponse());
+           }
+           String txHash = result.getValue();
+           return utxos.getAll(scriptAddress).stream()
+                   .filter(utxo -> utxo.getTxHash().equals(txHash))
+                   .findFirst()
+                   .orElseThrow();
+       }
+
+       static String unlock(QuickTxBuilder quickTx, Account alice, PlutusV3Script script,
+                            Utxo utxo, PlutusData redeemer) {
+           var tx = new ScriptTx()
+                   .collectFrom(utxo, redeemer)
+                   .payToAddress(alice.baseAddress(), Amount.ada(4.5))
+                   .attachSpendingValidator(script);
+           try {
+               var result = quickTx.compose(tx)
+                       .withSigner(SignerProviders.signerFrom(alice))
+                       .feePayer(alice.baseAddress())
+                       .collateralPayer(alice.baseAddress())
+                       .completeAndWait(System.out::println);
+               return result.isSuccessful() ? "unlocked in tx " + result.getValue() : "failed: " + result.getResponse();
+           } catch (RuntimeException e) {
+               return "rejected (" + e.getMessage() + ")";
+           }
+       }
+
+       /** SpendBoundGroth16Verifier parameters, in order: alpha, beta, gamma, delta, IC list. */
+       static PlutusV3Script spendBoundScript(SnarkjsToCardano.VkCompressed vk) {
+           var ic = ListPlutusData.of();
+           for (byte[] point : vk.ic()) {
+               ic.add(new BytesPlutusData(point));
+           }
+           return JulcScriptLoader.load(SpendBoundGroth16Verifier.class,
+                   new BytesPlutusData(vk.alpha()),
+                   new BytesPlutusData(vk.beta()),
+                   new BytesPlutusData(vk.gamma()),
+                   new BytesPlutusData(vk.delta()),
+                   ic);
+       }
+
+       static PlutusData redeemer(SnarkjsToCardano.ProofCompressed p) {
+           return ConstrPlutusData.builder()
+                   .alternative(0)
+                   .data(ListPlutusData.of(
+                           new BytesPlutusData(p.piA()),
+                           new BytesPlutusData(p.piB()),
+                           new BytesPlutusData(p.piC())))
+                   .build();
+       }
+   }
+   ```
+
+5. **Run it** with DevKit running: `gradle runBound` (or `./gradlew runBound`). Expect
+   something like this (hashes shortened; there may be `[PENDING]` lines, and the exact
+   rejection text may vary):
+
+   ```text
+   [SUBMITTED] Tx: d050405f...
+   [CONFIRMED] Tx: d050405f...
+   [SUBMITTED] Tx: 05355fba...
+   [CONFIRMED] Tx: 05355fba...
+   Unlock the bound UTxO: unlocked in tx 05355fba...
+   [SUBMITTED] Tx: 4f303bfb...
+   [CONFIRMED] Tx: 4f303bfb...
+   Replay on another UTxO: rejected (Error while evaluating script cost)
+   ```
+
+   The second UTxO is still spendable, just not with the first UTxO's proof: a fresh proof
+   made for *its* out-ref unlocks it.
+
+</Steps>
+
+Checking the proof costs about 3.0 billion CPU steps and 263,000 memory units in the JuLC VM,
+a little more than the bare verifier because of the extra public input and the hash. Test a
+validator like this with failing cases as well as the happy path. For this one we checked, in
+the JuLC VM, that each of these is rejected: the same proof on another UTxO, a tampered datum
+(`[3, 34]`), a proof made for a different `spendRef`, a datum that already includes
+`spendRef`, and a proof with its points swapped.
+
+### What else to bind
+
+Binding to a UTxO is one ingredient. It stops a proof from being reused on *other* UTxOs, but
+not on the one it was made for: someone who copies the redeemer from your pending unlock
+transaction can submit their own transaction that spends the same UTxO to their address, and
+whichever lands first wins. Before a ZK validator guards anything of value, it typically also
+needs:
+
+- **Output policy and recipient binding**: put the recipient in the statement, as a public
+  input that takes part in a constraint, and have the validator check that an output pays
+  them. A copied proof then can't redirect the funds, which is what stops front-running.
+- **Replay protection** that fits the application: a UTxO binding like the one above, or
+  [nullifiers](/tutorials/private-allowlist/) recorded on-chain.
+- **Authorization**: whose signature is required, and whose proof counts.
+- **State binding**: which roots, epochs or deadlines the public inputs must match.
+
+[On-chain verification](/guides/verifying/on-chain/) covers the validators and libraries in
+detail.
+
+:::caution[Development keys only]
+This tutorial's verification key comes from the in-process development setup, whose toxic
+waste the program knew. Anyone holding it could forge proofs for any public inputs. On-chain
+keys for anything beyond a devnet must come from a multi-party ceremony; see
+[Running a trusted setup ceremony](/guides/proving/trusted-setup-ceremony/). ZeroJ's on-chain
+Groth16 path is rated **Beta, testnet only**: not externally audited and not for value-bearing
+use. See [Status & maturity](/start/status/).
+:::
+
+## Try this
+
+- Change the datum to `[3, 34]` before locking. The lock succeeds (the chain doesn't check
+  datums), but the unlock fails while the transaction is being built, because the validator
+  rejects the proof for those inputs.
+- Print `JulcScriptLoader.scriptHash(Groth16BLS12381Verifier.class, ...)` with the same
+  parameters and compare it with the address: the address is built from that hash.
+- Run the program twice. Each run makes new development keys, so each run has a different
+  script address.
+
+## Next steps
+
+- [On-chain verification](/guides/verifying/on-chain/): the validator family,
+  `Groth16BLS12381Lib`, and budgets.
+- [Application security](/guides/verifying/application-security/): binding proofs to context,
+  replay protection and authorization.
+- [Bring circom & snarkjs circuits](/tutorials/snarkjs-interop/): prove circuits written for
+  the snarkjs toolchain with ZeroJ.
+- [Private voting](/use-cases/private-voting/): nullifiers and validators in a complete
+  application.

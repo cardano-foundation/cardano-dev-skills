@@ -1,0 +1,176 @@
+---
+title: Private token transfers
+description: A design walkthrough of a shielded pool on Cardano. Deposit, then withdraw to a fresh address that nobody can link to the deposit. Design only, no demo.
+sidebar:
+  order: 10
+---
+
+import PrivatePaymentsWalkthrough from '../../../components/walkthrough/PrivatePaymentsWalkthrough.astro';
+
+Every Cardano transaction shows who paid, who got paid, how much and when. That's fine for a lot of
+things, but not for payroll, supplier payments, donations to sensitive causes or a treasury that
+doesn't want to broadcast its strategy. Using fresh addresses doesn't help much, because change
+outputs and timing let chain analysis stitch them back together. A **shielded pool** breaks the
+link: many people deposit the same amount, and each later withdraws to a new address without
+revealing which deposit was theirs.
+
+:::note[Design-level page: there is no runnable demo]
+Unlike the other use cases, private transfers aren't implemented in
+[zeroj-usecases](https://github.com/bloxbean/zeroj-usecases). This page describes a design built
+from ZeroJ's building blocks. The circuit below is a design sketch, not a tested application.
+Privacy pools also carry legal and compliance questions that are outside the scope of these docs.
+:::
+
+<PrivatePaymentsWalkthrough />
+
+## The zero-knowledge idea
+
+**The withdrawer proves "I know the secret behind *one of* the deposits in this pool, and this is
+its one-time spend tag", without revealing which deposit.**
+
+- **Deposit.** Pick two random values, `secret` and `nullifier`. Compute the note commitment
+  `commitment = Poseidon(secret, nullifier)` and deposit a fixed amount (say 100 ADA) along with it.
+  The commitment joins the pool's Merkle tree.
+- **Withdraw.** Later, possibly from a brand-new address, prove the commitment is somewhere in the
+  tree and reveal `nullifierHash = Poseidon(nullifier, 0)`. The pool records the hash so the same
+  note can't be withdrawn twice.
+
+Nobody learns which leaf was spent. Your anonymity set is every deposit of the same denomination.
+
+## What stays private, what's public
+
+| Input | Visibility | Why |
+|---|---|---|
+| `secret` | Secret | Proves you own the note; only the depositor (or whoever they share it with) knows it |
+| `nullifier` | Secret | Only its hash is revealed, so the spend tag can't be matched to the deposit |
+| Merkle path (`siblings`, `pathBits`) | Secret | The path would reveal which deposit is being spent |
+| `merkleRoot` | Public | A recent root of the pool's commitment tree |
+| `nullifierHash` | Public | Recorded on-chain to block a second withdrawal of the same note |
+| `recipient` | Public | Where the funds go, bound into the proof so it can't be redirected |
+
+The design notes also add a public `relayerFee`, bound the same way as `recipient`.
+
+## How it works
+
+1. **Deposit.** Alice sends 100 ADA and her commitment to the pool. Her address is visible, but her
+   secret and nullifier stay with her.
+2. **Grow the tree.** The pool absorbs deposits into its commitment tree. On Cardano a single shared
+   root UTxO would serialize every deposit. The design notes therefore recommend collecting
+   deposits as individual UTxOs and folding them into the tree in periodic batches.
+3. **Wait.** Time and more deposits grow the anonymity set. Withdrawing right after depositing
+   gives most of it away.
+4. **Withdraw through a relayer.** A fresh address has no ADA to pay fees, so a relayer submits the
+   transaction and takes a fee that the proof also binds.
+5. **The pool validator** verifies the proof, checks the root is one it has published, checks that
+   `nullifierHash` is new (for example in a sorted linked list, as in the
+   [voting demo](/use-cases/private-voting/)), records it and pays the recipient.
+
+```text
+Alice ──100 ADA + commitment──▶ pool      (public: Alice → pool)
+         ... other deposits, time passes ...
+relayer ──proof + nullifierHash──▶ pool ──100 ADA──▶ fresh address   (public: pool → ???)
+```
+
+## The circuit
+
+This is a design sketch in the annotation style, adapted from the withdrawal circuit in the design
+notes with BLS12-381 Poseidon and an explicit recipient binding. It isn't taken from a runnable
+demo.
+
+```java title="PoolWithdrawal.java"
+import org.zeroj.circuit.annotation.*;
+import org.zeroj.circuit.lib.poseidon.PoseidonParams;
+import org.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
+import org.zeroj.circuit.lib.zk.ZkMerkle;
+import org.zeroj.circuit.lib.zk.ZkPoseidon;
+
+@ZKCircuit(name = "pool-withdrawal", nameTemplate = "pool-withdrawal-d{treeDepth}", version = 1)
+public class PoolWithdrawal {
+    private static final PoseidonParams POSEIDON = PoseidonParamsBLS12_381T3.INSTANCE;
+
+    public PoolWithdrawal(@CircuitParam("treeDepth") int treeDepth) {}
+
+    @Prove
+    ZkBool prove(ZkContext zk,
+                 @Public ZkField merkleRoot,
+                 @Public ZkField nullifierHash,
+                 @Public ZkField recipient,
+                 @Secret ZkField secret,
+                 @Secret ZkField nullifier,
+                 @Secret @FixedSize(param = "treeDepth") ZkArray<ZkField> siblings,
+                 @Secret @FixedSize(param = "treeDepth") ZkArray<ZkBool> pathBits) {
+
+        // 1. My note is one of the pool's deposits
+        var commitment = ZkPoseidon.hash(zk, POSEIDON, secret, nullifier);
+        ZkMerkle.verifyProofPoseidon(zk, POSEIDON, commitment, merkleRoot, siblings, pathBits);
+
+        // 2. Bind the recipient: a variable x variable product emits a real constraint row
+        recipient.mul(nullifier);
+
+        // 3. The public spend tag belongs to this note
+        return ZkPoseidon.hash(zk, POSEIDON, nullifier, zk.constant(0)).isEqual(nullifierHash);
+    }
+}
+```
+
+Step 2 is the part people forget. A public input that appears in no constraint isn't committed to
+by a Groth16 proof, so anyone could swap the recipient. Multiplying it by a secret variable creates
+a real constraint. The [airdrop demo](/use-cases/sybil-resistant-airdrop/#the-circuit) uses the same
+technique, and ZeroJ's native Groth16 setup refuses a relation that leaves a public input unbound.
+Before building on a sketch like this, write invalid-witness tests: a note that isn't in the tree, a
+wrong `nullifierHash`, and a proof checked against a changed recipient. All of them must fail. See
+[Testing circuits](/guides/circuits/testing-circuits/).
+
+## On Cardano
+
+Verification would use `Groth16BLS12381Lib` from `zeroj-onchain-julc` inside a custom pool
+validator, as every demo on this site does. The proof is the easy part. The validator carries most
+of the security:
+
+- **Known roots only.** Accept `merkleRoot` only if it's the current root or a recent one the pool
+  published. Otherwise a withdrawer can prove membership in a tree they made up.
+- **Nullifier registry.** Store each `nullifierHash` so it can't be reused. A sorted linked list
+  gives trustless, concurrent inserts.
+- **Pay exactly as bound.** Require an output to `recipient` for the denomination minus
+  `relayerFee`, and the fee to the relayer, and nothing else leaving the pool.
+- **Value accounting.** The pool must never release more than it holds for a denomination.
+
+A valid proof is not authorization. Every one of these checks lives in the validator, not the
+circuit. See [Application security](/guides/verifying/application-security/).
+
+## Security considerations
+
+- **Anonymity set size.** With 5 deposits you're 1 in 5. Privacy grows only as the pool is used.
+- **Timing and amount fingerprinting.** Withdrawing soon after depositing, or using unusual
+  amounts, links you. Fixed denominations help; variable amounts need a more complex circuit.
+- **Relayer trust.** A relayer can refuse to submit (censor) but can't redirect funds if the
+  recipient and fee are bound. Use more than one.
+- **Note secrets.** Whoever holds `secret` and `nullifier` can withdraw. Losing them loses the
+  funds.
+- **Compliance.** "Privacy pools" designs let users prove their deposit belongs to an approved
+  association set. The design notes sketch this. Get legal advice before running anything like it.
+- **Trusted setup and review.** A pool holding value would need a multi-party ceremony
+  ([Trusted setup, explained](/learn/trusted-setup/)) and an external audit, neither of which
+  exists for this design.
+
+## Try it
+
+There's no demo to run. To experiment with the building blocks:
+
+- Work through [Private allowlist with a Merkle tree](/tutorials/private-allowlist/). It's the same
+  membership-plus-nullifier core, and it's runnable.
+- Run the [voting demo](/use-cases/private-voting/#try-it) to see a sorted-list nullifier registry
+  on Yaci DevKit.
+- Read the design notes:
+  [Private token transfer — detailed design](https://github.com/bloxbean/zeroj/blob/main/docs/usecases/private-token-transfer.md)
+  (UTxO patterns for commitments, batch deposits, relayers, multi-asset pools). Its code samples
+  are older sketches. Prefer the BLS12-381 Poseidon parameters and explicit recipient binding shown
+  above.
+
+## Related
+
+- [Private voting](/use-cases/private-voting/): nullifiers and a sorted-list registry, running
+  end to end
+- [Gadgets](/guides/circuits/gadgets/): `ZkMerkle`, `ZkPoseidon`
+- [On-chain verification](/guides/verifying/on-chain/)
+- [ZK on Cardano](/learn/zk-on-cardano/)

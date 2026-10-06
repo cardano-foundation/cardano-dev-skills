@@ -1,0 +1,450 @@
+---
+title: Bring circom & snarkjs circuits
+description: Prove a circom circuit with ZeroJ's pure-Java prover using snarkjs keys, and hand ZeroJ proofs to snarkjs. Groth16 on BLS12-381, both directions.
+sidebar:
+  order: 4
+---
+
+import { Steps, FileTree, Aside } from '@astrojs/starlight/components';
+import InteropDiagram from '../../../components/walkthrough/InteropDiagram.astro';
+import TextOnly from '../../../components/TextOnly.astro';
+
+Maybe you already have circuits written in [circom](https://docs.circom.io/), or keys from a
+snarkjs trusted-setup ceremony. You don't have to rewrite anything to use ZeroJ. Groth16 on
+BLS12-381 speaks the same formats in both directions:
+
+<InteropDiagram />
+
+<TextOnly>
+
+```text
+  circom + snarkjs                                   ZeroJ (pure Java)
+  ----------------                                   -----------------
+  .zkey  (proving key)     ──── import ────►   prove without Node.js
+  .wtns  (witness)         ──── import ────►
+  verification_key.json    ◄─── same JSON ───►   verify snarkjs or ZeroJ proofs
+  proof.json, public.json  ◄─── same JSON ───►   export for `snarkjs groth16 verify`
+```
+
+</TextOnly>
+
+**What you'll build:** a tiny circom circuit set up with snarkjs, proved by ZeroJ's pure-Java
+prover; and a ZeroJ circuit whose proof snarkjs verifies.
+
+**What you'll learn:**
+
+- how to compile circom for BLS12-381 and run a snarkjs Groth16 setup
+- how to import `.zkey` and `.wtns` files and prove in Java
+- how snarkjs orders public signals
+- how to export ZeroJ keys and proofs as snarkjs JSON
+
+<Aside type="note" title="Prerequisites">
+
+- Java 25 and Gradle (see [Installation](/start/installation/)).
+- Node.js, [circom](https://docs.circom.io/getting-started/installation/) 2.x and snarkjs on
+  your `PATH` (`npm install -g snarkjs`). ZeroJ's interoperability CI pins **snarkjs 0.7.6**;
+  this page was checked with snarkjs 0.7.6 and circom 2.2.3.
+
+</Aside>
+
+## Set up the Java project
+
+Both directions share one small project. `Main` picks the direction from its first argument,
+and the other Java files follow in the two sections below; create all of them before the first
+run.
+
+<FileTree>
+
+- zeroj-snarkjs-interop/
+  - settings.gradle
+  - build.gradle
+  - circuit/
+    - multiplier.circom
+    - input.json
+  - src/main/java/com/example/interop/
+    - Main.java
+    - FromSnarkjs.java
+    - ToSnarkjs.java
+    - SecretMultiplier.java
+
+</FileTree>
+
+```groovy title="settings.gradle"
+rootProject.name = 'zeroj-snarkjs-interop'
+```
+
+```groovy title="build.gradle"
+plugins {
+    id 'application'
+}
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+dependencies {
+    implementation platform('org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%')
+    annotationProcessor platform('org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%')
+
+    implementation 'org.zeroj:zeroj-circuit-annotation-api'
+    annotationProcessor 'org.zeroj:zeroj-circuit-annotation-processor'
+    implementation 'org.zeroj:zeroj-circuit-dsl'
+    implementation 'org.zeroj:zeroj-crypto'
+    implementation 'org.zeroj:zeroj-codec'
+    implementation 'org.zeroj:zeroj-verifier-groth16'
+}
+
+application {
+    mainClass = 'com.example.interop.Main'
+    // Dev-only: needed by the ZeroJ -> snarkjs direction, which runs an in-process setup.
+    applicationDefaultJvmArgs = ['-Dzeroj.allowInsecureTrustedSetup=true']
+}
+```
+
+```java title="src/main/java/com/example/interop/Main.java"
+package com.example.interop;
+
+import org.zeroj.api.CircuitId;
+import org.zeroj.api.CurveId;
+import org.zeroj.api.ProofSystemId;
+import org.zeroj.api.VerificationMaterial;
+import org.zeroj.codec.SnarkjsJsonCodec;
+import org.zeroj.verifier.groth16.bls12381.Groth16BLS12381PureJavaVerifier;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+
+public class Main {
+
+    public static void main(String[] args) throws Exception {
+        Path dir = Path.of(args[1]);
+        switch (args[0]) {
+            case "from-snarkjs" -> FromSnarkjs.run(dir);
+            case "to-snarkjs" -> ToSnarkjs.run(dir);
+            default -> throw new IllegalArgumentException("usage: from-snarkjs|to-snarkjs <dir>");
+        }
+    }
+
+    /** Pure-Java Groth16 BLS12-381 verification of snarkjs-format JSON. */
+    static boolean verify(String vkJson, String proofJson, String publicJson) {
+        var id = new CircuitId("multiplier");
+        var envelope = SnarkjsJsonCodec.toEnvelopeFromJson(proofJson, vkJson, publicJson, id);
+        var material = VerificationMaterial.of(vkJson.getBytes(StandardCharsets.UTF_8),
+                ProofSystemId.GROTH16, CurveId.BLS12_381, id);
+        return new Groth16BLS12381PureJavaVerifier().verify(envelope, material).proofValid();
+    }
+}
+```
+
+## Direction 1: circom and snarkjs in, ZeroJ proves
+
+<Steps>
+
+1. **Write the circom circuit** and its input in the `circuit/` directory. It's the same
+   statement as the [Quickstart](/start/quickstart/): *"I know `b` such that `a × b = c`."*
+
+   ```text title="circuit/multiplier.circom"
+   pragma circom 2.0.0;
+
+   // "I know a secret b such that a * b = c." a and c are public.
+   template Multiplier() {
+       signal input a;
+       signal input b;
+       signal output c;
+       c <== a * b;
+   }
+
+   component main {public [a]} = Multiplier();
+   ```
+
+   ```json title="circuit/input.json"
+   { "a": "3", "b": "11" }
+   ```
+
+2. **Compile for BLS12-381 and compute the witness.** circom targets BN254 by default; Cardano
+   needs `--prime bls12381`.
+
+   ```bash
+   cd circuit
+   circom multiplier.circom --r1cs --wasm --sym --prime bls12381
+   node multiplier_js/generate_witness.js multiplier_js/multiplier.wasm input.json witness.wtns
+   ```
+
+   `witness.wtns` contains every signal, including the secret `b`. Treat it like a private key:
+   don't commit it or ship it anywhere.
+
+3. **Run a Groth16 setup with snarkjs.** Phase 1 is the universal "powers of tau", phase 2 is
+   specific to this circuit. Each `contribute` mixes in randomness.
+
+   ```bash
+   # Phase 1 (dev-only, tiny): 2^8 constraints is plenty here
+   snarkjs powersoftau new bls12-381 8 pot_0000.ptau
+   snarkjs powersoftau contribute pot_0000.ptau pot_0001.ptau --name="dev contribution" -e="some random text"
+   snarkjs powersoftau prepare phase2 pot_0001.ptau pot_final.ptau
+
+   # Phase 2: circuit-specific keys
+   snarkjs groth16 setup multiplier.r1cs pot_final.ptau multiplier_0000.zkey
+   snarkjs zkey contribute multiplier_0000.zkey multiplier.zkey --name="dev contribution" -e="more random text"
+   snarkjs zkey export verificationkey multiplier.zkey verification_key.json
+   ```
+
+   For comparison later, also let snarkjs make its own proof:
+
+   ```bash
+   snarkjs groth16 prove multiplier.zkey witness.wtns proof.json public.json
+   snarkjs groth16 verify verification_key.json public.json proof.json
+   cd ..
+   ```
+
+   The last command prints `[INFO]  snarkJS: OK!`.
+
+   <Aside type="caution" title="A one-person ceremony is still a dev setup">
+
+   This ceremony has a single contributor, you, so you could have kept the toxic waste. It's
+   fine for learning. Production keys need a real multi-party ceremony with independent
+   contributors and a public transcript; see
+   [Running a trusted setup ceremony](/guides/proving/trusted-setup-ceremony/).
+
+   </Aside>
+
+4. **Prove in Java.** `ZkeyImporterBLS381` reads the snarkjs proving key (with the circuit's
+   constraints, which a `.zkey` carries) and the witness. After that no Node.js is involved.
+
+   ```java title="src/main/java/com/example/interop/FromSnarkjs.java"
+   package com.example.interop;
+
+   import org.zeroj.codec.SnarkjsJsonCodec;
+   import org.zeroj.crypto.groth16.Groth16ProverBLS381;
+   import org.zeroj.crypto.groth16.ZkeyImporterBLS381;
+   import org.zeroj.crypto.snarkjs.SnarkjsGroth16Json;
+
+   import java.io.IOException;
+   import java.math.BigInteger;
+   import java.nio.file.Files;
+   import java.nio.file.Path;
+   import java.util.Arrays;
+
+   /** circom + snarkjs artifacts in, pure-Java proof out. */
+   public class FromSnarkjs {
+
+       static void run(Path dir) throws IOException {
+           // 1. Load what circom and snarkjs produced.
+           var zkey = ZkeyImporterBLS381.importZkeyFull(Files.readAllBytes(dir.resolve("multiplier.zkey")));
+           BigInteger[] witness;
+           try (var in = Files.newInputStream(dir.resolve("witness.wtns"))) {
+               witness = ZkeyImporterBLS381.importWtns(in);
+           }
+           String vkJson = Files.readString(dir.resolve("verification_key.json"));
+           int nPublic = SnarkjsJsonCodec.parseVerificationKey(vkJson).nPublic();
+
+           // 2. Prove with the pure-Java prover. No Node.js involved from here on.
+           var proof = Groth16ProverBLS381.prove(
+                   zkey.provingKey(), witness, zkey.constraints(), zkey.numWires());
+           BigInteger[] publicInputs = Arrays.copyOfRange(witness, 1, 1 + nPublic);
+           String proofJson = SnarkjsGroth16Json.proofJson(proof);
+           String publicJson = SnarkjsGroth16Json.publicJson(publicInputs);
+           Files.writeString(dir.resolve("zeroj-proof.json"), proofJson);
+           Files.writeString(dir.resolve("zeroj-public.json"), publicJson);
+           System.out.println("Public signals (snarkjs order): " + Arrays.toString(publicInputs));
+
+           // 3. Verify ZeroJ's proof against snarkjs' own verification key.
+           System.out.println("ZeroJ proof  + snarkjs VK -> " + Main.verify(vkJson, proofJson, publicJson));
+
+           // 4. Verify the proof snarkjs generated, with ZeroJ's verifier.
+           String snarkjsProof = Files.readString(dir.resolve("proof.json"));
+           String snarkjsPublic = Files.readString(dir.resolve("public.json"));
+           System.out.println("snarkjs proof + ZeroJ verifier -> " + Main.verify(vkJson, snarkjsProof, snarkjsPublic));
+       }
+   }
+   ```
+
+5. **Run it** from the project directory. `Main` also refers to `ToSnarkjs`, so add the two
+   files from [Direction 2](#direction-2-zeroj-proves-snarkjs-verifies) first:
+
+   ```bash
+   gradle run --args='from-snarkjs circuit'
+   ```
+
+   ```text
+   Public signals (snarkjs order): [33, 3]
+   ZeroJ proof  + snarkjs VK -> true
+   snarkjs proof + ZeroJ verifier -> true
+   ```
+
+   Now close the loop and let snarkjs judge ZeroJ's proof:
+
+   ```bash
+   snarkjs groth16 verify circuit/verification_key.json circuit/zeroj-public.json circuit/zeroj-proof.json
+   ```
+
+   ```text
+   [INFO]  snarkJS: OK!
+   ```
+
+</Steps>
+
+### Public signal order
+
+Look at the public signals: `[33, 3]`, not `[3, 33]`. snarkjs lists a circuit's **outputs
+first**, then its public inputs, in declaration order. Here `c` is an output and `a` a public
+input. In the witness they sit right after the constant `1`, which is why `FromSnarkjs` takes
+elements `1` to `nPublic`. Anything that consumes these values, such as a Cardano datum, must
+use exactly this order.
+
+### Importing keys you care about
+
+- **Pin the key.** A `.zkey` from a ceremony is a security-critical input. Use the
+  `ZkeyImporterBLS381.importZkeyFull(bytes, expectedSha256)` overload so the import fails
+  unless the file matches the hash published with the ceremony transcript.
+- **Large circuits.** `importZkeyFull` loads the whole key into the heap. For big keys,
+  `ZkeyPkStoreImporter.importToPkStore(zkeyFile, dir, expectedSha256)` converts the `.zkey` once
+  into a memory-mapped key store, pinned to the same hash, and returns the store's manifest hash
+  that you open it with: `Groth16Keys.load(dir, manifestSha256)`. The
+  [Groth16 guide](/guides/proving/groth16/) shows that flow, including the extra argument that
+  snarkjs-made keys need at prove time.
+- **The witness must match the key.** A `.zkey` is made for one exact constraint system, so
+  the witness must come from that same circuit, here circom's generated witness calculator.
+  Rewriting the circuit in ZeroJ's DSL gives a different constraint system, which needs its
+  own setup.
+
+## Direction 2: ZeroJ proves, snarkjs verifies
+
+Any ZeroJ Groth16 proof can be exported in snarkjs' JSON format. `SnarkjsGroth16Json` writes
+the same bytes snarkjs 0.7.6 writes, so any tool that reads snarkjs files can check ZeroJ
+proofs.
+
+<Steps>
+
+1. **Add the Quickstart circuit** to the project.
+
+   ```java title="src/main/java/com/example/interop/SecretMultiplier.java"
+   package com.example.interop;
+
+   import org.zeroj.circuit.annotation.Prove;
+   import org.zeroj.circuit.annotation.Public;
+   import org.zeroj.circuit.annotation.Secret;
+   import org.zeroj.circuit.annotation.ZKCircuit;
+   import org.zeroj.circuit.annotation.ZkBool;
+   import org.zeroj.circuit.annotation.ZkContext;
+   import org.zeroj.circuit.annotation.ZkField;
+
+   /** "I know a secret b such that a × b = product." */
+   @ZKCircuit(name = "secret-multiplier", version = 1)
+   public class SecretMultiplier {
+
+       @Prove
+       ZkBool prove(ZkContext zk,
+                    @Public ZkField a,
+                    @Public ZkField product,
+                    @Secret ZkField b) {
+           return a.mul(b).isEqual(product);
+       }
+   }
+   ```
+
+2. **Prove and export.** `SnarkjsGroth16Json` produces the three files snarkjs expects.
+
+   ```java title="src/main/java/com/example/interop/ToSnarkjs.java"
+   package com.example.interop;
+
+   import org.zeroj.api.CurveId;
+   import org.zeroj.crypto.groth16.Groth16Keys;
+   import org.zeroj.crypto.setup.PowersOfTauBLS381;
+   import org.zeroj.crypto.snarkjs.SnarkjsGroth16Json;
+
+   import java.io.IOException;
+   import java.math.BigInteger;
+   import java.nio.file.Files;
+   import java.nio.file.Path;
+
+   /** A ZeroJ circuit, proved in Java, exported in exactly the files snarkjs expects. */
+   public class ToSnarkjs {
+
+       static void run(Path dir) throws IOException {
+           var circuit = SecretMultiplierCircuit.build();
+           var r1cs = circuit.compileR1CS(CurveId.BLS12_381);
+           var inputs = SecretMultiplierCircuit.inputs().a(3).product(33).b(11);
+           BigInteger[] witness = inputs.calculateWitness(circuit, CurveId.BLS12_381);
+
+           BigInteger tau = PowersOfTauBLS381.generate(4).tauScalar(); // DEV-ONLY setup
+           try (var keys = Groth16Keys.setupInMemory(
+                   r1cs.constraints(), r1cs.numWires(), r1cs.numPublicInputs(), tau)) {
+               var proof = keys.prove(witness, r1cs.constraints());
+
+               Files.createDirectories(dir);
+               Files.writeString(dir.resolve("verification_key.json"), SnarkjsGroth16Json.verificationKeyJson(keys));
+               Files.writeString(dir.resolve("proof.json"), SnarkjsGroth16Json.proofJson(proof));
+               Files.writeString(dir.resolve("public.json"),
+                       SnarkjsGroth16Json.publicJson(inputs.publicValues().toArray(BigInteger[]::new)));
+           }
+           System.out.println("Wrote verification_key.json, proof.json, public.json to " + dir);
+       }
+   }
+   ```
+
+3. **Run it, then verify with snarkjs.**
+
+   ```bash
+   gradle run --args='to-snarkjs zeroj-out'
+   cd zeroj-out
+   snarkjs groth16 verify verification_key.json public.json proof.json
+   ```
+
+   ```text
+   [INFO]  snarkJS: OK!
+   ```
+
+4. **Tamper and check again.** Claim the product is 34:
+
+   ```bash
+   echo '["3","34"]' > tampered-public.json
+   snarkjs groth16 verify verification_key.json tampered-public.json proof.json
+   ```
+
+   ```text
+   [ERROR] snarkJS: Invalid proof
+   ```
+
+</Steps>
+
+This direction uses ZeroJ's in-process setup, which is **development-only** (hence the
+`-Dzeroj.allowInsecureTrustedSetup=true` flag in `build.gradle`). Exporting its key to
+snarkjs doesn't make it any more trustworthy. For keys you'll rely on, run a multi-party
+ceremony and import the resulting `.zkey`, as in Direction 1.
+
+:::note[What about PlonK?]
+ZeroJ also has an exporter for snarkjs-format PlonK files, but PlonK support is
+**experimental** in ZeroJ. This tutorial, and the current release, focus on Groth16.
+:::
+
+## Where the formats meet Cardano
+
+snarkjs artifacts can go on-chain too. `SnarkjsToCardano` in `zeroj-onchain-julc` converts
+`verification_key.json` and `proof.json` into the compressed parameters and redeemer that the
+Plutus V3 Groth16 verifier takes, the same shapes that
+[Verify your proof on Cardano](/tutorials/verify-on-cardano/) builds from a ZeroJ proof. The
+public inputs go into the datum in snarkjs' order, outputs first. The warnings on that page
+about binding proofs to their context apply here unchanged.
+
+## Try this
+
+- Change `input.json` to `{ "a": "3", "b": "12" }`, regenerate the witness, and prove again
+  in Java. The proof is valid, for the public signals `[36, 3]`: circom computed `c` for you.
+  To reject a wrong product, `c` would have to be a public *input* that the circuit
+  constrains, not an output.
+- Edit `circuit/zeroj-public.json` to `["33","4"]` and run the `snarkjs groth16 verify`
+  command from Direction 1 again. It prints `Invalid proof`.
+
+## Next steps
+
+- [Groth16 guide](/guides/proving/groth16/): key stores and proving with imported ceremony keys.
+- [Running a trusted setup ceremony](/guides/proving/trusted-setup-ceremony/): replace the dev
+  setup with a real one.
+- [Off-chain verification](/guides/verifying/off-chain/): verifier backends and envelopes.
+- [Verify your proof on Cardano](/tutorials/verify-on-cardano/): take a Groth16 proof on-chain.

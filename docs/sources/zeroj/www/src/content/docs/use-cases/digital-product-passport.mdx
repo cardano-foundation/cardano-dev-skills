@@ -1,0 +1,181 @@
+---
+title: Digital product passport
+description: Prove a product meets carbon, recycled-content and origin thresholds without exposing the supplier data behind them, anchored on Cardano.
+sidebar:
+  order: 8
+---
+
+import ProductPassportWalkthrough from '../../../components/walkthrough/ProductPassportWalkthrough.astro';
+
+The EU's Ecodesign for Sustainable Products Regulation (ESPR) introduces Digital Product Passports:
+verifiable records of a regulated product's materials, carbon footprint, recycled content and
+origin. Regulators, recyclers and consumers need to trust
+those claims. But the exact numbers behind them are commercially sensitive. A precise carbon figure
+reveals manufacturing efficiency, origin data reveals suppliers, and inspection records reveal defect
+rates. The tension is real: *prove it, but don't publish it.*
+
+<ProductPassportWalkthrough />
+
+## The zero-knowledge idea
+
+**The manufacturer proves "an auditor committed to this product's measurement, and it meets the
+threshold" (for example carbon ≤ 50 kg CO₂e, or recycled content ≥ 30 %) without revealing the
+measurement.**
+
+The pattern is the same for every claim:
+
+- An **auditor** measures the product and commits to `(productId, measurement)`.
+- The **manufacturer** proves, in zero knowledge, that the committed measurement passes the public
+  threshold.
+- The **proof is tied to one product**, because `productId` is inside the committed hash.
+- **Anyone** can check the proof. Nobody learns the number.
+
+The demo applies this to carbon (≤), recycled content (≥), manufacturing origin (Merkle membership
+in an approved-country set) and an ordered chain of inspections. It covers two scenarios: EV
+batteries with a passport NFT per product, and textiles with one per batch.
+
+## What stays private, what's public
+
+| Input | Visibility | Why |
+|---|---|---|
+| `measurement` | Secret | The exact carbon figure or recycled percentage: the competitive data |
+| `auditorSecret` | Secret | Opens the auditor's commitment |
+| `productId` | Public | Ties the proof to one product or batch |
+| `threshold` | Public | The regulatory or labelling limit |
+| `auditorHash` | Public | The auditor's commitment to `(productId, measurement)` |
+| `isCompliant` | Public | Proven equal to the threshold comparison; the validator requires 1 |
+
+## How it works
+
+1. **Register.** Products and batches go into a registry. The demo keeps it in a Merkle Patricia
+   Forestry trie hashed with Poseidon, so its root stays circuit-friendly.
+2. **Audit.** The auditor measures and publishes a commitment per product and claim.
+3. **Prove.** The manufacturer generates one Groth16 proof per claim.
+4. **Mint the passport.** A minting policy checks the manufacturer's signature and the compliance
+   proof, then mints exactly one passport token. The public inputs sit in the output's inline datum.
+5. **Check.** Anyone can read the passport and its public inputs on-chain. A non-compliant product
+   can't mint one.
+
+```text
+auditor ──commit(productId, measurement)──▶ auditorHash (public)
+manufacturer ──prove(measurement ≤ threshold)──▶ mint DPP token
+                                                 datum: [productId, threshold, auditorHash, isCompliant=1]
+```
+
+## The circuit
+
+The DPP demo deliberately uses the lower-level `CircuitSpec` style instead of annotations. This
+sketch is simplified from its `ComplianceThresholdCircuit`, keeping only the "less than or equal"
+variant used for carbon:
+
+```java title="CarbonThresholdCircuit.java"
+import org.zeroj.circuit.CircuitBuilder;
+import org.zeroj.circuit.CircuitSpec;
+import org.zeroj.circuit.Signal;
+import org.zeroj.circuit.SignalBuilder;
+import org.zeroj.circuit.lib.SignalComparators;
+import org.zeroj.circuit.lib.SignalPoseidon;
+import org.zeroj.circuit.lib.poseidon.PoseidonParams;
+import org.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
+
+public class CarbonThresholdCircuit implements CircuitSpec {
+    private static final PoseidonParams POSEIDON = PoseidonParamsBLS12_381T3.INSTANCE;
+
+    @Override
+    public void define(SignalBuilder c) {
+        Signal measurement   = c.privateInput("measurement");     // secret: kg CO2e
+        Signal auditorSecret = c.privateInput("auditorSecret");
+        Signal productId     = c.publicInput("productId");
+        Signal threshold     = c.publicInput("threshold");
+        Signal auditorHash   = c.publicInput("auditorHash");
+        Signal isCompliant   = c.publicOutput("isCompliant");
+
+        // 1. This is the measurement the auditor committed to, for this product
+        Signal claims = SignalPoseidon.hash(c, POSEIDON, productId, measurement);
+        c.assertEqual(SignalPoseidon.hash(c, POSEIDON, auditorSecret, claims), auditorHash);
+
+        // 2. measurement <= threshold (16-bit; the comparator range-checks both sides)
+        c.assertEqual(isCompliant, SignalComparators.lessOrEqual(c, measurement, threshold, 16));
+    }
+
+    public static CircuitBuilder build() {
+        return CircuitBuilder.create("compliance-lte")
+                .publicVar("productId").publicVar("threshold")
+                .publicVar("auditorHash").publicVar("isCompliant")
+                .secretVar("measurement").secretVar("auditorSecret")
+                .defineSignals(new CarbonThresholdCircuit());
+    }
+}
+```
+
+Each threshold circuit is small, a few hundred constraints. The rest of the flow is the same as
+any other circuit. Compile to R1CS, compute the witness and prove with Groth16. See the
+[Circuit DSL guide](/guides/circuits/circuit-dsl/).
+
+:::caution[A commitment is not a signature]
+In the demo, one service plays both auditor and manufacturer, and the "auditor commitment" is a
+Poseidon hash keyed by a secret the prover also knows. Anyone who knows that secret can commit to
+any number. A real system needs the auditor to **sign** the measurement, with the signature
+verified in-circuit (as the [KYC demos](/use-cases/age-and-kyc/) do with EdDSA-Jubjub). Or it needs
+`auditorHash` published by a registered auditor key that the validator checks.
+:::
+
+## On Cardano
+
+The demo uses two JuLC scripts built on `Groth16BLS12381Lib.verify(...)`:
+
+- **`DppMintingPolicy`** mints a passport token only if the manufacturer signed the transaction,
+  exactly one token is minted, the compliance proof over the first output's datum
+  `[productId, threshold, auditorHash, isCompliant]` verifies, and `isCompliant == 1`.
+- **`DppComplianceValidator`** is a compliance-gated spending validator: lock ADA, then unlock it
+  with a proof of compliance.
+
+A valid proof is not authorization. The manufacturer-signature check is a real `ScriptContext`
+binding, but a production passport also has to tie `auditorHash` to an accredited auditor, pin
+thresholds to the regulation that applies (not to a value the manufacturer picks) and bind
+`productId` to the token being minted. The DPP state machine and an auditor registry held as a
+reference input are covered in the design notes below.
+
+## Security considerations
+
+- **Auditor trust.** ZK proves the audited value passes the threshold, not that the audit was
+  honest. Use independent auditors, spot checks and accountability, the same trust model as today's
+  certification.
+- **Bind every claim to the product and an attestation.** An origin proof that only shows "some
+  country code is in the approved set" proves nothing about *this* product. Each claim needs the
+  product ID and an attested value inside its constraints, and every public input must appear in a
+  constraint.
+- **Thresholds and policy** belong to the verifier: pin them as script parameters or read them from
+  a registry.
+- **Linkability of batches.** Per-batch passports reveal batch sizes and timing. Decide what you're
+  willing to publish.
+- **Trusted setup.** The demo uses a single-party development setup; production needs an MPC
+  ceremony ([Trusted setup, explained](/learn/trusted-setup/)).
+
+## Try it
+
+The demo lives in
+[`digital-product-passport`](https://github.com/bloxbean/zeroj-usecases/tree/main/digital-product-passport).
+With Yaci DevKit running (see [Run the demos](/use-cases/overview/#run-the-demos)):
+
+```bash
+./demo.sh dpp --run
+```
+
+`--run` generates the compliance proofs for battery `BAT-SN001`, mints its passport token on-chain
+and prints the registry status. In the UI, try `BAT-SN003` (65 kg carbon, 20 % recycled) or textile
+batch `TEX-B2024-003`, which is made outside the approved set. Both come back "NOT COMPLIANT".
+
+Design notes:
+[Digital product passport — detailed design](https://github.com/bloxbean/zeroj/blob/main/docs/usecases/digital-product-passport.md)
+(multi-party supply chains, lifecycle state machine, comparison with the Cardano Foundation
+blueprint).
+
+## Related
+
+- [Circuit DSL](/guides/circuits/circuit-dsl/): the `CircuitSpec` style used here
+- [Authenticated state](/guides/credentials/authenticated-state/): Poseidon MPF/JMT registries
+  (experimental)
+- [Testing circuits](/guides/circuits/testing-circuits/): prove your constraints reject bad
+  witnesses
+- [Application security](/guides/verifying/application-security/)

@@ -1,0 +1,285 @@
+---
+title: Test your circuits for soundness
+description: Why honest-witness tests aren't enough, a soundness checklist, invalid-witness and proof-tampering JUnit tests, and differential testing.
+sidebar:
+  order: 4
+---
+
+import UnderConstrainedExplainer from '../../../../components/walkthrough/UnderConstrainedExplainer.astro';
+
+A circuit that produces the right answer for honest inputs can still be broken. The dangerous bug
+in zero-knowledge code is the **under-constrained circuit**: a missing constraint that lets a
+dishonest prover build a valid proof for a false statement. Nothing crashes and every honest test
+stays green. This is the most common class of serious ZK bug, so this page is about testing what
+the circuit *rejects*, not only what it accepts.
+
+## Why honest tests prove so little
+
+Your tests use ZeroJ's witness calculator, which computes every intermediate wire honestly. A
+real attacker doesn't. They choose all the wire values themselves and only need the constraint
+rows to hold. So two different questions matter:
+
+1. **Does my witness generator reject bad inputs?** `calculateWitness` answers this. It throws
+   `ArithmeticException` when an assertion fails.
+2. **Do my constraints reject every false statement?** This is soundness, and it's what the
+   verifier actually enforces. You probe it with *adversarial* witnesses: values chosen to satisfy
+   the equations you wrote while breaking the statement you meant.
+
+A classic example. The intended statement is "I know a non-trivial factorization of `n`":
+
+```java
+var circuit = CircuitBuilder.create("factor")
+        .publicVar("n").secretVar("a").secretVar("b")
+        .define(api -> api.assertEqual(api.mul(api.var("a"), api.var("b")), api.var("n")));
+```
+
+Honest tests pass with `a = 3, b = 11, n = 33`. But `a = 1, b = 33` also satisfies the circuit,
+and so does `a = p − 1, b = p − 33` (that is, `−1 · −33`), because field arithmetic wraps. The
+circuit needs `a` and `b` range-checked and different from 1. Only a test that *tries* those
+witnesses finds the bug.
+
+The same trap in the age check from
+[Circuits, constraints & witnesses](/learn/circuits-and-witnesses/#the-under-constrained-circuit-bug), as your two tests would see it:
+
+<UnderConstrainedExplainer variant="testing" />
+
+## The checklist
+
+For every circuit, test:
+
+- [ ] **Schema order.** Public and secret input names, in order. Public-input order is part of
+      the verifier contract.
+- [ ] **A valid witness.** The honest case computes without error.
+- [ ] **One invalid witness per intended rule.** For each thing the circuit should enforce,
+      build a witness that breaks only that rule and assert it's rejected.
+- [ ] **Boundaries.** For every range and comparison: the limit itself, limit ± 1, zero, the
+      maximum of the declared width, one past it, and a "negative" value (which becomes `p − x`).
+- [ ] **Field wraparound.** Values near the field prime, and products that could wrap.
+- [ ] **Public-input extraction.** `inputs.publicValues()` returns the values you expect, in order.
+- [ ] **Target compilation.** It compiles for `CurveId.BLS12_381`, and a curve mismatch is refused.
+- [ ] **Proof tampering.** A real proof fails with a changed public input, with public inputs in
+      a different order, and under another circuit's verification key.
+- [ ] **Hints and advice.** Every prover-supplied value is pinned: mutate it and expect rejection.
+
+## A complete JUnit 5 example
+
+This tests the `SealedBid` circuit from
+[Write circuits with annotations](/guides/circuits/annotations/#anatomy-of-an-annotated-circuit):
+the public commitment must match `Poseidon(bidAmount, salt)`, and `bidAmount` (64 bits) must be
+at least `reservePrice`. The proof test needs the dev-only setup flag
+`zeroj.allowInsecureTrustedSetup=true` in your test JVM (see
+[Installation](/start/installation/#enable-the-development-trusted-setup)).
+
+```java title="SealedBidCircuitTest.java"
+import org.junit.jupiter.api.Test;
+import org.zeroj.api.CircuitId;
+import org.zeroj.api.CurveId;
+import org.zeroj.api.ProofSystemId;
+import org.zeroj.api.VerificationMaterial;
+import org.zeroj.circuit.CircuitBuilder;
+import org.zeroj.circuit.lib.poseidon.PoseidonHash;
+import org.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
+import org.zeroj.codec.SnarkjsJsonCodec;
+import org.zeroj.crypto.groth16.Groth16Keys;
+import org.zeroj.crypto.setup.PowersOfTauBLS381;
+import org.zeroj.crypto.snarkjs.SnarkjsGroth16Json;
+import org.zeroj.verifier.groth16.bls12381.Groth16BLS12381PureJavaVerifier;
+
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class SealedBidCircuitTest {
+
+    private static final BigInteger RESERVE = BigInteger.valueOf(75);
+    private static final BigInteger SALT = new BigInteger("88001");
+    private static final BigInteger MAX_U64 = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
+
+    private final CircuitBuilder circuit = SealedBidCircuit.build();
+
+    private static BigInteger commit(BigInteger bid) {
+        return PoseidonHash.hash(PoseidonParamsBLS12_381T3.INSTANCE, bid, SALT);
+    }
+
+    private static SealedBidCircuit.Inputs bid(BigInteger amount, BigInteger commitment) {
+        return SealedBidCircuit.inputs()
+                .bidCommitment(commitment)
+                .reservePrice(RESERVE)
+                .bidAmount(amount)
+                .salt(SALT);
+    }
+
+    private void assertAccepted(SealedBidCircuit.Inputs in) {
+        assertDoesNotThrow(() -> in.calculateWitness(circuit, CurveId.BLS12_381));
+    }
+
+    private void assertRejected(SealedBidCircuit.Inputs in) {
+        assertThrows(ArithmeticException.class, () -> in.calculateWitness(circuit, CurveId.BLS12_381));
+    }
+
+    @Test
+    void schemaOrderIsPinned() {
+        var schema = SealedBidCircuit.schema();
+        assertEquals(List.of("bidCommitment", "reservePrice"), schema.publicInputs().names());
+        assertEquals(List.of("bidAmount", "salt"), schema.secretInputs().names());
+        assertEquals(64, schema.input("bidAmount").bits());
+    }
+
+    @Test
+    void honestBidIsAcceptedAndPublicValuesAreOrdered() {
+        var in = bid(BigInteger.valueOf(100), commit(BigInteger.valueOf(100)));
+        assertAccepted(in);
+        assertEquals(List.of(commit(BigInteger.valueOf(100)), RESERVE), in.publicValues());
+    }
+
+    @Test
+    void eachRuleIsEnforcedOnItsOwn() {
+        // Rule 1: the commitment must match. Valid bid, wrong commitment.
+        assertRejected(bid(BigInteger.valueOf(100), BigInteger.ONE));
+        // Rule 2: the bid must reach the reserve. Matching commitment, low bid.
+        assertRejected(bid(BigInteger.valueOf(50), commit(BigInteger.valueOf(50))));
+    }
+
+    @Test
+    void boundaries() {
+        assertAccepted(bid(RESERVE, commit(RESERVE)));                                    // equal: ok
+        BigInteger justBelow = RESERVE.subtract(BigInteger.ONE);
+        assertRejected(bid(justBelow, commit(justBelow)));                                // reserve - 1
+        assertAccepted(bid(MAX_U64, commit(MAX_U64)));                                    // widest 64-bit value
+        BigInteger tooWide = MAX_U64.add(BigInteger.ONE);
+        assertRejected(bid(tooWide, commit(tooWide)));                                    // 2^64: range check
+        BigInteger minusOne = BigInteger.ONE.negate();                                    // becomes p - 1
+        assertRejected(bid(minusOne, commit(minusOne)));
+    }
+
+    @Test
+    void compilesOnlyForTheIntendedCurve() {
+        var r1cs = circuit.compileR1CS(CurveId.BLS12_381);
+        assertEquals(2, r1cs.numPublicInputs());
+        assertThrows(IllegalStateException.class, () -> circuit.compileR1CS(CurveId.BN254));
+    }
+
+    @Test
+    void proofFailsWithTamperedPublicInputs() {
+        var r1cs = circuit.compileR1CS(CurveId.BLS12_381);
+        var in = bid(BigInteger.valueOf(100), commit(BigInteger.valueOf(100)));
+        BigInteger[] witness = in.calculateWitness(circuit, CurveId.BLS12_381);
+
+        // DEV/TEST ONLY: single-party setup, needs -Dzeroj.allowInsecureTrustedSetup=true
+        BigInteger tau = PowersOfTauBLS381.generate(4).tauScalar();
+        try (var keys = Groth16Keys.setupInMemory(
+                r1cs.constraints(), r1cs.numWires(), r1cs.numPublicInputs(), tau)) {
+            var proof = keys.prove(witness, r1cs.constraints());
+            String vkJson = SnarkjsGroth16Json.verificationKeyJson(keys);
+            String proofJson = SnarkjsGroth16Json.proofJson(proof);
+            BigInteger[] pub = in.publicValues().toArray(BigInteger[]::new);
+
+            assertTrue(verifies(proofJson, vkJson, pub));
+
+            BigInteger[] lowerReserve = pub.clone();
+            lowerReserve[1] = lowerReserve[1].subtract(BigInteger.ONE);
+            assertFalse(verifies(proofJson, vkJson, lowerReserve));
+
+            BigInteger[] swapped = {pub[1], pub[0]};
+            assertFalse(verifies(proofJson, vkJson, swapped));
+        }
+    }
+
+    private static boolean verifies(String proofJson, String vkJson, BigInteger[] publicInputs) {
+        var id = new CircuitId("sealed-bid");
+        var envelope = SnarkjsJsonCodec.toEnvelopeFromJson(
+                proofJson, vkJson, SnarkjsGroth16Json.publicJson(publicInputs), id);
+        var material = VerificationMaterial.of(
+                vkJson.getBytes(StandardCharsets.UTF_8), ProofSystemId.GROTH16, CurveId.BLS12_381, id);
+        return new Groth16BLS12381PureJavaVerifier().verify(envelope, material).proofValid();
+    }
+}
+```
+
+Besides `ArithmeticException` for a violated constraint, expect `IllegalArgumentException` for a
+missing input or an input array of the wrong length, and `IllegalStateException` when the curve
+doesn't match the gadgets' field. Assert the specific type so a test can't pass for the wrong
+reason.
+
+:::note[Test the rule, not the hash]
+In `eachRuleIsEnforcedOnItsOwn`, each invalid case breaks exactly one rule and keeps everything
+else honest (the low bid still has a *matching* commitment). If you broke both at once, a
+missing reserve check would hide behind the commitment check and the test would still pass.
+:::
+
+## Simulating a malicious prover
+
+`calculateWitness` computes intermediate wires and hints itself, so you can't tamper with them
+through the input map. Two techniques reach past it.
+
+**Promote the advice to an input.** To test a gadget that consumes prover advice, build a test
+circuit where the advice values are secret inputs. Then the "attacker" chooses them, and
+`calculateWitness` only checks your constraints. ZeroJ tests its own hint-based Ed25519 arithmetic
+this way: honest quotient and remainder limbs must be accepted, and every limb changed by ±1, or a
+remainder pushed past the modulus, must be rejected.
+
+**Check rows against a tampered witness.** A compiled R1CS is just rows of
+`(A·w) × (B·w) = (C·w)`, and its wire indices match the witness array. A tiny checker lets you
+test any hand-made witness:
+
+```java
+static boolean satisfies(R1CSConstraintSystem r1cs, BigInteger[] w) {
+    BigInteger p = r1cs.prime();
+    for (R1CSConstraint row : r1cs.constraints()) {
+        BigInteger a = dot(row.a(), w, p), b = dot(row.b(), w, p), c = dot(row.c(), w, p);
+        if (a.multiply(b).subtract(c).mod(p).signum() != 0) return false;
+    }
+    return true;
+}
+
+static BigInteger dot(Map<Integer, BigInteger> terms, BigInteger[] w, BigInteger p) {
+    BigInteger sum = BigInteger.ZERO;
+    for (var term : terms.entrySet()) sum = sum.add(term.getValue().multiply(w[term.getKey()]));
+    return sum.mod(p);
+}
+```
+
+Start from an honest witness (`satisfies` must be true), change a value that *should* be pinned,
+such as a public input (`w[1]`) or the output of a gadget you wrote, and assert `satisfies` becomes
+false. An accepted change is a lead worth chasing. Note that some wires legitimately don't appear
+in any row: the compiler inlines linear expressions, and some advice is genuinely free (the
+inverse inside `isZero` when the input is zero). A mutation that stays accepted only matters if it
+changes something the statement depends on.
+
+## Property-based and randomized tests
+
+Soundness bugs hide in corners, so generate many cases. A `@ParameterizedTest` or a loop over
+random values works well: for random bids and reserves, assert that acceptance exactly equals
+`bid >= reserve`, and that every witness for a false statement is rejected. A property-testing
+library such as jqwik can shrink failures to minimal cases. Aim for both directions: *every
+true statement proves* (completeness) and *no false statement proves* (soundness).
+
+## Differential testing
+
+Don't derive expected values only from the code under test:
+
+- **Independent references for off-circuit values.** ZeroJ's own gadgets are validated this way:
+  SHA-512 and HMAC against the JDK's `MessageDigest` and `Mac`, BLAKE2b and key derivation
+  against Cardano Client Lib, Ed25519 against BouncyCastle. Use known-answer vectors from
+  standards where they exist.
+- **snarkjs as an independent verifier.** Export a ZeroJ proof with
+  `SnarkjsGroth16Json.verificationKeyJson`, `proofJson` and `publicJson`, then run
+  `snarkjs groth16 verify verification_key.json public.json proof.json`. ZeroJ's own CI does this
+  in both directions against a pinned snarkjs.
+- **circom for cross-implementation checks.** If a circom version of your circuit exists, compare
+  public outputs for the same inputs. See [Bring circom & snarkjs circuits](/tutorials/snarkjs-interop/).
+
+## Beyond the circuit
+
+A sound circuit and a valid proof still don't make an application secure. A proof can be replayed
+in another transaction, or used by someone it wasn't meant for, unless your validator binds it to
+the transaction context and checks nullifiers and authorization. Test those paths too; see
+[Application security](/guides/verifying/application-security/).
+
+## Next steps
+
+- [Gadget library](/guides/circuits/gadgets/)
+- [Prove with Groth16](/guides/proving/groth16/)
+- [Application security](/guides/verifying/application-security/)

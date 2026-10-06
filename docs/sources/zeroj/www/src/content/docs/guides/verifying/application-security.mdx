@@ -1,0 +1,265 @@
+---
+title: Secure your ZK application
+description: A practical threat-model checklist for ZeroJ builders — authorization, replay, nullifiers, trusted inputs, setup, circuit soundness and secrets.
+sidebar:
+  order: 3
+---
+
+import ReplayExplainer from '../../../../components/walkthrough/ReplayExplainer.astro';
+
+A zero-knowledge proof answers one narrow question: *does the prover know private values that
+satisfy this circuit, for these public inputs, under this verification key?* Every other property
+your application needs (who may act, how often, with what money, based on whose data) is something
+**you** must design, bind and check.
+
+This page walks through the mistakes that turn a correct proof into a broken application, and ends
+with a checklist you can copy into a design review. It applies to off-chain services and Cardano
+validators alike.
+
+:::caution[Research software]
+ZeroJ is experimental and not externally audited. Nothing on this page makes it safe for
+value-bearing or mainnet use. It helps you avoid the application-level bugs that no library can
+prevent for you.
+:::
+
+## Start with a threat model
+
+Before writing a circuit, sort every value into one of three buckets:
+
+| Bucket | Examples | Rule |
+|---|---|---|
+| **Untrusted** | The proof, public inputs, envelope fields (`circuitId`, `vkRef`, metadata), BBS presentations, datums anyone can create, redeemers | Validate, and bind to context, before acting on them. |
+| **Secret** | The witness, issuer signing keys, BBS key material, wallet seeds, trusted-setup toxic waste | Minimize lifetime, never log or persist, keep off shared machines. |
+| **Trusted** | Verification keys *you* pinned, issuer public keys *you* distribute, your own state (nullifier sets, roots) | Load from storage you control. Never accept these from the prover. |
+
+## Proof validity is not authorization
+
+ZeroJ's verifiers return `proofValid() == true` when the math checks out. They do not know who
+sent the proof, whether it was used before, or whether the action it justifies is allowed. On
+Cardano, the reusable `Groth16BLS12381Verifier` validator doesn't even look at the transaction.
+
+Keep the two decisions visibly separate in code. Off-chain, a verifier backend returns
+`VerificationResult.cryptoValid()`, with `accepted() == false`. Only your policy layer should
+produce `VerificationResult.ok()`. See [Verify proofs in Java](/guides/verifying/off-chain/#build-a-verification-service).
+The explainer under [Replay and front-running](#replay-and-front-running) shows what goes wrong when
+only the proof is checked.
+
+## Replay and front-running
+
+A proof is a public, copyable object. Anyone who sees it (in a log, an API response, or the Cardano
+mempool) can submit it again unless the statement ties it to one specific use.
+
+<ReplayExplainer />
+
+- **Bind to the spend.** On Cardano, make a public input depend on the UTxO being spent, for
+  example `spendRef = blake2b_256(spentTxId || outputIndex) mod r` as public input 0. Your validator
+  must compute that value from `ScriptContext`, not read it from the datum of the UTxO it guards:
+  a datum can't contain a hash of its own transaction. The bundled
+  `Groth16BLS12381TxOutRefBindingVerifier` reads it from the datum, so it demonstrates the check
+  but can't lock real funds as-is. See [Verify proofs on Cardano](/guides/verifying/on-chain/#bind-the-proof-to-the-spend).
+- **Bind to the beneficiary.** A proof that is bound only to a UTxO can still be front-run: a
+  watcher copies the redeemer into a transaction that pays *them*. Put the recipient in the statement
+  and check the outputs on-chain.
+- **Bind to a session off-chain.** For API verification, include a server-issued, random,
+  single-use nonce in the statement and consume it on first use.
+- **BBS presentation headers.** A BBS presentation signs over its presentation header (`ph`).
+  Off-chain, the verifier picks `ph` as a fresh random challenge and accepts it once. On-chain,
+  derive the expected `ph` from `ScriptContext`, e.g. `blake2b_256(txId || index || recipientPkh)`.
+  `BbsService.verifyPresentation` reads `ph` from the presentation itself, so **you** must compare
+  it with the value you expect. See [Selective disclosure with BBS](/guides/credentials/bbs/).
+
+## Nullifiers
+
+When the rule is "each member may act once", such as one vote per election or one claim per
+airdrop, use a **nullifier**: a public value that is the same every time the same member acts in
+the same scope, but reveals nothing about who they are.
+
+```text
+nullifier = Poseidon(memberSecret, scopeId)      // scopeId: election, airdrop, epoch…
+```
+
+The circuit must prove all of these at once:
+
+1. `memberSecret` belongs to an eligible member, e.g. `Poseidon(memberSecret)` is a leaf under the
+   published membership Merkle root;
+2. `nullifier` was computed from **that same** secret and the public `scopeId`;
+3. whatever else the action requires.
+
+If step 1 and step 2 use different secrets, a member can mint unlimited fresh nullifiers. Different
+scopes give unlinkable nullifiers, so a member's votes in two elections can't be connected. For
+Cardano circuits, compute Poseidon with the explicit BLS12-381 parameters,
+`PoseidonParamsBLS12_381T3.INSTANCE`.
+
+Then **store and check** spent nullifiers:
+
+| Where | How | Trade-off |
+|---|---|---|
+| Off-chain database | Unique index on the nullifier; insert atomically in the same transaction as the action | Simple and fast; you are trusted to enforce it |
+| On-chain state UTxO | One registry UTxO whose datum lists nullifiers | Trustless, but sequential and limited by datum size |
+| On-chain token per nullifier | Mint a token named by the nullifier | Parallel, but must still prevent duplicate names |
+| On-chain sorted linked list | One UTxO per nullifier; insertion proves the gap | Trustless and concurrent; locks some ADA per entry |
+| On-chain Merkle root | Keep only a root; prove insertion in a second circuit | Constant size; needs an off-chain tree service |
+
+ZeroJ's [private voting design](/use-cases/private-voting/) compares these in detail. The
+[private allowlist tutorial](/tutorials/private-allowlist/) builds a membership proof with a
+nullifier.
+
+## Bind public inputs to their meaning
+
+A public input is just a number. The verifier checks the proof *for that number*. It doesn't
+know the number is meant to be "the current epoch" or "this pool's address".
+
+- **Check every public input against the real context** at verification time: amounts against
+  the transaction value, addresses against outputs, epochs and deadlines against the validity
+  range, roots against your stored state.
+- **Keep the order fixed.** Public inputs are positional. Document the order next to the
+  circuit, and test that swapping two inputs makes verification fail.
+- **Separate domains.** Include a scope, network or contract-instance identifier in hashes and
+  nullifiers, so a proof for one deployment is useless in another.
+
+## Trust your data sources
+
+A circuit proves a computation over its inputs. It cannot tell whether a secret input is *true*. If
+a prover can type their own balance, age or KYC status into the witness, the proof only shows they
+can type.
+
+Anchor every fact to something the verifier already trusts:
+
+- an **issuer signature** over the attributes (a BBS credential, or a signature checked
+  in-circuit);
+- a **commitment** published by a trusted party or on-chain, such as a Merkle root of balances or
+  of allowlisted members, that the circuit opens;
+- a **key the user provably controls**, as in the account-recovery use case, which derives a
+  Cardano key inside the circuit.
+
+Then ask who can change that anchor, and how the verifier learns about updates and revocations.
+
+## Trusted setup, key pinning and versions
+
+- **Groth16 keys come from a ceremony.** ZeroJ's in-process setup (`Groth16Keys.setupInMemory`,
+  `PowersOfTauBLS381.generate`, `Groth16SetupBLS381.setup`) knows the toxic waste and can forge
+  proofs. It refuses to run unless you opt in, and it is for development only. Production keys
+  come from a multi-party ceremony (snarkjs `.zkey`, imported). See
+  [Trusted setup, explained](/learn/trusted-setup/) and the
+  [ceremony guide](/guides/proving/trusted-setup-ceremony/).
+- **Pin the VK.** Off-chain, compare the VK's SHA-256 against a value in your configuration.
+  On-chain, the VK is a script parameter, so the script hash pins it.
+- **Version circuits.** Any change to a circuit, even a "harmless" refactor, can change its
+  constraints and therefore its keys. Give each version its own ID, VK hash and (on-chain)
+  script, and retire old versions explicitly.
+- **Record provenance.** Keep the circuit source revision, compiler version, R1CS hash, ceremony
+  transcript and VK hash together, so anyone can check the chain from code to key.
+
+## Under-constrained circuits
+
+The most common ZK bug is a circuit that *computes* the right answer for honest inputs but doesn't
+*constrain* it. A dishonest prover then finds other witness values that also satisfy the
+constraints. Passing tests with honest witnesses tells you nothing about this.
+
+- **Write invalid-witness tests.** For every rule, craft a witness that breaks it and check that
+  witness generation fails, or that a proof built from it doesn't verify.
+  See [Testing circuits](/guides/circuits/testing-circuits/).
+- **Range-check numbers.** Inputs are field elements. ZeroJ's witness calculator reduces each
+  input modulo the field order, so `-1` becomes a 255-bit number. Comparisons like "age ≥ 18" are
+  only meaningful with explicit bit-width constraints.
+- **Constrain booleans and outputs.** A "flag" must be constrained to 0 or 1, and every output you
+  rely on must be tied to the inputs by constraints, not just assigned.
+- **Don't trust hints.** Values computed outside the constraint system (inverses, quotients) must
+  be checked by constraints afterwards.
+- **Prefer the library gadgets** and read their status in the [gadget guide](/guides/circuits/gadgets/).
+
+## Secrets in Java
+
+- **`BigInteger` is not constant-time**, and ZeroJ does not claim that witness generation or the
+  pure-Java prover are constant-time. Run proving on hardware you control, not next to untrusted
+  tenants.
+- **BBS issuer keys.** The default pure-Java BBS provider routes secret scalar multiplications
+  through fixed-schedule code, but it is *not* a full JVM constant-time guarantee. For issuer keys
+  and high-value signing, select the blst provider with
+  `BbsService.withBlsProvider(BbsCiphersuite.BLS12381_SHA256, BlstBls12381Provider.createDefault())`.
+- **Short witness lifetime.** The witness (`BigInteger[]`) contains every secret. Don't log it,
+  cache it or serialize it. snarkjs `.wtns` files hold the same secrets, so keep them off disk or
+  on tmpfs and delete them. JVM objects can't be reliably wiped, so keep secrets in a short-lived
+  process where you can.
+- **Randomness.** Use `SecureRandom` for key material, nonces and challenges. BBS key generation
+  needs at least 32 bytes of key material.
+
+## Metadata leaks
+
+A perfect proof can still leak through everything around it:
+
+- **Public inputs and revealed attributes** are public. Combinations of "harmless" disclosed
+  fields (birth year + postcode + employer) can identify a person.
+- **On-chain linkability.** Funding a claim from a known wallet, reusing addresses, or paying
+  fees from the same UTxO set links actions together, whatever the proof hides.
+- **Amounts and timing.** Exact amounts and the timing between issuance, proving and submission
+  can correlate users. Batch, round, or delay where it matters.
+- **Scope reuse.** Reusing one nullifier scope across unrelated actions makes them linkable.
+
+## Development flags never reach production
+
+Two JVM switches exist for development only:
+
+| Flag | What it unlocks |
+|---|---|
+| `-Dzeroj.allowInsecureTrustedSetup=true` / `ZEROJ_ALLOW_INSECURE_TRUSTED_SETUP=true` | Single-party trusted setup whose creator can forge proofs |
+| `-Dzeroj.allowLegacyBn254=true` / `ZEROJ_ALLOW_LEGACY_BN254=true` | Legacy BN254 proving/verification (not a Cardano curve) |
+
+Make production refuse to start with either one set:
+
+```java
+import org.zeroj.api.LegacyCurvePolicy;
+import org.zeroj.api.TrustedSetupPolicy;
+
+if (TrustedSetupPolicy.insecureTrustedSetupEnabled() || LegacyCurvePolicy.legacyBn254Enabled()) {
+    throw new IllegalStateException("ZeroJ development flags are enabled; refusing to start");
+}
+```
+
+See [Configuration](/reference/configuration/) for every switch.
+
+## The checklist
+
+Copy this into your design review. Every "no" or "not sure" is work to do before real users arrive.
+
+```text title="zk-app-review-checklist.md"
+## Statement
+- [ ] Every intended rule is a constraint; outputs, booleans and ranges are constrained
+- [ ] Invalid-witness tests exist for every rule (not just honest-witness tests)
+- [ ] Public vs secret inputs are correct; public-input order is documented and tested
+- [ ] Secret facts are anchored to an issuer signature, commitment or key the verifier trusts
+
+## Binding & replay
+- [ ] The statement is bound to its context (UTxO / tx / session nonce / scope / network)
+- [ ] The beneficiary is bound, so a copied proof can't redirect value (front-running)
+- [ ] Nullifier = H(secret, scope) uses the SAME secret as the membership proof
+- [ ] Spent nullifiers are stored and checked atomically (on-chain state or unique DB index)
+- [ ] BBS: ph is verifier-chosen (or derived from ScriptContext) and compared before accepting
+
+## Keys & setup
+- [ ] Groth16 keys come from a multi-party ceremony; provenance recorded
+- [ ] VK hashes pinned in config; circuit IDs + versions allowlisted; old versions retired
+- [ ] The verifier never accepts a VK, circuit ID or VK reference from the prover
+- [ ] zeroj.allowInsecureTrustedSetup / zeroj.allowLegacyBn254 are rejected at startup
+
+## Cardano
+- [ ] Validator binds ScriptContext: spent input, outputs, signers, validity range, minting
+- [ ] Budget measured in the JuLC VM and on a devnet against current protocol limits
+- [ ] Script hash recorded; JuLC upgrades treated as a new script
+
+## Secrets & privacy
+- [ ] Witness data is short-lived, never logged/persisted; .wtns files kept off disk
+- [ ] Issuer keys use the blst BBS provider; SecureRandom for keys, nonces, challenges
+- [ ] Disclosed attributes, public inputs, amounts, timing and addresses reviewed for linkability
+
+## Evidence
+- [ ] Independent test vectors / differential checks where they exist
+- [ ] External review planned before any value-bearing use
+```
+
+## Next steps
+
+- [Verify proofs on Cardano](/guides/verifying/on-chain/)
+- [Testing circuits](/guides/circuits/testing-circuits/)
+- [Private voting use case](/use-cases/private-voting/)
+- [Configuration](/reference/configuration/)

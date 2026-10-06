@@ -1,0 +1,527 @@
+---
+title: Private allowlist with a Merkle tree
+description: Prove you're on a list without saying who you are, using a Poseidon Merkle tree, then add a nullifier so each member can act only once per event.
+sidebar:
+  order: 2
+---
+
+import { Steps, FileTree, Aside } from '@astrojs/starlight/components';
+import MerkleExplainer from '../../../components/walkthrough/MerkleExplainer.astro';
+import TextOnly from '../../../components/TextOnly.astro';
+
+An event has a guest list. At the door you want to prove *"I'm on the list"* without saying
+*which* guest you are, and the door wants to make sure nobody gets in twice. Those two goals
+seem to conflict: how can the door spot a repeat visitor it can't identify? The answer is a
+**nullifier**, and it's the same trick behind private voting and sybil-resistant airdrops.
+
+**What you'll build:** an allowlist of members stored as a Poseidon Merkle tree, a circuit that
+proves membership plus a per-event nullifier, and an `EventGate` that admits each member at
+most once per event.
+
+**What you'll learn:**
+
+- how a Merkle tree turns "I'm one of these N people" into a small proof
+- why Cardano circuits use Poseidon with explicit BLS12-381 parameters
+- how to compute the same hashes off-circuit so the prover can build its witness
+- what a nullifier is, and what the *verifier* must do with it
+- how to check that a non-member really is rejected
+
+<Aside type="note" title="Prerequisites">
+
+Java 25 and Gradle (see [Installation](/start/installation/)). It helps to have done
+[Prove you're over 18](/tutorials/age-check/), but this page stands on its own.
+
+</Aside>
+
+## The idea in one picture
+
+Each member holds two random secrets, a `nullifierKey` and a `trapdoor`. They give the
+organizer only a hash of them, the **leaf**. The organizer puts all leaves into a Merkle tree
+and publishes the **root**.
+Try it below: pick a member to light up their path, claim an entry, then try someone who isn't on
+the list.
+
+<MerkleExplainer />
+
+<TextOnly>
+
+```text
+                    root  (public)
+                 /        \
+             h01            h23
+            /   \          /   \
+         h0      h1      h2     h3        h = Poseidon(left, right)
+        /  \    /  \    /  \   /  \
+      L0   L1  L2  L3  L4  L5 L6  L7 ...  leaf = Poseidon(nullifierKey, trapdoor)
+```
+
+</TextOnly>
+
+To prove membership, a member shows (in zero knowledge) that their leaf, hashed together with
+its **siblings** on the way up, reproduces the published root. The **path bits** say whether the
+node is a left or right child at each level. The verifier sees only the root.
+
+For each event the member also publishes `nullifier = Poseidon(nullifierKey, eventId)`. It's
+the same value every time the same member proves for the same event, so the gate can refuse
+repeats. For a different event it's a different, unrelated-looking number, so members can't be
+tracked across events.
+
+Why two secrets? If the leaf were `Poseidon(nullifierKey, 0)`, an organizer could announce
+`eventId = 0`, and every nullifier would equal its owner's leaf, revealing who is who. Hashing
+the leaf with a separate secret `trapdoor` rules that out: the organizer would have to guess
+the trapdoor.
+
+## Build it
+
+<Steps>
+
+1. **Create the project.** This one also needs `zeroj-circuit-lib` for the Poseidon and Merkle
+   gadgets.
+
+   <FileTree>
+
+   - zeroj-private-allowlist/
+     - settings.gradle
+     - build.gradle
+     - src/main/java/com/example/allowlist/
+       - AllowlistMembership.java
+       - PoseidonMerkleTree.java
+       - EventGate.java
+       - Main.java
+
+   </FileTree>
+
+   ```groovy title="settings.gradle"
+   rootProject.name = 'zeroj-private-allowlist'
+   ```
+
+   ```groovy title="build.gradle"
+   plugins {
+       id 'application'
+   }
+
+   repositories {
+       mavenCentral()
+   }
+
+   java {
+       toolchain {
+           languageVersion = JavaLanguageVersion.of(25)
+       }
+   }
+
+   dependencies {
+       implementation platform('org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%')
+       annotationProcessor platform('org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%')
+
+       implementation 'org.zeroj:zeroj-circuit-annotation-api'
+       annotationProcessor 'org.zeroj:zeroj-circuit-annotation-processor'
+       implementation 'org.zeroj:zeroj-circuit-dsl'
+       implementation 'org.zeroj:zeroj-circuit-lib'  // Poseidon + Merkle gadgets
+       implementation 'org.zeroj:zeroj-crypto'
+       implementation 'org.zeroj:zeroj-codec'
+       implementation 'org.zeroj:zeroj-verifier-groth16'
+   }
+
+   application {
+       mainClass = 'com.example.allowlist.Main'
+       // Dev-only: allows the in-process, single-party trusted setup.
+       applicationDefaultJvmArgs = ['-Dzeroj.allowInsecureTrustedSetup=true']
+   }
+   ```
+
+2. **Write the circuit.** The tree depth is a `@CircuitParam`, so one class can produce circuits
+   for different list sizes. This tutorial uses depth 4, room for 16 members.
+
+   ```java title="src/main/java/com/example/allowlist/AllowlistMembership.java"
+   package com.example.allowlist;
+
+   import org.zeroj.circuit.annotation.CircuitParam;
+   import org.zeroj.circuit.annotation.FixedSize;
+   import org.zeroj.circuit.annotation.Prove;
+   import org.zeroj.circuit.annotation.Public;
+   import org.zeroj.circuit.annotation.Secret;
+   import org.zeroj.circuit.annotation.ZKCircuit;
+   import org.zeroj.circuit.annotation.ZkArray;
+   import org.zeroj.circuit.annotation.ZkBool;
+   import org.zeroj.circuit.annotation.ZkContext;
+   import org.zeroj.circuit.annotation.ZkField;
+   import org.zeroj.circuit.lib.poseidon.PoseidonParams;
+   import org.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
+   import org.zeroj.circuit.lib.zk.ZkMerkle;
+   import org.zeroj.circuit.lib.zk.ZkPoseidon;
+
+   /**
+    * "I own one of the leaves under this root, and this nullifier is the one
+    * that leaf gets for this event" — without saying which leaf.
+    */
+   @ZKCircuit(name = "private-allowlist", nameTemplate = "private-allowlist-d{depth}", version = 1)
+   public class AllowlistMembership {
+
+       private static final PoseidonParams POSEIDON = PoseidonParamsBLS12_381T3.INSTANCE;
+
+       public AllowlistMembership(@CircuitParam("depth") int depth) {
+       }
+
+       @Prove
+       ZkBool prove(ZkContext zk,
+                    @Public ZkField root,
+                    @Public ZkField eventId,
+                    @Public ZkField nullifier,
+                    @Secret ZkField nullifierKey,
+                    @Secret ZkField trapdoor,
+                    @Secret @FixedSize(param = "depth") ZkArray<ZkField> siblings,
+                    @Secret @FixedSize(param = "depth") ZkArray<ZkBool> pathBits) {
+           // The leaf is a commitment to the member's two secrets.
+           ZkField leaf = ZkPoseidon.hash(zk, POSEIDON, nullifierKey, trapdoor);
+           ZkBool onTheList = ZkMerkle.isMemberPoseidon(zk, POSEIDON, leaf, root, siblings, pathBits);
+
+           // One nullifier per (member, event): same member + same event = same nullifier.
+           ZkBool nullifierMatches = ZkPoseidon.hash(zk, POSEIDON, nullifierKey, eventId).isEqual(nullifier);
+
+           return onTheList.and(nullifierMatches);
+       }
+   }
+   ```
+
+   Notice what's secret: the member's two secrets, and the whole path (siblings and path bits).
+   Revealing the path would reveal the position in the tree, which is the member's identity.
+   Each `ZkBool` path bit is constrained to be 0 or 1.
+
+   <Aside type="caution" title="Always pass the BLS12-381 Poseidon parameters">
+
+   `ZkPoseidon`, `ZkMerkle.*Poseidon` and the off-circuit `PoseidonHash` all take a
+   `PoseidonParams` argument. For Cardano (BLS12-381) pass `PoseidonParamsBLS12_381T3.INSTANCE`
+   explicitly. The no-params Poseidon overloads and MiMC are aimed at BN254 and aren't Cardano
+   defaults.
+
+   </Aside>
+
+3. **Build the tree off-circuit.** The prover needs the root, the siblings and the path bits as
+   ordinary numbers. `PoseidonHash.hash` is ZeroJ's off-circuit Poseidon: with the same
+   parameters it computes exactly what the in-circuit gadget constrains. The tree itself is a
+   few lines on top.
+
+   ```java title="src/main/java/com/example/allowlist/PoseidonMerkleTree.java"
+   package com.example.allowlist;
+
+   import org.zeroj.circuit.lib.poseidon.PoseidonHash;
+   import org.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
+
+   import java.math.BigInteger;
+   import java.util.ArrayList;
+   import java.util.List;
+
+   /**
+    * A tiny fixed-depth binary Merkle tree, hashed off-circuit with the same
+    * Poseidon parameters the circuit uses. Empty slots hold 0.
+    */
+   public class PoseidonMerkleTree {
+
+       private final List<List<BigInteger>> levels = new ArrayList<>(); // levels.get(0) = leaves
+
+       public PoseidonMerkleTree(int depth, List<BigInteger> leaves) {
+           int width = 1 << depth;
+           if (leaves.size() > width) {
+               throw new IllegalArgumentException("too many leaves for depth " + depth);
+           }
+           var level = new ArrayList<>(leaves);
+           while (level.size() < width) {
+               level.add(BigInteger.ZERO);
+           }
+           levels.add(level);
+           for (int d = 0; d < depth; d++) {
+               var parents = new ArrayList<BigInteger>();
+               for (int i = 0; i < level.size(); i += 2) {
+                   parents.add(hash(level.get(i), level.get(i + 1)));
+               }
+               levels.add(parents);
+               level = parents;
+           }
+       }
+
+       public BigInteger root() {
+           return levels.getLast().getFirst();
+       }
+
+       /** Sibling hashes from the leaf level up to (not including) the root. */
+       public List<BigInteger> siblings(int index) {
+           var out = new ArrayList<BigInteger>();
+           for (int d = 0; d < levels.size() - 1; d++) {
+               out.add(levels.get(d).get(index ^ 1));
+               index >>= 1;
+           }
+           return out;
+       }
+
+       /** 0 = our node is the left child at that level, 1 = it is the right child. */
+       public List<BigInteger> pathBits(int index) {
+           var out = new ArrayList<BigInteger>();
+           for (int d = 0; d < levels.size() - 1; d++) {
+               out.add(BigInteger.valueOf(index & 1));
+               index >>= 1;
+           }
+           return out;
+       }
+
+       public static BigInteger hash(BigInteger left, BigInteger right) {
+           return PoseidonHash.hash(PoseidonParamsBLS12_381T3.INSTANCE, left, right);
+       }
+   }
+   ```
+
+   The path-bit convention matches the gadget: at a level with bit `0` the current node is
+   hashed as `hash(current, sibling)`, with bit `1` as `hash(sibling, current)`.
+
+4. **Write the gate.** This is the verifier. Its job is more than checking the math, and the
+   order of its checks matters.
+
+   ```java title="src/main/java/com/example/allowlist/EventGate.java"
+   package com.example.allowlist;
+
+   import org.zeroj.api.CircuitId;
+   import org.zeroj.api.CurveId;
+   import org.zeroj.api.ProofSystemId;
+   import org.zeroj.api.PublicInputs;
+   import org.zeroj.api.VerificationMaterial;
+   import org.zeroj.codec.SnarkjsJsonCodec;
+   import org.zeroj.verifier.groth16.bls12381.Groth16BLS12381PureJavaVerifier;
+
+   import java.math.BigInteger;
+   import java.nio.charset.StandardCharsets;
+   import java.util.HashSet;
+   import java.util.Set;
+
+   /** The verifier side: admits each allowlisted member at most once per event. */
+   public class EventGate {
+
+       private final String vkJson;
+       private final BigInteger trustedRoot;
+       private final BigInteger eventId;
+       private final Set<BigInteger> spentNullifiers = new HashSet<>(); // a database table in real life
+
+       public EventGate(String vkJson, BigInteger trustedRoot, BigInteger eventId) {
+           this.vkJson = vkJson;
+           this.trustedRoot = trustedRoot;
+           this.eventId = eventId;
+       }
+
+       public synchronized boolean admit(String proofJson, String publicJson) {
+           PublicInputs pub = SnarkjsJsonCodec.parsePublicInputs(publicJson);
+           if (pub.size() != 3) {
+               return false;
+           }
+           // Order comes from the circuit schema: [root, eventId, nullifier].
+           BigInteger root = pub.get(0);
+           BigInteger event = pub.get(1);
+           BigInteger nullifier = pub.get(2);
+
+           if (!root.equals(trustedRoot) || !event.equals(eventId)) {
+               return false; // a proof about some other list or some other event
+           }
+           if (spentNullifiers.contains(nullifier)) {
+               return false; // this member already used their one admission
+           }
+
+           CircuitId id = AllowlistMembershipCircuit.circuitId(Main.DEPTH);
+           var envelope = SnarkjsJsonCodec.toEnvelopeFromJson(proofJson, vkJson, publicJson, id);
+           var material = VerificationMaterial.of(vkJson.getBytes(StandardCharsets.UTF_8),
+                   ProofSystemId.GROTH16, CurveId.BLS12_381, id);
+           if (!new Groth16BLS12381PureJavaVerifier().verify(envelope, material).proofValid()) {
+               return false;
+           }
+           spentNullifiers.add(nullifier); // record only after the proof checks out
+           return true;
+       }
+   }
+   ```
+
+5. **Write the program.** Five members register, member #2 proves membership, tries to come
+   back, and an outsider tries to get in.
+
+   ```java title="src/main/java/com/example/allowlist/Main.java"
+   package com.example.allowlist;
+
+   import org.zeroj.api.CurveId;
+   import org.zeroj.circuit.FieldConfig;
+   import org.zeroj.crypto.groth16.Groth16Keys;
+   import org.zeroj.crypto.setup.PowersOfTauBLS381;
+   import org.zeroj.crypto.snarkjs.SnarkjsGroth16Json;
+
+   import java.math.BigInteger;
+   import java.security.SecureRandom;
+   import java.util.ArrayList;
+   import java.util.List;
+
+   public class Main {
+
+       static final int DEPTH = 4; // up to 2^4 = 16 members
+       static final BigInteger R = FieldConfig.BLS12_381.prime();
+       static final SecureRandom RNG = new SecureRandom();
+
+       /** A member's identity: two random secrets. Only the leaf (a hash) is ever published. */
+       record Member(BigInteger nullifierKey, BigInteger trapdoor) {
+           static Member create() {
+               return new Member(randomScalar(), randomScalar());
+           }
+
+           BigInteger leaf() {
+               return PoseidonMerkleTree.hash(nullifierKey, trapdoor);
+           }
+
+           BigInteger nullifierFor(BigInteger eventId) {
+               return PoseidonMerkleTree.hash(nullifierKey, eventId);
+           }
+       }
+
+       public static void main(String[] args) {
+           // 1. Members register a leaf (commitment). The organiser builds the tree and publishes the root.
+           List<Member> members = new ArrayList<>();
+           for (int i = 0; i < 5; i++) {
+               members.add(Member.create());
+           }
+           var tree = new PoseidonMerkleTree(DEPTH, members.stream().map(Member::leaf).toList());
+           System.out.println("Allowlist root: " + tree.root());
+
+           // 2. Compile the circuit for depth 4 and run a DEV-ONLY setup.
+           var circuit = AllowlistMembershipCircuit.build(DEPTH);
+           var r1cs = circuit.compileR1CS(CurveId.BLS12_381);
+           System.out.println("Constraints: " + r1cs.numConstraints()
+                   + ", public inputs: " + AllowlistMembershipCircuit.schema(DEPTH).publicInputs().names());
+           BigInteger tau = PowersOfTauBLS381.generate(11).tauScalar();
+
+           try (var keys = Groth16Keys.setupInMemory(
+                   r1cs.constraints(), r1cs.numWires(), r1cs.numPublicInputs(), tau)) {
+               BigInteger event1 = BigInteger.valueOf(2026_09_01);
+               var gate = new EventGate(SnarkjsGroth16Json.verificationKeyJson(keys), tree.root(), event1);
+
+               // 3. Member #2 proves "I'm on the list" for event 1 — without revealing which member.
+               int me = 2;
+               Member member = members.get(me);
+               var inputs = AllowlistMembershipCircuit.inputs(DEPTH)
+                       .root(tree.root())
+                       .eventId(event1)
+                       .nullifier(member.nullifierFor(event1))
+                       .nullifierKey(member.nullifierKey())
+                       .trapdoor(member.trapdoor())
+                       .siblings(tree.siblings(me))
+                       .pathBits(tree.pathBits(me));
+               BigInteger[] witness = inputs.calculateWitness(circuit, CurveId.BLS12_381);
+               var proof = keys.prove(witness, r1cs.constraints());
+               String proofJson = SnarkjsGroth16Json.proofJson(proof);
+               String publicJson = SnarkjsGroth16Json.publicJson(inputs.publicValues().toArray(BigInteger[]::new));
+
+               System.out.println("First use admitted?  " + gate.admit(proofJson, publicJson));
+               System.out.println("Replay admitted?     " + gate.admit(proofJson, publicJson));
+
+               // 4. The same member at another event gets an unrelated nullifier.
+               BigInteger event2 = BigInteger.valueOf(2026_10_01);
+               System.out.println("Nullifier, event 1: " + member.nullifierFor(event1));
+               System.out.println("Nullifier, event 2: " + member.nullifierFor(event2));
+
+               // 5. Someone who is not on the list cannot build a witness.
+               Member outsider = Member.create();
+               try {
+                   AllowlistMembershipCircuit.inputs(DEPTH)
+                           .root(tree.root())
+                           .eventId(event1)
+                           .nullifier(outsider.nullifierFor(event1))
+                           .nullifierKey(outsider.nullifierKey())
+                           .trapdoor(outsider.trapdoor())
+                           .siblings(tree.siblings(me)) // borrow a real path: still not a member
+                           .pathBits(tree.pathBits(me))
+                           .calculateWitness(circuit, CurveId.BLS12_381);
+                   System.out.println("Outsider produced a witness?!");
+               } catch (ArithmeticException e) {
+                   System.out.println("Outsider rejected: " + e.getMessage());
+               }
+           }
+       }
+
+       static BigInteger randomScalar() {
+           return new BigInteger(R.bitLength() + 64, RNG).mod(R);
+       }
+   }
+   ```
+
+6. **Run it** with `gradle run` (or `./gradlew run`). It takes a few seconds; the secrets are
+   random, so your root and nullifiers will differ:
+
+   ```text
+   Allowlist root: 32221980021819000464522828998816528831645266903374788066867346656485094859322
+   Constraints: 1466, public inputs: [root, eventId, nullifier]
+   WARNING: Single-party Powers of Tau generation (BLS12-381) — for DEVELOPMENT and TESTING only. Use MPC ceremony outputs (Hermez, Zcash PoT) for production.
+   WARNING: Single-party Groth16 Phase 2 setup (BLS12-381) — for DEVELOPMENT and TESTING only. Use snarkjs multi-party ceremony for production.
+   First use admitted?  true
+   Replay admitted?     false
+   Nullifier, event 1: 31954755462251752238431364037933139093392902278911937153828149776072209289058
+   Nullifier, event 2: 46302969935255831668131597490214309035567725663443764852945242753187584366618
+   Outsider rejected: Constraint violation: w8757=0 != w8758=1
+   ```
+
+</Steps>
+
+## What each piece guarantees
+
+| Piece | Guarantee | Who enforces it |
+|-------|-----------|-----------------|
+| Merkle membership | The prover knows secrets whose leaf is under `root` | The circuit |
+| Nullifier formula | `nullifier` really is `Poseidon(nullifierKey, eventId)` for *that* leaf's key | The circuit |
+| Right list, right event | `root` and `eventId` are the ones this gate cares about | `EventGate` (your code) |
+| Once per event | The same `nullifier` is never accepted twice | `EventGate` (your code) |
+| Nothing about who | The verifier learns root, event and nullifier, not the leaf or its position | Zero knowledge |
+
+The circuit guarantees the nullifier is honest; it can't remember which nullifiers were used.
+That's state, and state belongs to the verifier. If `EventGate` forgot the `spentNullifiers`
+check, the same proof would get in again and again, even though every proof is valid.
+
+About the outsider: they borrowed a real member's siblings and path bits, but their own leaf
+hashes to a different root, so the membership check fails. Try other variations, such as a
+member's leaf with a wrong path bit or a real member's proof submitted with a different
+`eventId` in the public inputs. Each must be rejected, either at witness time or by the gate.
+
+## Nullifiers on Cardano
+
+On-chain, "remember every spent nullifier" has to live in the ledger, and the circuit stays the
+same. The [private voting use case](/use-cases/private-voting/) compares the usual patterns:
+
+| Pattern | How duplicates are refused | Trade-off |
+|---------|----------------------------|-----------|
+| One registry UTxO holding a list | The validator checks the list and appends | Simple, but a single datum only fits a small list and every use contends for it |
+| One token per nullifier | Mint a token named after the nullifier | Needs an extra mechanism to prevent re-minting the same name |
+| Nullifier Merkle root | Each use also proves the nullifier was inserted | Constant on-chain size, needs an off-chain tree service |
+| Sorted linked list of UTxOs | Insertion between two neighbours proves the nullifier is new | Fully on-chain, costs a little locked ADA per entry |
+
+Whatever the pattern, the validator must check the nullifier *and* verify the proof in the same
+transaction, and it must check the root and event against trusted state, just as `EventGate`
+does. [Verify your proof on Cardano](/tutorials/verify-on-cardano/) shows the proof side, and
+[Application security](/guides/verifying/application-security/) covers the rest.
+
+:::caution[Bind the proof to the action]
+In this tutorial the proof says "some member, event 1", but not *what* the admission is for.
+If admission pays out something, whoever submits a copied proof first gets it, and the real
+member is then refused as a replay. Real designs add the action, such as a recipient address,
+as a public input that takes part in the circuit's constraints, so a copied proof is useless
+for anything else.
+:::
+
+## Try this
+
+- Change `DEPTH` to 8 (256 members). The circuit grows from 1,466 to 2,442 constraints, about
+  244 per level, and its circuit ID changes from `private-allowlist-d4--depth-1:4` to
+  `private-allowlist-d8--depth-1:8`: a different depth is a different circuit with its own keys.
+  The setup call can stay as it is: Groth16 setup uses only the tau scalar from
+  `PowersOfTauBLS381.generate(...)` and sizes its own domain from the constraint count.
+- Remove the `spentNullifiers` check and watch the replay get in.
+- Give a member a proof for event 2 and submit it to the event 1 gate.
+
+## Next steps
+
+- [Verify your proof on Cardano](/tutorials/verify-on-cardano/): the on-chain side, including
+  replay protection.
+- [Sybil-resistant airdrop](/use-cases/sybil-resistant-airdrop/) and
+  [Private voting](/use-cases/private-voting/): nullifiers in complete applications.
+- [Gadgets](/guides/circuits/gadgets/): the Poseidon and Merkle gadgets, and which curves they
+  support.
+- [Authenticated state](/guides/credentials/authenticated-state/): Poseidon-rooted trees for
+  large, frequently updated sets.

@@ -1,0 +1,194 @@
+---
+title: Trusted setup, explained
+description: What a trusted setup is, why its "toxic waste" can forge proofs, how multi-party ceremonies remove the risk, and what ZeroJ provides for dev and production.
+sidebar:
+  order: 4
+---
+
+import CeremonyExplainer from '../../../components/walkthrough/CeremonyExplainer.astro';
+import SetupPhasesDiagram from '../../../components/walkthrough/SetupPhasesDiagram.astro';
+import TextOnly from '../../../components/TextOnly.astro';
+
+Before anyone can prove or verify a Groth16 statement, somebody has to generate the keys: a
+**proving key** for provers and a **verification key** for verifiers. That generation step is
+called the **trusted setup**, and it's the part of ZK most likely to be done wrong in a real
+deployment. This page explains what's being trusted, why, and how to do it properly.
+
+## The idea in one analogy
+
+Imagine a factory that makes tamper-evident seals. To set up the production line, the factory
+casts a unique mould. Seals made from the mould are public, and anyone can inspect them. Once
+the line is set up, the mould is supposed to be smashed.
+
+If someone secretly keeps the mould, they can stamp out seals that pass every inspection while
+sealing nothing at all.
+
+A trusted setup works the same way. Generating the keys requires secret random numbers. The
+best known is called **tau (τ)**, and Groth16 adds a few companions of its own. The public keys
+are derived from these secrets, and afterwards the secrets must be destroyed. Anyone who keeps
+them can **forge proofs**: create proofs that verify for statements that are false. That's why
+these secrets are nicknamed **toxic waste**.
+
+Two properties make this worse than it sounds:
+
+- **Forgeries are undetectable.** A forged proof is mathematically indistinguishable from an
+  honest one. No verifier, on-chain or off-chain, can tell them apart.
+- **The damage is silent and permanent.** If the toxic waste leaks, every proof ever verified
+  with those keys becomes suspect, and you'd never know it happened.
+
+Knowing the toxic waste doesn't, by itself, reveal anyone's secret inputs from their proofs. The risk is to
+**soundness**: fake proofs, such as an under-18 user "proving" they're over 18, or someone
+unlocking funds without a valid witness.
+
+## Powers of tau
+
+What the setup actually publishes is a long list of elliptic-curve points built from powers of τ:
+
+```text
+[1]G1, [τ]G1, [τ²]G1, [τ³]G1, …, [τⁿ]G1
+[1]G2, [τ]G2, …
+```
+
+`[x]G1` means "the curve's generator point G1, multiplied by x". Because of how elliptic curves
+work, you can publish `[τ]G1` without revealing τ: going backwards is the hard problem the whole
+curve's security rests on.
+
+This list is called the **powers of tau**, or a **structured reference string (SRS)**. It's stored
+in a `.ptau` file. Its length sets the maximum circuit size it can support; a setup with 2²⁰
+powers supports circuits up to roughly that many constraints.
+
+## Phase 1 and phase 2
+
+Groth16 setup happens in two phases:
+
+<SetupPhasesDiagram />
+
+<TextOnly>
+
+```text
+Phase 1  (universal)          Powers of tau for BLS12-381, up to size 2ⁿ
+         once per curve + size ─ reusable by every circuit that fits
+               │
+               ▼
+Phase 2  (circuit-specific)   Powers of tau + your compiled circuit (R1CS)
+         once per circuit     ─ produces this circuit's proving key + verification key
+                                (a snarkjs .zkey file)
+```
+
+</TextOnly>
+
+- **Phase 1** doesn't depend on any circuit. You can reuse a large public ceremony. ZeroJ's
+  ceremony runbook, for example, uses an existing attested BLS12-381 ceremony as its primary
+  phase-1 source.
+- **Phase 2** is specific to one circuit and introduces **its own toxic waste**. Any change to the
+  circuit, such as a new constraint, a different number or order of public inputs, or a changed
+  circuit parameter, means a new phase 2 and new keys. Changing input *values* never does; a new
+  user or a new proof uses the same keys.
+
+## Multi-party ceremonies: one honest participant is enough
+
+If one party generates τ, everyone has to trust that party. A **multi-party computation (MPC)
+ceremony** removes that single point of trust:
+
+<CeremonyExplainer />
+
+<TextOnly>
+
+```text
+key_0 ──► Alice mixes in her randomness ──► key_1
+key_1 ──► Bob mixes in his randomness   ──► key_2
+key_2 ──► Carol mixes in her randomness ──► key_3
+key_3 ──► public random beacon          ──► key_final
+```
+
+</TextOnly>
+
+Each participant takes the previous file, mixes in fresh secret randomness, publishes the
+result, and destroys their randomness. The final secret is effectively the product of every
+participant's contribution. To forge proofs you would need **all** of those contributions. So the keys are
+safe as long as **at least one** participant was honest and really destroyed their contribution.
+This is the "1-of-N" trust model.
+
+Each contribution is publicly checkable. Anyone can re-verify the whole chain, for example with
+`snarkjs zkey verify`, without trusting the coordinator. A final **random beacon**, a public value
+nobody can predict in advance such as a future block hash, closes the ceremony so the last
+contributor can't bias the result.
+
+## PlonK's universal setup
+
+PlonK only needs phase 1. One trusted SRS serves every PlonK circuit up to its size, and each
+circuit's keys are derived from it with a public, deterministic computation, with no new toxic
+waste per circuit. The SRS still has to come from a trustworthy ceremony, and if its τ leaks,
+every circuit using it is affected at once.
+
+ZeroJ's PlonK support is experimental; see [Groth16, PlonK & BBS](/learn/proof-systems/).
+
+## What ZeroJ provides
+
+| Need | What ZeroJ offers |
+|------|-------------------|
+| Fast local setup for tests and demos | `PowersOfTauBLS381.generate(...)`, `Groth16Keys.setupInMemory(...)`, `Groth16SetupBLS381.setup(...)`: single-party, in-process, **insecure by design**, and disabled unless you opt in |
+| Using a real phase 1 | `PtauImporterBLS381` imports snarkjs `.ptau` files |
+| Using real Groth16 keys | `ZkeyImporterBLS381` imports a ceremony `.zkey`; `Groth16PkStore` and `ZkeyPkStoreImporter` stream large keys into an `mmap`-loaded store |
+| Running or joining a ceremony | The `zeroj-ceremony` CLI (`export-r1cs`, `contribute`, `finalize`) and the `ZkeyContributor` library in `zeroj-tools`, producing snarkjs-compatible contributions |
+| Independent verification | Contributions made with ZeroJ verify with `snarkjs zkey verify`, so nobody has to trust ZeroJ's own tool |
+
+### The development opt-in
+
+The in-process setup refuses to run unless you explicitly allow it:
+
+```text
+JVM system property:   -Dzeroj.allowInsecureTrustedSetup=true
+or environment:        ZEROJ_ALLOW_INSECURE_TRUSTED_SETUP=true
+```
+
+Without the opt-in, the call throws an `IllegalStateException` explaining that the generator knows
+the toxic waste and can forge proofs. [Installation](/start/installation/) shows how to set the flag
+for Gradle and Maven test and run tasks.
+
+### The production path
+
+For anything beyond local testing, the flow is:
+
+```text
+1. Compile your circuit and export it:   zeroj-ceremony export-r1cs  → circuit.r1cs
+2. Start phase 2 from a trusted .ptau:   snarkjs groth16 setup      → key_0000.zkey
+3. Contributors mix in randomness:       zeroj-ceremony contribute  (or snarkjs zkey contribute)
+4. Close with a pre-announced beacon, and let anyone re-check:  snarkjs zkey verify
+5. Import the verified key into ZeroJ:   zeroj-ceremony finalize --sha256 <verified hash>  → proving-key store
+6. Pin the verification key (and, on Cardano, the resulting script hash).
+```
+
+[Running a trusted setup ceremony](/guides/proving/trusted-setup-ceremony/) walks through every
+step.
+
+:::danger[Never protect real value with development keys]
+Keys from `PowersOfTauBLS381.generate`, `Groth16Keys.setupInMemory`, or `Groth16SetupBLS381.setup`
+were made by a process that knew the toxic waste. Anyone with access to that process, its memory,
+or any file that captured the secret could forge proofs, for example to unlock every UTxO guarded
+by your validator.
+Use them only in tests and local demos. Real deployments need keys from a multi-party ceremony,
+with every artifact hash pinned and published.
+:::
+
+## What needs a new setup?
+
+| Change | New setup? |
+|--------|-----------|
+| New witness values, new users, new proofs | No |
+| Different public input *values* | No |
+| Any change to the constraints | **Yes**, a new phase 2 (Groth16) |
+| Different number or order of public inputs | **Yes** |
+| A different circuit parameter (for example Merkle depth) | **Yes**. It's a different circuit. |
+| Circuit grows beyond the SRS size | **Yes**, and a larger phase 1 too |
+
+Setup is expensive, so run it once per circuit version and cache the results. Never re-run it
+per proof.
+
+## Next steps
+
+- [ZK on Cardano](/learn/zk-on-cardano/)
+- [Running a trusted setup ceremony](/guides/proving/trusted-setup-ceremony/)
+- [Groth16 proving guide](/guides/proving/groth16/)
+
+Design notes: [ADR-0031, Groth16 MPC trusted-setup ceremony](https://github.com/bloxbean/zeroj/blob/main/docs/adr/0031-groth16-mpc-trusted-setup-ceremony.md).

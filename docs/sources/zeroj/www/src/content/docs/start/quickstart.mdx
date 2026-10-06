@@ -1,0 +1,404 @@
+---
+title: "Quickstart: your first proof"
+description: In about ten minutes, prove you know a secret factor without revealing it, then verify the proof in pure Java. Circuit, witness, setup, prove, verify.
+sidebar:
+  order: 3
+---
+import ReleaseNotice from '../../../components/ReleaseNotice.astro';
+
+import { Steps, Tabs, TabItem, FileTree, Aside } from '@astrojs/starlight/components';
+
+Here is the claim you'll prove: *"I know a number `b` such that `3 × b = 33`."* You'll convince a
+verifier that it's true without ever telling it `b`. It's a toy statement (anyone can divide
+33 by 3), but it walks the whole path a real application uses: circuit, witness, trusted
+setup, proof, and verification. Real statements hide secrets that can't be guessed, such as
+the preimage of a hash. Everything runs in plain Java, with no native libraries and no
+external tools.
+
+**What you'll build:** a small Java program that defines a circuit, proves it with Groth16 on the
+BLS12-381 curve, verifies the proof, and shows that a tampered claim is rejected.
+
+**What you'll learn:**
+
+- how a `@ZKCircuit` class becomes a circuit
+- what a witness is, and where the secret goes
+- why Groth16 needs a trusted setup, and why the one here is for development only
+- what a verifier sees, and what it never sees
+
+<Aside type="note" title="Prerequisites">
+
+Java 25 and a Gradle version that runs on it (we tested Gradle 9.2), or Maven. See
+[Installation](/start/installation/) if you need to set these up. No zero-knowledge background
+is needed; unfamiliar terms are defined in the [Glossary](/learn/glossary/).
+
+</Aside>
+
+<ReleaseNotice />
+
+## Build it
+
+<Steps>
+
+1. **Create the project.** Make an empty directory with this layout. You'll write the two Java
+   files in the next steps.
+
+   <FileTree>
+
+   - zeroj-quickstart/
+     - settings.gradle
+     - build.gradle
+     - src/main/java/com/example/quickstart/
+       - SecretMultiplier.java
+       - Main.java
+
+   </FileTree>
+
+   Add the build files. The BOM (`zeroj-bom-core`) pins every ZeroJ module to one version. It
+   appears twice because Gradle resolves the annotation processor path separately.
+
+   <Tabs syncKey="build">
+   <TabItem label="Gradle">
+
+   ```groovy title="settings.gradle"
+   rootProject.name = 'zeroj-quickstart'
+   ```
+
+   ```groovy title="build.gradle"
+   plugins {
+       id 'application'
+   }
+
+   repositories {
+       mavenCentral()
+   }
+
+   java {
+       toolchain {
+           languageVersion = JavaLanguageVersion.of(25)
+       }
+   }
+
+   dependencies {
+       implementation platform('org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%')
+       annotationProcessor platform('org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%')
+
+       // @ZKCircuit annotations + the processor that generates SecretMultiplierCircuit
+       implementation 'org.zeroj:zeroj-circuit-annotation-api'
+       annotationProcessor 'org.zeroj:zeroj-circuit-annotation-processor'
+
+       implementation 'org.zeroj:zeroj-circuit-dsl'       // R1CS compiler + witness calculator
+       implementation 'org.zeroj:zeroj-crypto'            // pure-Java Groth16 setup + prover
+       implementation 'org.zeroj:zeroj-codec'             // snarkjs JSON parsing
+       implementation 'org.zeroj:zeroj-verifier-groth16'  // pure-Java Groth16 verifier
+   }
+
+   application {
+       mainClass = 'com.example.quickstart.Main'
+       // Dev-only: allows the in-process, single-party trusted setup used in Main.
+       applicationDefaultJvmArgs = ['-Dzeroj.allowInsecureTrustedSetup=true']
+   }
+   ```
+
+   </TabItem>
+   <TabItem label="Maven">
+
+   With Maven, use this `pom.xml` instead of the two Gradle files.
+
+   ```xml title="pom.xml"
+   <?xml version="1.0" encoding="UTF-8"?>
+   <project xmlns="http://maven.apache.org/POM/4.0.0"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+     <modelVersion>4.0.0</modelVersion>
+     <groupId>com.example</groupId>
+     <artifactId>zeroj-quickstart</artifactId>
+     <version>1.0-SNAPSHOT</version>
+
+     <properties>
+       <zeroj.version>%ZEROJ_VERSION%</zeroj.version>
+       <maven.compiler.release>25</maven.compiler.release>
+       <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+     </properties>
+
+     <dependencyManagement>
+       <dependencies>
+         <dependency>
+           <groupId>org.zeroj</groupId>
+           <artifactId>zeroj-bom-core</artifactId>
+           <version>${zeroj.version}</version>
+           <type>pom</type>
+           <scope>import</scope>
+         </dependency>
+       </dependencies>
+     </dependencyManagement>
+
+     <dependencies>
+       <dependency>
+         <groupId>org.zeroj</groupId>
+         <artifactId>zeroj-circuit-annotation-api</artifactId>
+       </dependency>
+       <dependency>
+         <groupId>org.zeroj</groupId>
+         <artifactId>zeroj-circuit-dsl</artifactId>
+       </dependency>
+       <dependency>
+         <groupId>org.zeroj</groupId>
+         <artifactId>zeroj-crypto</artifactId>
+       </dependency>
+       <dependency>
+         <groupId>org.zeroj</groupId>
+         <artifactId>zeroj-codec</artifactId>
+       </dependency>
+       <dependency>
+         <groupId>org.zeroj</groupId>
+         <artifactId>zeroj-verifier-groth16</artifactId>
+       </dependency>
+     </dependencies>
+
+     <build>
+       <plugins>
+         <plugin>
+           <groupId>org.apache.maven.plugins</groupId>
+           <artifactId>maven-compiler-plugin</artifactId>
+           <version>3.14.0</version>
+           <configuration>
+             <annotationProcessorPaths>
+               <path>
+                 <groupId>org.zeroj</groupId>
+                 <artifactId>zeroj-circuit-annotation-processor</artifactId>
+                 <version>${zeroj.version}</version>
+               </path>
+             </annotationProcessorPaths>
+           </configuration>
+         </plugin>
+         <plugin>
+           <groupId>org.codehaus.mojo</groupId>
+           <artifactId>exec-maven-plugin</artifactId>
+           <version>3.5.0</version>
+           <configuration>
+             <mainClass>com.example.quickstart.Main</mainClass>
+           </configuration>
+         </plugin>
+       </plugins>
+     </build>
+   </project>
+   ```
+
+   </TabItem>
+   </Tabs>
+
+   The `-Dzeroj.allowInsecureTrustedSetup=true` flag matters. Without it, ZeroJ refuses to run
+   the quick in-process setup this tutorial uses, for reasons you'll see in step 3 of `Main`.
+
+2. **Write the circuit.** A circuit is the statement you want to prove, written as rules the
+   prover's numbers must satisfy. This one says "`a` times `b` equals `product`".
+
+   ```java title="src/main/java/com/example/quickstart/SecretMultiplier.java"
+   package com.example.quickstart;
+
+   import org.zeroj.circuit.annotation.Prove;
+   import org.zeroj.circuit.annotation.Public;
+   import org.zeroj.circuit.annotation.Secret;
+   import org.zeroj.circuit.annotation.ZKCircuit;
+   import org.zeroj.circuit.annotation.ZkBool;
+   import org.zeroj.circuit.annotation.ZkContext;
+   import org.zeroj.circuit.annotation.ZkField;
+
+   /** "I know a secret b such that a × b = product." */
+   @ZKCircuit(name = "secret-multiplier", version = 1)
+   public class SecretMultiplier {
+
+       @Prove
+       ZkBool prove(ZkContext zk,
+                    @Public ZkField a,
+                    @Public ZkField product,
+                    @Secret ZkField b) {
+           return a.mul(b).isEqual(product);
+       }
+   }
+   ```
+
+   - `@Public` values are shared with the verifier. `@Secret` values stay with the prover.
+   - `ZkField` is a number in the circuit's finite field, not a Java `int`. Its methods
+     (`mul`, `isEqual`, ...) record constraints rather than computing a result right away.
+   - `@Prove` returns a `ZkBool`, and ZeroJ requires it to be true for any valid proof.
+
+   At compile time the annotation processor reads this class and generates
+   `SecretMultiplierCircuit`, a companion with `build()`, a typed `inputs()` builder, and more.
+   You'll find it under `build/generated/sources/annotationProcessor/` (Gradle) or
+   `target/generated-sources/annotations/` (Maven).
+
+3. **Write the program.** It compiles the circuit, builds the witness, runs a development setup,
+   proves, verifies, and then tries to cheat.
+
+   ```java title="src/main/java/com/example/quickstart/Main.java"
+   package com.example.quickstart;
+
+   import org.zeroj.api.CircuitId;
+   import org.zeroj.api.CurveId;
+   import org.zeroj.api.ProofSystemId;
+   import org.zeroj.api.VerificationMaterial;
+   import org.zeroj.api.VerificationResult;
+   import org.zeroj.codec.SnarkjsJsonCodec;
+   import org.zeroj.crypto.groth16.Groth16Keys;
+   import org.zeroj.crypto.groth16.Groth16ProofBLS381;
+   import org.zeroj.crypto.setup.PowersOfTauBLS381;
+   import org.zeroj.crypto.snarkjs.SnarkjsGroth16Json;
+   import org.zeroj.verifier.groth16.bls12381.Groth16BLS12381PureJavaVerifier;
+
+   import java.math.BigInteger;
+   import java.nio.charset.StandardCharsets;
+   import java.util.Arrays;
+
+   public class Main {
+
+       public static void main(String[] args) {
+           // 1. Build the circuit (generated from SecretMultiplier) and compile it to R1CS.
+           var circuit = SecretMultiplierCircuit.build();
+           var r1cs = circuit.compileR1CS(CurveId.BLS12_381);
+           System.out.println("Constraints: " + r1cs.numConstraints()
+                   + ", public inputs: " + r1cs.numPublicInputs());
+
+           // 2. Fill in the inputs. Only the prover ever knows b.
+           var inputs = SecretMultiplierCircuit.inputs()
+                   .a(3)
+                   .product(33)
+                   .b(11); // the secret
+           BigInteger[] witness = inputs.calculateWitness(circuit, CurveId.BLS12_381);
+
+           // 3. DEV-ONLY trusted setup: this process knows the toxic waste (tau).
+           BigInteger tau = PowersOfTauBLS381.generate(4).tauScalar();
+           try (var keys = Groth16Keys.setupInMemory(
+                   r1cs.constraints(), r1cs.numWires(), r1cs.numPublicInputs(), tau)) {
+
+               // 4. Prove.
+               Groth16ProofBLS381 proof = keys.prove(witness, r1cs.constraints());
+
+               // 5. Export the three artifacts a verifier needs (snarkjs-compatible JSON).
+               BigInteger[] publicInputs = Arrays.copyOfRange(witness, 1, 1 + r1cs.numPublicInputs());
+               String vkJson = SnarkjsGroth16Json.verificationKeyJson(keys);
+               String proofJson = SnarkjsGroth16Json.proofJson(proof);
+               String publicJson = SnarkjsGroth16Json.publicJson(publicInputs);
+               System.out.println("Public inputs (a, product): " + inputs.publicValues());
+
+               // 6. Verify. The verifier sees the VK, the proof and the public inputs — never b.
+               VerificationResult ok = verify(vkJson, proofJson, publicJson);
+               System.out.println("Proof valid? " + ok.proofValid());
+
+               // 7. Tamper with a public input: claim the product is 34 instead of 33.
+               String tampered = SnarkjsGroth16Json.publicJson(
+                       new BigInteger[]{BigInteger.valueOf(3), BigInteger.valueOf(34)});
+               VerificationResult bad = verify(vkJson, proofJson, tampered);
+               System.out.println("Tampered proof valid? " + bad.proofValid()
+                       + " (" + bad.message().orElse("") + ")");
+           }
+       }
+
+       static VerificationResult verify(String vkJson, String proofJson, String publicJson) {
+           CircuitId id = SecretMultiplierCircuit.circuitId();
+           var envelope = SnarkjsJsonCodec.toEnvelopeFromJson(proofJson, vkJson, publicJson, id);
+           var material = VerificationMaterial.of(vkJson.getBytes(StandardCharsets.UTF_8),
+                   ProofSystemId.GROTH16, CurveId.BLS12_381, id);
+           return new Groth16BLS12381PureJavaVerifier().verify(envelope, material);
+       }
+   }
+   ```
+
+4. **Run it.**
+
+   <Tabs syncKey="build">
+   <TabItem label="Gradle">
+
+   ```bash
+   gradle run        # or ./gradlew run if your project has a wrapper
+   ```
+
+   </TabItem>
+   <TabItem label="Maven">
+
+   ```bash
+   mvn -q compile exec:java -Dzeroj.allowInsecureTrustedSetup=true
+   ```
+
+   </TabItem>
+   </Tabs>
+
+   You should see this (build-tool chatter trimmed):
+
+   ```text
+   Constraints: 6, public inputs: 2
+   WARNING: Single-party Powers of Tau generation (BLS12-381) — for DEVELOPMENT and TESTING only. Use MPC ceremony outputs (Hermez, Zcash PoT) for production.
+   WARNING: Single-party Groth16 Phase 2 setup (BLS12-381) — for DEVELOPMENT and TESTING only. Use snarkjs multi-party ceremony for production.
+   Public inputs (a, product): [3, 33]
+   Proof valid? true
+   Tampered proof valid? false (Groth16 BLS12-381 pairing check failed)
+   ```
+
+   The two `WARNING` lines are ZeroJ reminding you that this setup is for development only.
+
+</Steps>
+
+## What the program does
+
+1. **Compile.** `build()` turns your class into a circuit, and `compileR1CS` flattens it into
+   R1CS: a list of small equations of the form "(something) × (something) = (something)". The
+   one line `a.mul(b).isEqual(product)` becomes 6 of them, because `isEqual` needs a few helper
+   values of its own.
+2. **Witness.** The typed `inputs()` builder names every input, so you can't mix up the order.
+   `calculateWitness` then fills in every wire of the circuit, including `b` and the helpers, and
+   checks each constraint on the way. The result is the witness: a `BigInteger[]` whose
+   element `0` is always `1`, followed by the public inputs in declaration order.
+3. **Setup.** Groth16 needs keys made from secret randomness called toxic waste (`tau` here).
+   Whoever knows it can forge proofs. That's fine on your laptop and unacceptable anywhere else.
+4. **Prove.** `keys.prove` produces a proof: three elliptic-curve points (192 bytes when
+   compressed), whatever the size of the circuit. Proving is randomized, so calling it twice
+   gives two different proofs that both verify.
+5. **Export.** The verification key, proof, and public inputs are written in the JSON layout
+   snarkjs uses, so other tools can read them too.
+6. **Verify.** The verifier checks a pairing equation over the proof, the key, and the public
+   inputs `[3, 33]`. It never receives `b`.
+7. **Tamper.** The same proof with `product = 34` fails. A proof is bound to its exact public
+   inputs.
+
+## What just happened?
+
+| You did | The idea behind it | Read more |
+|---------|--------------------|-----------|
+| Wrote `a × b = product` as constraints | A circuit is a statement expressed as arithmetic rules | [Circuits, constraints & witnesses](/learn/circuits-and-witnesses/) |
+| Computed a witness containing `b` | The witness is the prover's secret solution to those rules | [Circuits, constraints & witnesses](/learn/circuits-and-witnesses/) |
+| Ran `PowersOfTauBLS381` and `setupInMemory` | Groth16 keys come from a one-time setup whose randomness must be destroyed | [Trusted setup, explained](/learn/trusted-setup/) |
+| Called `keys.prove` | Groth16 makes a short proof that the prover knows a valid witness | [Groth16, PlonK & BBS](/learn/proof-systems/) |
+| Verified without `b` | The verifier learns the statement is true, and nothing else | [Zero-knowledge in plain English](/learn/zero-knowledge-basics/) |
+
+One detail is worth noticing. `VerificationResult` has both `proofValid()` and `accepted()`. The
+verifier only checked the math, so `proofValid()` is `true` while `accepted()` stays `false`:
+whether a valid proof should *do* anything, such as grant access or release funds, is a
+decision for your application.
+
+:::caution[Development setup only]
+The keys from `PowersOfTauBLS381.generate(...)` and `Groth16Keys.setupInMemory(...)` are made by
+one process that knows the toxic waste, so anyone holding it could forge proofs. That's why
+the setup is disabled unless you pass `-Dzeroj.allowInsecureTrustedSetup=true`. Never use such
+keys to protect anything of value. Real deployments use keys from a multi-party ceremony
+(a snarkjs `.zkey`), which ZeroJ imports. See
+[Running a trusted setup ceremony](/guides/proving/trusted-setup-ceremony/).
+:::
+
+## Try this
+
+- Change the secret to `.b(12)`. `calculateWitness` throws
+  `ArithmeticException: Constraint violation: ...`, because `3 × 12` isn't `33`. A cheater
+  could skip the witness calculator, but a proof built from a witness that breaks a constraint
+  doesn't verify. [Prove you're over 18](/tutorials/age-check/) shows this in action.
+- Remove `.b(11)` entirely. You get `IllegalArgumentException: Missing secret input: b`.
+- Inside the `try` block, call `keys.prove(...)` a second time and compare the two
+  `proofJson` strings. They differ, yet both verify against the same key.
+
+## Next steps
+
+- [Prove you're over 18](/tutorials/age-check/): range proofs, invalid witnesses, and keeping
+  the verifier separate from the prover.
+- [Verify your proof on Cardano](/tutorials/verify-on-cardano/): run this same proof through a
+  Plutus V3 validator.
+- [Annotations guide](/guides/circuits/annotations/): everything `@ZKCircuit` can do.
+- [Groth16 guide](/guides/proving/groth16/): key stores, large circuits, and production keys.

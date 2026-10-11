@@ -127,7 +127,8 @@ lightest tool; see `references/proof-systems.md`.
   to fit resource limits and marks Bulletproofs early-stage
 - `../../docs/sources/zeroj/`
   — ZeroJ, the Java route: circuits written as Java classes, a pure-Java Groth16 prover, and a
-  Plutus V3 verifier compiled from Java by JuLC. Start at `www/src/content/docs/start/status.md`.
+  Plutus V3 verifier compiled from Java by JuLC. Start at `www/src/content/docs/start/status.md`;
+  `docs/usecases/` has the eUTxO design for each application (nullifier registries, concurrency, cost).
   Its on-chain Groth16 is Beta and testnet-only, PlonK is experimental, nothing is externally
   audited, and the authors say the code is AI-generated
 - `../../docs/sources/zeroj-use-cases/`

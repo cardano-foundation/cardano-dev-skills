@@ -444,11 +444,13 @@
   priority: medium
   glob_patterns:
     # The site docs minus www/src/content/docs/ai/, whose starter pack is
-    # written to be saved as a CLAUDE.md or AGENTS.md. The ADRs under docs/
-    # are design history, not usage guidance.
+    # written to be saved as a CLAUDE.md or AGENTS.md. From docs/ only the
+    # use-case designs: the top-level guides predate the site pages that
+    # replace them, and adr/ (1.4 MB) is design history, not usage guidance.
     - README.md
     - zeroj-circuit-lib/README.md
     - zeroj-onchain-julc/README.md
+    - "docs/usecases/*.md"
     - "www/src/content/docs/start/*"
     - "www/src/content/docs/learn/*"
     - "www/src/content/docs/guides/**/*"

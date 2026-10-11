@@ -243,6 +243,178 @@ affected. The normative scheme is
 [jubjub-eddsa-v1](https://github.com/bloxbean/zeroj/blob/main/docs/specs/jubjub-eddsa-v1.md).
 :::
 
+## Encryption: ElGamal and threshold keys
+
+`elgamal-jubjub-v1` is exponential ("lifted") ElGamal on Jubjub. A message `m` becomes
+`A = [k]·G`, `B = [m]·G + [k]·PK`. Ciphertexts under one key add up to an encryption of the sum,
+so you can total encrypted votes, bids or survey answers and decrypt only the total. The profile
+is specified in `docs/specs/elgamal-jubjub-v1.md` (ADR-0052). It is **experimental**.
+
+**Proving a ciphertext is well formed.** The circuit side proves that a public ciphertext
+encrypts an in-range message under a key:
+
+```java
+@Prove
+void prove(ZkContext zk,
+           @Public ZkField keyU, @Public ZkField keyV,
+           @Public ZkField aU, @Public ZkField aV, @Public ZkField bU, @Public ZkField bV,
+           @Secret @UInt(bits = 1) ZkUInt vote,
+           @Secret @UInt(bits = 252) ZkUInt randomness) {
+    var key = ZkElGamalPublicKey.fromVerifierFixedPublic(zk, keyU, keyV);
+    ZkElGamal.encrypt(zk, vote, randomness, key).assertAffineEquals(zk, aU, aV, bU, bV);
+}
+```
+
+- The message width is 1 to 64 bits. A wider declaration is refused, because at 252 bits the
+  witness `m = l` would alias `m = 0`.
+- The randomness must be exactly 252 bits and never public. One decomposition drives both
+  scalar multiplications.
+- A key enters either as public coordinates the verifier fixes
+  (`fromVerifierFixedPublic`; the verifier checks subgroup membership), or as a witness proved
+  in the subgroup (`witnessInSubgroup`). Both refuse the identity key.
+
+Cost: 6,558 constraints at width 1, and 6,938 at width 64.
+
+**Trustee proofs.** `ZkElGamal.assertDiscreteLogEquality(zk, x, X…, P…, D…)` proves
+`P = [x]·G` and `D = [x]·X` (6,546 constraints). All six coordinates must be public inputs, so
+the prover never chooses the base. One circuit serves both trustee proofs:
+- a proof of possession of a key share, with `X = G` and `D = P`;
+- a correct decryption share, with `X` the ciphertext handle.
+
+**The host side keeps sums honest.** On the host, use the safe layer in
+`org.zeroj.circuit.lib.jubjub`:
+- an `ElGamalCiphertext` carries its key context and an established plaintext bound;
+- `add` and `scale` refuse to mix keys or to let the bound reach `l`;
+- `decrypt` needs a verified share from every trustee (`VerifiedDecryptionShare`).
+
+A ciphertext from someone else enters only through `ElGamal.admit`, with a verifier that checks
+its encryption proof against the statement the library builds:
+
+```java
+ElGamalCiphertext ballot = ElGamal.admit(RawElGamalCiphertext.decode(bytes), election, 1,
+        statement -> verifyGroth16(proof, statement.publicInputs()));
+ElGamalCiphertext total = ElGamalCiphertext.sum(admittedBallots);
+long yes = ElGamal.decrypt(total, verifiedShares, total.bound().longValueExact());
+```
+
+Decryption recovers `m` with a bounded baby-step giant-step search, so keep the decrypted total
+small (default reach about `2^43`). It fails closed instead of returning a wrong value.
+
+**Threshold keys.** With `elgamal-jubjub-threshold-v1` (ADR-0053), any `t + 1` of `n` trustees
+can decrypt, and up to `t` can be lost or malicious. The trustees run a distributed key
+generation, New-DKG of Gennaro et al., with `DkgParticipant`. No single party ever holds the
+key, provided the transport delivers the private shares on time. A late share can make an honest
+dealer publish it, so timely delivery is a secrecy requirement, not only a liveness one.
+- Your application supplies the transport: a broadcast board with agreement and round
+  deadlines. For the private shares it can supply its own channels, or use ZeroJ's encrypted
+  delivery over the same board (below).
+- A third party accepts the result with `ThresholdKeyContext.admit`, which requires
+  authenticated messages, closed rounds, and confirmations from at least `t + 1` trustees.
+- Ballots and sums are unchanged. Decryption takes any `t + 1` verified shares.
+
+**Encrypted share delivery over the board.** `dkg-share-delivery-hpke-v1` (ADR-0054,
+experimental) removes the private channels. It encrypts each share with HPKE (RFC 9180 Base
+mode; X25519, HKDF-SHA256, ChaCha20-Poly1305) to the recipient's key for this attempt, and the
+dealer posts the envelope on the board. Delivery becomes visible, and trustees need not be
+online together. The key generation, its transcript and admission are unchanged.
+
+```java
+// Round 0: a fresh key per attempt, announced under the roster key.
+DkgShareDeliveryKeys keys = DkgShareDeliveryKeys.generate(config, myId, random);
+post(keys.announcement());
+DkgKeyDirectory directory = DkgKeyDirectory.fromRound0(config, finalRound0Window, verifier);
+
+// Round 1: start (instead of participant.start()); post the envelopes, and the COMMITMENTS only
+// once the envelopes are final.
+DkgShareDelivery.SealedDealing dealing = DkgShareDelivery.start(participant, directory, keys, random);
+postAndAwaitFinality(dealing.envelopes());
+post(dealing.broadcasts());
+
+// Close round 1 behind the barrier, with the complete final window. This also destroys the keys.
+List<DkgMessage> complaints = DkgShareDelivery.closeRound1(participant, directory, keys, finalRound1Window, verifier);
+// Rounds 2–7 continue with participant.receiveBroadcast / closeRound as before.
+```
+
+These rules are what keep the shares secret. They are not optional:
+- **Barrier.** Close round 1 only through `closeRound1`, with the window *after* its cutoff and
+  finality. The library can't check that: a snapshot taken before finality can miss envelopes,
+  and processing late is exactly the failure the barrier prevents. Round 1's window opens when
+  round 0's closes, so a threshold message posted during round 0 is early and doesn't count. A participant started with `DkgShareDelivery.start` refuses the plain `closeRound()`
+  at round 1, so it cannot complain about a share it never processed. If `closeRound1` throws
+  anything other than an abort (your verifier, or a crypto-provider fault), the participant
+  stays at round 1 with its keys; retry with the same window, or call `keys.destroy()` if you
+  give up the attempt. The retry must pass exactly the same posts in the same order: any other
+  window is refused with `IllegalArgumentException`. This check proves only that the retry
+  repeats the first call. It does not prove the window is final or complete. Your verifier must return `false`, not throw, for posts it does not
+  accept. If `start` throws after the participant started, post nothing for it in round 1.
+- **Commitments last.** Post `COMMITMENTS` only after every envelope is final within the round-1
+  window, or post them all atomically. If the envelopes cannot make the cutoff, post nothing:
+  the dealer is then disqualified and its contribution is excluded from the key. Honest
+  trustees don't complain about it; a corrupted trustee still can, and receives only its own
+  share in the public answer.
+- **T1.** If your own announcement is missing from the final round-0 window, or the directory holds
+  a different key for you, `start` throws `OWN_KEY_ANNOUNCEMENT_MISSING` and aborts the participant.
+  Post nothing more for this attempt.
+- **Keys.** Generate fresh keys per attempt; they are separate from the roster key. Ciphertexts on
+  a public board are kept forever, and a leaked key opens what was sent to it. A few leaked keys,
+  together with corrupted trustees, can expose the joint key.
+
+The construction rests on a stated assumption: that encryption can replace the private channels
+of the GJKR07 proof. That assumption, and the delivery argument, await external review. See the
+spec `docs/specs/dkg-share-delivery-hpke-v1.md`.
+
+**Confidential notes: delivering openings on-chain.** A note's amount lives in a
+`pedersen-jubjub-v1` commitment, and its holder needs the opening `(v, r)` to spend it.
+`confidential-note-jubjub-v1` (ADR-0055, experimental) delivers that opening on-chain, in the note
+itself, to each of its readers: the owner, and any auditors the application requires. It uses
+Zcash Sapling's key agreement on Jubjub, its BLAKE2b-256 KDF (with ZeroJ's personalization) and
+ChaCha20-Poly1305, with a fresh ephemeral key per reader. Recipients and auditors recover every
+note from chain data alone.
+
+```java
+// Sender: one delivery per reader, in the application's order (owner first, then auditors).
+NoteOpening opening = NoteOpening.random(amount, random);
+JubjubPoint c = opening.commitment();                      // goes in the note's datum
+List<byte[]> deliveries = ConfidentialNotes.seal(opening, List.of(ownerKey, auditorKey), random);
+
+// Reader: open only your own position; check the owner credential yourself.
+NoteScanner scanner = NoteScanner.of(viewingKey);          // runs an AEAD self-test once
+Optional<NoteOpening> mine = scanner.open(deliveries.get(0), datumU, datumV);
+```
+
+These rules are not optional:
+- **Accept only what opens.** `open` returns an opening only after it recomputes `[v]·G + [r]·H`
+  and compares it with the note's commitment. Everything else, from a wrong key to a tampered byte,
+  is the same "not mine" result. A crypto-provider fault throws instead: retry later, never treat
+  it as "not mine".
+- **Check the owner yourself.** The profile does not know your owner credential. Count a note as
+  yours only if its owner field is yours and it sits at your application's address with its token;
+  otherwise a copied commitment and delivery in someone else's output would look like yours.
+- **Report unopenable owned notes.** `scan` lists owned notes that do not open. That is value you
+  own but cannot spend, and evidence of a misbehaving sender; show it to the user.
+- **Keys.** Generate viewing keys with `NoteViewingKey.generate`; never reuse an ElGamal, EdDSA,
+  spending or Zcash key. Register auditor keys with their possession proof, once. Ciphertexts on
+  chain are kept forever: a leaked viewing key opens every note ever delivered to it.
+- **Scan in your own process.** Decryption multiplies attacker-chosen points by your viewing key
+  with variable-time arithmetic. Never run it as a shared or network-facing service.
+
+Without a proof, a validator can check only that each required reader has a delivery of the right
+length, not that it decrypts. ADR-0055's D3a closes that for the **amount** an auditor needs: the
+transfer's Groth16 proof also encrypts each created note's amount to the auditor's
+`elgamal-jubjub-v1` key in two 32-bit limbs. It measured within the per-transaction budget in a test-only
+reference validator (73.4% of the step limit for a two-output transfer with one auditor, 55.2% for
+a redeem, 47.3% with the hash-compressed layout); your application measures its own complete
+transaction. It covers notes created by proof-enforced transitions only; issued notes rest on the
+issuer.
+
+:::caution[Offline trustee and encryption operations]
+Key generation, encryption, decryption shares and the DKG handle secrets with variable-time
+Java `BigInteger` arithmetic, through the blinded best-effort schedule used for Pedersen.
+Run them offline or in an isolated process. The in-circuit relations are not affected. "Decrypt
+once, after a deadline" is your application's rule: decrypting running totals lets anyone
+recover individual messages by differencing.
+:::
+
 ## Real-world crypto: Cardano key derivation
 
 These gadgets reproduce standard wallet primitives *inside* a circuit, so a proof can show "I know
@@ -286,6 +458,10 @@ authorization or replay rules.
 | Pedersen commitment (in-circuit) | BLS12-381 only | Ready, pending external review |
 | Pedersen commitment (off-circuit generation) | Jubjub | Offline or isolated use only |
 | EdDSA-Jubjub | BLS12-381 only | Verification ready pending external review; legacy signing offline only |
+| ElGamal encryption and trustee proofs (in-circuit) | BLS12-381 only | Experimental |
+| ElGamal host API, threshold key generation | Jubjub | Experimental; secret operations offline or isolated only |
+| Encrypted DKG share delivery (`dkg-share-delivery-hpke-v1`) | X25519 HPKE | Experimental; Assumption A1 and the delivery contract await external review |
+| Confidential notes (`confidential-note-jubjub-v1`) | Jubjub | Experimental; secret operations offline or isolated only; assumptions A1–A3 await external review |
 | BLAKE2b, CIP-1852 derivation | Field-agnostic | Ready on BLS12-381 Groth16 |
 | SHA-512, HMAC-SHA512, BIP32-Ed25519 | Field-agnostic | Ready as building blocks |
 | Poseidon MPF/JMT authenticated state | BLS12-381 Poseidon profile | Experimental (separate modules) |

@@ -436,6 +436,47 @@
     - "zkp/lib/**/*.ak"
   description: ADAO's Aiken ZKP verifier library — Groth16, PLONK, and Bulletproofs verifiers for Plutus V3, with protocol walkthroughs and on-chain verification tests
 
+- name: ZeroJ
+  repo: https://github.com/bloxbean/zeroj.git
+  docs_path: "."
+  format: mdx
+  category: sdk
+  priority: medium
+  glob_patterns:
+    # The site docs minus www/src/content/docs/ai/, whose starter pack is
+    # written to be saved as a CLAUDE.md or AGENTS.md. From docs/ only the
+    # use-case designs: the top-level guides predate the site pages that
+    # replace them, and adr/ (1.4 MB) is design history, not usage guidance.
+    - README.md
+    - zeroj-circuit-lib/README.md
+    - zeroj-onchain-julc/README.md
+    - "docs/usecases/*.md"
+    - "www/src/content/docs/start/*"
+    - "www/src/content/docs/learn/*"
+    - "www/src/content/docs/guides/**/*"
+    - "www/src/content/docs/tutorials/*"
+    - "www/src/content/docs/use-cases/*"
+    - "www/src/content/docs/reference/*"
+  description: Java toolkit for zero-knowledge proofs on Cardano — circuits as Java classes, pure-Java Groth16 and PlonK provers on BLS12-381, and generated Plutus V3 verifiers; not audited, testnet only
+  website: https://zeroj.dev
+
+- name: ZeroJ Use Cases
+  repo: https://github.com/bloxbean/zeroj-usecases.git
+  docs_path: "."
+  format: markdown
+  category: sdk
+  priority: low
+  glob_patterns:
+    - README.md
+    - "*/README.md"
+    - "*/*_TUTORIAL.md"
+    - "*/DESIGN.md"
+    - "*/docs/*.md"
+    - docs/JUBJUB_ON_CARDANO.md
+    - "docs/adr/*.md"
+    - "examples/minimal-circuits/**/README.md"
+  description: Runnable ZeroJ applications — private voting, proof of reserves, KYC and selective disclosure, NFT ownership, sybil-resistant airdrop, product passport, account recovery — with circuits and Cardano verification flows
+
 - name: Aiken Examples
   repo: https://github.com/aiken-lang/aiken.git
   docs_path: examples

@@ -1,0 +1,184 @@
+---
+title: Age & KYC eligibility
+description: Prove you're old enough and live in an approved country, using an issuer-signed credential, while the validator learns only "eligible".
+sidebar:
+  order: 4
+---
+
+import AgeKycWalkthrough from '../../../components/walkthrough/AgeKycWalkthrough.astro';
+
+Regulated DeFi, age-gated content and jurisdiction checks all ask the same thing: *are you allowed
+to use this?* Today the answer usually means uploading a passport to every app, which stores it and
+can leak it. Credentials fix half of that problem. A KYC provider checks you once and signs your
+attributes. Zero knowledge fixes the other half: you prove the signed attributes satisfy the rule,
+and the app never sees them.
+
+<AgeKycWalkthrough />
+
+## The zero-knowledge idea
+
+**The holder proves "a registered issuer signed my age and country, my age meets the minimum, and my
+country is on the approved list". The only public outputs are the issuer's key, the policy and the
+result.**
+
+The issuer signs `Poseidon(age, country)` with EdDSA over Jubjub. Jubjub is a curve defined over the
+BLS12-381 scalar field, so checking its signatures inside a BLS12-381 circuit is comparatively cheap.
+The circuit then does three things:
+
+1. verifies the issuer's signature on the hidden attributes;
+2. compares `age ≥ minAge` as 8-bit integers;
+3. proves `country` is a leaf of the approved-country Merkle tree, whose root is public.
+
+The demo circuit is about 11,000 constraints. The on-chain check costs the same whatever the circuit
+contains, because it's a Groth16 pairing check over a handful of public inputs.
+
+## What stays private, what's public
+
+| Input | Visibility | Why |
+|---|---|---|
+| `age` | Secret | 8-bit integer, range-checked; only the comparison result matters |
+| `country` | Secret | Numeric country code; only membership in the approved set matters |
+| Issuer signature (`sigRU`, `sigRV`, `sigS`) and helper witnesses (`kModL`, `kQuotient`) | Secret | Revealing the signature would make every presentation linkable |
+| Merkle path (`siblings`, `pathBits`) | Secret | The path would reveal which country |
+| `pkU`, `pkV` | Public | The issuer's Jubjub public key; the validator pins it |
+| `minAge` | Public | The policy threshold; pinned |
+| `countryRoot` | Public | The approved-country set; pinned |
+| `eligible` | Public | Proven equal to `age ≥ minAge`; the validator requires 1 |
+
+## How it works
+
+1. **Issue.** The KYC provider verifies the person out of band, signs `Poseidon(age, country)` and
+   hands the holder their attributes plus the signature. The issuer keeps its secret key.
+2. **Deploy the gate.** The protocol compiles a validator with the verification key, the issuer's
+   public key, `minAge` and `countryRoot` as script parameters. Changing the policy produces a new
+   script address.
+3. **Prove.** The holder generates a Groth16 proof on their own device. The demo does this
+   server-side for convenience.
+4. **Spend.** The transaction's redeemer carries the proof plus the five public inputs. The
+   validator checks the issuer, the policy, `eligible == 1` and the proof.
+5. **Reuse.** No nullifier is involved. The same credential can prove eligibility again and again,
+   which suits ongoing access.
+
+```text
+issuer ──sign(Poseidon(age, country))──▶ holder ──Groth16 proof──▶ validator
+  (off-chain, once)                        (local)      params: VK, issuer key, minAge, countryRoot
+                                                        checks: registered issuer + policy + eligible==1 + pairing
+```
+
+## The circuit
+
+This is lightly simplified from the demo's `CredentialProof`: constructor validation is trimmed and
+the steps are reordered for reading.
+
+```java title="CredentialProof.java"
+import org.zeroj.circuit.annotation.*;
+import org.zeroj.circuit.lib.poseidon.PoseidonParams;
+import org.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
+import org.zeroj.circuit.lib.zk.ZkEdDSAJubjub;
+import org.zeroj.circuit.lib.zk.ZkMerkle;
+import org.zeroj.circuit.lib.zk.ZkPoseidon;
+
+@ZKCircuit(name = "credential-verify-eddsa",
+           nameTemplate = "credential-verify-eddsa-d{countryTreeDepth}-bls-poseidon", version = 1)
+public class CredentialProof {
+    private static final PoseidonParams POSEIDON = PoseidonParamsBLS12_381T3.INSTANCE;
+
+    public CredentialProof(@CircuitParam("countryTreeDepth") int countryTreeDepth) {}
+
+    @Prove
+    ZkBool prove(ZkContext zk,
+                 @Public ZkField pkU,
+                 @Public ZkField pkV,
+                 @Public @UInt(bits = 8) ZkUInt minAge,
+                 @Public ZkField countryRoot,
+                 @Public ZkBool eligible,
+                 @Secret @UInt(bits = 8) ZkUInt age,
+                 @Secret ZkField country,
+                 @Secret ZkField sigRU,
+                 @Secret ZkField sigRV,
+                 @Secret @UInt(bits = 252) ZkUInt sigS,
+                 @Secret @UInt(bits = 252) ZkUInt kModL,
+                 @Secret @UInt(bits = 4) ZkUInt kQuotient,
+                 @Secret @FixedSize(param = "countryTreeDepth") ZkArray<ZkField> siblings,
+                 @Secret @FixedSize(param = "countryTreeDepth") ZkArray<ZkBool> pathBits) {
+
+        // 1. The issuer signed these exact attributes
+        var claims = ZkPoseidon.hash(zk, POSEIDON, age.asField(), country);
+        ZkEdDSAJubjub.verifyWithRegisteredKey(zk, pkU, pkV, claims, sigRU, sigRV, sigS, kModL, kQuotient);
+
+        // 2. The country is in the approved set
+        ZkMerkle.verifyProofPoseidon(zk, POSEIDON, country, countryRoot, siblings, pathBits);
+
+        // 3. The age meets the minimum
+        return eligible.isEqual(age.gte(minAge));
+    }
+}
+```
+
+`verifyWithRegisteredKey` is the right entry point here because the issuer key is a public input
+that the verifier pins. If the prover could choose the key, you'd need `verifyStrict`, which also
+checks the key's subgroup membership inside the circuit. The name reminds you that "is this a
+trusted issuer?" is the validator's job.
+
+:::tip[Sign a birth year, not an age]
+An age goes stale the day after it's signed. The
+[selective-disclosure demo](/use-cases/selective-disclosure/) signs `dobYear` and proves
+`dobYear ≤ currentYear − 21`, with `currentYear` pinned by the validator.
+:::
+
+## On Cardano
+
+The demo's `CredentialGatedValidator` is a JuLC spending validator. It composes
+`Groth16BLS12381Lib.verify(…)` and takes the verification key, the issuer's key coordinates and the
+policy values (`minAge`, `countryRoot`) as parameters. It accepts a spend only if the redeemer's
+public inputs match the registered issuer and policy, `eligible == 1`, and the pairing check
+passes.
+
+A valid proof is not authorization. This gate is stateless, so the proof isn't tied to the person
+spending. Anyone who sees an unlock transaction can copy its proof. In the demo each locked UTxO
+can be spent only once, but a real protocol should bind the proof to its context: add the
+recipient or the spent `TxOutRef` as a bound public input that the validator recomputes from
+`ScriptContext`, or use a per-epoch nullifier when access should be rate-limited. See
+[Application security](/guides/verifying/application-security/).
+
+## Security considerations
+
+- **You trust the issuer.** A dishonest or compromised issuer can sign anything. Plan for key
+  rotation and revocation: short-lived credentials, or a periodically refreshed validity tree the
+  circuit checks.
+- **Keep issuance offline.** The demo signs with `EdDSAJubjub.signCompatibilityOffline`. ZeroJ's
+  Jubjub signing isn't constant-time and is meant for offline, isolated use. Don't expose it as a
+  network signing service.
+- **Credentials can be shared.** A proof shows knowledge of a credential, not identity. Holder
+  binding helps: include the holder's key in the signed message and prove control of it.
+- **Replay** of stateless proofs, as described above.
+- **Linkability outside the proof.** The same wallet, fee payer or timing can still link two
+  presentations.
+- **Trusted setup.** The demo uses a single-party development setup; production needs an MPC
+  ceremony ([Trusted setup, explained](/learn/trusted-setup/)).
+
+## Try it
+
+The demo lives in
+[`identity-kyc`](https://github.com/bloxbean/zeroj-usecases/tree/main/identity-kyc). With Yaci
+DevKit running (see [Run the demos](/use-cases/overview/#run-the-demos)):
+
+```bash
+./demo.sh identity-kyc --run
+```
+
+`--run` locks 5 ADA at the credential-gated script, proves that Alice (25, USA) is eligible and
+unlocks the funds with that proof on-chain. The UI lists five test users. Charlie is 16 and Diana's
+country isn't on the approved list, so neither can produce a proof that unlocks the gate.
+
+Design notes:
+[ZK identity & credentials — detailed design](https://github.com/bloxbean/zeroj/blob/main/docs/usecases/identity-and-credentials.md)
+(credential lifecycle, revocation options, issuer registries).
+
+## Related
+
+- [Prove you're over 18](/tutorials/age-check/): build the range check yourself
+- [Selective disclosure & reusable KYC](/use-cases/selective-disclosure/): many predicates from
+  one credential, or BBS
+- [Gadgets](/guides/circuits/gadgets/): `ZkEdDSAJubjub`, `ZkMerkle`, `ZkPoseidon`
+- [Testing circuits](/guides/circuits/testing-circuits/): write the invalid-witness tests

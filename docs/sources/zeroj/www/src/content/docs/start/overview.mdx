@@ -1,0 +1,162 @@
+---
+title: What is ZeroJ?
+description: ZeroJ is a Java-first zero-knowledge proof toolkit for Cardano. Learn what it does, how the pieces fit, and where to start.
+sidebar:
+  order: 1
+---
+
+import PipelineDiagram from '../../../components/walkthrough/PipelineDiagram.astro';
+import TextOnly from '../../../components/TextOnly.astro';
+
+**ZeroJ is a Java-first zero-knowledge proof toolkit for Cardano.** You define circuits in Java,
+generate proofs with a pure-Java Groth16 prover on the BLS12-381 curve, and verify them
+off-chain in Java or on-chain in a Cardano Plutus V3 validator written with JuLC. It also
+includes BBS signatures for credentials where the holder chooses which attributes to reveal.
+
+You don't need Rust, Go, Node.js, or native libraries to get from a circuit to a verified proof.
+Everything on that path is plain Java on the JVM.
+
+## The problem zero-knowledge solves
+
+A lot of software has to answer questions like "is this person over 18?", "does this account
+hold at least 10,000 ADA?", or "is this wallet on the allowlist?". The usual way to answer them
+is to hand over the raw data (a birth date, a balance, an address) and let someone else check
+it. That leaks far more than the answer.
+
+A **zero-knowledge proof** lets you prove the answer without handing over the data. The prover
+runs a computation on private inputs and produces a small proof. The verifier checks the proof
+against the public inputs and learns one thing: the statement is true. They learn nothing about
+the private inputs.
+
+```text
+Without ZK:   "Here is my birth date: 1990-04-12."      → verifier learns the date
+With ZK:      "Here is a proof that my age ≥ 18."       → verifier learns only "true"
+```
+
+On a blockchain, this matters twice over. Everything on-chain is public forever, so zero-knowledge
+proofs are one of the few ways to build dApps that check private facts, such as votes,
+balances, credentials, or key ownership, without publishing them.
+
+New to the idea? [Zero-knowledge in plain English](/learn/zero-knowledge-basics/) explains it
+from scratch in about five minutes.
+
+## Why Java?
+
+Most ZK tooling lives in Rust, Go, C++, or JavaScript, often with a custom circuit language
+on top. ZeroJ brings the whole workflow to the JVM:
+
+- **Pure Java on the default path.** Circuit compilation, witness generation, proving, and
+  verification with `Groth16BLS12381PureJavaVerifier` run in pure Java, with nothing to install
+  beyond a JDK. Native `blst` acceleration is optional. (The verifier module also carries the
+  `blst-java` binding for its native verifier; see [Verify proofs in Java](/guides/verifying/off-chain/).)
+- **Circuits are Java code.** You write circuits with annotations and symbolic types
+  (`ZkField`, `ZkBool`, `ZkUInt`), so your IDE, refactoring tools, and unit tests all work.
+- **GraalVM friendly.** ZeroJ targets Java 25, and several modules ship GraalVM native-image
+  metadata.
+- **Fits the Java Cardano stack.** It works alongside
+  [Cardano Client Lib](https://github.com/bloxbean/cardano-client-lib) for building transactions,
+  [JuLC](https://github.com/bloxbean/julc) for writing Plutus V3 validators in Java, and
+  [Yaci DevKit](https://github.com/bloxbean/yaci-devkit) for a local Cardano devnet.
+
+## How the pieces fit
+
+Every ZeroJ application follows the same pipeline. Only the circuit is yours to design; the
+rest is library calls.
+
+<PipelineDiagram />
+
+<TextOnly>
+
+```text
+ 1. Circuit    A Java class annotated with @ZKCircuit
+               └─ compile ─►  R1CS constraints (the rules a valid answer must satisfy)
+
+ 2. Witness    Public inputs + secret inputs
+               └─ calculate ─►  a value for every wire in the circuit (stays private)
+
+ 3. Setup      R1CS  ─►  proving key + verification key
+               (once per circuit; real keys come from a multi-party ceremony)
+
+ 4. Prove      proving key + witness  ─►  proof (192 bytes for Groth16 on BLS12-381)
+
+ 5. Verify     verification key + proof + public inputs  ─►  true / false
+    off-chain  (pure Java, in your backend or client)
+
+ 6. Verify     the same check inside a Plutus V3 validator (JuLC),
+    on-chain   plus the application rules you add around it
+```
+
+</TextOnly>
+
+Step 3 deserves a warning up front. The quick, in-process setup that ZeroJ offers for
+development is **insecure by design**: the process that runs it could forge proofs. ZeroJ
+disables it unless you pass `-Dzeroj.allowInsecureTrustedSetup=true`. Real deployments use keys
+from a multi-party ceremony. [Trusted setup, explained](/learn/trusted-setup/) covers why.
+
+## Building blocks
+
+| Area | What you get | Modules |
+|------|--------------|---------|
+| Circuit authoring | `@ZKCircuit` symbolic annotations (recommended), the `CircuitSpec` DSL, and an inline lambda DSL for quick experiments | `zeroj-circuit-annotation-api`, `zeroj-circuit-annotation-processor`, `zeroj-circuit-dsl` |
+| Gadget library | Poseidon (with explicit BLS12-381 parameters), Merkle membership, comparators and range checks, binary decomposition, multiplexers; in-circuit Blake2b, SHA-512, HMAC-SHA512, Ed25519, BIP32-Ed25519 and CIP-1852 key derivation | `zeroj-circuit-lib` |
+| Provers | Pure-Java Groth16 on BLS12-381, with a streaming setup and `mmap`-able proving keys for large circuits; optional blst-accelerated backend | `zeroj-crypto`, `zeroj-crypto-blst` |
+| Off-chain verification | Pure-Java Groth16 verifier, proof envelopes, codecs, and a pluggable verifier SPI | `zeroj-verifier-groth16`, `zeroj-api`, `zeroj-codec`, `zeroj-backend-spi` |
+| On-chain verification | A reusable Plutus V3 Groth16 verifier and an on-chain library for your own validators, compiled with JuLC | `zeroj-onchain-julc` |
+| Credentials | BBS signatures (IRTF CFRG draft-10): sign, verify, and selective-disclosure proofs | `zeroj-bbs` (opt-in) |
+| snarkjs interop | Import `.ptau` and `.zkey` files, export snarkjs-compatible JSON, and contribute to Groth16 ceremonies with the `zeroj-ceremony` CLI | `zeroj-crypto`, `zeroj-codec`, `zeroj-tools` |
+| Authenticated state | Poseidon Merkle Patricia Forestry and Jellyfish Merkle Tree circuits (experimental) | `zeroj-mpf-poseidon`, `zeroj-jmt-poseidon` (opt-in) |
+
+PlonK proving and verification also exist in ZeroJ, but they are **experimental**, both off-chain
+and on-chain. Groth16 on BLS12-381 is the focus of the current release and the default everywhere
+in these docs. See [Groth16, PlonK & BBS](/learn/proof-systems/) for how they differ.
+
+## A taste of the code
+
+This is a complete circuit. It proves "I know a secret `b` such that `a × b = product`" without
+revealing `b`:
+
+```java title="SecretMultiplier.java"
+@ZKCircuit(name = "secret-multiplier", version = 1)
+public class SecretMultiplier {
+    @Prove
+    ZkBool prove(ZkContext zk, @Public ZkField a, @Public ZkField product, @Secret ZkField b) {
+        return a.mul(b).isEqual(product);
+    }
+}
+```
+
+At compile time, the annotation processor generates a `SecretMultiplierCircuit` companion class
+that you use to compile the circuit, calculate witnesses, and prove. The
+[Quickstart](/start/quickstart/) takes this circuit all the way to a verified proof.
+
+## Who it's for
+
+- **Java and Kotlin developers** who want to add privacy features, such as age checks,
+  allowlists, sealed bids, or private votes, without leaving the JVM or learning a new circuit
+  language first.
+- **Cardano builders** who want dApps that check private facts on-chain, using Plutus V3's
+  native BLS12-381 support.
+- **ZK engineers and researchers** who want a readable pure-Java prover, snarkjs-compatible
+  artifacts, and independent verification paths.
+
+:::caution[Experimental research software]
+ZeroJ is experimental and **has not been externally audited**. Don't use it to protect real
+value or on mainnet. The on-chain Groth16 verifier is labeled for testnet use only, and
+in-process trusted setup is for development only. The "Beta" label means feature-complete and
+correctness-tested, not audited. See [Status & maturity](/start/status/) for component-by-component
+detail.
+:::
+
+## Where to go next
+
+**New to zero-knowledge?** Start with [Zero-knowledge in plain English](/learn/zero-knowledge-basics/),
+then [Circuits, constraints & witnesses](/learn/circuits-and-witnesses/). The Learn ZK section
+takes about 20 minutes and assumes no cryptography background.
+
+**Want to see code running?** [Install ZeroJ](/start/installation/), then follow the
+[Quickstart](/start/quickstart/) to prove and verify your first statement in pure Java.
+
+**Building on Cardano?** Read [ZK on Cardano](/learn/zk-on-cardano/), then follow
+[Verify your proof on Cardano](/tutorials/verify-on-cardano/) to run a proof through a Plutus V3
+validator on Yaci DevKit. Browse the [use cases](/use-cases/overview/) for complete designs,
+including private voting, proof of reserves, and selective disclosure.

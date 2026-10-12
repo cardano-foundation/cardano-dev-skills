@@ -1,0 +1,190 @@
+---
+title: ZK on Cardano
+description: How Cardano verifies ZK proofs with Plutus V3 BLS12-381 builtins, how proofs map onto eUTxO, what it costs, and why a valid proof is not authorization.
+sidebar:
+  order: 5
+---
+
+import CardanoProofWalkthrough from '../../../components/walkthrough/CardanoProofWalkthrough.astro';
+import TextOnly from '../../../components/TextOnly.astro';
+
+Cardano can check a Groth16 proof inside a smart contract. This page explains how that works,
+how a proof fits into Cardano's eUTxO model, what verification costs, and the most important lesson
+of all: **a validator that only checks the proof is not secure.**
+
+## What Cardano gives you: BLS12-381 builtins
+
+Verifying a pairing-based proof means doing elliptic-curve math, which would be far too
+expensive to write by hand in a smart contract. Plutus V3, introduced in the Conway era, added
+**native BLS12-381 builtins**, specified in CIP-0381. They cover curve point arithmetic,
+compression and decompression, hashing to the curve, and the two halves of a pairing check: the
+**Miller loop** and the **final verification**.
+
+That's why ZeroJ targets BLS12-381: it's the only pairing-friendly curve Cardano can verify
+on-chain. (See [Groth16, PlonK & BBS](/learn/proof-systems/) for the comparison with BN254.)
+
+ZeroJ's on-chain Groth16 verifier is Java code compiled to Plutus V3 by
+[JuLC](https://github.com/bloxbean/julc). When it runs, it:
+
+1. reads the public inputs,
+2. decompresses the proof points (A, C in G1; B in G2),
+3. combines the public inputs with the verification key: one scalar multiplication per input,
+4. runs four Miller loops and one final check to confirm the Groth16 pairing equation.
+
+## How a proof fits into eUTxO
+
+On Cardano, funds and state live in **UTxOs** (unspent transaction outputs). A UTxO locked at a
+script address can only be spent by a transaction that the script, called a **validator**,
+approves. The validator sees three things: the UTxO's **datum**, the spender's **redeemer**, and
+the **ScriptContext**, a description of the whole transaction.
+
+ZK verification maps onto that model naturally:
+
+| eUTxO piece | Role in ZK verification |
+|-------------|-------------------------|
+| Validator script | The verifier. The **verification key is baked in** as script parameters at deploy time, so each VK produces a different script hash and address. |
+| Datum | The **public inputs**, in ZeroJ's reusable verifier. Your own validator may instead derive them from the transaction or from on-chain state. |
+| Redeemer | The **proof**: A, B, and C as compressed BLS12-381 points, 192 bytes in total. |
+| ScriptContext | The transaction being validated. This is where **your application rules** live. |
+
+The typical flow, step by step:
+
+<CardanoProofWalkthrough />
+
+<TextOnly>
+
+```text
+ Lock    Alice pays ADA to the verifier script address, with the public inputs as datum.
+
+ Spend   Bob builds a transaction that spends that UTxO.
+         Redeemer = his proof.
+         The validator checks the proof against the datum using Plutus V3 BLS12-381 builtins
+         (and, in a real application, checks the transaction against its policy).
+         Valid → the transaction succeeds. Invalid → the whole transaction fails.
+```
+
+</TextOnly>
+
+[Verify your proof on Cardano](/tutorials/verify-on-cardano/) runs exactly this flow on a local
+Yaci DevKit network.
+
+## What verification costs
+
+Every Plutus script execution has a budget of CPU and memory units, with a per-transaction
+maximum. Groth16 is the cheapest pairing-based option because its verification work is fixed,
+apart from one extra scalar multiplication per public input.
+
+In ZeroJ's JuLC VM tests, the reusable Groth16 verifier, run as a spending validator with a full
+`ScriptContext`, measured:
+
+| Public inputs | CPU units | Memory units |
+|---------------|-----------|--------------|
+| 1 | about 2.63 billion | about 178,000 |
+| 2 | about 2.82 billion | about 212,000 |
+| 3 | about 3.02 billion | about 246,000 |
+
+That's roughly a quarter to a third of the per-transaction CPU limit of 10 billion units under
+current protocol parameters, leaving room for your own validation logic. Each extra public input
+adds about 0.2 billion CPU units, and transaction fees scale with the units used, so keep public
+inputs to what the validator actually needs. Measure your own validator too: its policy checks
+add cost, and a JuLC compiler upgrade can shift the numbers.
+
+`zeroj-onchain-julc` includes two planning helpers: `ScriptBudgetEstimator` estimates CPU and
+memory for a proof system, curve, and public-input count, and `OnChainFeasibility` reports which
+combinations are practical on Plutus V3. Script size matters too, since the verification key
+lives in the script. Deploying the validator once as a **reference script** (CIP-0033) avoids
+attaching it to every transaction.
+
+## Verifying off-chain instead
+
+You don't always need the chain to check the math. If your application only needs a
+**tamper-evident record**, you can verify the proof in Java (in a backend, an indexer, or a
+client), then record a hash of the proof and its public inputs, or a new state root, in
+transaction metadata using Cardano Client Lib.
+
+| | On-chain verification | Off-chain verification + anchoring |
+|---|------------------------|-------------------------------------|
+| Who checks the proof | Every Cardano node, as part of consensus | Your verifier, plus anyone who re-checks later |
+| Can an invalid proof move funds? | No; the transaction fails | The chain doesn't check the proof at all, so your off-chain logic must |
+| Cost | Plutus execution units, roughly 2.6 to 3 billion CPU units per proof | Only metadata bytes |
+| Good for | Unlocking funds, minting, state transitions enforced by the ledger | Audit trails, attestations, batch results, off-chain protocols |
+
+ZeroJ's current release doesn't ship an anchoring helper. You write the metadata yourself with
+Cardano Client Lib, choosing what to commit to.
+
+## Proof validity is not authorization
+
+This is the part that separates a demo from a real application.
+
+A reusable verifier such as `Groth16BLS12381Verifier` (the on-chain validator in
+`zeroj-onchain-julc`) checks exactly one thing:
+
+> *Some* witness satisfies *this* circuit for *these* public inputs.
+
+It does **not** check who is spending, where the money goes, whether this proof was used before,
+or whether the public inputs match your application's current state. On its own, it's safe for
+tests and demos, and nothing else. Here's what goes wrong if you deploy it as-is:
+
+- **Replay.** Proofs are public once they're on-chain. If two UTxOs sit at the same script with
+  the same datum, one proof unlocks both. Anyone can copy it.
+- **Front-running.** Your unlock transaction is visible before it's confirmed. Someone can copy
+  your proof into their own transaction that pays *them*, because nothing in the proof names the
+  recipient.
+- **Double use.** A voter proves "I'm on the voter list" and votes twice. Both proofs are valid.
+- **Stale or wrong context.** A proof of membership in an old Merkle root still verifies, unless
+  the validator checks the root against current state.
+
+The defenses all have the same shape: **bind the proof's public inputs to the transaction and
+the application state, then have the validator enforce that binding.**
+
+**Bind to the UTxO being spent.** Make the first public input a value derived from the output
+being spent:
+
+```text
+first public input  =  blake2b_256( spentTxId ‖ spentOutputIndex as 32 bytes )  mod r
+```
+
+(`r` is the BLS12-381 scalar field order.) The prover computes this value for the UTxO it is about
+to spend and proves with it, and the validator recomputes it from `ScriptContext`. A proof made
+for one UTxO is then useless for any other. The validator must compute the value itself rather
+than read it from the locked UTxO's datum, because a datum can't contain a hash of its own
+transaction. ZeroJ's `Groth16BLS12381TxOutRefBindingVerifier` demonstrates the check but reads it
+from the datum, so treat it as a reference, not a lock. [Verify your proof on
+Cardano](/tutorials/verify-on-cardano/) builds a validator that does this correctly.
+
+**Bind to the recipient and outputs.** Make the recipient's key hash, or a commitment to the
+intended outputs, a public input, and have the validator check the transaction pays exactly that.
+A copied proof then only ever pays the original recipient.
+
+**Use nullifiers for one-time actions.** A nullifier is a public value derived from the prover's
+secret, for example `Poseidon(secret, electionId)`. It's always the same for the same secret and
+scope, but reveals nothing about the secret. The validator records used nullifiers in on-chain
+state and rejects repeats, which stops double voting and double claiming. ZeroJ doesn't provide a
+generic nullifier registry; your application designs and stores it. The
+[private allowlist tutorial](/tutorials/private-allowlist/) shows a nullifier in practice.
+
+**Check public inputs against state.** If the proof says "I'm in the tree with root R", the
+validator must confirm that R is the current root, for example from a datum or reference input.
+
+**Enforce everything else through ScriptContext.** Required signatures, validity intervals,
+continuing outputs, value conservation, and minting rules are ordinary validator logic. ZK doesn't
+replace any of it.
+
+In practice you write your own validator: compose ZeroJ's on-chain library
+(`Groth16BLS12381Lib`) for the proof check and add your policy around it.
+[On-chain verification](/guides/verifying/on-chain/) shows how.
+
+:::danger[Testnet only]
+ZeroJ's on-chain Groth16 verifier is **Beta, testnet only**, and not externally audited. Don't
+lock real value behind it. Even after an audit, a validator is only as safe as its application
+policy and its trusted setup.
+:::
+
+## Next steps
+
+- [Quickstart: your first proof](/start/quickstart/): if you haven't run any code yet, start here
+- [Verify your proof on Cardano](/tutorials/verify-on-cardano/): hands-on with Yaci DevKit
+- [On-chain verification](/guides/verifying/on-chain/): building your own validator
+- [Application security](/guides/verifying/application-security/): replay, nullifiers, and
+  binding in depth
+- [Private voting](/use-cases/private-voting/): a complete design that puts these ideas together

@@ -1,0 +1,186 @@
+---
+title: Zero-knowledge in plain English
+description: What a zero-knowledge proof is, what it convinces you of, what it can't do, and a mental model that maps it onto ordinary Java code.
+sidebar:
+  order: 1
+---
+
+import TextOnly from '../../../components/TextOnly.astro';
+import ProverVerifierDiagram from '../../../components/walkthrough/ProverVerifierDiagram.astro';
+import ColourBlindExplainer from '../../../components/walkthrough/ColourBlindExplainer.astro';
+
+A zero-knowledge proof lets one party convince another that a statement is true without revealing
+*why* it's true. This page builds the intuition you need before touching any code. There's no
+math beyond arithmetic, and it takes about five minutes.
+
+## Two roles: prover and verifier
+
+Every zero-knowledge system has two roles:
+
+- The **prover** knows a secret and wants to convince someone of a fact about it.
+- The **verifier** wants to be convinced, but should learn nothing about the secret.
+
+<ProverVerifierDiagram />
+
+<TextOnly>
+
+```text
+      Prover                                    Verifier
+  ┌──────────────┐                          ┌──────────────┐
+  │ secret: 42   │ ── proof ──────────────► │ accepts or   │
+  │ public: 18   │ ── public inputs (18) ─► │ rejects      │
+  └──────────────┘                          └──────────────┘
+            the secret (42) never leaves the prover
+```
+
+</TextOnly>
+
+In ZeroJ the prover is usually your application or a user's wallet running Java. The verifier is
+a backend service (verifying in Java) or a Cardano validator (verifying on-chain).
+
+## An analogy: the colour-blind friend
+
+You have two balls that look identical to your friend, who is colour-blind. You claim one is red
+and one is green. How do you convince your friend without telling them which is which?
+
+1. Your friend takes both balls and hides them behind their back.
+2. They either swap them or don't, secretly, and show them to you again.
+3. You say "swapped" or "not swapped".
+
+If the balls really are different colours, you answer correctly every time. If they're secretly
+the same colour, you can only guess, and you'll be right half the time. After 20 rounds, the
+chance of a lucky cheater getting every answer right is about one in a million.
+
+Try it: play the prover, honestly or as a cheater.
+
+<ColourBlindExplainer />
+
+Look at what your friend learned: that the balls differ. They never learned which one is red.
+
+That's the whole idea. The proof convinces without revealing. Real ZK systems replace the balls
+with math, but the shape is the same.
+
+## What a proof convinces you of
+
+A zero-knowledge proof convinces the verifier of a statement of this form:
+
+> "I know secret values that, together with these public values, satisfy these rules."
+
+The **rules** are fixed in advance and agreed by both sides. In ZeroJ they're a *circuit* you
+write in Java. The **public values** are visible to everyone. The **secret values** stay with the
+prover.
+
+For example:
+
+- *Rules:* `age ≥ threshold`. *Public:* `threshold = 18`. *Secret:* `age = 42`.
+- *Rules:* `hash(password) = H`. *Public:* `H`. *Secret:* `password`.
+
+## The three properties
+
+Every proof system worth using guarantees three things. Here they are in plain terms.
+
+| Property | In plain English | In the ball game |
+|----------|------------------|------------------|
+| **Completeness** | If the statement is true and the prover is honest, the verifier accepts. | You really can tell the colours apart, so you always answer correctly. |
+| **Soundness** | If the statement is false, a cheating prover can't make the verifier accept, except with negligible probability. | With identical balls, you can't keep guessing right. |
+| **Zero-knowledge** | The verifier learns nothing except that the statement is true. | Your friend never finds out which ball is red. |
+
+Soundness is the property attackers target. In practice, the most common soundness failures come
+from **circuits that don't enforce what their authors intended**, not from broken cryptography. [Circuits, constraints & witnesses](/learn/circuits-and-witnesses/) shows how that
+happens.
+
+## Interactive vs non-interactive
+
+The ball game is **interactive**: the verifier has to be there, flipping coins, round after
+round. That doesn't work for a blockchain, where a validator can't chat with you.
+
+**Non-interactive** proofs fix this. The prover produces a single proof object that anyone can
+check later, with no conversation. The verifier's random challenges come from somewhere both
+sides can compute instead:
+
+- a hash of everything said so far (the *Fiat–Shamir* technique, used by PlonK and BBS), or
+- a structured setup created in advance (the *trusted setup*, which Groth16 relies on).
+
+The proofs ZeroJ generates by default are **zk-SNARKs**:
+
+| Letter | Stands for | Meaning |
+|--------|------------|---------|
+| S | Succinct | The proof is tiny and quick to check, no matter how big the computation was. A Groth16 proof on BLS12-381 is **192 bytes**. |
+| N | Non-interactive | One message from prover to verifier. |
+| AR | ARgument | Soundness holds against computationally bounded cheaters. That's the standard assumption for real-world cryptography. |
+| K | of Knowledge | The prover must actually *know* a valid secret, not just show that one exists. |
+
+## Public inputs vs secret inputs
+
+Deciding what's public and what's secret is the first design decision in any ZK application.
+
+| You want to prove… | Secret inputs | Public inputs |
+|--------------------|---------------|---------------|
+| I'm at least 18 | your age or birth date | the threshold (18), and usually a commitment or issuer signature that ties your age to something real |
+| My balance is at least X | your balance | X, and a commitment to your balance |
+| I'm on the allowlist | your leaf in a Merkle tree and the path to the root | the Merkle root of the list |
+| I know the password | the password | its hash |
+| I own this Cardano address | your root key | the address's payment key hash |
+
+The verifier sees the public inputs in full. Everything on the secret side is covered by the
+zero-knowledge property.
+
+## What zero-knowledge does *not* do
+
+ZK is powerful, but it's easy to expect too much from it.
+
+**It doesn't make data true.** A proof shows that *some* secret satisfies the rules, not that the
+secret matches reality. If a user can type in any age they like, "I proved I'm over 18" means
+nothing. Real systems bind secrets to something trustworthy, such as an issuer's signature, a
+commitment published earlier, or on-chain state. Garbage in, proof of garbage out.
+
+**It doesn't authorize anything.** A valid proof is just a fact. Anyone who sees a proof can copy
+it and submit it again, possibly in their own transaction. Your application has to bind the proof
+to its context and prevent replay, for example with nullifiers or by including the spender's
+details in the public inputs. [ZK on Cardano](/learn/zk-on-cardano/) covers this in depth.
+
+**It doesn't hide public inputs.** Anything you mark public is visible to the verifier, and
+on-chain it's visible to everyone, forever.
+
+**It doesn't hide low-entropy secrets behind a bare hash.** If the public input is
+`hash(age)`, anyone can hash 0 through 150 and find your age. Mix in a random salt (a *blinding
+factor*) when you commit to small values.
+
+**It doesn't hide metadata.** Who submitted the proof, when, from which address, which fee they
+paid, and how often they act can all leak information. ZK hides the witness, not the envelope
+around it.
+
+## A mental model for Java developers
+
+If you remember one thing from this page, make it this.
+
+A **circuit** is like a pure function that returns `true` or `false`, whose parameters are split
+into public and secret:
+
+```java
+// Conceptually (not ZeroJ code), a circuit is a predicate over public and secret values:
+static boolean check(int threshold /* public */, int age /* secret */) {
+    return age >= threshold;
+}
+```
+
+A **proof** is a small certificate, 192 bytes for Groth16, that says:
+
+> "I ran `check` on these public inputs with *some* secret, and it returned `true`."
+
+The verifier never learns the secret, and never has to re-run `check`. Verification cost stays
+roughly the same whether the circuit has ten constraints or ten million. The prover does the heavy
+lifting, from well under a second for small circuits to minutes for circuits with millions of
+constraints.
+
+The analogy breaks in one important place. A circuit isn't executed like Java; it's a set of
+**equations** that the secret values must satisfy. That's why you can't use `if` or `&&` on
+secrets, and why forgetting an equation creates a security hole.
+[The next page](/learn/circuits-and-witnesses/) explains what that means.
+
+## Next steps
+
+- [Circuits, constraints & witnesses](/learn/circuits-and-witnesses/): how the rules are
+  actually written
+- [Groth16, PlonK & BBS](/learn/proof-systems/): the proof systems ZeroJ implements
+- [Glossary](/learn/glossary/): quick definitions of every term used here

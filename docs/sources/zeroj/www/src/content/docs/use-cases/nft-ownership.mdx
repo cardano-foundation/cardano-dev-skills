@@ -1,0 +1,172 @@
+---
+title: Private NFT ownership
+description: Prove you hold an NFT from a collection for one-time token-gated access without connecting your wallet, plus the nullifier trade-off that decides privacy.
+sidebar:
+  order: 5
+---
+
+import NftOwnershipWalkthrough from '../../../components/walkthrough/NftOwnershipWalkthrough.astro';
+
+On Cardano, owning an NFT means a UTxO holding it sits at your address. To prove ownership, you
+usually connect your wallet or point at that UTxO, and the verifier (plus anyone watching) learns
+your address, your balance, every other token you hold and your transaction history. That's a
+steep price for a concert ticket, a holders-only chat or a DAO forum. Zero knowledge lets you prove
+"I'm a holder" and nothing more.
+
+<NftOwnershipWalkthrough />
+
+## The zero-knowledge idea
+
+**The holder proves "I'm in the collection's current ownership snapshot, holding a token from it,
+and this is the one-time nullifier for that token in this context", without revealing their
+wallet.**
+
+Live UTxOs change with every transaction, so the proof is made against a **snapshot**. An indexer
+records who holds which token and builds a Merkle tree. The demo's leaf is
+`Poseidon(ownerHash, tokenName)`, where `ownerHash = Poseidon(secretKey, 0)` is derived from a
+secret only the holder knows. The root is published, and the holder proves their leaf is in the
+tree without saying which leaf.
+
+The **nullifier** is `Poseidon(tokenName, contextId)`, where `contextId` names the event or
+campaign. The same NFT in the same context always gives the same nullifier, so each NFT gets in
+once. If the NFT changes hands, the new holder can't use it a second time in that context either.
+That choice has a privacy cost, explained in the caution after the circuit.
+
+## What stays private, what's public
+
+| Input | Visibility | Why |
+|---|---|---|
+| `secretKey` | Secret | The holder's secret; `ownerHash` is derived from it |
+| `tokenName` | Secret | Which NFT (see the caveat below) |
+| Merkle path (`siblings`, `pathBits`) | Secret | The path would reveal the leaf's position |
+| `snapshotRoot` | Public | The ownership snapshot the proof is checked against |
+| `contextId` | Public | The event or campaign that scopes the nullifier |
+| `isOwner` | Public | Must be 1 |
+| `nullifier` | Public | Minted as a token name and stored on-chain so it can't be reused |
+
+## How it works
+
+1. **Snapshot.** The indexer scans holders of the collection's policy, builds the Merkle tree of
+   `(ownerHash, tokenName)` leaves and publishes the root. (In the demo, holders register with the
+   service; see the security notes on what a real snapshot must check.)
+2. **Prove.** The holder generates a Groth16 proof with ZeroJ's pure-Java prover.
+3. **Access.** A transaction mints one token named after the nullifier. The minting policy
+   verifies the proof on-chain, and the nullifier is inserted into an on-chain sorted list.
+4. **Reuse is rejected.** The same NFT in the same context produces the same nullifier, and the
+   list already contains it.
+
+```text
+indexer: holders of policy P ─▶ Merkle tree ─▶ snapshotRoot (published)
+holder:  secretKey, tokenName, path ─prove─▶ tx: mint 1 × <nullifier>, insert into sorted list
+```
+
+## The circuit
+
+This is the demo's `NFTOwnershipProof`, with constructor validation trimmed.
+
+```java title="NFTOwnershipProof.java"
+import org.zeroj.circuit.annotation.*;
+import org.zeroj.circuit.lib.poseidon.PoseidonParams;
+import org.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
+import org.zeroj.circuit.lib.zk.ZkMerkle;
+import org.zeroj.circuit.lib.zk.ZkPoseidon;
+
+@ZKCircuit(name = "nft-ownership",
+           nameTemplate = "nft-ownership-d{treeDepth}-bls-poseidon", version = 1)
+public class NFTOwnershipProof {
+    private static final PoseidonParams POSEIDON = PoseidonParamsBLS12_381T3.INSTANCE;
+
+    public NFTOwnershipProof(@CircuitParam("treeDepth") int treeDepth) {}
+
+    @Prove
+    ZkBool prove(ZkContext zk,
+                 @Public ZkField snapshotRoot,
+                 @Public ZkField contextId,
+                 @Public ZkBool isOwner,
+                 @Public ZkField nullifier,
+                 @Secret ZkField secretKey,
+                 @Secret ZkField tokenName,
+                 @Secret @FixedSize(param = "treeDepth") ZkArray<ZkField> siblings,
+                 @Secret @FixedSize(param = "treeDepth") ZkArray<ZkBool> pathBits) {
+
+        var ownerHash = ZkPoseidon.hash(zk, POSEIDON, secretKey, zk.constant(0));
+        var leaf = ZkPoseidon.hash(zk, POSEIDON, ownerHash, tokenName);
+        ZkMerkle.verifyProofPoseidon(zk, POSEIDON, leaf, snapshotRoot, siblings, pathBits);
+
+        var computedNullifier = ZkPoseidon.hash(zk, POSEIDON, tokenName, contextId);
+        return isOwner.and(computedNullifier.isEqual(nullifier));
+    }
+}
+```
+
+The demo builds a depth-10 tree, which holds up to 1,024 holders. At that depth the circuit
+compiles to a few thousand constraints. Each extra level doubles the tree's capacity (and the
+potential anonymity set) for one more Poseidon hash.
+
+:::caution[This nullifier can reveal the NFT, and the wallet]
+Token names in a collection are public and usually few. Anyone can compute
+`Poseidon(tokenName, contextId)` for every token and match the published nullifier. That reveals
+*which* NFT was used. Because an NFT's holder address is public on Cardano, it usually reveals
+*which wallet* too. For wallet-level privacy, derive the nullifier from a holder secret instead,
+such as `Poseidon(secretKey, contextId)`. The token then stays hidden, but the one-use limit
+applies per holder secret rather than per NFT, so an NFT that changes hands could be used again.
+Choose deliberately.
+:::
+
+## On Cardano
+
+The demo pairs two JuLC scripts:
+
+- **`ZkProofMintingPolicy`** composes `Groth16BLS12381Lib.verifyFour(...)` with the verification
+  key baked in as parameters. The redeemer carries the proof plus `snapshotRoot`, `contextId`,
+  `isOwner` and `nullifier`. The policy requires `isOwner == 1` and exactly one minted token whose
+  name equals the nullifier.
+- **`NullifierListValidator`** stores nullifiers as a sorted linked list, one UTxO per entry. An
+  insert proves the new value isn't already present, and unrelated accesses touch different nodes.
+
+A valid proof is not authorization. The demo policy takes `snapshotRoot` and `contextId` from the
+redeemer. A real gate must pin them to the current snapshot and event, for example by reading a
+snapshot UTxO as a reference input. Otherwise a prover could build a tree of their own. See
+[On-chain verification](/guides/verifying/on-chain/).
+
+## Security considerations
+
+- **The snapshot is a trust point.** The indexer decides which leaves exist. In production it must
+  confirm that each registered `ownerHash` really belongs to the wallet holding the token, for
+  example with a wallet signature at registration. Publish the snapshot data so anyone can rebuild
+  the root.
+- **Staleness.** A holder who sells after the snapshot can still prove against it until the next
+  one. Shorter snapshot intervals narrow the window.
+- **Pin the public inputs** (`snapshotRoot`, `contextId`) on-chain, as above.
+- **Nullifier design leaks information** (see the caveat). Also consider fee payer and timing
+  linkability when holders submit their own transactions.
+- **Trusted setup.** The demo uses a single-party development setup; production needs an MPC
+  ceremony ([Trusted setup, explained](/learn/trusted-setup/)).
+
+## Try it
+
+The demo lives in
+[`nft-ownership`](https://github.com/bloxbean/zeroj-usecases/tree/main/nft-ownership). With Yaci
+DevKit running (see [Run the demos](/use-cases/overview/#run-the-demos)):
+
+```bash
+./demo.sh nft-ownership --run
+```
+
+`--run` registers a holder, builds the snapshot, generates a proof and submits the access
+transaction. The proof is verified on-chain and the nullifier lands in the sorted list. Submit the
+same nullifier again from the UI and the service refuses it, because the nullifier already exists
+on-chain. The UI also lets you mint test NFTs on the devnet.
+
+Design notes:
+[Private NFT ownership — detailed design](https://github.com/bloxbean/zeroj/blob/main/docs/usecases/private-nft-ownership.md)
+(snapshot vs. on-chain registries, threshold "whale" proofs, shielded transfers).
+
+## Related
+
+- [Private allowlist with a Merkle tree](/tutorials/private-allowlist/): the same membership and
+  nullifier pattern, step by step
+- [Private voting](/use-cases/private-voting/): the same sorted-list nullifier registry
+- [Authenticated state](/guides/credentials/authenticated-state/): larger, updatable registries
+  (experimental)
+- [Application security](/guides/verifying/application-security/)

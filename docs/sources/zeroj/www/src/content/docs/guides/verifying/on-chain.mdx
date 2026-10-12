@@ -1,0 +1,358 @@
+---
+title: Verify proofs on Cardano
+description: Run Groth16 verification inside a Plutus V3 validator with zeroj-onchain-julc, bind proofs to the spend, and plan budgets and reference scripts.
+sidebar:
+  order: 2
+---
+
+import CardanoProofWalkthrough from '../../../../components/walkthrough/CardanoProofWalkthrough.astro';
+
+Cardano's Plutus V3 ledger has native BLS12-381 builtins (CIP-0381): point decompression, group
+operations, Miller loops and a final pairing check. That is everything a Groth16 verifier needs, so
+a smart contract can check a zero-knowledge proof itself. ZeroJ's `zeroj-onchain-julc` module ships
+that verifier as Java source compiled to Plutus by JuLC (a Java-to-Plutus compiler), plus the
+off-chain codecs that turn a ZeroJ or snarkjs proof into the bytes the validator expects.
+
+This guide explains the pieces and how to compose them. For a step-by-step walkthrough on a local
+devnet, follow [Verify your proof on Cardano](/tutorials/verify-on-cardano/).
+
+:::danger[A valid proof is not authorization]
+The reusable verifiers check the math and nothing else. A real validator must also bind the proof
+to the transaction (`ScriptContext`), prevent replay, enforce who gets paid, and apply your business
+rules. ZeroJ's on-chain Groth16 path is **Beta, testnet only**: correctness-tested and verified
+end-to-end on Yaci DevKit, but not audited and not for value-bearing or mainnet use.
+:::
+
+## What's in the module
+
+| Component | Package (`org.zeroj.onchain.julc.…`) | Status | Use it for |
+|---|---|---|---|
+| `Groth16BLS12381Verifier` | `groth16.validator` | Working, crypto-only | Learning, tests, and as the reference shape. Never protects value alone. |
+| `Groth16BLS12381TxOutRefBindingVerifier` | `groth16.validator` | Reference example | Shows the check that binds the first public input to the spent output. It reads that value from the guarded UTxO's datum, so it can't lock real funds as-is ([why](#bind-the-proof-to-the-spend)). |
+| `Groth16BLS12381Lib` | `groth16.lib` | Working `@OnchainLibrary` | Composing Groth16 verification into **your own** validator. |
+| `ProverToCardano`, `SnarkjsToCardano` | `groth16.codec` | Off-chain helpers | Compressing ZeroJ or snarkjs proofs/VKs into validator parameters and redeemers. |
+| `Groth16AuthenticatedStateTransitionValidator` and its script factory | `groth16.validator`, `groth16.codec` | Experimental | Poseidon MPF/JMT state transitions. See [Large authenticated state](/guides/credentials/authenticated-state/). |
+| `BbsProofVerify`, `BbsHashToScalar` | `bbs.lib` | Working libraries, fixed profile | On-chain BBS selective disclosure. See [BBS](/guides/credentials/bbs/). |
+| `PlonkBLS12381Lib`, `PlonkBLS12381Verifier`, `PlonkBLS12381MultiInputVerifier`, `PlonkBLS12381MultiInputParamVerifier`, `PlonKProverToCardano` | `plonk.*` | **Experimental** | Labeled testnet trials only. |
+| `ScriptBudgetEstimator`, `OnChainFeasibility` | `analysis` | Planning helpers | Rough budget estimates and a proof-system/curve feasibility matrix. |
+| `ReferenceScriptDeployer` | `deployment` | Config helper | Describing CIP-0033 reference-script deployment patterns. Does not submit transactions. |
+
+:::caution[Name clash]
+`org.zeroj.onchain.julc.groth16.validator.Groth16BLS12381Verifier` (on-chain validator) and
+`org.zeroj.verifier.groth16.bls12381.Groth16BLS12381Verifier` (off-chain blst verifier) share a
+simple name. Import the one you mean.
+:::
+
+## Where each piece of the proof goes
+
+The generic Groth16 validator splits the statement across the three places a Cardano spend can
+carry data:
+
+| Data | Where | Why |
+|---|---|---|
+| Verification key (`vkAlpha`, `vkBeta`, `vkGamma`, `vkDelta`, `vkIc`) | Script **parameters**, applied at load time | The VK becomes part of the script hash, so the script address itself pins the key. |
+| Public inputs | **Datum**: a list of integers in VK order | Fixed when the UTxO is locked. |
+| Proof (`piA`, `piB`, `piC`) | **Redeemer**: `Constr 0 [piA, piB, piC]` of compressed points | Supplied by whoever spends. |
+
+<CardanoProofWalkthrough />
+
+`vkIc` holds one compressed G1 point per public input plus one (`IC[0]`). The validator checks the
+datum length matches.
+
+Inside `Groth16BLS12381Lib.verify`, every public input must be in `[0, r)`, and every proof and VK
+point must be a canonical compressed encoding (48 bytes for G1, 96 for G2) that is not the point
+at infinity. Only then does it fold the public inputs into `vk_x` and run the pairing check with
+the Plutus builtins.
+
+## Load the generic verifier
+
+Compress the VK and proof off-chain, then apply the VK as parameters with JuLC's
+`JulcScriptLoader`. This mirrors ZeroJ's Yaci DevKit end-to-end test.
+
+```java title="LoadVerifier.java"
+import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ListPlutusData;
+import org.julclang.clientlib.JulcScriptLoader;
+import org.zeroj.onchain.julc.groth16.codec.ProverToCardano;
+import org.zeroj.onchain.julc.groth16.validator.Groth16BLS12381Verifier;
+
+// keys: a Groth16Keys handle; proof: keys.prove(...); witness[1..numPublic] are the public inputs
+var vk = ProverToCardano.compressVk(keys);
+var compressedProof = ProverToCardano.compressProof(proof);
+
+var ic = ListPlutusData.of();
+for (byte[] point : vk.ic()) {
+    ic.add(new BytesPlutusData(point));
+}
+
+var script = JulcScriptLoader.load(Groth16BLS12381Verifier.class,
+        new BytesPlutusData(vk.alpha()),
+        new BytesPlutusData(vk.beta()),
+        new BytesPlutusData(vk.gamma()),
+        new BytesPlutusData(vk.delta()),
+        ic);
+String scriptAddress = AddressProvider.getEntAddress(script, Networks.testnet()).toBech32();
+
+var datum = ListPlutusData.of(BigIntPlutusData.of(witness[1]));   // one entry per public input
+var redeemer = ConstrPlutusData.builder()
+        .alternative(0)
+        .data(ListPlutusData.of(
+                new BytesPlutusData(compressedProof.piA()),
+                new BytesPlutusData(compressedProof.piB()),
+                new BytesPlutusData(compressedProof.piC())))
+        .build();
+```
+
+Lock funds at `scriptAddress` with the datum, then spend that UTxO with the redeemer and the
+script attached (or referenced), using Cardano Client Lib's `QuickTxBuilder`.
+
+If your proof and key came from snarkjs, use `SnarkjsToCardano.parseVk(vkJson)`,
+`SnarkjsToCardano.parseProof(proofJson)` and `SnarkjsToCardano.parsePublicInputs(publicJson)`
+instead. They return the same `VkCompressed` and `ProofCompressed` records.
+
+Dependencies for the off-chain side:
+
+```groovy title="build.gradle"
+dependencies {
+    implementation platform('org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%')
+    implementation 'org.zeroj:zeroj-onchain-julc'
+    implementation "org.julclang:julc-cardano-client-lib:%JULC_VERSION%"   // JulcScriptLoader
+    implementation "com.bloxbean.cardano:cardano-client-lib:%CCL_VERSION%"
+    runtimeOnly "org.julclang:julc-vm-java:%JULC_VERSION%"
+}
+```
+
+## Why the generic verifier is not enough
+
+`Groth16BLS12381Verifier.validate` ignores its `ScriptContext` argument. Three consequences follow:
+
+1. **Replay across UTxOs.** If two UTxOs carry the same datum, one proof unlocks both.
+2. **Front-running.** A proof is public the moment its transaction hits the mempool. Anyone can
+   copy the redeemer into their own transaction that spends the same UTxO and pays themselves.
+3. **No business rules.** Nothing checks signers, outputs, deadlines, or nullifiers.
+
+### Bind the proof to the spend
+
+The standard fix for the first problem is to make public input 0 depend on the UTxO being spent:
+`spendRef = blake2b_256(spentTxId || outputIndex) mod r`, with the index encoded as 32 big-endian
+bytes. The circuit exposes `spendRef` as its first public input, the prover computes it for the
+UTxO it is about to spend, and the validator recomputes it from `ScriptContext`. A proof made for
+one UTxO then fails for every other one. It does **not** stop front-running: a watcher can still
+copy the redeemer into a transaction that spends the same UTxO and pays itself, so bind the
+beneficiary too.
+
+`Groth16BLS12381TxOutRefBindingVerifier` demonstrates this check, and its own documentation calls
+it an example policy. Don't use it to lock real funds as-is.
+
+:::caution[The bundled binding verifier can't guard a real UTxO]
+`Groth16BLS12381TxOutRefBindingVerifier` takes **all** public inputs, including `spendRef`, from
+the datum of the UTxO it protects. That UTxO's out-ref only exists once the locking transaction
+exists, and the transaction id is a hash over the output that carries the datum. A datum can't
+contain a hash of its own transaction, so no real UTxO can satisfy it. It only passes in VM tests
+with synthetic contexts. In your own validator, compute `spendRef` from `ScriptContext` and feed it
+into the proof check yourself, keeping only the application's public inputs in the datum or
+redeemer. [Verify your proof on Cardano](/tutorials/verify-on-cardano/) builds such a validator
+step by step.
+:::
+
+The fix for all three problems is a custom validator that ties the statement to the transaction.
+
+## Write a custom validator
+
+Define your own spending validator, keep the proof record local (JuLC decodes records per
+validator), and call `Groth16BLS12381Lib.verify` alongside your own checks. The validator below
+binds the proof to the UTxO being spent the right way: the datum holds only the application's
+public inputs, and the validator computes `spendRef` from `ScriptContext` and prepends it before
+checking the proof. It is the validator built and tested in
+[Verify your proof on Cardano](/tutorials/verify-on-cardano/), where it unlocks a real lock
+transaction on an in-memory ledger and rejects the same proof replayed against a second UTxO
+(about 3.02 billion CPU steps and 263,000 memory units for two application inputs).
+
+```java title="SpendBoundGroth16Verifier.java"
+package com.example.onchain;
+
+import org.julclang.core.PlutusData;
+import org.julclang.ledger.ScriptContext;
+import org.julclang.ledger.ScriptInfo;
+import org.julclang.ledger.TxOutRef;
+import org.julclang.stdlib.Builtins;
+import org.julclang.stdlib.annotation.Entrypoint;
+import org.julclang.stdlib.annotation.Param;
+import org.julclang.stdlib.annotation.SpendingValidator;
+import org.zeroj.onchain.julc.groth16.lib.Groth16BLS12381Lib;
+
+import java.math.BigInteger;
+
+/**
+ * Groth16 verifier whose statement is bound to the UTxO being spent.
+ *
+ * <p>The datum holds only the application's public inputs, e.g. [a, product]. The validator
+ * computes spendRef = blake2b_256(txId || outputIndex as 32 bytes) mod r for the UTxO it is
+ * validating and prepends it, so the proof is checked against [spendRef, a, product]. A proof
+ * made for one UTxO therefore fails for every other UTxO.</p>
+ */
+@SpendingValidator
+public class SpendBoundGroth16Verifier {
+
+    @Param static byte[] vkAlpha;   // G1 compressed, 48 bytes
+    @Param static byte[] vkBeta;    // G2 compressed, 96 bytes
+    @Param static byte[] vkGamma;   // G2 compressed, 96 bytes
+    @Param static byte[] vkDelta;   // G2 compressed, 96 bytes
+    @Param static PlutusData vkIc;  // list of G1 compressed IC points
+
+    record Groth16Proof(byte[] piA, byte[] piB, byte[] piC) {}
+
+    @Entrypoint
+    public static boolean validate(PlutusData datum, Groth16Proof proof, ScriptContext ctx) {
+        PlutusData publicInputs = Builtins.listData(
+                Builtins.mkCons(Builtins.iData(spendRef(ctx)), Builtins.unListData(datum)));
+        return Groth16BLS12381Lib.verify(publicInputs, proof.piA(), proof.piB(), proof.piC(),
+                vkAlpha, vkBeta, vkGamma, vkDelta, vkIc);
+    }
+
+    /** blake2b_256(txId || outputIndex as 32-byte big-endian) mod r; -1 (always rejected) if not a spend. */
+    private static BigInteger spendRef(ScriptContext ctx) {
+        ScriptInfo scriptInfo = ctx.scriptInfo();
+        if (scriptInfo instanceof ScriptInfo.SpendingScript spendingScript) {
+            TxOutRef txOutRef = spendingScript.txOutRef();
+            byte[] indexBytes = Builtins.integerToByteString(true, 32, txOutRef.index());
+            byte[] preimage = Builtins.appendByteString(txOutRef.txId().hash(), indexBytes);
+            return Builtins.byteStringToInteger(true, Builtins.blake2b_256(preimage)).mod(fr());
+        } else {
+            return BigInteger.valueOf(-1);
+        }
+    }
+
+    /** The BLS12-381 scalar field order r. */
+    private static BigInteger fr() {
+        BigInteger base = BigInteger.valueOf(1000000000000000000L);
+        return BigInteger.valueOf(52435L).multiply(base)
+                .add(BigInteger.valueOf(875175126190479447L)).multiply(base)
+                .add(BigInteger.valueOf(740508185965837690L)).multiply(base)
+                .add(BigInteger.valueOf(552500527637822603L)).multiply(base)
+                .add(BigInteger.valueOf(658699938581184513L));
+    }
+}
+```
+
+The circuit must declare `spendRef` as its **first** public input and use it in a real
+constraint, and the prover computes it for the out-ref it is about to spend. The tutorial shows
+the matching circuit and the off-chain `blake2b_256` computation. Unlike the bundled
+`Groth16BLS12381TxOutRefBindingVerifier`, nothing here requires a datum to contain a hash of its
+own transaction.
+
+A spend binding alone doesn't stop front-running on the same UTxO. Add whatever else your application needs:
+
+- **Bind the beneficiary.** Put the recipient's key hash in the statement (or the datum) and check
+  that an output pays them, so a copied proof can't redirect funds. The BBS claim validator in
+  [zeroj-usecases](https://github.com/bloxbean/zeroj-usecases) (`reusable-kyc`) does exactly this.
+- **Enforce single use.** Spending a UTxO is already one-time. For "one action per person", add a
+  nullifier and record it on-chain. See [Secure your ZK application](/guides/verifying/application-security/#nullifiers).
+- **Check signers, validity ranges, minted tokens and continuing outputs** as your protocol
+  requires.
+
+To compile a validator that calls `Groth16BLS12381Lib`, add ZeroJ's on-chain module and the JuLC
+annotation processor to your build. The runnable apps in zeroj-usecases use:
+
+```groovy title="build.gradle"
+dependencies {
+    implementation "org.zeroj:zeroj-onchain-julc:%ZEROJ_VERSION%"
+    annotationProcessor "org.zeroj:zeroj-onchain-julc:%ZEROJ_VERSION%"
+    implementation "org.julclang:julc-stdlib:%JULC_VERSION%"
+    annotationProcessor "org.julclang:julc-annotation-processor:%JULC_VERSION%"
+    testImplementation "org.julclang:julc-testkit:%JULC_VERSION%"    // run validators in the JuLC VM
+    testRuntimeOnly "org.julclang:julc-vm-java:%JULC_VERSION%"
+}
+```
+
+The `annotationProcessor "org.zeroj:zeroj-onchain-julc"` line is required: JuLC compiles
+library code such as `Groth16BLS12381Lib` from the sources that module ships under
+`META-INF/plutus-sources`, and without it compilation fails with
+`Plutus compilation error: Undefined variable: Groth16BLS12381Lib`. If you use the BOM with
+versionless coordinates, add `annotationProcessor platform('org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%')`
+as well. Only the JuLC testkit and VM lines are for running validators locally; loading a compiled
+script and submitting transactions needs just JuLC's `julc-cardano-client-lib` and Cardano Client Lib.
+
+Test the validator in the JuLC VM with positive cases **and** negative ones: wrong public input,
+tampered proof, a different spent UTxO, an output paying someone else. Then run it on
+[Yaci DevKit](/tutorials/verify-on-cardano/) before any public testnet.
+
+## Budgets and script size
+
+A Groth16 check is four Miller loops and one final verification, plus one G1 scalar
+multiplication and addition per public input. ZeroJ's JuLC VM tests measured the generic
+`Groth16BLS12381Verifier`, evaluated as a spending validator with a full `ScriptContext`, at
+**2,627,770,348 CPU steps and 177,749 memory units** for one public input, about 2.82 billion
+CPU steps and 212,000 memory units for two, and about 3.02 billion and 246,000 for three. Your own
+validator's policy checks come on top, and a JuLC upgrade can shift these numbers.
+
+For planning, `ScriptBudgetEstimator` gives estimates built from BLS12-381 builtin costs (they
+leave out the rest of the validator, so measured budgets come out higher), and
+`OnChainFeasibility` reports what ZeroJ considers workable:
+
+```java
+import org.zeroj.api.CurveId;
+import org.zeroj.api.ProofSystemId;
+import org.zeroj.onchain.julc.analysis.OnChainFeasibility;
+import org.zeroj.onchain.julc.analysis.ScriptBudgetEstimator;
+
+long cpu = ScriptBudgetEstimator.estimateCpu(ProofSystemId.GROTH16, CurveId.BLS12_381, 3);
+var entry = OnChainFeasibility.lookup(ProofSystemId.GROTH16, CurveId.BLS12_381);   // status WORKING
+boolean bn254 = OnChainFeasibility.isFeasible(ProofSystemId.GROTH16, CurveId.BN254); // false
+```
+
+Estimates are not measurements. Before relying on a validator, measure it in the JuLC VM with a
+representative transaction and compare against the target network's current per-transaction
+execution limits. Keep public inputs few: each one costs a scalar multiplication on-chain.
+
+### Reference scripts (CIP-0033)
+
+Attaching the full validator, with its VK parameters applied, to every spending transaction makes
+each one larger and more expensive. Instead, publish the script once in a UTxO as a **reference
+script** and point spends at it. That shrinks transactions and fees; the execution budget is
+unchanged. `ReferenceScriptDeployer.DeploymentConfig` records the three patterns ZeroJ describes
+(`VK_IN_SCRIPT`, `REFERENCE_SCRIPT_DATUM_VK`, `VK_HASH_COMMITMENT`); your transaction builder does
+the actual work.
+
+If you ever supply the VK through a datum or redeemer instead of script parameters, the validator
+must check it against a hash it already trusts. An unauthenticated VK lets the spender pick the
+circuit.
+
+## JuLC version coupling
+
+The compiled UPLC, and therefore the **script hash and address**, is produced by the JuLC compiler.
+ZeroJ %ZEROJ_VERSION% builds against JuLC %JULC_VERSION%. Treat a JuLC upgrade as a new script:
+recompute the hash, re-measure budgets, and plan how funds locked at the old address move. ZeroJ's
+authenticated-state release tooling binds the compiler version into each release identity for
+exactly this reason. Renaming Java packages alone does not change the hash: the `org.zeroj`
+namespace move left script hashes identical. See [Migration notes](/reference/migration/).
+
+## PlonK and BBS on-chain
+
+:::caution[PlonK on-chain is experimental]
+The PlonK validators implement a KZG pairing check for their supported profiles, but they are
+experimental, opt-in, unaudited, and meant for labeled testnet trials only. ZeroJ makes no
+correctness claim for them. Use Groth16.
+:::
+
+For completeness: `PlonkBLS12381Verifier` handles one public input,
+`PlonkBLS12381MultiInputVerifier` takes 1–8 public inputs from the datum, and
+`PlonkBLS12381MultiInputParamVerifier` takes them as script parameters, so the statement values are
+pinned by the script hash. `ScriptBudgetEstimator` records roughly 4.8 billion CPU steps for the
+one-input profile.
+
+`BbsProofVerify` verifies a BBS selective-disclosure presentation natively. It is unrolled for one
+fixed shape: a **5-message credential disclosing indexes 2 and 3**, measured at about 2.44 billion
+CPU steps and 183,509 memory units. Other shapes need a different unrolling. The off-chain half is
+`BbsToCardano` in `zeroj-bbs`; the [BBS guide](/guides/credentials/bbs/) shows both.
+
+## Next steps
+
+- [Verify your proof on Cardano](/tutorials/verify-on-cardano/): the step-by-step tutorial
+- [Secure your ZK application](/guides/verifying/application-security/)
+- [ZK on Cardano](/learn/zk-on-cardano/)
+- [Verify proofs in Java](/guides/verifying/off-chain/)

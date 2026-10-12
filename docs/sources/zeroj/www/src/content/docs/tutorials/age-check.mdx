@@ -1,0 +1,406 @@
+---
+title: Prove you're over 18
+description: Build a range proof with ZkUInt, see why bit widths matter, test an invalid witness, and verify with nothing but a key, a proof and public inputs.
+sidebar:
+  order: 1
+---
+
+import { Steps, FileTree, Aside } from '@astrojs/starlight/components';
+import UnderConstrainedExplainer from '../../../components/walkthrough/UnderConstrainedExplainer.astro';
+
+A website wants to know you're an adult. Today you'd show an ID card and hand over your name,
+birth date and address to answer a yes/no question. In this tutorial you'll answer only the
+question: you prove *"my age is at least 18"* while your age stays on your machine.
+
+**What you'll build:** an `AgeCheck` circuit, a prover that sets up keys once and reuses them,
+and a separate `AgeVerifier` that holds only a verification key and its own policy.
+
+**What you'll learn:**
+
+- how `ZkUInt` and `@UInt(bits = ...)` make comparisons safe in a finite field
+- what happens when the witness is invalid, and why constraints, not your Java code, are the
+  real gatekeeper
+- how public inputs are ordered, and why a verifier should build them itself
+- how to persist keys so setup runs once
+- what an age proof does *not* prove on its own
+
+<Aside type="note" title="Prerequisites">
+
+Java 25 and Gradle (see [Installation](/start/installation/)). The
+[Quickstart](/start/quickstart/) introduces the basic flow; this page is self-contained, but it
+moves faster.
+
+</Aside>
+
+## Build it
+
+<Steps>
+
+1. **Create the project.**
+
+   <FileTree>
+
+   - zeroj-age-check/
+     - settings.gradle
+     - build.gradle
+     - src/main/java/com/example/agecheck/
+       - AgeCheck.java
+       - AgeVerifier.java
+       - Main.java
+
+   </FileTree>
+
+   ```groovy title="settings.gradle"
+   rootProject.name = 'zeroj-age-check'
+   ```
+
+   ```groovy title="build.gradle"
+   plugins {
+       id 'application'
+   }
+
+   repositories {
+       mavenCentral()
+   }
+
+   java {
+       toolchain {
+           languageVersion = JavaLanguageVersion.of(25)
+       }
+   }
+
+   dependencies {
+       implementation platform('org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%')
+       annotationProcessor platform('org.zeroj:zeroj-bom-core:%ZEROJ_VERSION%')
+
+       implementation 'org.zeroj:zeroj-circuit-annotation-api'
+       annotationProcessor 'org.zeroj:zeroj-circuit-annotation-processor'
+       implementation 'org.zeroj:zeroj-circuit-dsl'
+       implementation 'org.zeroj:zeroj-crypto'
+       implementation 'org.zeroj:zeroj-codec'
+       implementation 'org.zeroj:zeroj-verifier-groth16'
+   }
+
+   application {
+       mainClass = 'com.example.agecheck.Main'
+       // Dev-only: allows the in-process, single-party trusted setup.
+       applicationDefaultJvmArgs = ['-Dzeroj.allowInsecureTrustedSetup=true']
+   }
+   ```
+
+2. **Write the circuit.** The age is secret, the threshold is public, and both are 8-bit
+   unsigned integers.
+
+   ```java title="src/main/java/com/example/agecheck/AgeCheck.java"
+   package com.example.agecheck;
+
+   import org.zeroj.circuit.annotation.Prove;
+   import org.zeroj.circuit.annotation.Public;
+   import org.zeroj.circuit.annotation.Secret;
+   import org.zeroj.circuit.annotation.UInt;
+   import org.zeroj.circuit.annotation.ZKCircuit;
+   import org.zeroj.circuit.annotation.ZkBool;
+   import org.zeroj.circuit.annotation.ZkUInt;
+
+   /** "My secret age is at least the public threshold." */
+   @ZKCircuit(name = "age-check", version = 1)
+   public class AgeCheck {
+
+       @Prove
+       ZkBool prove(@Public @UInt(bits = 8) ZkUInt threshold,
+                    @Secret @UInt(bits = 8) ZkUInt age) {
+           return age.gte(threshold);
+       }
+   }
+   ```
+
+   `@UInt(bits = 8)` isn't decoration. It adds constraints proving each value fits in 8 bits
+   (0 to 255), and `gte` relies on that. The section after the steps explains why.
+
+3. **Write the verifier.** This class is what a website would run. It holds a trusted
+   verification key and a policy, receives a proof plus public inputs, and never sees an age.
+
+   ```java title="src/main/java/com/example/agecheck/AgeVerifier.java"
+   package com.example.agecheck;
+
+   import org.zeroj.api.CurveId;
+   import org.zeroj.api.ProofSystemId;
+   import org.zeroj.api.PublicInputs;
+   import org.zeroj.api.VerificationMaterial;
+   import org.zeroj.codec.SnarkjsJsonCodec;
+   import org.zeroj.verifier.groth16.bls12381.Groth16BLS12381PureJavaVerifier;
+
+   import java.nio.charset.StandardCharsets;
+
+   /**
+    * The verifier's side. It holds a trusted verification key and its own policy
+    * ("adults only: threshold = 18"). It receives a proof and public inputs from
+    * the prover — and never sees the age.
+    */
+   public class AgeVerifier {
+
+       private static final int REQUIRED_AGE = 18;
+
+       private final String trustedVkJson;
+
+       public AgeVerifier(String trustedVkJson) {
+           this.trustedVkJson = trustedVkJson;
+       }
+
+       public boolean accept(String proofJson, String publicJson) {
+           // 1. Policy: the statement must be "age >= 18", not a threshold the prover picked.
+           PublicInputs expected = AgeCheckCircuit.inputs().threshold(REQUIRED_AGE).toPublicInputs();
+           PublicInputs claimed = SnarkjsJsonCodec.parsePublicInputs(publicJson);
+           if (!expected.equals(claimed)) {
+               System.out.println("  rejected: statement " + claimed.values()
+                       + " is not the required " + expected.values());
+               return false;
+           }
+
+           // 2. Math: is the proof valid for this VK and these public inputs?
+           var circuitId = AgeCheckCircuit.circuitId();
+           var envelope = SnarkjsJsonCodec.toEnvelopeFromJson(proofJson, trustedVkJson, publicJson, circuitId);
+           var material = VerificationMaterial.of(trustedVkJson.getBytes(StandardCharsets.UTF_8),
+                   ProofSystemId.GROTH16, CurveId.BLS12_381, circuitId);
+           var result = new Groth16BLS12381PureJavaVerifier().verify(envelope, material);
+           if (!result.proofValid()) {
+               System.out.println("  rejected: " + result.message().orElse("invalid proof"));
+           }
+           return result.proofValid();
+       }
+   }
+   ```
+
+4. **Write the prover program.** It runs setup once and saves the keys, then plays three
+   characters: an adult, a 16-year-old, and a 17-year-old who proves something true but
+   useless.
+
+   ```java title="src/main/java/com/example/agecheck/Main.java"
+   package com.example.agecheck;
+
+   import org.zeroj.api.CurveId;
+   import org.zeroj.crypto.groth16.Groth16Keys;
+   import org.zeroj.crypto.groth16.Groth16PkStore;
+   import org.zeroj.crypto.setup.PowersOfTauBLS381;
+   import org.zeroj.crypto.snarkjs.SnarkjsGroth16Json;
+
+   import java.io.IOException;
+   import java.math.BigInteger;
+   import java.nio.file.Files;
+   import java.nio.file.Path;
+   import java.util.Arrays;
+
+   public class Main {
+
+       static final Path KEY_DIR = Path.of("build/age-check-keys");
+       static final Path VK_FILE = Path.of("build/age-check-vk.json");
+
+       public static void main(String[] args) throws IOException {
+           var circuit = AgeCheckCircuit.build();
+           var r1cs = circuit.compileR1CS(CurveId.BLS12_381);
+           System.out.println("Public inputs, in order: "
+                   + AgeCheckCircuit.schema().publicInputs().names());
+           System.out.println("Constraints: " + r1cs.numConstraints());
+
+           // --- One-time setup (DEV-ONLY), then reuse the keys on every later run ---------------
+           if (!Groth16PkStore.exists(KEY_DIR)) {
+               BigInteger tau = PowersOfTauBLS381.generate(6).tauScalar();
+               try (var keys = Groth16Keys.setupToStore(r1cs.flat(), r1cs.numWires(),
+                       r1cs.numPublicInputs(), tau, KEY_DIR, true)) {
+                   Files.writeString(VK_FILE, SnarkjsGroth16Json.verificationKeyJson(keys));
+               }
+               System.out.println("Setup done; keys saved to " + KEY_DIR);
+           }
+
+           var verifier = new AgeVerifier(Files.readString(VK_FILE));
+
+           try (var keys = Groth16Keys.load(KEY_DIR)) {
+               // --- Prover: a 25-year-old proves "age >= 18" ------------------------------------
+               var inputs = AgeCheckCircuit.inputs().age(25).threshold(18);
+               BigInteger[] witness = inputs.calculateWitness(circuit, CurveId.BLS12_381);
+               var proof = keys.prove(witness, r1cs.constraints());
+               String proofJson = SnarkjsGroth16Json.proofJson(proof);
+               String publicJson = SnarkjsGroth16Json.publicJson(
+                       inputs.publicValues().toArray(BigInteger[]::new));
+               System.out.println("Public inputs sent to the verifier: " + inputs.publicValues());
+               System.out.println("Adult accepted? " + verifier.accept(proofJson, publicJson));
+
+               // --- A 16-year-old cannot even build a witness ------------------------------------
+               try {
+                   AgeCheckCircuit.inputs().age(16).threshold(18)
+                           .calculateWitness(circuit, CurveId.BLS12_381);
+                   System.out.println("16-year-old produced a witness?!");
+               } catch (ArithmeticException e) {
+                   System.out.println("16-year-old: witness rejected (" + e.getMessage() + ")");
+               }
+
+               // --- A true statement about the wrong threshold is still rejected ----------------
+               var teen = AgeCheckCircuit.inputs().age(17).threshold(16);
+               var teenProof = keys.prove(teen.calculateWitness(circuit, CurveId.BLS12_381),
+                       r1cs.constraints());
+               String teenPublic = SnarkjsGroth16Json.publicJson(
+                       teen.publicValues().toArray(BigInteger[]::new));
+               System.out.println("Proof of 'age >= 16' accepted? "
+                       + verifier.accept(SnarkjsGroth16Json.proofJson(teenProof), teenPublic));
+           }
+       }
+   }
+   ```
+
+5. **Run it** with `gradle run` (or `./gradlew run`). The first run does the setup:
+
+   ```text
+   Public inputs, in order: [threshold]
+   Constraints: 54
+   WARNING: Single-party Powers of Tau generation (BLS12-381) — for DEVELOPMENT and TESTING only. Use MPC ceremony outputs (Hermez, Zcash PoT) for production.
+   WARNING: Single-party Groth16 Phase 2 setup (BLS12-381, streaming) — for DEVELOPMENT and TESTING only. Use snarkjs multi-party ceremony for production.
+   Setup done; keys saved to build/age-check-keys
+   Public inputs sent to the verifier: [18]
+   Adult accepted? true
+   16-year-old: witness rejected (Constraint violation: w112=0 != w113=1)
+     rejected: statement [16] is not the required [18]
+   Proof of 'age >= 16' accepted? false
+   ```
+
+   Run it again: the `WARNING` and `Setup done` lines disappear, because the keys are loaded
+   from `build/age-check-keys`.
+
+</Steps>
+
+## Why `@UInt(bits = 8)` matters
+
+Circuits don't compute with Java `int`s. Every value is an element of a *finite field*: the
+integers modulo a large prime `r` (for BLS12-381, `r` is a 255-bit number). Arithmetic wraps
+around at `r`, so there are no negative numbers and no natural "less than":
+
+```text
+16 - 18  =  r - 2  =  52435875175126190479447740508185965837690552500527637822603658699938581184511
+```
+
+That's why `ZkField` has no `gte` method at all. To compare, a circuit has to prove that both
+values are small, which it does by splitting them into bits and checking each bit is 0 or 1.
+`@UInt(bits = 8)` adds exactly those constraints when the input is created. After that, `gte`
+can compare two numbers known to lie in 0 to 255, where "greater or equal" means what you
+expect.
+
+You can watch the wrap-around get caught. In the [Try this](#try-this) variant below, a
+birth year *after* the current year makes `currentYear.sub(birthYear)` wrap to a huge number,
+and the 16-bit range check rejects it:
+
+```text
+ArithmeticException: Constraint violation: w234=65533 != w169=52435875175126190479447740508185965837690552500527637822603658699938581184509
+```
+
+That long number is `2026 − 2030` in the field, which is `r − 4`.
+
+:::danger[Unconstrained ranges are a classic ZK bug]
+If a value is compared or subtracted without a range constraint, a dishonest prover can pick a
+field element that "wraps" and satisfies the equations. The honest test cases still pass, so
+nothing looks wrong. Give every `ZkUInt` an explicit `@UInt(bits = ...)` that matches its real
+domain, and test values just outside it.
+:::
+
+## The invalid witness, and who really enforces the rule
+
+For the 16-year-old, `calculateWitness` throws `ArithmeticException: Constraint violation`
+before any proof exists. It's useful, but it isn't a security boundary: the witness calculator
+is ordinary Java running on the prover's own machine, and a cheater can skip it and hand-craft
+a witness.
+
+What stops the cheater is the constraints. Groth16 is designed so that a proof verifies only
+if *every* constraint holds (assuming nobody kept the setup's toxic waste). We tried it: take
+the adult's valid witness, overwrite the age with 16 (element `2`, right after the constant `1`
+and the public `threshold`), prove anyway, and the verifier answers
+`Groth16 BLS12-381 pairing check failed`.
+
+That's why an honest run proves nothing about soundness. A circuit that forgets a constraint
+still works perfectly for honest users. Always test inputs that must fail, like this page
+does. [Testing circuits](/guides/circuits/testing-circuits/) goes deeper.
+
+<UnderConstrainedExplainer variant="tutorial" />
+
+## Public inputs: order and ownership
+
+Groth16 public inputs are a plain list of numbers, and order matters. The generated schema
+fixes it: public inputs come in declaration order, which you can print with
+`AgeCheckCircuit.schema().publicInputs().names()`. The generated `Inputs` class gives you the
+values in that order through `publicValues()` (a `List<BigInteger>`) or `toPublicInputs()` (a
+typed `PublicInputs`).
+
+Notice where the verifier gets its public inputs from. It *builds* the expected list from its
+own policy with `AgeCheckCircuit.inputs().threshold(18).toPublicInputs()` and compares it
+with what the prover sent. The third scenario shows why: the 17-year-old's proof of
+`age >= 16` is perfectly valid, because the statement is true. A verifier that only asked "is
+this proof valid?" would have let them in.
+
+## Reusing keys
+
+Setup is the slow, sensitive part, so you do it once per circuit:
+
+- `Groth16Keys.setupToStore(...)` streams the proving key into a directory
+  (`sparse = true` stores it compactly), and `Groth16Keys.load(dir)` memory-maps it on later
+  runs. Small circuits can also use `setupInMemory`, as the Quickstart does.
+- The verification key is tiny and public. The prover program writes it to
+  `build/age-check-vk.json`, and the verifier only ever reads that file.
+- Keys belong to one exact circuit. Change the circuit and you must delete
+  `build/age-check-keys` and run setup again. (`gradle clean` also deletes it.)
+
+:::caution[Development setup only]
+These keys come from a single-party setup that knows its toxic waste, which is why it needs
+`-Dzeroj.allowInsecureTrustedSetup=true`. Anyone with that secret can forge an "I'm over 18"
+proof. Production keys come from a multi-party ceremony; see
+[Running a trusted setup ceremony](/guides/proving/trusted-setup-ceremony/).
+:::
+
+## What this proof does not prove
+
+The circuit proves that the prover knows *a* number of at least 18. It doesn't prove that the
+number is *their age*. Right now anyone can type `.age(25)` and pass.
+
+To make an age check meaningful, the age has to come from someone the verifier trusts, such
+as a government or a KYC provider. Typically the issuer signs or commits to the user's
+attributes, and the circuit proves the age inside that signed credential is at least 18.
+Alternatively, BBS credentials let the holder reveal selected attributes of a signed
+credential directly. See [Age & KYC checks](/use-cases/age-and-kyc/) and
+[BBS credentials](/guides/credentials/bbs/).
+
+## Try this
+
+Add a version that works from a birth year, so the verifier supplies the current year:
+
+```java title="src/main/java/com/example/agecheck/BirthYearCheck.java"
+package com.example.agecheck;
+
+import org.zeroj.circuit.annotation.Prove;
+import org.zeroj.circuit.annotation.Public;
+import org.zeroj.circuit.annotation.Secret;
+import org.zeroj.circuit.annotation.UInt;
+import org.zeroj.circuit.annotation.ZKCircuit;
+import org.zeroj.circuit.annotation.ZkBool;
+import org.zeroj.circuit.annotation.ZkUInt;
+
+@ZKCircuit(name = "birth-year-check", version = 1)
+public class BirthYearCheck {
+
+    @Prove
+    ZkBool prove(@Public @UInt(bits = 16) ZkUInt currentYear,
+                 @Public @UInt(bits = 8) ZkUInt minAge,
+                 @Secret @UInt(bits = 16) ZkUInt birthYear) {
+        ZkUInt age = currentYear.sub(birthYear); // range-checked: can't wrap below zero
+        return age.gte(minAge);
+    }
+}
+```
+
+Build witnesses with `BirthYearCheckCircuit.inputs().currentYear(2026).minAge(18).birthYear(...)`.
+A birth year of 2000 works, 2010 fails the comparison, and 2030 fails the range check shown
+above. `ZkUInt.sub` range-checks its result at the wider of the two widths, which is what
+catches the wrap. (Counting whole years is only approximate; a real service would compare
+full dates.)
+
+## Next steps
+
+- [Private allowlist with a Merkle tree](/tutorials/private-allowlist/): prove membership
+  without revealing which member you are, once per event.
+- [Testing circuits](/guides/circuits/testing-circuits/): systematic invalid-witness tests.
+- [Age & KYC checks](/use-cases/age-and-kyc/): binding the age to a trusted issuer.

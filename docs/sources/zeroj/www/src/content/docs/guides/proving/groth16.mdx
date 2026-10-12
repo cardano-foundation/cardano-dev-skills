@@ -1,0 +1,296 @@
+---
+title: Prove with Groth16
+description: Set up keys, generate Groth16 proofs on BLS12-381, scale to millions of constraints, and export proofs and keys for verifiers.
+sidebar:
+  order: 1
+---
+
+import KeyLocationDiagram from '../../../../components/walkthrough/KeyLocationDiagram.astro';
+
+Groth16 on BLS12-381 is ZeroJ's primary proof system and **the focus of the current release**.
+It's the path used in every tutorial, the one verified end to end on-chain against Yaci DevKit,
+and the one Cardano verifies with Plutus V3's built-in BLS12-381 operations. Proofs are small
+(three curve points) and cheap to verify. The trade-off is a trusted setup per circuit.
+
+Like the rest of ZeroJ, this path is research software. Its status is **Beta**: feature-complete
+and correctness-tested, but not externally audited and not for value-bearing or mainnet use. See
+[Status & maturity](/start/status/).
+
+This guide covers the `zeroj-crypto` API: where keys live, how to prove, how to scale up, what
+the fail-closed checks mean, and how to hand proofs to verifiers.
+
+```text
+circuit ──compileR1CS(BLS12_381)──▶ R1CS ──setup / import──▶ Groth16Keys
+   │                                                          │
+   └──calculateWitness──▶ witness ─────────────▶ keys.prove(...) ──▶ proof ──▶ verifier
+```
+
+## Choose where the proving key lives
+
+`Groth16Keys` is the front door: one handle for the key material wherever it lives, and one
+`prove` that works the same against all of them. You make one decision, at setup time:
+
+| Key home | Get it with | When | Memory |
+|----------|-------------|------|--------|
+| Heap | `Groth16Keys.setupInMemory(...)` | Tests and small circuits | Whole key on the heap |
+| Key store, sparse | `Groth16Keys.setupToStore(..., true)` | Large local circuits (recommended store format) | Streamed setup; the key is memory-mapped, so it uses page cache, not heap |
+| Key store, dense | `Groth16Keys.setupToStore(..., false)` | Interchange with older tools | Same profile, larger files |
+| Imported ceremony key | `ZkeyPkStoreImporter.importToPkStore(zkey, dir, sha256)`, then `Groth16Keys.load(dir, manifestSha256)` | Anything beyond local testing | Memory-mapped at prove time |
+
+`Groth16Keys` is `AutoCloseable`. Use try-with-resources so store-backed keys are unmapped.
+
+:::caution[The first three rows are development keys]
+`setupInMemory` and `setupToStore` run a **single-party** setup: your process knows the secret
+randomness and could forge proofs. ZeroJ refuses to run them unless you opt in with
+`-Dzeroj.allowInsecureTrustedSetup=true` (or `ZEROJ_ALLOW_INSECURE_TRUSTED_SETUP=true`); without
+it they throw `IllegalStateException`. Keys that protect anything real come from a multi-party
+ceremony. See [Run a trusted setup ceremony](/guides/proving/trusted-setup-ceremony/).
+:::
+
+<KeyLocationDiagram />
+
+## Flow 1: small circuits, keys in memory
+
+The examples use the `SealedBid` circuit and its filled-in `inputs` from
+[Write circuits with annotations](/guides/circuits/annotations/#the-generated-companion). Any
+`CircuitBuilder` works the same way.
+
+```java
+var circuit = SealedBidCircuit.build();
+var r1cs = circuit.compileR1CS(CurveId.BLS12_381);
+BigInteger[] witness = inputs.calculateWitness(circuit, CurveId.BLS12_381);   // witness[0] == 1
+
+// DEV/TEST ONLY: single-party setup. Groth16 setup uses only the tau scalar.
+BigInteger tau = PowersOfTauBLS381.generate(4).tauScalar();
+
+try (var keys = Groth16Keys.setupInMemory(
+        r1cs.constraints(), r1cs.numWires(), r1cs.numPublicInputs(), tau)) {
+    Groth16ProofBLS381 proof = keys.prove(witness, r1cs.constraints());
+}
+```
+
+Nothing touches disk. This is fine up to a few hundred thousand constraints.
+
+## Flow 2: bigger circuits, keys on disk
+
+`setupToStore` streams every proving-key point straight into memory-mapped files, so the key is
+never fully on the heap. Pass the packed constraints (`r1cs.flat()`) and a directory:
+
+```java
+Path keysDir = Path.of("keys/sealed-bid-v1");
+
+// DEV/TEST ONLY
+try (var keys = Groth16Keys.setupToStore(
+        r1cs.flat(), r1cs.numWires(), r1cs.numPublicInputs(), tau, keysDir, true)) {
+    Groth16ProofBLS381 proof = keys.prove(witness, r1cs.constraints());
+}
+
+// Every later run reopens the bundle. Sparse or dense is detected from the manifest.
+try (var keys = Groth16Keys.load(keysDir)) {
+    Groth16ProofBLS381 proof = keys.prove(witness, r1cs.constraints());
+}
+```
+
+`sparse = true` stores points at infinity as a single bit each, which makes the on-disk key much
+smaller for large circuits.
+
+## Flow 3: keys from a ceremony
+
+For real deployments, the proving key comes from a snarkjs multi-party ceremony `.zkey`. Import it
+once into the same store layout, pinned to the SHA-256 of the final key that passed
+`snarkjs zkey verify` (the ceremony transcript publishes it):
+
+```java
+// Streaming, multi-GB safe. The target directory must not exist yet.
+var imported = ZkeyPkStoreImporter.importToPkStore(
+        Path.of("circuit_final.zkey"), keysDir, verifiedZkeySha256);
+String manifestSha256 = imported.manifestSha256();   // keep it with your deployment config
+```
+
+The import checks the file against that hash, validates every point (curve, subgroup and
+canonical encoding), and seals the store. It does not check that the key matches your circuit or
+re-verify the ceremony; that's what `snarkjs zkey verify` is for. There is no two-argument
+`importToPkStore(zkey, dir)`: code that skips the hash doesn't compile.
+`importUnpinnedToPkStore` exists for local tests only. Later loads are pinned to the store's
+manifest hash.
+
+snarkjs appends one public-input binding row per public signal (plus one for the constant wire)
+after your circuit's rows, so you must tell the prover about them:
+
+```java
+int numPublic = r1cs.numPublicInputs();
+
+try (var keys = Groth16Keys.load(keysDir, manifestSha256)) {
+    // List form: append snarkjs's binding rows to your compiled constraints
+    var proof = keys.prove(witness,
+            ZkeyPkStoreImporter.snarkjsConstraints(r1cs.constraints(), numPublic));
+
+    // Packed form: pass the number of binding rows instead (0 for locally generated keys)
+    var proof2 = keys.prove(ProverBackend.PURE_JAVA,
+            FlatScalars.pack(witness, witness.length), r1cs.flat(), numPublic + 1);
+}
+```
+
+The ceremony must have been run on **exactly** the R1CS you compile, exported with
+`zeroj-ceremony export-r1cs` or `R1CSSerializer.serialize(r1cs)`. For small keys (up to 128 MB)
+there is also an in-memory importer that can pin the file's SHA-256 before parsing:
+`ZkeyImporterBLS381.importZkeyFull(bytes, expectedSha256)`. It returns the proving key and the
+constraints for `Groth16ProverBLS381.prove(...)`. Circom circuits follow the same import path;
+see [Bring circom & snarkjs circuits](/tutorials/snarkjs-interop/).
+
+## The packed prove path
+
+The list form boxes every coefficient and witness value as a `BigInteger`. At millions of
+constraints, use the packed overload with `R1CSFlat` constraints and `FlatScalars` witness values:
+
+```java
+FlatScalars w = FlatScalars.pack(witness, witness.length);
+Groth16ProofBLS381 proof = keys.prove(ProverBackend.PURE_JAVA, w, r1cs.flat(), /* bindingRows */ 0);
+```
+
+`FlatScalars.packConsuming(witness, n)` does the same but nulls out the `BigInteger[]` as it goes,
+so the boxed values can be garbage-collected early. `ProverBackend.PURE_JAVA` is the default,
+multi-core pure-Java backend; the opt-in native backend is covered in
+[Performance & large circuits](/guides/proving/performance/).
+
+## Groth16Pipeline for very large circuits
+
+`Groth16Pipeline` packages the orchestration ZeroJ uses for its ~19-million-constraint
+account-ownership circuit: a constraint cache written during setup, witness generation *before*
+the constraints are memory-mapped (so the two memory peaks never overlap), and a circuit
+fingerprint that fails fast if a key bundle doesn't match the circuit. You supply two things:
+how to compile, and how to compute the witness.
+
+```java
+Supplier<Groth16Pipeline.Compiled> compile = () -> {
+    var cs = SealedBidCircuit.build().compileR1CS(CurveId.BLS12_381);
+    return new Groth16Pipeline.Compiled(
+            cs.flat(), cs.numConstraints(), cs.numWires(), cs.numPublicInputs());
+};
+Supplier<FlatScalars> computeWitness = () -> {
+    var c = SealedBidCircuit.build();                           // released when the lambda returns
+    BigInteger[] w = inputs.calculateWitness(c, CurveId.BLS12_381);
+    return FlatScalars.packConsuming(w, w.length);
+};
+
+// Setup (DEV/TEST ONLY): sparse store + r1cs.bin cache, bound to the circuit fingerprint
+var compiled = compile.get();
+String fingerprint = compiled.fingerprint();                    // record this with the bundle
+var setup = Groth16Pipeline.setup(compiled, tau, keysDir, true);
+String vkJson = SnarkjsGroth16Json.verificationKeyJson(setup);  // export the VK from the result
+compiled = null;                                                // let the compiled circuit go
+
+// Prove: compiles only if the cache is missing or stale
+try (var keys = Groth16Keys.load(keysDir)) {
+    Groth16ProofBLS381 proof = Groth16Pipeline.prove(keys,
+            keysDir.resolve(Groth16Pipeline.R1CS_CACHE),
+            fingerprint,
+            compile, computeWitness,
+            /* bindingRows */ 0, ProverBackend.PURE_JAVA);
+}
+```
+
+The fingerprint has the form `c<constraints>-w<wires>-p<public>-r<sha256>`: the dimensions plus
+a hash of the exact relation. A mismatch throws `IllegalStateException` before any proving work.
+For an imported ceremony key, pass the fingerprint at import time, with the four-argument
+`importToPkStore(zkey, dir, sha256, fingerprint)` or `zeroj-ceremony finalize --circuit-fingerprint`,
+and pass `numPublic + 1` binding rows. Imported stores are sealed, so
+`Groth16PkStore.bindCircuitFingerprint` works only on local, unsealed stores. `Groth16Pipeline.estimateProvePhaseHeapBytes(numWires, domain)` gives a lower bound on
+prove-phase heap for preflight checks; witness generation can need more, so measure your own
+circuit. An optional `Groth16Pipeline.Progress` listener reports stages for CLIs.
+
+## Relation validation
+
+Every setup and prove entry point checks the relation's shape before doing any work, and fails
+closed with an exception instead of proceeding:
+
+| Error | Meaning |
+|-------|---------|
+| `numWires` / `numPublic` out of range | Need `numWires >= 1` and `0 <= numPublic < numWires` |
+| A wire index outside `[0, numWires)` | A constraint references a wire that doesn't exist |
+| Malformed CSR offsets or coefficients | The packed `R1CSFlat` is corrupt |
+| `witness length (…) must match numWires (…)` | The witness wasn't computed for this circuit |
+| `witness[0] must be 1` | The constant wire is missing or wrong |
+| A public wire with no nonzero coefficient | See the binding rule below |
+
+**Every public wire must be bound.** Native setup requires each wire `0..numPublic`, including the
+constant wire 0, to appear with a nonzero coefficient in at least one constraint row. A public
+input that appears in no row would produce a verification-key entry at the point at infinity,
+which every ZeroJ verifier (pure Java, blst, on-chain) rejects, and it would leave that public
+input unbound by the proof. Circuits built with the DSL bind the constant wire through their
+assertions. If you have a public input your circuit doesn't use, either drop it or make it take
+part in a real multiplication with another wire, for example `recipient.mul(secret)`. A constant
+multiplication such as `p * 1` is folded into a linear combination by the compiler and binds
+nothing. snarkjs binds unused public signals itself, so a circuit can set up under snarkjs and
+still be refused by native setup; imported ceremony keys are unaffected.
+
+In the negligible case that the sampled randomness cancels a bound wire, setup aborts with an
+`IllegalStateException` before writing anything; run it again. These exceptions mean the
+relation, the dimensions, or the witness doesn't describe the circuit the key was made for. Fix
+the caller; don't catch and retry.
+
+## Every proof is freshly randomized
+
+Groth16 proofs include two random blinding scalars. Every ZeroJ prove call draws them from
+`SecureRandom`, and nothing lets you fix, seed, or omit them. That's what makes the proof
+zero-knowledge: an unblinded proof is a deterministic function of the key and the witness, and a
+low-entropy secret could be recovered by trying candidates. Consequences:
+
+- Two proofs of the same statement are different bytes. Don't compare proofs for equality.
+- There is **no deterministic or unblinded prove** in any published ZeroJ artifact. To debug,
+  keep the proof you got.
+
+## Export and hand off proofs
+
+Proofs and keys travel as snarkjs-compatible JSON. The exporters in `org.zeroj.crypto.snarkjs`
+write exactly what snarkjs 0.7.6 writes, and refuse non-canonical input (points at infinity,
+off-curve points, out-of-range scalars):
+
+```java
+BigInteger[] publicInputs = Arrays.copyOfRange(witness, 1, 1 + r1cs.numPublicInputs());
+
+String vkJson = SnarkjsGroth16Json.verificationKeyJson(keys);          // also accepts a SetupResult
+String proofJson = SnarkjsGroth16Json.proofJson(proof);
+String publicJson = SnarkjsGroth16Json.publicJson(publicInputs);
+```
+
+From there:
+
+- **Off-chain:** wrap the JSON in an envelope with `SnarkjsJsonCodec.toEnvelopeFromJson(...)` (or
+  the generated `proofEnvelopeBuilder(...)` for annotated circuits) and verify with
+  `Groth16BLS12381PureJavaVerifier`. See [Verify off-chain](/guides/verifying/off-chain/).
+- **With snarkjs:** `snarkjs groth16 verify verification_key.json public.json proof.json`.
+- **On-chain:** `ProverToCardano.compressVk(keys)` and `ProverToCardano.compressProof(proof)`
+  (in `zeroj-onchain-julc`) produce the compressed points a Plutus V3 validator consumes. See
+  [Verify on-chain](/guides/verifying/on-chain/).
+
+:::danger[A valid proof is not authorization]
+A reusable verifier such as the on-chain `Groth16BLS12381Verifier` validator (in
+`zeroj-onchain-julc`) only checks the math. Anyone who sees a proof can resubmit it. Real validators must bind the proof to the transaction's `ScriptContext`,
+prevent replay (for example by binding a public input to the spent UTxO, or with nullifiers), and
+enforce authorization and business rules. See
+[Application security](/guides/verifying/application-security/).
+:::
+
+## The expert layer
+
+`Groth16Keys` and `Groth16Pipeline` delegate to public lower-level seams. You rarely need them,
+but they exist for memory-tuned pipelines:
+
+| Entry point | Purpose |
+|-------------|---------|
+| `Groth16SetupBLS381.setup(...)` / `setupToStore(...)` | In-heap and streaming setup (dev only) |
+| `Groth16PkStore.load/save` | The key-store format itself |
+| `Groth16ProverBLS381.computeHFlat(...)` + `proveWithHCoeffs(...)` | Compute H, drop the constraints, then run the MSMs |
+| `Groth16ProverBLS381.proveWithReaders(...)` | Prove from key readers without the handle |
+
+Design notes: [ADR-0036 (API facade and pipeline)](https://github.com/bloxbean/zeroj/blob/main/docs/adr/0036-groth16-api-facade-and-pipeline.md),
+[ADR-0045 (public-wire binding)](https://github.com/bloxbean/zeroj/blob/main/docs/adr/0045-groth16-infinity-ic-profile-and-public-wire-binding.md),
+[ADR-0046 (no unblinded prove)](https://github.com/bloxbean/zeroj/blob/main/docs/adr/0046-groth16-unblinded-proving-test-boundary.md).
+
+## Next steps
+
+- [Run a trusted setup ceremony](/guides/proving/trusted-setup-ceremony/)
+- [Performance & large circuits](/guides/proving/performance/)
+- [Verify off-chain](/guides/verifying/off-chain/)
+- [Verify on-chain](/guides/verifying/on-chain/)

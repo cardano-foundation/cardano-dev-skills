@@ -1,0 +1,264 @@
+---
+title: Circuits, constraints & witnesses
+description: How ZK circuits really work (equations over a finite field, R1CS, witnesses), why Java control flow doesn't apply, and how under-constrained circuits break.
+sidebar:
+  order: 2
+---
+
+import TextOnly from '../../../components/TextOnly.astro';
+import WitnessExplainer from '../../../components/walkthrough/WitnessExplainer.astro';
+import UnderConstrainedExplainer from '../../../components/walkthrough/UnderConstrainedExplainer.astro';
+
+In [Zero-knowledge in plain English](/learn/zero-knowledge-basics/) we treated a circuit as a
+function that returns `true` or `false`. That's a useful first picture, but it isn't how circuits
+work, and the gap between the two is where most ZK security bugs come from. This page closes that
+gap.
+
+## A circuit is a system of equations
+
+A ZK circuit doesn't *run*. It's a list of equations, called **constraints**, over a set of
+variables, called **wires**. A proof shows that the prover knows values for all the wires that make
+every equation true at once.
+
+Here's the statement "I know `x` such that `x³ + x + 5 = 35`", written as constraints:
+
+<TextOnly>
+
+```text
+v1  = x  · x          constraint 1
+v2  = v1 · x          constraint 2
+out = v2 + x + 5      constraint 3
+```
+
+</TextOnly>
+
+<WitnessExplainer />
+
+With `x = 3`, the wires are `v1 = 9`, `v2 = 27`, `out = 35`, and all three equations hold. The
+verifier never sees `x`, `v1`, or `v2`. It only learns that some assignment satisfies every
+constraint with `out = 35`.
+
+Notice the shape: each constraint does at most **one multiplication**. That's not a style choice.
+It's the format the proof system understands.
+
+## R1CS: one multiplication per constraint
+
+Groth16 consumes circuits in **R1CS** form (rank-1 constraint system). Every constraint looks like:
+
+```text
+(linear combination A) × (linear combination B) = (linear combination C)
+```
+
+A *linear combination* is a sum of wires times constants, like `v2 + x + 5`. Additions are free;
+they fold into the linear combinations. Multiplications of two wires each cost one constraint.
+The simplest possible circuit, "I know `b` such that `a · b = product`", is a single constraint:
+
+```text
+(a) × (b) = (product)
+```
+
+When people say a circuit has "54 constraints" or "19 million constraints", they're counting
+these rows. More constraints mean a bigger proving key and a slower prover. Verification cost
+doesn't change: Groth16 verification depends on the number of public inputs, not the number of
+constraints.
+
+## Field arithmetic: numbers that wrap around
+
+Circuit wires don't hold Java `int`s or `long`s. They hold **field elements**, which are whole
+numbers modulo a large prime. For BLS12-381, the curve ZeroJ uses for Cardano, that prime is a
+255-bit number called `r`:
+
+```text
+r = 52435875175126190479447740508185965837690552500527637822603658699938581184513
+```
+
+Think of it as a clock with `r` hours. Arithmetic works like normal until you pass `r`, then it
+wraps around. That has consequences Java developers don't expect:
+
+| Expression | In Java | In the field |
+|------------|------------------|--------------|
+| `3 - 5` | `-2` | `r - 2`, a huge positive number. There are no negative numbers. |
+| `1 / 2` | `0` | `(r + 1) / 2`, the number that gives 1 when doubled. There are no fractions or decimals, only inverses. |
+| `x > 5` | a comparison | Not defined. Field elements have no built-in order. |
+| `(r - 1) + 1` | `r` (using `BigInteger`) | `0` |
+
+The last two rows are the dangerous ones. To prove "`age ≥ 18`", a circuit can't just compare. It
+has to prove the numbers are small, by splitting them into bits, and only then compare the bits.
+Proving that a value fits in `n` bits is called a **range check**, and forgetting one is the
+most common way to break a circuit.
+
+## The witness: every wire, filled in
+
+The **witness** is the complete list of values for every wire in the circuit: the public inputs,
+the secret inputs, and every intermediate value. For the `x³ + x + 5` example it's
+`[1, 35, 3, 9, 27]`.
+
+In ZeroJ, `calculateWitness(...)` produces it as a `BigInteger[]` with a fixed layout:
+
+```text
+index 0        the constant 1 (every R1CS uses a "one" wire for constants)
+index 1..n     the n public inputs, in the circuit's declared order
+index n+1..    secret inputs and intermediate wires
+```
+
+The explainer near the top of this page shows that layout for `x³ + x + 5`: the constant, then the
+public `out`, then the secret wires.
+
+The witness contains your secrets, so it **never leaves the prover**. The prover turns it into a
+proof, and only the proof and the public inputs travel.
+
+## Constraints describe; they don't execute
+
+Because a circuit is a set of equations and not a program, ordinary Java control flow doesn't
+translate.
+
+**No `if` on secrets.** An `if` in your Java code runs once, while the circuit is being *built*,
+before any secret exists. It can't depend on a secret value. Instead, you compute both branches and
+use a constraint to pick one:
+
+```java
+// In Java you'd write:  fee == (isMember ? 0 : 5)
+ZkField expected = isMember.select(zk.constant(0), zk.constant(5));
+return expected.isEqual(fee);
+```
+
+Under the hood, `select` is the equation `result = isMember · (0 − 5) + 5`. It only works as a
+choice if `isMember` is exactly 0 or 1.
+
+**No `&&`, `||`, `!` on secrets.** Same reason. Use `ZkBool.and(...)`, `or(...)`, and `not()`,
+which emit the equivalent equations.
+
+**Booleans need their own constraint.** In a field, a "boolean" is just a number. A value is only
+0 or 1 if a constraint says so: `b · (b − 1) = 0`. In the `select` above, a cheater who sets
+`isMember = 2` would get `expected = 2 · (−5) + 5`, which is not a fee anyone intended. ZeroJ's
+`ZkBool` adds the boolean constraint for you, so `isMember = 2` is rejected.
+
+## The under-constrained circuit bug
+
+Here's the most important idea on this page:
+
+> A circuit only enforces the equations you actually wrote down, not the ones you meant.
+
+If an intended rule has no constraint behind it, a cheater can pick any value that satisfies the
+remaining equations, and the proof will verify. This is called an **under-constrained circuit**,
+and it's the most common serious bug class in ZK applications.
+
+Here's a concrete, runnable example. The idea: "prove `age ≥ threshold` by showing
+`age = threshold + diff`, where `diff` is a non-negative secret".
+
+```java title="BuggyAgeCheck.java"
+// BUG: nothing says `diff` is small and non-negative.
+@ZKCircuit(name = "buggy-age-check", version = 1)
+public class BuggyAgeCheck {
+    @Prove
+    ZkBool prove(@Secret ZkField age,
+                 @Secret ZkField diff,
+                 @Public ZkField threshold) {
+        return age.isEqual(threshold.add(diff));
+    }
+}
+```
+
+An honest 25-year-old uses `diff = 7`, and everything looks fine. Tests with honest inputs pass.
+Now a 16-year-old cheats:
+
+<TextOnly>
+
+```text
+age       = 16
+threshold = 18
+diff      = r − 2          ("−2" in the field)
+
+threshold + diff = 18 + (r − 2) = r + 16 ≡ 16 = age   ✓  the equation holds
+```
+
+</TextOnly>
+
+<UnderConstrainedExplainer />
+
+ZeroJ's own witness calculator accepts these inputs, and the resulting proof verifies. The
+circuit said "equal", and the values *are* equal in the field. It never said "`diff` is a small,
+non-negative number".
+
+The fix is to state the missing rule. In ZeroJ, `ZkUInt` with `@UInt(bits = N)` adds range
+constraints that force each value into `0 … 2ᴺ − 1`:
+
+```java title="FixedAgeCheck.java"
+@ZKCircuit(name = "fixed-age-check", version = 1)
+public class FixedAgeCheck {
+    @Prove
+    ZkBool prove(@Secret @UInt(bits = 8) ZkUInt age,
+                 @Secret @UInt(bits = 8) ZkUInt diff,
+                 @Public @UInt(bits = 8) ZkUInt threshold) {
+        return age.isEqual(threshold.add(diff));
+    }
+}
+```
+
+Now `diff = r − 2` doesn't fit in 8 bits, so no valid witness exists. The fixed circuit has 56
+constraints instead of 5, and those extra constraints are exactly the rules that were missing.
+In a real circuit you'd simply write `age.gte(threshold)`, which does the same range-checked
+comparison for you.
+
+## How ZeroJ helps
+
+ZeroJ can't design your circuit for you, but it removes the most common traps:
+
+- **Symbolic types.** You write circuits with `ZkField`, `ZkBool`, `ZkUInt`, and friends instead
+  of Java primitives. You can't accidentally branch on a secret, because a `ZkBool` isn't a
+  `boolean`.
+- **Range checks by declaration.** `@UInt(bits = N)` on a `ZkUInt` input adds its range
+  constraints when the value is created. Comparisons like `gte` and `lt` require range-checked
+  operands.
+- **Constrained booleans.** Every `ZkBool` is constrained to 0 or 1.
+- **A gadget library.** Poseidon hashing, Merkle membership, comparators, bit decomposition, and
+  more are written once and reused. For Cardano circuits, use Poseidon with explicit BLS12-381
+  parameters (`PoseidonParamsBLS12_381T3.INSTANCE`). See [Gadgets](/guides/circuits/gadgets/).
+- **Witness checking.** `calculateWitness(...)` checks every constraint and throws an
+  `ArithmeticException` when one fails, which makes invalid-witness tests easy to write.
+
+A small annotated circuit, and a test that it rejects a false claim, looks like this:
+
+```java title="AgeCheck.java"
+@ZKCircuit(name = "age-check", version = 1)
+public class AgeCheck {
+    @Prove
+    ZkBool prove(@Secret @UInt(bits = 8) ZkUInt age,
+                 @Public @UInt(bits = 8) ZkUInt threshold) {
+        return age.gte(threshold);
+    }
+}
+```
+
+```java title="AgeCheckTest.java"
+var circuit = AgeCheckCircuit.build();   // generated by the annotation processor
+
+// Honest witness: 25 ≥ 18
+var ok = AgeCheckCircuit.inputs().age(25).threshold(18);
+circuit.calculateWitness(ok.toWitnessMap(), CurveId.BLS12_381);
+
+// Invalid witnesses must be rejected
+var tooYoung = AgeCheckCircuit.inputs().age(16).threshold(18);
+assertThrows(ArithmeticException.class,
+        () -> circuit.calculateWitness(tooYoung.toWitnessMap(), CurveId.BLS12_381));
+
+var outOfRange = AgeCheckCircuit.inputs().age(300).threshold(18);   // doesn't fit in 8 bits
+assertThrows(ArithmeticException.class,
+        () -> circuit.calculateWitness(outOfRange.toWitnessMap(), CurveId.BLS12_381));
+```
+
+:::caution[Honest tests don't prove soundness]
+A circuit that produces the right answer for honest inputs can still be under-constrained. For
+every rule your circuit is supposed to enforce, write a test that breaks that rule and check it's
+rejected. Keep in mind that `calculateWitness` fills in intermediate wires honestly, while a real
+attacker can choose *every* wire value. So also review each intermediate value and ask: "what
+stops a prover from putting something else here?"
+[Testing circuits](/guides/circuits/testing-circuits/) goes deeper.
+:::
+
+## Next steps
+
+- [Groth16, PlonK & BBS](/learn/proof-systems/): what happens to your constraints next
+- [Testing circuits](/guides/circuits/testing-circuits/): invalid-witness and adversarial
+  testing in practice
+- [Writing circuits with annotations](/guides/circuits/annotations/): the full annotation API

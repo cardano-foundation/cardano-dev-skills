@@ -1,0 +1,171 @@
+---
+title: Groth16, PlonK & BBS
+description: The three proof systems in ZeroJ, how their setup, proof size and verification cost differ, and why Cardano uses the BLS12-381 curve.
+sidebar:
+  order: 3
+---
+
+import DisclosureWalkthrough from '../../../components/walkthrough/DisclosureWalkthrough.astro';
+import ProofSystemExplainer from '../../../components/walkthrough/ProofSystemExplainer.astro';
+import TextOnly from '../../../components/TextOnly.astro';
+
+ZeroJ implements three cryptographic systems. Two of them, Groth16 and PlonK, prove statements
+about circuits. The third, BBS, is a signature scheme for credentials. They solve different
+problems, and in ZeroJ they have very different maturity. This page explains each one, compares
+them side by side, and explains why everything runs on the BLS12-381 curve.
+
+**Short version:** use **Groth16 on BLS12-381** for circuits. It's the focus of the current
+release and the default throughout these docs. Use **BBS** when you need issuer-signed credentials
+with selective disclosure. Treat ZeroJ's **PlonK** support as experimental.
+
+## Groth16: the default
+
+Groth16 (Jens Groth, 2016) is the most widely deployed zk-SNARK. It turns an R1CS circuit into
+proofs that are tiny and cheap to verify.
+
+- **Proof:** three elliptic-curve points: two in the group G1 and one in G2. On BLS12-381 that's
+  48 + 96 + 48 = **192 bytes** in compressed form, whatever the size of the circuit. (The same proof
+  as snarkjs-style JSON text is about 1 KB.)
+- **Verification:** a single *pairing check*, plus one elliptic-curve multiplication per public
+  input. On Cardano, ZeroJ's reusable verifier does four Miller loops and one final check using
+  Plutus V3 builtins. In ZeroJ's JuLC VM tests, a proof with two public inputs used about
+  2.8 billion CPU units, against a per-transaction limit of 10 billion.
+- **Setup:** Groth16 needs a **trusted setup for each circuit**. A universal "powers of tau"
+  phase is reused, and a circuit-specific phase 2 runs for every circuit and every change to it.
+  See [Trusted setup, explained](/learn/trusted-setup/).
+
+The per-circuit setup is Groth16's main cost. In exchange you get the smallest proofs and the
+cheapest verification of the three, which is exactly what you want when a blockchain validator
+pays for every CPU cycle.
+
+In ZeroJ, Groth16 on BLS12-381 is **Beta** off-chain and **Beta, testnet only** on-chain. You get
+a pure-Java prover, a pure-Java verifier, a reusable Plutus V3 verifier, import of snarkjs `.zkey`
+ceremony keys, and export to snarkjs-compatible JSON.
+
+## PlonK: universal setup (experimental in ZeroJ)
+
+PlonK (Gabizon, Williamson, and Ciobotaru, 2019) uses a different circuit format, built from
+gates and wiring permutations instead of R1CS, and a polynomial commitment scheme called
+**KZG**.
+
+- **Setup:** one **universal** trusted setup (a KZG structured reference string, or SRS) serves
+  every circuit up to a maximum size. Each circuit still needs preprocessing, but that step is
+  public and deterministic, so changing a circuit doesn't need a new ceremony.
+- **Proof:** larger than Groth16, about 650 bytes (roughly 3.5 times as large).
+- **Verification:** two pairings plus more scalar multiplications than Groth16. ZeroJ's
+  experimental on-chain verifier measured about 4.8 billion CPU units for one public input.
+- **Non-interactivity** comes from Fiat–Shamir: the verifier's challenges are derived by hashing
+  the proof transcript, so transcript encoding details are security-critical.
+
+:::caution[PlonK is experimental in ZeroJ]
+ZeroJ includes pure-Java PlonK proving and verification and experimental on-chain validators.
+All of it is **experimental**, off-chain and on-chain. These docs make no correctness or
+readiness claims for it, and it isn't a recommended alternative to Groth16. Use it only for
+evaluation and research. See [PlonK](/guides/proving/plonk/) and [Status & maturity](/start/status/).
+:::
+
+## BBS: signatures with selective disclosure
+
+BBS works differently from the other two. It isn't a circuit proof system; it's a **signature
+scheme** with a built-in zero-knowledge proof. The workflow has three parties:
+
+<DisclosureWalkthrough mode="bbs" />
+
+<TextOnly>
+
+```text
+ Issuer                     Holder                              Verifier
+   │  signs attributes        │                                    │
+   │  [name, birth date,      │                                    │
+   │   country, KYC level, …] │                                    │
+   ├─────── signature ───────►│                                    │
+   │                          │  derives a proof revealing only    │
+   │                          │  [country, KYC level]              │
+   │                          ├──────── presentation ─────────────►│
+   │                          │                                    │  checks against the
+   │                          │                                    │  issuer's public key
+```
+
+</TextOnly>
+
+- The **issuer** signs a list of messages (attributes) with one signature.
+- The **holder** derives a *presentation*: a zero-knowledge proof that they hold a valid
+  signature over all the attributes, revealing only the ones they choose.
+- The **verifier** checks the presentation against the issuer's public key. Hidden attributes stay
+  hidden, and each presentation is freshly randomized, so two presentations of the same
+  credential aren't linkable by their bytes.
+
+**No trusted setup.** The issuer just generates a key pair.
+
+**Proof size** grows with what you hide: a presentation proof is 272 bytes plus 32 bytes per
+hidden attribute.
+
+**Limitation:** BBS can reveal or hide attributes, but it can't prove a *predicate* about a hidden
+attribute, such as "birth date is before 2007". For predicates, use a circuit (Groth16), possibly
+alongside BBS.
+
+ZeroJ implements the IRTF CFRG draft `draft-irtf-cfrg-bbs-signatures-10` with both of its
+BLS12-381 ciphersuites (SHA-256 and SHAKE-256), and tests against the draft's official fixtures.
+The draft isn't an RFC yet, so the scheme itself may still change. In ZeroJ, BBS verification is
+**Beta**, and issuance and proof generation are **Beta with a caveat**: the default pure-Java
+provider isn't constant-time, so prefer the blst provider for issuer keys. There is also a
+fixed-profile on-chain presentation verifier. See [BBS credentials](/guides/credentials/bbs/).
+
+## Side by side
+
+| | Groth16 | PlonK | BBS |
+|---|---------|-------|-----|
+| What it proves | Any statement you express as an R1CS circuit | Any statement you express as a PlonK circuit | "I hold an issuer-signed credential; here are the attributes I choose to reveal" |
+| Setup | Trusted, **per circuit** (universal phase 1 + circuit-specific phase 2) | Trusted, **universal** SRS, reused across circuits | **None** beyond the issuer's key pair |
+| Proof size (BLS12-381) | 192 bytes | about 650 bytes | 272 bytes + 32 per hidden attribute |
+| Verification cost | Lowest: one pairing check + one scalar multiplication per public input | Higher: two pairings + more scalar multiplications | Pairing-based; grows with the number of attributes |
+| Changing the circuit | New phase-2 ceremony | Recompute public preprocessing | Not applicable |
+| Status in ZeroJ | **Beta** off-chain; **Beta, testnet only** on-chain | **Experimental**, off-chain and on-chain | Verification **Beta**; issuance **Beta with caveat**; on-chain verifier is fixed-profile |
+| When to use | **Default** for every circuit, especially on Cardano | Evaluation and research only | Credentials with selective disclosure |
+
+## Why BLS12-381 and not BN254?
+
+Pairing-based proof systems need a **pairing-friendly elliptic curve**. Two curves dominate the
+ecosystem:
+
+- **BN254** (also called alt_bn128) is what Ethereum's precompiles support, so much existing
+  tooling, including default circom and snarkjs setups, targets it.
+- **BLS12-381** was designed later with a higher security margin. It's used by Zcash, Ethereum's
+  consensus layer, and many signature schemes.
+
+For Cardano the choice is simple. Plutus V3, introduced in the Conway era, added **native
+BLS12-381 builtins**, specified in CIP-0381: curve point operations, Miller loops, and a final
+pairing check. There are no BN254 builtins, so a BN254 proof can't be verified on-chain at any
+reasonable cost.
+
+That's why ZeroJ uses BLS12-381 everywhere by default. Circuits compile over the BLS12-381 scalar
+field (`CurveId.BLS12_381`), and hash gadgets must use BLS12-381 parameters, such as Poseidon with
+`PoseidonParamsBLS12_381T3.INSTANCE`. ZeroJ still contains legacy BN254 code, but it's **disabled
+by default** and needs `-Dzeroj.allowLegacyBn254=true`. Use it only for off-chain experiments.
+
+:::note[Bringing circom circuits]
+circom and snarkjs default to BN254. To use a circom circuit with ZeroJ and Cardano, compile and
+set it up for BLS12-381 (for example, `circom circuit.circom --r1cs --wasm -p bls12381`). See
+[Bring circom & snarkjs circuits](/tutorials/snarkjs-interop/).
+:::
+
+## Which should I use?
+
+Answer three questions to see which system fits, or read the summary below.
+
+<ProofSystemExplainer />
+
+- **Proving a statement about private data?** Groth16 on BLS12-381. Plan for a proper ceremony
+  before anything real depends on it.
+- **Issuing credentials that holders reveal piece by piece?** BBS.
+- **Need a predicate over a credential attribute?** A Groth16 circuit, possibly combined with BBS
+  or another way of binding the attribute to an issuer.
+- **Curious about universal setups?** Try PlonK for research, and keep it away from anything that
+  matters.
+
+## Next steps
+
+- [Trusted setup, explained](/learn/trusted-setup/)
+- [ZK on Cardano](/learn/zk-on-cardano/)
+- [Groth16 proving guide](/guides/proving/groth16/)
+- [BBS credentials](/guides/credentials/bbs/)

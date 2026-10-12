@@ -1,0 +1,193 @@
+---
+title: Prove you own a Cardano account
+description: Prove you know the wallet root key behind a Cardano address, without revealing the seed or signing anything, so a refund can reach the real owner.
+sidebar:
+  order: 9
+---
+
+import AccountRecoveryWalkthrough from '../../../components/walkthrough/AccountRecoveryWalkthrough.astro';
+
+Picture a wallet hack in which attackers obtain users' address-level signing keys and drain the
+funds. An operator such as an exchange or wallet provider wants to refund the victims. Now it has a
+hard problem. The attacker can show up and claim too, and a signature from the leaked keys proves
+nothing. The genuine owner still has their 24-word recovery phrase, but handing that to anyone
+would be a disaster. And a refund submitted on-chain can be copied from the mempool and redirected.
+
+This page explains why zero knowledge is the tool that resolves this, and what ZeroJ's largest
+circuit proves.
+
+<AccountRecoveryWalkthrough />
+
+## Why a signature isn't enough
+
+Cardano wallets derive keys along the CIP-1852 path `m / 1852' / 1815' / account' / role / index`.
+The first three steps are **hardened**, the last two are **soft**, and the two kinds behave very
+differently:
+
+- **Soft derivation can be run backwards.** A child private key is the parent key plus an offset
+  anyone can compute from the parent's extended public key (xpub). One leaked address key plus the
+  account xpub, which some wallets keep on their servers, gives up the **account** private key, and
+  with it every address in the account.
+- **So everything from the address up to the account is potentially compromised.** A signature
+  under any of those keys can be produced by the attacker too.
+- **Hardened derivation is a one-way wall.** It feeds the parent *private* key into the derivation,
+  so the attack can't climb from the account to the **root key**. Only the real owner has that.
+
+The one claim an attacker can't fake is therefore *"I know the root key this address descends
+from"*. You can't reveal the root key. And a verifier can't check the root-to-address link from
+public data, because the hardened steps need the private key. That combination is exactly what a
+zero-knowledge proof handles.
+
+## The zero-knowledge idea
+
+**The owner proves "I know a wallet root key that derives, along the real CIP-1852 path, to this
+address's payment key hash, and I authorise a payout to this recipient". Only the key hash and the
+recipient are revealed.**
+
+The circuit takes the root extended private key as a secret witness and replays the whole
+derivation inside the proof. That means three hardened and two soft BIP32-Ed25519 steps (HMAC-SHA512
+plus Ed25519 arithmetic emulated in the BLS12-381 field), the leaf public key and the Blake2b-224
+key hash. It then checks that the result equals the public payment key hash.
+
+## What stays private, what's public
+
+| Input | Visibility | Why |
+|---|---|---|
+| `rootKL`, `rootKR`, `rootChainCode` | Secret | The root extended private key: the wallet's master secret |
+| `account`, `role`, `index` | Secret | The derivation path stays private; `pkh` already pins the address |
+| `recipientBytes` | Secret witness | Constrained to pack exactly to the public `recipient` |
+| `pkh` | Public | The address's payment key hash, already public on-chain |
+| `recipient` | Public | The payout's payment key hash, bound so a copied proof can't be redirected |
+
+## How it works
+
+1. **Vouchers.** The operator locks a refund voucher UTxO for each affected account. Its datum
+   holds `pkh` and `refundAmount`.
+2. **Prove.** The owner runs the desktop app or CLI, enters the recovery phrase at a hidden prompt
+   and chooses a recipient address. The seed is used in memory only. It's never written to disk or
+   sent anywhere.
+3. **Verify.** Anyone can check the proof off-chain in under a second. On-chain, a claim
+   transaction spends the voucher.
+4. **One claim.** A UTxO can only be spent once, so each voucher pays out once. Anyone, such as a
+   fee sponsor, may submit the claim, and the funds still go to the bound recipient.
+
+## The circuit
+
+This is the demo's `OwnershipProof`, unchanged apart from imports and comments:
+
+```java title="OwnershipProof.java"
+import org.zeroj.circuit.annotation.*;
+import org.zeroj.circuit.lib.zk.ZkCip1852;
+
+@ZKCircuit(name = "account-ownership-proof", version = 4)
+public class OwnershipProof {
+
+    @Prove
+    void prove(ZkContext zk,
+               @Secret @FixedSize(32) ZkBytes rootKL,
+               @Secret @FixedSize(32) ZkBytes rootKR,
+               @Secret @FixedSize(32) ZkBytes rootChainCode,
+               @Secret @FixedSize(4) ZkBytes account,
+               @Secret @FixedSize(4) ZkBytes role,
+               @Secret @FixedSize(4) ZkBytes index,
+               @Secret @FixedSize(28) ZkBytes recipientBytes,
+               @Public ZkField pkh,
+               @Public ZkField recipient) {
+        // Root key + full CIP-1852 path -> 28-byte payment key hash, pinned to the public pkh
+        ZkBytes derived = ZkCip1852.paymentKeyHash(zk, rootKL, rootKR, rootChainCode, account, role, index);
+        pack(zk, derived).assertEqual(pkh);
+        // Bind the payout: the proof commits to the recipient's packed key hash
+        pack(zk, recipientBytes).assertEqual(recipient);
+    }
+
+    // Big-endian packing of a 28-byte hash into one field element (Horner's rule)
+    private static ZkField pack(ZkContext zk, ZkBytes bytes) {
+        ZkField acc = bytes.get(0).asField();
+        for (int i = 1; i < bytes.size(); i++) {
+            acc = acc.mul(zk.constant(256L)).add(bytes.get(i).asField());
+        }
+        return acc;
+    }
+}
+```
+
+The file is short, but the circuit behind it is large. `ZkCip1852.paymentKeyHash` composes ZeroJ's
+in-circuit Blake2b, SHA-512, HMAC-SHA512, Ed25519 and BIP32 gadgets. The composed derivation is
+validated byte-for-byte against Cardano Client Lib's HD-wallet derivation. Packing each 28-byte
+hash into one field element keeps the proof at **two** public inputs, which is what makes the
+on-chain check affordable.
+
+### Size and cost (documented measurements)
+
+| Metric | Measured |
+|---|---|
+| Circuit size | About 19 million constraints (19,075,097 in the measured runs) |
+| Local dev setup | About 6 min on a 12-core, 128 GB machine; about 9.6 GB key bundle on disk |
+| Prove | About 1.5 min on that machine; about 2.6 min on an ordinary 16 GB machine |
+| Verify off-chain | Under 1 s |
+| Verify on-chain | About 2.8×10⁹ CPU steps, under the 10×10⁹ per-transaction limit |
+
+These figures come from the demo's CLI documentation and ZeroJ's prover-memory work, and they depend
+on hardware. Proving a circuit this size in commodity memory relies on the memory-mapped proving key
+and the streaming setup; see [Performance](/guides/proving/performance/).
+
+## On Cardano
+
+The demo's `OwnershipProofValidator` is a JuLC spending validator parameterized with the
+verification key. On a claim it checks all of the following:
+
+1. **The proof verifies** over `[pkh, recipient]`, where `pkh` comes from the voucher's datum.
+2. **The recipient is actually paid.** Some transaction output's payment credential equals
+   `recipient`, and its value is at least `refundAmount`. Checking only that such an output exists
+   would let a front-runner pay a token amount and skim the rest.
+3. **It's the right voucher.** The datum's `pkh` equals the proof's `pkh`.
+
+This is a good example of "a valid proof is not authorization". The pairing check alone would let
+anyone with a copied proof spend the voucher to any address. The recipient and amount checks bind
+the proof to the transaction. See [Application security](/guides/verifying/application-security/).
+
+## Security considerations
+
+- **The whole argument assumes the root seed didn't leak.** If the attacker has the recovery phrase,
+  owner and attacker are cryptographically identical, and no scheme can tell them apart.
+- **Trusted setup is critical here.** Whoever knows the setup randomness can forge ownership
+  proofs. A locally generated key bundle is single-party and for testing only. A refund program
+  needs a multi-party phase-2 ceremony (run externally with snarkjs and imported); see the
+  [ceremony guide](/guides/proving/trusted-setup-ceremony/).
+- **Confirm the recipient.** A production refund program should also confirm the payout address
+  through its own authenticated channel.
+- **Protect the seed on the proving machine.** The tools read it at a hidden prompt and keep it in
+  memory only, but the machine itself must be trusted.
+- **Review status.** The derivation gadgets are validated against an independent implementation
+  but haven't been externally audited.
+
+:::danger[Experimental]
+This is research-grade software. Don't use it to move real value or to run a live refund program
+without an MPC ceremony and external review.
+:::
+
+## Try it
+
+The demo lives in
+[`account-ownership`](https://github.com/bloxbean/zeroj-usecases/tree/main/account-ownership). It
+doesn't use `demo.sh`. Instead it ships a desktop app and a CLI (installers and a Java zip on the
+repo's [releases page](https://github.com/bloxbean/zeroj-usecases/releases)). From source:
+
+```bash
+cd account-ownership
+./gradlew :ui:run
+```
+
+The CLI flow is `setup` (a local, development-only key bundle, which needs `--i-understand-insecure`),
+then `prove --recipient <bech32-address>`, then `verify`, or `verify --onchain` against a local Yaci
+DevKit. Allow about 10 GB of free disk and use a machine with at least 16 GB of RAM. Test with the
+public BIP-39 test mnemonic or a throwaway wallet, never a real recovery phrase.
+
+## Related
+
+- [Performance](/guides/proving/performance/): how multi-million-constraint circuits fit in commodity
+  memory
+- [Gadgets](/guides/circuits/gadgets/): Blake2b, SHA-512, HMAC, Ed25519, BIP32 and CIP-1852
+  in-circuit
+- [Trusted setup ceremony](/guides/proving/trusted-setup-ceremony/): producing production keys
+- [ZK on Cardano](/learn/zk-on-cardano/)

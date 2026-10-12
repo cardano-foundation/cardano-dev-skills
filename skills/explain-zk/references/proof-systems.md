@@ -23,7 +23,7 @@ factors. Every property an application claims must appear as a constraint.
 
 | System | Proof size | Trusted setup | How it reaches Cardano |
 |---|---|---|---|
-| **Groth16** | Smallest (~200 bytes: two G1, one G2) | Per circuit | Circom or gnark circuits; Groth16 verifier in Aiken |
+| **Groth16** | Smallest (~200 bytes: two G1, one G2) | Per circuit | Circom or gnark circuits with a Groth16 verifier in Aiken, or Java circuits with ZeroJ's Plutus V3 verifier |
 | **PLONK** | ~0.5 KB | Universal, reusable across circuits | Circom via a snarkjs adaptation; Plutus/Aiken verifiers |
 | **Halo2 (KZG)** | Circuit-dependent | Universal | Verifier generated from a Rust circuit; also the Midnight proof system |
 | **Bulletproofs** | Grows with the statement (logarithmic when compressed) | None (transparent) | Aiken range-proof verifier on the BLS12-381 builtins |
@@ -66,11 +66,16 @@ not the surrounding prose, defines what a proof guarantees.
 The end-to-end steps:
 
 1. Write the circuit in Circom (compile with `--prime bls12381`; the default targets a different
-   curve) or in gnark.
+   curve), in gnark, or as a Java class with ZeroJ.
 2. Run the trusted setup to produce the proving key and the verification key.
 3. Generate the proof off-chain from the witness and public inputs, in the browser or on a backend.
 4. Compress the verification key and proof to Cardano's compressed-point format.
-5. The Aiken validator verifies the proof as its spending condition.
+5. The validator verifies the proof as its spending condition.
+
+ZeroJ runs the same five steps in Java, and its tutorial
+`../../docs/sources/zeroj/www/src/content/docs/tutorials/verify-on-cardano.mdx` takes a proof to a
+Plutus V3 validator on a local devnet. Its verifier checks the math only: binding the proof to the
+spend is left to your validator, which its on-chain guide covers.
 
 The `ZK-from-zero-on-Cardano` eBook walks the whole path — circuit to Aiken verifier, with the password
 example. It is not bundled and its README marks it in progress; the ecosystem map has the link. Generic
@@ -120,6 +125,8 @@ publish their own benchmarks.
   — the full catalog of verifiers, toolkits, and shipped applications.
 - Bundled: `../../docs/sources/aiken-zkp-verifiers/` — Groth16, PLONK, and Bulletproofs verifiers in Aiken,
   with the protocol math worked step by step in `zkp/docs/step-by-step.md`.
+- Bundled: `../../docs/sources/zeroj/` and `../../docs/sources/zeroj-use-cases/` — the Java pipeline
+  and worked applications; check `www/src/content/docs/start/status.md` for what is testnet-only.
 - Toolchains and libraries: see the ZK/BLS section of `suggest-tooling/references/ecosystem-map.md`.
 - The CIPs: CIP-0381 (pairing builtins), CIP-0133 (multi-scalar multiplication), CIP-0109 (modular
   exponentiation) under `../../docs/sources/cips/`.

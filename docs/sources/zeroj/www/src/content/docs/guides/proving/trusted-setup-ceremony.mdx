@@ -1,0 +1,285 @@
+---
+title: Run a trusted setup ceremony
+description: Run a multi-party Groth16 ceremony with snarkjs and the zeroj-ceremony tool, import the result into ZeroJ, and know what to check before trusting one.
+sidebar:
+  order: 2
+---
+
+import CeremonyWalkthrough from '../../../../components/walkthrough/CeremonyWalkthrough.astro';
+import TextOnly from '../../../../components/TextOnly.astro';
+
+Every Groth16 circuit needs a trusted setup, and whoever knows the setup's secret randomness (the
+"toxic waste") can forge proofs. A **multi-party computation (MPC) ceremony** spreads that
+randomness across many independent contributors. The result is sound as long as **at least one**
+contributor was honest and destroyed their secret. This page walks through a ceremony with
+snarkjs and ZeroJ's `zeroj-ceremony` tool, from circuit freeze to proving with the final key.
+
+New to the idea? Read [Trusted setup, explained](/learn/trusted-setup/) first.
+
+## When you need one
+
+You need a ceremony for **any real deployment of a Groth16 circuit**: anything beyond local
+development, tests, and throwaway demos. ZeroJ's in-process setup (`Groth16Keys.setupInMemory`,
+`setupToStore`, `Groth16SetupBLS381.setup`) is single-party by design and only runs behind the
+`zeroj.allowInsecureTrustedSetup` opt-in.
+
+:::danger[Never protect value with a development key]
+A single-party setup knows the toxic waste. Anyone with access to that process, its memory, or
+its logs could forge proofs for your circuit. Keys that guard anything real must come from a
+ceremony whose transcript you've verified.
+:::
+
+## How the pieces fit
+
+<CeremonyWalkthrough />
+
+<TextOnly>
+
+```text
+Phase 1 (universal, reusable)   powers of tau (.ptau) for BLS12-381, up to 2^N constraints
+                                  │  verify, then "prepare phase2"
+Phase 2 (one per circuit)       circuit.r1cs ──snarkjs groth16 setup──▶ key_0000.zkey
+                                  │  contributor 1, 2, 3 ... (zeroj-ceremony or snarkjs, any mix)
+                                  │  public random beacon
+                                  ▼
+                                key_final.zkey ──snarkjs zkey verify──▶ transcript checked
+                                  │
+ZeroJ                           zeroj-ceremony finalize ──▶ proving-key store ──▶ prove
+```
+
+</TextOnly>
+
+Every artifact stays in the snarkjs `.zkey` format, and **the independent check is always
+`snarkjs zkey verify`**, which re-checks every contribution, including ones made with ZeroJ's
+tool. The tool that checks the ceremony is never the tool ZeroJ wrote.
+
+## Before you start: freeze the circuit
+
+A ceremony binds to one exact R1CS. Any later change (a gadget, an array size, the order of
+public inputs, a compiler change that alters the constraint shape) needs a new ceremony. Before
+starting:
+
+- Finalize and review the circuit, including invalid-witness tests
+  ([Test your circuits](/guides/circuits/testing-circuits/)).
+- Add the public inputs your validator will use for replay binding. You can't add them later.
+- Tag the source commit and record the compiler's constraint count.
+
+You can rehearse the machinery on a throwaway circuit at any time (see
+[Rehearse first](#rehearse-first)).
+
+## Phase 1: the powers of tau
+
+Phase 1 is universal: one prepared `.ptau` serves every circuit up to its size, on the same
+curve. It must be **BLS12-381**. Two options:
+
+**Reuse an attested ceremony.** ZeroJ's runbook points to Filecoin's BLS12-381 powers of tau
+(2²⁷). Whatever the source, verify it and prepare it yourself:
+
+```bash
+snarkjs powersoftau verify pot_imported.ptau
+snarkjs powersoftau truncate pot_imported.ptau
+snarkjs powersoftau prepare phase2 pot25.ptau pot25_final.ptau
+```
+
+**Run your own.** Contributors take turns, then a beacon closes it:
+
+```bash
+snarkjs powersoftau new bls12-381 25 pot_0000.ptau
+snarkjs powersoftau contribute pot_0000.ptau pot_0001.ptau --name="<who>" -v
+# ... more contributors ...
+snarkjs powersoftau beacon pot_<last>.ptau pot_beacon.ptau <beaconHash> 10 -n="final beacon"
+snarkjs powersoftau prepare phase2 pot_beacon.ptau pot25_final.ptau
+```
+
+At 2²⁵ these steps are heavy (the runbook budgets hours per phase-1 contribution and far longer
+for `prepare phase2`), but you do them once. Publish the prepared file and its verify output.
+
+## Phase 2: key genesis (coordinator)
+
+Export your frozen circuit's R1CS with the ZeroJ tool, create the initial key with snarkjs, and
+publish both hashes **before** contributions begin:
+
+```bash
+zeroj-ceremony export-r1cs \
+  --circuit com.example.OwnershipProof \
+  --circuit-jar my-circuits.jar \
+  --out ownership.r1cs
+
+snarkjs groth16 setup ownership.r1cs pot25_final.ptau key_0000.zkey
+shasum -a 256 ownership.r1cs key_0000.zkey
+```
+
+`--circuit` takes the `@ZKCircuit` class or its generated `*Circuit` companion (any class with a
+static `build()` that returns a `CircuitBuilder`). `export-r1cs` compiles for BLS12-381 and loads
+the class reflectively, so run it with the fat jar on a JVM rather than the native binary. From
+code, `R1CSSerializer.serialize(r1cs)` produces the same iden3 `.r1cs` bytes.
+
+## Contributors
+
+Contributors need the `zeroj-ceremony` tool (or snarkjs; both produce compatible contributions).
+
+**Get the tool.** When a ZeroJ release publishes the ceremony distributables, they're attached to
+the [GitHub release](https://github.com/bloxbean/zeroj/releases): a fat jar
+(`zeroj-ceremony-<version>-all.jar`, needs Java 25) and native zips for linux-x86_64, linux-arm64,
+macos-arm64, and windows-x86_64 (no Java needed). Or build it from a ZeroJ checkout:
+
+```bash
+./gradlew :zeroj-tools:fatJar          # zeroj-tools/build/libs/zeroj-ceremony-<v>-all.jar
+./gradlew :zeroj-tools:nativeDistZip   # needs a GraalVM JDK; zeroj-tools/build/distributions/
+```
+
+**Contribute.** Check what you received against the coordinator's published hash, contribute, and
+send the result back:
+
+```bash
+shasum -a 256 key_0007.zkey                      # must match the published hash
+zeroj-ceremony contribute --in key_0007.zkey --out key_0008.zkey --name "Alice / Example Org"
+shasum -a 256 key_0008.zkey
+```
+
+| Option | Required | Meaning |
+|--------|----------|---------|
+| `--in <file>` | yes | The `.zkey` you received |
+| `--out <file>` | yes | The `.zkey` you send back |
+| `--name <text>` | no | Your name in the public transcript (default `zeroj contributor`) |
+
+The tool draws your secret from the OS secure random source, uses it once, and never writes it
+anywhere. It prints a **Contribution Hash**; copy it into your attestation. The equivalent snarkjs
+command is `snarkjs zkey contribute key_0007.zkey key_0008.zkey --name="..."`. ZeroJ's
+documentation reports its contributor at roughly 0.9 hours versus 2.5 to 3 hours for snarkjs on a
+19M-constraint key (about 30 GB); budget about twice the `.zkey` size in free disk.
+
+**Publish an attestation**, for example as a gist or a pull request to the ceremony's transcript
+repository:
+
+```text
+Ceremony: <circuit name>, contribution #8
+Who: <name/org>, <date>
+Received: key_0007.zkey   sha256=<...>
+Produced: key_0008.zkey   sha256=<...>
+Contribution Hash: <as printed by the tool>
+Machine: <e.g. personal laptop, offline>
+I confirm the entropy was generated fresh and destroyed after use.
+```
+
+After contributing there's nothing left to keep secret. What matters is that nobody observed the
+machine during the contribution.
+
+To embed contributions in your own service or wallet, `zeroj-tools` exposes the same step as a
+library call: `ZkeyContributor.contribute(in, out, name)` returns the contribution hash.
+
+## Close the ceremony (coordinator)
+
+```bash
+# 1. Beacon: announce the source BEFORE the last contribution lands,
+#    e.g. "the hash of Bitcoin block N" or "drand round R" for a future N or R
+snarkjs zkey beacon key_0012.zkey key_final.zkey <beaconHashHex> 10 -n="final beacon"
+
+# 2. The independent check anyone can re-run. Stop if it fails.
+snarkjs zkey verify ownership.r1cs pot25_final.ptau key_final.zkey || exit 1
+
+# 3. Hash the key only after verification succeeds
+VERIFIED_ZKEY_SHA256=$(shasum -a 256 key_final.zkey | awk '{print $1}')
+
+# 4. The verification key for your verifiers and validators
+snarkjs zkey export verificationkey key_final.zkey verification_key.json
+
+# 5. Convert to a ZeroJ proving-key store (streaming, multi-GB safe; ./ownership-pk must not exist)
+zeroj-ceremony finalize --sha256 "$VERIFIED_ZKEY_SHA256" --zkey key_final.zkey --pk-store ./ownership-pk
+```
+
+`finalize` is `ZkeyPkStoreImporter.importToPkStore(zkey, dir, expectedSha256)` behind a CLI, and
+you can call that method directly instead. It refuses a file whose SHA-256 doesn't match, checks
+the key's structure and every point (curve, subgroup and canonical encoding), writes a new store
+and seals it. It prints the store's manifest SHA-256: keep it outside the store, with your
+deployment config, and use it for every later load. `--allow-unpinned` replaces `--sha256` for
+local tests only; it doesn't authenticate the source. Add `--circuit-fingerprint <exact>` if you
+want circuit-aware checks; it has to be set here, because a sealed store can't be bound later.
+`finalize` doesn't re-check the transcript or that the key matches your circuit: that's
+`snarkjs zkey verify`'s job.
+
+## Prove with the ceremony key
+
+The imported store works like any other key bundle. Remember that snarkjs appends one binding row
+per public input (plus one for the constant wire), so pass them to the prover:
+
+```java
+int numPublic = r1cs.numPublicInputs();
+try (var keys = Groth16Keys.load(Path.of("ownership-pk"), manifestSha256)) {   // printed by finalize
+    var proof = keys.prove(witness,
+            ZkeyPkStoreImporter.snarkjsConstraints(r1cs.constraints(), numPublic));
+}
+```
+
+For the packed path and `Groth16Pipeline`, pass `numPublic + 1` as the binding-row count. See
+[Prove with Groth16](/guides/proving/groth16/#flow-3-keys-from-a-ceremony). Before going live,
+generate a test proof and verify it off-chain and on-chain against the exported verification key.
+
+## Pin artifact hashes
+
+Treat the ceremony outputs as pinned artifacts, and check their hashes where you load them:
+
+- Record the SHA-256 of `ownership.r1cs`, `key_final.zkey`, `verification_key.json`, and the
+  prepared `.ptau` in your repository or release notes.
+- The in-memory importers accept an expected hash and refuse a mismatch before parsing:
+  `ZkeyImporterBLS381.importZkeyFull(bytes, expectedSha256)` (keys up to 128 MB) and
+  `PtauImporterBLS381.importPtau(input, maxPoints, expectedSha256)`.
+- `ZkeyPkStoreImporter.importToPkStore(zkey, dir, expectedSha256)` and `zeroj-ceremony finalize
+  --sha256` refuse a mismatched file too, and print the store's manifest SHA-256. Load the store
+  with `Groth16Keys.load(dir, manifestSha256)` so a changed store is refused.
+- Pin the verification key your on-chain validator is built with, and treat any change as a new
+  deployment.
+
+## Publish the transcript
+
+In a public repository, publish:
+
+- the `.r1cs`, its hash, and the exact circuit source commit it was built from
+- the prepared `.ptau` source, hash, and verify output
+- every intermediate `.zkey` hash and every contributor attestation
+- the beacon announcement and the beacon value
+- the `snarkjs zkey verify` output and the final key and verification-key hashes
+
+Coordinator checklist, from ZeroJ's runbook:
+
+- [ ] Circuit frozen (reviewed, replay-binding public inputs added) and tagged in git
+- [ ] Prepared `.ptau` acquired, and its verify output published
+- [ ] `.r1cs` and `key_0000.zkey` hashes published before contributions
+- [ ] At least 3 contributors from independent organizations, attestations published
+- [ ] Beacon source announced in advance, applied, and published
+- [ ] `zkey verify` passes; final key and verification-key hashes published
+- [ ] `finalize` run; a test proof verified off-chain and on-chain
+
+## What to check before trusting a ceremony
+
+If you're a user or auditor of someone else's deployment, you don't have to trust the coordinator.
+Check:
+
+1. **The circuit.** Rebuild the `.r1cs` from the published source commit and compare hashes, so
+   you know the key binds to the circuit you reviewed.
+2. **The transcript.** Run `snarkjs zkey verify <circuit.r1cs> <prepared.ptau> <key_final.zkey>`
+   yourself.
+3. **The contributors.** Several independent, identifiable people or organizations, each with a
+   published attestation whose hashes chain from one key to the next.
+4. **The beacon.** It was announced before the last contribution and matches the public value.
+5. **The deployed key.** The verification key in the validator or service matches the one
+   exported from the verified final key.
+
+If any link is missing, treat the setup as untrusted.
+
+## Rehearse first
+
+ZeroJ ships a rehearsal script that runs this whole flow on a tiny circuit, mixing ZeroJ and
+snarkjs contributions, a beacon, `zkey verify`, and `finalize`:
+[`docs/ceremony/rehearsal.sh`](https://github.com/bloxbean/zeroj/blob/main/docs/ceremony/rehearsal.sh).
+It needs snarkjs on your `PATH`, Java 25, and a built ZeroJ checkout.
+
+Further reading: [ceremony user guide](https://github.com/bloxbean/zeroj/blob/main/docs/ceremony/USER-GUIDE.md),
+[coordinator runbook](https://github.com/bloxbean/zeroj/blob/main/docs/ceremony/OPTION-A-RUNBOOK.md),
+[ADR-0031](https://github.com/bloxbean/zeroj/blob/main/docs/adr/0031-groth16-mpc-trusted-setup-ceremony.md).
+
+## Next steps
+
+- [Prove with Groth16](/guides/proving/groth16/)
+- [Verify on-chain](/guides/verifying/on-chain/)
+- [Application security](/guides/verifying/application-security/)

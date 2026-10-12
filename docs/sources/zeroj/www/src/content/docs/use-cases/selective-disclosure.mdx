@@ -1,0 +1,233 @@
+---
+title: Selective disclosure & reusable KYC
+description: Do KYC once, then show each service only what it asks for, as Groth16 predicates over hidden fields or BBS presentations verified on Cardano.
+sidebar:
+  order: 7
+---
+
+import DisclosureWalkthrough from '../../../components/walkthrough/DisclosureWalkthrough.astro';
+
+Every exchange, lending app and marketplace runs its own KYC, and each one keeps a copy of your
+documents. A signed credential lets you do KYC once. But if you then show the whole credential
+everywhere, you've only moved the problem. Selective disclosure is the missing piece. A library
+asks "over 21 and a resident?", a healthcare portal asks "a doctor over 30?", a DeFi app asks
+"KYC-verified and from an allowed country?", and each one learns *only* its answer.
+
+ZeroJ supports two complementary ways to do this, and each has a runnable demo.
+
+<DisclosureWalkthrough />
+
+## The zero-knowledge idea
+
+**One issuer-signed credential; each verifier learns only the answer to its own question.**
+
+| | Groth16 predicates (`selective-disclosure` demo) | BBS selective disclosure (`reusable-kyc` demo) |
+|---|---|---|
+| Verifier learns | A computed yes/no, such as `dobYear ≤ currentYear − 21` | Chosen attribute values, such as `country = USA` |
+| Computes over hidden values? | Yes: ranges, Merkle membership, any circuit | No: each attribute is either revealed or hidden |
+| Signature | EdDSA-Jubjub over a Poseidon hash of all fields, checked in-circuit | BBS (IRTF CFRG draft-10) over all attributes |
+| Circuit and trusted setup | One circuit and one setup per predicate | None |
+| On-chain | `Groth16BLS12381Lib` | `BbsProofVerify` (fixed profile, see below) |
+
+Use predicates when the verifier needs a fact computed from a value it must not see. Use BBS when
+revealing the value itself is fine and you want no circuits and no trusted setup. The two combine
+well: reveal some attributes with BBS, and prove a range over another with a small Groth16 circuit.
+
+## What stays private, what's public
+
+**Groth16 "senior doctor" predicate:**
+
+| Input | Visibility | Why |
+|---|---|---|
+| `dobYear`, `country`, `roleId`, `salaryBracket`, `nameHash` | Secret | The whole credential stays hidden |
+| Issuer signature and helper witnesses | Secret | Revealing them would link presentations |
+| `pkU`, `pkV` | Public | The issuer's key; pinned by the validator |
+| `currentYear` | Public | Pinned by the validator, so the prover can't pick a convenient year |
+| `eligible` | Public | The predicate's result; the validator requires 1 |
+
+**BBS reusable KYC:**
+
+| Input | Visibility | Why |
+|---|---|---|
+| `givenName`, `dob`, `docHash` | Hidden | Proven signed but never shown |
+| `country`, `kycLevel` | Revealed | Exactly what this verifier's policy needs |
+| Issuer public key, credential `header` | Public | Identify the issuer and schema |
+| Presentation header (challenge) | Public | Makes the presentation single-use |
+
+## How it works
+
+**Groth16 predicates:**
+
+1. The issuer signs `Poseidon(dobYear, country, roleId, salaryBracket, nameHash)` once.
+2. For each verifier, the holder runs that verifier's predicate circuit. Every circuit recomputes
+   the same claims hash, checks the same signature, then asserts its own predicate.
+3. Each gate is a spending validator pinned to its own verification key, issuer key and policy
+   values.
+
+**BBS:**
+
+1. The issuer signs five attributes as one BBS credential.
+2. The verifier sends a fresh random challenge.
+3. The holder derives a presentation that reveals only the requested attributes, bound to that
+   challenge.
+4. The verifier checks the proof, that the challenge is one it issued and hasn't seen before, and
+   its policy. On-chain, a validator can do the same natively.
+
+## The circuit
+
+This Groth16 predicate is from the demo's `SeniorDoctorProof`. The `AdultResidentProof` next to it
+reuses the same first half and adds a Merkle country check.
+
+```java title="SeniorDoctorProof.java"
+import org.zeroj.circuit.annotation.*;
+import org.zeroj.circuit.lib.poseidon.PoseidonParams;
+import org.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
+import org.zeroj.circuit.lib.zk.ZkEdDSAJubjub;
+import org.zeroj.circuit.lib.zk.ZkPoseidonN;
+
+@ZKCircuit(name = "senior-doctor", version = 1)
+public class SeniorDoctorProof {
+    private static final PoseidonParams POSEIDON = PoseidonParamsBLS12_381T3.INSTANCE;
+    private static final int MIN_AGE = 30;
+    private static final long DOCTOR_ROLE_ID = 1001L;
+
+    @Prove
+    ZkBool prove(ZkContext zk,
+                 @Public ZkField pkU,
+                 @Public ZkField pkV,
+                 @Public @UInt(bits = 16) ZkUInt currentYear,
+                 @Public ZkBool eligible,
+                 @Secret @UInt(bits = 16) ZkUInt dobYear,
+                 @Secret @UInt(bits = 16) ZkUInt country,
+                 @Secret ZkField roleId,
+                 @Secret @UInt(bits = 8) ZkUInt salaryBracket,
+                 @Secret ZkField nameHash,
+                 @Secret ZkField sigRU,
+                 @Secret ZkField sigRV,
+                 @Secret @UInt(bits = 252) ZkUInt sigS,
+                 @Secret @UInt(bits = 252) ZkUInt kModL,
+                 @Secret @UInt(bits = 4) ZkUInt kQuotient) {
+
+        // Every predicate recomputes the same signed message over all five fields
+        var claims = ZkPoseidonN.hash(zk, POSEIDON, dobYear.asField(), country.asField(),
+                roleId, salaryBracket.asField(), nameHash);
+        ZkEdDSAJubjub.verifyWithRegisteredKey(zk, pkU, pkV, claims, sigRU, sigRV, sigS, kModL, kQuotient);
+
+        // The predicate: role == doctor AND born no later than currentYear - 30
+        var maxDobYear = ZkUInt.wrap(zk, currentYear.asField().sub(zk.constant(MIN_AGE)).signal(), 16);
+        var roleOk = roleId.isEqual(zk.constant(DOCTOR_ROLE_ID));
+        return roleOk.and(eligible.isEqual(dobYear.lte(maxDobYear)));
+    }
+}
+```
+
+### The BBS flow
+
+With BBS there's no circuit at all. This is the `zeroj-bbs` API as the reusable-KYC demo uses it,
+condensed:
+
+```java
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.util.List;
+import org.zeroj.bbs.BbsKeyPair;
+import org.zeroj.bbs.BbsPresentation;
+import org.zeroj.bbs.BbsRevealedMessage;
+import org.zeroj.bbs.BbsService;
+import org.zeroj.bbs.BbsSignature;
+
+var bbs = BbsService.pureJava();
+
+// Issuer: sign all five attributes as one credential (index = position in the list)
+BbsKeyPair issuer = bbs.keyPair(keyMaterial, keyInfo);          // keyMaterial: >= 32 secret random bytes
+List<byte[]> attributes = List.of(givenName, dob, country, kycLevel, docHash);
+BbsSignature signature = bbs.sign(issuer.secretKey(), issuer.publicKey(), attributes, header);
+
+// Verifier: a fresh, single-use challenge. The verifier picks it, never the holder.
+byte[] challenge = new byte[32];
+new SecureRandom().nextBytes(challenge);
+
+// Holder: reveal country (2) and kycLevel (3); indexes must be strictly ascending
+BbsPresentation presentation = bbs.derivePresentation(
+        issuer.publicKey(), signature, attributes, header, challenge, new int[] {2, 3});
+
+// Verifier: check the proof (and that `challenge` is unused), then apply its policy
+boolean valid = bbs.verifyPresentation(issuer.publicKey(), presentation);
+for (BbsRevealedMessage m : presentation.revealedMessages()) {
+    System.out.println(m.index() + " -> " + new String(m.message(), StandardCharsets.UTF_8));
+}
+```
+
+`verifyPresentation` checks cryptography only. Issuer trust, schema, expiry, revocation and your
+disclosure policy remain application logic. See the [BBS guide](/guides/credentials/bbs/).
+
+## On Cardano
+
+**Groth16 gates.** The demo's `AdultResidentValidator` and `SeniorDoctorValidator` are JuLC
+spending validators built on `Groth16BLS12381Lib`. The issuer key, `currentYear` and (for the adult
+gate) the approved-country root are script parameters. Changing any of them deploys a new script,
+so a caller can't substitute weaker public inputs.
+
+**BBS natively on-chain.** `BbsProofVerify` in `zeroj-onchain-julc` runs BBS `ProofVerify`
+inside Plutus V3. `BbsToCardano` in `zeroj-bbs` turns the issuer key into validator parameters and
+a presentation into redeemer fields. The demo's `BbsKycClaimValidator` locks a voucher UTxO and
+releases it only if four things hold:
+
+- the presentation verifies on the ledger;
+- it discloses exactly the required values;
+- it pays the voucher's recipient;
+- its presentation header equals `blake2b_256(voucherTxId ‖ I2OSP(index, 8) ‖ recipientPkh)`,
+  which the validator recomputes itself rather than trusting the claimer.
+
+Spending the voucher is the nullifier. The demo measured about 2.4×10⁹ CPU units for the check,
+within Cardano's per-transaction limit. The current `BbsProofVerify` profile is fixed to a
+five-attribute credential disclosing indexes 2 and 3; other shapes need a different unrolling.
+
+In both cases a valid proof is not authorization. The payout, recipient and replay checks above
+carry the authorization; the proof alone doesn't. See
+[Application security](/guides/verifying/application-security/).
+
+## Security considerations
+
+- **Replay.** A BBS presentation stays valid forever. It's single-use only if the relying party
+  chooses the challenge (off-chain) or derives it from the UTxO being spent (on-chain). The Groth16
+  demo proofs carry no nonce, so add a session or UTxO binding when the proof isn't consumed
+  together with a UTxO.
+- **Revealed values can identify you.** A rare combination of disclosed attributes may be enough
+  to re-identify someone. Reveal the minimum.
+- **Credential theft and sharing.** Whoever holds the credential can present it. Bind it to the
+  holder's key when that matters.
+- **Issuer keys.** For BBS, the default pure-Java provider isn't constant-time. Prefer the blst
+  provider (`BbsService.withBlsProvider(...)`) for issuer keys. The Jubjub demo issuer
+  (`signCompatibilityOffline`) is for offline, isolated use only.
+- **Maturity.** BBS follows an IRTF draft, not yet an RFC. The Groth16 demos use a single-party
+  development setup ([Trusted setup, explained](/learn/trusted-setup/)).
+
+## Try it
+
+Both demos are in [zeroj-usecases](https://github.com/bloxbean/zeroj-usecases). With Yaci DevKit
+running (see [Run the demos](/use-cases/overview/#run-the-demos)):
+
+```bash
+# Groth16 predicates from one signed credential
+./demo.sh selective-disclosure --run
+
+# BBS: reveal a subset of attributes, verified natively on-chain
+./demo.sh reusable-kyc --run
+```
+
+- [`selective-disclosure`](https://github.com/bloxbean/zeroj-usecases/tree/main/selective-disclosure):
+  `--run` locks ADA at the "adult resident" and "senior doctor" gates, then has Bob prove each
+  predicate and unlock both on-chain. In the UI, Alice passes only the adult gate and Charlie
+  passes neither.
+- [`reusable-kyc`](https://github.com/bloxbean/zeroj-usecases/tree/main/reusable-kyc):
+  `--run` issues a credential, gets a verifier challenge, presents only `country` and `kycLevel`,
+  then claims a voucher on-chain. The ledger verifies the BBS proof. The UI lets you pick which
+  attributes to reveal.
+
+## Related
+
+- [BBS credentials guide](/guides/credentials/bbs/)
+- [Groth16, PlonK & BBS](/learn/proof-systems/): when to reach for which
+- [Age & KYC eligibility](/use-cases/age-and-kyc/): a single predicate from a minimal credential
+- [Application security](/guides/verifying/application-security/)

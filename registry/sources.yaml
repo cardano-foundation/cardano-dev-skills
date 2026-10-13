@@ -865,6 +865,18 @@
     - README.md
   description: Lean4 model of Plutus V1–V3 script-context types and ledger-rule predicates; how-to for importing compiled UPLC and discharging validator properties
 
+- name: cip30-test-wallet
+  repo: https://github.com/Lichtstaub/cip30-test-wallet.git
+  docs_path: "."
+  format: markdown
+  category: testing
+  priority: medium
+  glob_patterns:
+    - README.md
+    - "docs/*.md"
+    - "quirks/*.md"
+  description: Playwright test wallet for Cardano dApps with transaction and message signing and configurable wallet behaviours
+
 # --- Governance (Conway Era) ---
 
 - name: GovTool

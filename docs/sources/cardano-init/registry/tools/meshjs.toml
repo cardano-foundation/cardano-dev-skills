@@ -1,0 +1,24 @@
+[tool]
+id = "meshjs"
+name = "MeshJS"
+description = """\
+A comprehensive TypeScript SDK for building on Cardano. MeshJS \
+provides transaction building, wallet integration, and smart \
+contract interaction out of the box. Works with any JavaScript \
+runtime (Node.js, Deno, Bun) and is a great choice for web-based \
+dApps and off-chain transaction builders."""
+website = "https://meshjs.dev"
+languages = ["typescript"]
+system_deps = ["node"]
+nix_packages = ["nodejs"]
+# A package.json alone is ambiguous (any JS project has one); require the
+# MeshJS dependency so foreign projects read as "unrecognized" instead.
+detect = [{ file = "package.json", contains = "@meshsdk" }]
+
+[roles.off-chain]
+template = "meshjs/off-chain"
+
+# MeshJS ships Blockfrost (→ Yaci Store), UTxORPC (→ Dolos), and Ogmios
+# providers, so it can consume any of those seams.
+[compat]
+consumes = ["blockfrost", "u5c", "ogmios"]

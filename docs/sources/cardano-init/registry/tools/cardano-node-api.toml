@@ -1,0 +1,20 @@
+[tool]
+id = "cardano-node-api"
+name = "Cardano Node API"
+description = """\
+A multi-protocol API in front of a local Cardano node, exposing its functions \
+over gRPC (UTxO RPC) and REST. Useful when off-chain code prefers a modern API \
+to the raw node protocols. Run as infrastructure via cardano-up (which pulls \
+in a Cardano node automatically). Its gRPC endpoint is published to the \
+project .env as CARDANO_NODE_API_URL, and the node socket as NODE_SOCKET_PATH."""
+website = "https://github.com/blinklabs-io/cardano-node-api"
+languages = []
+system_deps = ["docker", "cardano-up"]
+nix_packages = []
+
+[roles.infrastructure]
+template = "_infra/cardano-up"
+
+[infra]
+cardano_up_package = "cardano-node-api"
+env = [{ from = "CARDANO_NODE_API_GRPC", to = "CARDANO_NODE_API_URL" }]

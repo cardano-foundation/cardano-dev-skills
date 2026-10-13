@@ -1,0 +1,25 @@
+[tool]
+id = "kupo"
+name = "Kupo"
+description = """\
+A fast, lightweight chain-index for Cardano. Kupo watches the chain for \
+addresses, policy ids, or transaction outputs you care about and serves them \
+over a simple HTTP API — ideal as the indexer behind an off-chain app. Run as \
+infrastructure via cardano-up, which also pulls in a Cardano node \
+automatically. Its endpoint is published to the project .env as INDEXER_URL, \
+so off-chain components connect to it without extra wiring."""
+website = "https://github.com/CardanoSolutions/kupo"
+languages = []
+system_deps = ["docker", "cardano-up"]
+nix_packages = []
+
+[roles.infrastructure]
+template = "_infra/cardano-up"
+
+[infra]
+cardano_up_package = "kupo"
+env = [{ from = "KUPO_URL", to = "INDEXER_URL" }]
+
+# Kupo serves its HTTP index — half of a Kupmios (Kupo + Ogmios) provider.
+[compat]
+serves = ["kupo"]

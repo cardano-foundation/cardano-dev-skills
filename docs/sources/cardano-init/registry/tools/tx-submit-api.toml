@@ -1,0 +1,20 @@
+[tool]
+id = "tx-submit-api"
+name = "Tx Submit API"
+description = """\
+An HTTP gateway for submitting signed transactions to the Cardano network. \
+Off-chain code POSTs a CBOR transaction and the API relays it to the node, so \
+you don't have to speak the node's submission protocol directly. Run as \
+infrastructure via cardano-up (which pulls in a Cardano node automatically). \
+Its endpoint is published to the project .env as TX_SUBMIT_URL."""
+website = "https://github.com/blinklabs-io/tx-submit-api"
+languages = []
+system_deps = ["docker", "cardano-up"]
+nix_packages = []
+
+[roles.infrastructure]
+template = "_infra/cardano-up"
+
+[infra]
+cardano_up_package = "tx-submit-api"
+env = [{ from = "TX_SUBMIT_API_REST", to = "TX_SUBMIT_URL" }]

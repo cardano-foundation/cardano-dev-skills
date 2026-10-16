@@ -12,6 +12,7 @@ Usage: tx-diff [--render tree|paths] [--tree-art ascii|unicode]
                [--collapse-rules FILE] [--blueprint FILE ...]
                [--resolve-n2c SOCKET --network-magic N]
                [--resolve-web2 URL [--web2-api-key-file PATH]]
+               [--witnesses]
                TX_A TX_B
 ```
 
@@ -43,6 +44,28 @@ tx-diff \
   --web2-api-key-file ~/.blockfrost/preprod.key \
   a.cbor.hex b.cbor.hex
 ```
+
+## Witnesses (`--witnesses`)
+
+By default `tx-diff` compares transaction bodies only, so an
+unsigned and a signed build of the same transaction report no
+difference. `--witnesses` adds the witness set (`bootstraps`,
+`datums`, `redeemers`, `scripts`, `vkeys`) to both sides; a change
+confined to one redeemer is then reported under
+`witnesses.redeemers.<tag>.<index>` (for example
+`witnesses.redeemers.spending.0.exUnits`).
+
+```bash
+tx-diff --witnesses a.cbor.hex b.cbor.hex
+```
+
+## Collateral return
+
+The body includes `collateralReturn`. A difference in the
+collateral-return output is reported under `body.collateralReturn`
+— `body.collateralReturn.coin`, `body.collateralReturn.assets.…` —
+and a collateral return present on one side only is reported at
+`body.collateralReturn` itself (the absent side is `null`).
 
 ## Rewriting rules
 

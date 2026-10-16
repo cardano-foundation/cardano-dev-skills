@@ -18,6 +18,7 @@ Usage: tx-inspect [--render tree|paths] [--tree-art ascii|unicode]
                   [--web2-url URL [--web2-api-key-file PATH]]
                   [--links cardanoscan
                        [--network mainnet|preprod|preview]]
+                  [--witnesses]
                   TX
 ```
 
@@ -140,6 +141,66 @@ is the loader, `applyRewriteRules`, and the per-leaf renderer —
 not byte-identical CLI output, because `tx-diff` emits diff
 format and `tx-inspect` emits a single-side render. See
 [rewriting-rules grammar — Cross-tool semantics](rewriting-rules.md#cross-tool-semantics).
+
+## Collateral return
+
+The body node carries `collateralReturn` next to `collateralInputs`
+and `totalCollateral`. A present collateral-return output renders
+exactly like an entry of `outputs` — address, assets, coin, and
+datum / reference script when attached — so rename rules and
+`--links` apply to its address the same way:
+
+```text
+body
++- collateralInputs
+|  `- 0
+|     `- {"index":2,"txId":"59e10ca5…4d64dfe"}
++- collateralReturn
+|  +- address
+|  |  `- {"bytes":"018bd03209d2…80f2d9c3"}
+|  +- assets
+|  |  `- "no native assets"
+|  `- coin
+|     `- 92.171311 ADA (92171311 lovelace)
++- fee
+…
+```
+
+A transaction without a collateral return renders the explicit
+absent leaf, the same one an absent `totalCollateral` uses:
+
+```text
++- collateralReturn
+|  `- null
+```
+
+## Witnesses (`--witnesses`)
+
+`--witnesses` appends the transaction's witness set as a second
+root, `witnesses`, after the body. Its children are `bootstraps`,
+`datums`, `redeemers`, `scripts` and `vkeys`; empty ones are not
+printed. Each redeemer is keyed by its purpose tag and index
+(`spending.0`, `minting.1`, …) and shows its Plutus `data` and its
+`exUnits`:
+
+```bash
+tx-inspect --witnesses path/to/tx.cbor.hex
+```
+
+```text
+witnesses
+`- redeemers
+   `- spending.0
+      +- data
+      |  `- constructor
+      |     `- 1
+      `- exUnits
+         `- {"memory":204128,"steps":60774604}
+```
+
+The flag is off by default: script CBOR and vkey signatures are
+long, and the body render is unchanged by it — the `body` tree is
+byte-identical with and without `--witnesses`.
 
 ## Cardanoscan links
 

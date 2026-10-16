@@ -31,8 +31,7 @@ construction, signing, submission, and verification on a testnet.
 
 ## When NOT to Use
 
-- User wants to write or review on-chain validator logic -- use `write-validator`
-  or `review-contract`
+- User wants to write or review on-chain validator logic -- use `write-validator` or `review-contract`
 - User is designing token metadata standards -- use `design-token`
 - User has a failing transaction and needs help debugging -- use `debug-transaction`
 - User wants to set up a local devnet or node infrastructure -- use `setup-devnet`

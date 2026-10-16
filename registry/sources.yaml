@@ -562,7 +562,7 @@
     - "**/*.ak"
     - "**/*.ts"
     - "**/*.java"
-  description: Generic blockchain use-case templates implemented across Aiken (on-chain) and Mesh/Evolution/cardano-client-lib (off-chain). Foundation reference set.
+  description: Generic blockchain use-case templates with Aiken validators, Mesh/Evolution/PyCardano/cardano-client-lib off-chain code, and Scalus full-stack versions. Foundation reference set.
 
 - name: CIP-113 Programmable Tokens
   repo: https://github.com/cardano-foundation/cip113-programmable-tokens.git
@@ -599,7 +599,7 @@
     - "src/modules/**/README.md"
     - "src/modules/**/validators/*.ak"
     - "src/modules/**/lib/**/*.ak"
-  description: Off-chain reference platform for CIP-113 — substandard Aiken validators (KYC, KYC-extended, freeze-and-seize, dummy) and markdown explainers for the KERI / CIP-170 attestation flow. Status R&D.
+  description: Off-chain reference platform for CIP-113 — module Aiken validators (KYC, KYC-extended, freeze-and-seize, dummy) and markdown explainers for the KERI / CIP-170 attestation flow. Status R&D.
 
 # --- Off-chain SDKs & Frameworks ---
 
@@ -910,7 +910,7 @@
   priority: medium
   glob_patterns:
     - "**/*.md"
-  description: Next-gen consensus with Input Endorsers - 30-50x throughput
+  description: Ouroboros Leios (CIP-164) - higher L1 throughput through committee-certified endorser blocks; design, status reports and simulations
 
 # --- Oracles ---
 

@@ -103,6 +103,9 @@ Required sections: When to use, When NOT to use, Key principles, Workflow.
   No changelogs, no "correction to an earlier note", no "previously this said" callouts,
   no narration of what changed. Git tracks the history. (Documenting that *external*
   guidance is stale — a deprecated API, an archived repo — is content, not a changelog.)
+- State the durable reason, not a date, count, version or popularity figure, unless the
+  figure is fixed by nature and changes what the reader does (a version floor, a
+  deliberate pin, a dated hard fork).
 
 ## Documentation Governance
 

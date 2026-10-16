@@ -119,8 +119,8 @@ Filters: by address, policy, asset, transaction metadata, block slot range.
 | UTxO by address | Yes | No | Yes | Yes | Yes | Yes | No | Yes |
 | Tx history | Yes | No | No | Yes | Yes | Yes | No | Yes |
 | Protocol params | Yes | Yes | No | Yes | Yes | Yes | No | Yes |
-| Tx submission | Yes | Yes | No | No | No | No | No | Yes |
-| Tx evaluation | No | Yes | No | No | No | No | No | Yes† |
+| Tx submission | Yes | Yes | No | Yes | No | No | No | Yes |
+| Tx evaluation | Yes | Yes | No | Yes‡ | No | No | No | Yes† |
 | Datum resolution | Yes | No | Yes | Yes | Yes | Yes | No | Yes |
 | Asset metadata | Yes | No | No | Yes | Yes | Yes | No | Yes |
 | Real-time events | No | Yes | No | No | Sub | No | Yes | In-proc |
@@ -131,6 +131,7 @@ Filters: by address, policy, asset, transaction metadata, block slot range.
 
 *Self-hosted: free software but requires infrastructure.
 †Requires a configured evaluation backend — Ogmios, or a Scalus-backed local evaluator.
+‡Through Koios's `/ogmios` passthrough (`evaluateTransaction`).
 
 **Yaci Store** is a modular JVM indexer: enable only the stores you need (UTxO,
 transaction, assets, governance, ...), each backed by your own Postgres — hence

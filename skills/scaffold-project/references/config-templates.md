@@ -2,7 +2,7 @@
 
 Reference snippets for the config files the scaffold prints. Each template is annotated inline so the developer understands what every field does and which fields they need to adjust.
 
-Versions are intentionally left as placeholder markers. At scaffold time, check the project's GitHub releases page or the bundled docs at `../../docs/sources/<source>/` and replace the marker with the latest stable release.
+Versions are exact pins: the releases these templates are tested with. To move one, check the project's GitHub releases page or the bundled docs at `../../docs/sources/<source>/`, then re-test before changing the pin.
 
 ## `aiken.toml` (all stacks)
 

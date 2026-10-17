@@ -217,6 +217,40 @@ if [ -n "${OLD_TZ}" ]; then export TZ="${OLD_TZ}"; else unset TZ; fi
 contains "${OUT}" "updated" && [ "${RC}" -eq 0 ]
 check "fresh fetch keeps its age west of UTC (BSD parses local time)" $?
 
+# 11-13. The CLAUDE.md block check. The current version comes from the
+#        plugin's cardano-context skill, so an older block must say so instead
+#        of reporting "active" forever. These run from a project directory,
+#        because the check reads ./CLAUDE.md.
+make_project() {  # make_project <name> <block-version>
+  local dir="${TMP}/$1"
+  mkdir -p "${dir}"
+  printf '# Project\n\n<!-- BEGIN cardano-dev-skills %s -->\n...\n<!-- END cardano-dev-skills %s -->\n' \
+    "$2" "$2" > "${dir}/CLAUDE.md"
+  printf '%s' "${dir}"
+}
+run_hook_in() {  # run_hook_in <project-dir> <root> -> sets OUT and RC
+  set +e
+  OUT="$(cd "$1" && CLAUDE_PLUGIN_ROOT="$2" "${HOOK}" 2>&1)"
+  RC=$?
+}
+root="$(make_root context "last_fetched: \"${NOW_ISO}\"")"
+mkdir -p "${root}/skills/cardano-context"
+printf '## Canonical v3 block\n\n<!-- BEGIN cardano-dev-skills v3 -->\n' \
+  > "${root}/skills/cardano-context/SKILL.md"
+
+run_hook_in "$(make_project current v3)" "${root}"
+contains "${OUT}" "context active" && [ "${RC}" -eq 0 ]; check "current block reports active" $?
+
+run_hook_in "$(make_project older v2)" "${root}"
+contains "${OUT}" "older version" && ! contains "${OUT}" "context active" && [ "${RC}" -eq 0 ]
+check "older block asks for a re-run" $?
+
+# Without the skill file there is nothing to compare against, so any block
+# counts as current rather than nagging on every session.
+root="$(make_root noskill "last_fetched: \"${NOW_ISO}\"")"
+run_hook_in "${TMP}/older" "${root}"
+contains "${OUT}" "context active" && [ "${RC}" -eq 0 ]; check "unreadable skill counts any block as current" $?
+
 # ------------------------------------------------------------------------
 
 printf '\n%d passed, %d failed\n' "${pass}" "${fail}"

@@ -76,7 +76,18 @@ jobs:
       - name: Validate skills, sources, and Claude/Codex compatibility
         run: python scripts/validate.py
 
-      # Runs in the existing job on purpose — it needs no Python, no network and
-      # under a second, so it does not warrant a fourth workflow.
+      # The JSON wire-output tests use the Python already set up above.
       - name: Test SessionStart hook
         run: ./hooks/test-check-docs.sh
+
+  macos-hooks:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test SessionStart with system Bash 3.2
+        env:
+          HOOK_BASH: /bin/bash
+        run: /bin/bash ./hooks/test-check-docs.sh

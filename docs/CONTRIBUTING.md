@@ -14,8 +14,9 @@ or their validation.
 The important boundary is:
 
 - shared behavior and Cardano knowledge remain agent-neutral in `skills/`;
-- `.claude-plugin/`, `hooks/`, and `CLAUDE.md` adapt that content to Claude;
+- `.claude-plugin/` and `CLAUDE.md` adapt that content to Claude;
 - `.codex-plugin/`, `.agents/skills`, and `AGENTS.md` adapt it to Codex;
+- `hooks/` supplies optional SessionStart context in a shared output format;
 - `scripts/validate.py` checks the shared contract and both adapters together.
 
 Claude's `allowed-tools` and `disallowed-tools` frontmatter fields remain

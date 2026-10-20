@@ -10,7 +10,8 @@ the canonical source for skills consumed by both Claude Code and Codex.
 - `docs/sources/` — pinned, sanitized upstream Cardano documentation
 - `registry/` — canonical source registry and vetted commit pins
 - `scripts/` — validation, policy, fetch, sync, and scaffolding tooling
-- `.claude-plugin/` and `hooks/` — Claude-specific packaging and lifecycle
+- `.claude-plugin/` — Claude-specific packaging
+- `hooks/` — shared optional SessionStart context
 - `.codex-plugin/` and `.agents/skills` — Codex packaging and discovery
 - `docs/AGENT_COMPATIBILITY.md` — canonical cross-agent authoring contract
 - `docs/CONTRIBUTING.md` — contribution, governance, and source-vetting policy

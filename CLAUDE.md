@@ -9,7 +9,8 @@ the canonical source for skills consumed by both Claude Code and Codex.
 - `registry/pins.yaml` — auto-generated upstream commit pins (each source fetches its last-vetted commit, not the branch tip)
 - `skills/` — developer skills (flat layout — each skill is `skills/<name>/SKILL.md`)
 - `scripts/` — validation, fetch, sync, and scaffolding tooling
-- `.claude-plugin/`, `hooks/` — Claude-specific packaging and lifecycle hooks
+- `.claude-plugin/` — Claude-specific packaging
+- `hooks/` — shared optional SessionStart context
 - `.codex-plugin/`, `.agents/skills` — Codex packaging and discovery
 - `docs/AGENT_COMPATIBILITY.md` — canonical cross-agent authoring contract
 - `docs/DESIGN.md` — architectural decisions

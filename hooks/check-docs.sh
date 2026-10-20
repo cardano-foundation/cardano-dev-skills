@@ -3,6 +3,10 @@
 # SessionStart hook: check docs corpus freshness and project-level Cardano
 # context. All checks are fail-open: any failure exits 0 silently.
 #
+# Collect the notices before writing stdout. A status line beginning with `[` is
+# ambiguous with a JSON array to hook consumers; send one SessionStart object
+# understood by both Claude Code and Codex instead.
+collect_context() {
 set -u
 # Note: no `set -e` — we want this script to never block a session.
 #
@@ -182,4 +186,24 @@ if [ "${IS_LOCAL_CLONE}" -eq 1 ] && [ -f "${PLUGIN_ROOT}/.git/FETCH_HEAD" ]; the
     fi
 fi
 
+exit 0
+}
+
+# A function call keeps case arms out of the $(...) parser on macOS Bash 3.2.
+CONTEXT=$(collect_context)
+
+# Keep the runtime Bash-only. Escape quotes, backslashes and every JSON control
+# character, including those supplied by a local plugin path. Bash strings cannot
+# contain NUL, and filesystem paths cannot contain it either.
+if [ -n "${CONTEXT}" ]; then
+  CONTEXT=${CONTEXT//\\/\\\\}
+  CONTEXT=${CONTEXT//\"/\\\"}
+  for (( CODE=1; CODE<32; CODE++ )); do
+    printf -v CONTROL '\\%03o' "${CODE}"
+    printf -v CONTROL '%b' "${CONTROL}"
+    printf -v ESCAPED '\\u%04x' "${CODE}"
+    CONTEXT=${CONTEXT//"${CONTROL}"/"${ESCAPED}"}
+  done
+  printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s"}}\n' "${CONTEXT}"
+fi
 exit 0

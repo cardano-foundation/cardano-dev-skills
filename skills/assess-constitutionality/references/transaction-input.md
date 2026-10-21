@@ -137,7 +137,7 @@ witness_set = untag(transaction[1])
 if not isinstance(witness_set, dict):
     raise SystemExit("transaction witness set is not a CBOR map")
 vkey_witnesses = untag(witness_set.get(0, []))
-if not isinstance(vkey_witnesses, (list, tuple)):
+if not isinstance(vkey_witnesses, (list, tuple, set, frozenset)):
     raise SystemExit("vkey witnesses are not an array or CBOR set")
 
 observed = []
@@ -148,6 +148,9 @@ for index, witness in enumerate(vkey_witnesses):
     vkey = untag(witness[0])
     if not isinstance(vkey, bytes) or len(vkey) != 32:
         raise SystemExit(f"vkey witness {index} does not contain a 32-byte vkey")
+    signature = untag(witness[1])
+    if not isinstance(signature, bytes) or len(signature) != 64:
+        raise SystemExit(f"vkey witness {index} does not contain a 64-byte signature")
     observed.append(hashlib.blake2b(vkey, digest_size=28).hexdigest())
 
 with open(sys.argv[2], encoding="utf-8") as source:

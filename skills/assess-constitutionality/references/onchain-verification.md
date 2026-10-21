@@ -102,7 +102,7 @@ chmod 700 "$work_dir"
 trap 'rm -r -- "$work_dir"' EXIT HUP INT TERM
 curl --fail-with-body --location --max-redirs 3 \
   --connect-timeout 10 --max-time 45 --retry 2 --retry-delay 2 \
-  -H 'Accept-Encoding: identity' --max-filesize 10485760 \
+  --retry-max-time 90 -H 'Accept-Encoding: identity' --max-filesize 10485760 \
   --dump-header "$work_dir/headers" --output "$work_dir/anchor.bin" \
   --write-out 'status=%{http_code}\nfinal=%{url_effective}\nbytes=%{size_download}\n' \
   '<exact anchor retrieval URL>'

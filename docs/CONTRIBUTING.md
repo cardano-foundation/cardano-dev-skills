@@ -25,6 +25,13 @@ Markdown body as well. Resolve bundled documentation relative to the active
 `SKILL.md`; never use `${CLAUDE_SKILL_DIR}` or `${CLAUDE_PLUGIN_ROOT}` in a
 shared skill body.
 
+Skills remain useful with local access. A public read-only evidence exception
+requires a recorded DESIGN decision, unchanged least-privilege frontmatter, a
+body-level request and untrusted-data boundary, precise provenance, and a
+targeted fallback for host denial. Claude domain settings and Codex network
+permissions are separate host controls; never claim either capability always
+exists or change an allowlist automatically.
+
 ## Scope: what belongs in this repo
 
 This repo teaches **building on Cardano**. It is a generic knowledge base for AI coding agents and developers.
@@ -229,8 +236,9 @@ Instructions...
 - [ ] `name:` matches directory name
 - [ ] Description includes trigger phrases
 - [ ] Has "When to use", "When NOT to use", "Key principles", "Workflow" sections
-- [ ] No external service dependencies — remains useful with local file read
-      and search access only
+- [ ] No external service dependency — remains useful with local file read and
+      search access; any public read-only evidence exception is recorded in
+      DESIGN.md and has a per-item fallback
 - [ ] Claude metadata keeps `allowed-tools: Read Grep Glob` (anything wider
       needs a reviewed exception in `scripts/validate.py`) and
       `disallowed-tools` includes `WebFetch WebSearch`
@@ -241,6 +249,10 @@ Instructions...
       host-specific environment variable appears in the shared body
 - [ ] Required safety behavior is stated in the body, not only in
       host-specific frontmatter
+- [ ] Any permitted public retrieval names its bounded endpoint/identifier
+      sources, forbids private/local request payloads and executing fetched
+      content, records provenance, respects host denial, and never widens
+      permissions automatically
 - [ ] Deep content in `references/`, one level only — no nested subdirectories
 - [ ] States durable reasons rather than dates, counts, versions or popularity
       figures, unless the figure is fixed by nature and changes what the reader

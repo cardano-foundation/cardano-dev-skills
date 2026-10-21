@@ -85,14 +85,20 @@ does not establish the anchor hash.
 ### Fetch and hash raw anchor bytes
 
 Retrieve the exact `meta_url` from the record. For `ipfs://<cid>/<path>`, retain that original URI
-as the immutability subject and map the same CID/path to one permitted public gateway for byte
-retrieval. Do not substitute a search result or similarly titled copy.
+as the immutability subject and map the same CID/path to the ordinary retrieval gateway
+`https://ipfs.io/ipfs/<cid>/<path>`. At most one fallback is permitted:
+`https://dweb.link/ipfs/<cid>/<path>`, preserving the exact CID and path. Both examples remain
+subject to the host's allowlist and permissions. A transient gateway failure can justify the
+named fallback; a policy denial cannot, and must not be routed around. Do not substitute a search
+result or similarly titled copy.
 
 The hash input is the raw response body, not rendered text, parsed JSON, a provider's `meta_json`,
 or a reserialization. Require a 2xx status, cap redirects, request `Accept-Encoding: identity`,
 reject implausible error/challenge bodies or schemas, and impose a reasonable size cap for the
-claimed document type. Record every redirect, the requested and final URL, status, content type,
-byte length, and computed BLAKE2b-256.
+claimed document type. The initial URL and every redirect destination must use HTTP(S), contain
+no embedded credentials, and resolve to public addresses rather than private, loopback, or
+link-local hosts. Record every redirect, the requested and final URL, status, content type, byte
+length, and computed BLAKE2b-256.
 
 A file is appropriate here because the exact bytes must be both hashed and parsed. One example:
 
@@ -100,20 +106,35 @@ A file is appropriate here because the exact bytes must be both hashed and parse
 work_dir=$(mktemp -d)
 chmod 700 "$work_dir"
 trap 'rm -r -- "$work_dir"' EXIT HUP INT TERM
-curl --fail-with-body --location --max-redirs 3 \
+anchor_url='<exact anchor retrieval URL>'
+printf 'requested=%s\n' "$anchor_url"
+if curl_meta=$(curl --fail-with-body \
   --connect-timeout 10 --max-time 45 --retry 2 --retry-delay 2 \
   --retry-max-time 90 -H 'Accept-Encoding: identity' --max-filesize 10485760 \
   --dump-header "$work_dir/headers" --output "$work_dir/anchor.bin" \
-  --write-out 'status=%{http_code}\nfinal=%{url_effective}\nbytes=%{size_download}\n' \
-  '<exact anchor retrieval URL>'
+  --write-out 'status=%{http_code}\nattempted=%{url_effective}\nbytes=%{size_download}\n' \
+  "$anchor_url"); then
+  curl_result=0
+else
+  curl_result=$?
+fi
+printf '%s\n' "$curl_meta"
+printf '%s\n' 'response-headers:'
+if [ -s "$work_dir/headers" ]; then sed -n '1,200p' "$work_dir/headers"; fi
+if [ "$curl_result" -ne 0 ]; then exit "$curl_result"; fi
+status=$(printf '%s\n' "$curl_meta" | sed -n 's/^status=//p')
+case "$status" in 2??) ;; *) exit 1 ;; esac
 python3 -I -c 'import hashlib,sys; p=sys.argv[1]; b=open(p,"rb").read(); print(len(b), hashlib.blake2b(b,digest_size=32).hexdigest())' \
   "$work_dir/anchor.bin"
 ```
 
 `curl --retry` is bounded; when a response carries `Retry-After`, honour it within the task's
 finite wait budget rather than hammering the endpoint. Do not use `--compressed`, which can make
-the bytes being hashed differ from the transferred representation. Record the literal requested
-URL from the command alongside the final URL printed by curl.
+the bytes being hashed differ from the transferred representation. The example intentionally
+does not follow redirects: a 3xx exits nonzero before hashing and its `Location` remains visible
+in the printed headers. Validate that destination against the retrieval boundary, then rerun the
+same block with it as `anchor_url`, for at most three hops. Preserve the original requested URI
+and every attempted URL in the provenance record.
 
 If the computed hash differs from `meta_hash`, do not immediately call it a constitutional
 mismatch. First rule out an HTTP challenge/error page, gateway wrapper, content encoding,

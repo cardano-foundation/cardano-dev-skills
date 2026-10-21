@@ -66,7 +66,7 @@ procedure (transaction body key 20). Each entry has:
 | Field | Feeds |
 |---|---|
 | `deposit` | Ledger check `ProposalDepositIncorrect`: must equal the current `govActionDeposit` |
-| `return address` | Ledger check `ProposalReturnAccountDoesNotExist`, and refund-style withdrawals (`onchain-verification.md` section 5) |
+| `return address` | Ledger check `ProposalReturnAccountDoesNotExist`, and refund-style withdrawals (`onchain-verification.md` section 6) |
 | `governance action` | The action type and its contents: withdrawal map, parameter map, previous action ID, guardrails script hash |
 | `anchor` | URL and data hash: Article II.6.1 and II.6.2 |
 
@@ -169,10 +169,13 @@ print(json.dumps({
 
 This output establishes only which key hashes were observed. It does **not** validate Ed25519
 signatures, evaluate the native script's threshold/timelocks, or establish a human
-administrator's identity or consent. Report those as four separate questions. Inspect relevant
-registration and delegation transactions as well as the proposal transaction; a key used only in
-one of those histories can still be evidence of existence, while mere appearance in `script_info`
-is only a public key.
+administrator's identity or consent. `duplicate_witness_keys` counts repeated key hashes that
+remain in the decoded witness collection. When `cbor2` materializes a CBOR set, exact duplicate
+witness pairs can already have collapsed, so a zero count cannot certify that the encoded set had
+no duplicates. Report signature validity, threshold/timelocks, identity, and consent as four
+separate questions. Inspect relevant registration and delegation transactions as well as the
+proposal transaction; a key used only in one of those histories can still be evidence of
+existence, while mere appearance in `script_info` is only a public key.
 
 ---
 
@@ -255,4 +258,4 @@ A pre-submission report ends with a readiness line above the disposition:
 - **Not checked**: name the rows that could not be run and what would run them.
 
 When the user is the submitter and has not rehearsed yet, end with the testnet suggestion from
-section 4.
+section 5.

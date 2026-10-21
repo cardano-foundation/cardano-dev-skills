@@ -109,6 +109,21 @@ What it does:
 A project-local Claude skill may also appear as `/cardano-context`; the
 plugin-qualified form above avoids collisions with skills from other plugins.
 
+## Public evidence permissions
+
+The skills do not assume network access. One evidence-heavy workflow,
+`assess-constitutionality`, can retrieve a live action's bounded public evidence
+under permissions the host already provides. It never changes those permissions
+or treats a denied request as evidence that the public record is absent.
+
+In Claude desktop/cloud, allow only the specific provider, anchor, and directly
+referenced material domains through the domain controls available to your
+account or organization. An allowed domain still does not guarantee network or
+endpoint availability. Codex has separate sandbox, network, and approval
+settings; configure those in Codex rather than expecting Claude domain choices
+to carry over. With no permitted retrieval path, the skill remains useful from
+local or user-supplied evidence and identifies the exact missing item.
+
 ## Standalone
 
 Skills are pure Markdown — read `skills/*/SKILL.md` directly, or grep them.

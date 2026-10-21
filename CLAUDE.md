@@ -67,10 +67,14 @@ Search these directories locally for accurate, up-to-date information.
 - SKILL.md files must be under 500 lines; deep content goes in `references/` (one level deep only)
 - Skill names are kebab-case, max 64 characters; directory name matches `name:` field
 - `registry/sources.yaml` is the single source of truth for documentation sources
-- Skills are self-contained — they require only local file access, with no
-  external service dependencies. The one exception is `give-feedback`, which
-  files a GitHub issue via `gh` after the user approves the draft; see
-  DESIGN.md Decision 14 for why that boundary is drawn where it is
+- Skills remain useful with local file access and do not require an external
+  service. Recorded exceptions use only normal host permissions and degrade
+  safely: `give-feedback` files an approved GitHub issue (DESIGN Decision 14),
+  while `assess-constitutionality` retrieves bounded public evidence and falls
+  back per unavailable item (Decision 15)
+- Claude domain controls and Codex network permissions are separate. Never
+  change an allowlist automatically or claim that either host always has
+  network access
 - When referencing documentation, guide the user to search or read rather than pasting specs
 - Resolve bundled-doc paths relative to the active `SKILL.md`; shared skill
   bodies must not depend on `${CLAUDE_SKILL_DIR}` or `${CLAUDE_PLUGIN_ROOT}`

@@ -34,10 +34,16 @@ This document captures the architectural decisions behind `cardano-dev-skills`. 
 
 ## Decision 4: Skills are self-contained
 
-**Decision:** Skills must work with local file read and search capabilities
-alone. No external service dependencies or proprietary tool calls.
+**Decision:** Skills must remain useful with local file read and search capabilities alone. They
+do not require an external service or proprietary tool to produce useful output. A narrowly
+recorded workflow may improve its evidence through the host's normal permissions, with an honest
+per-item fallback when that capability is absent.
 
-**One exception, recorded:** `give-feedback` (Decision 14) sends an issue to GitHub through `gh`. It is the only skill whose *purpose* is an outward action, and it degrades to showing the user a draft and a link when `gh` is absent — so the guarantee below (a skill produces useful output regardless of what else is installed) still holds.
+**Recorded exceptions:** `give-feedback` (Decision 14) sends an approved issue to GitHub through
+`gh`. `assess-constitutionality` (Decision 15) retrieves bounded public, read-only evidence needed
+to assess a live action. Neither expands frontmatter grants or assumes the capability exists:
+feedback falls back to a draft and link; constitutional assessment preserves locally supported
+findings and marks only unavailable evidence Not-yet-verifiable.
 
 **Why:**
 - Skills should produce useful guidance regardless of what other tools the user has connected.
@@ -48,8 +54,8 @@ alone. No external service dependencies or proprietary tool calls.
 **How it works:** Shared Markdown describes capabilities rather than host tool
 names. Every `SKILL.md` also retains Claude Code's `allowed-tools: Read Grep
 Glob` security metadata, but portable behavior never depends on those fields.
-If a user has additional tools or MCP servers connected, the agent may use
-them when appropriate, but the skill never requires them.
+If a user has additional tools or MCP servers connected, the agent may use them when appropriate.
+Host-denied capabilities remain denied, and every recorded exception defines its own fallback.
 
 ## Decision 5: Progressive disclosure
 
@@ -206,7 +212,9 @@ is harder to inspect, and it would solve only one host. Checked-in
    must state required safety behavior in portable prose. Separately,
    `allowed-tools` is a one-turn pre-approval in Claude Code, not a restriction,
    so the Claude base grant is `Read Grep Glob`, anything wider needs a reviewed
-   exception, and every skill must disallow `WebFetch`/`WebSearch`.
+   exception, and every skill must disallow `WebFetch`/`WebSearch`. Decision 15 deliberately keeps
+   that metadata unchanged: its narrow retrieval runs only through capabilities the host exposes
+   under normal permissions, while the portable body states the egress boundary and fallback.
    Advisory-only skills additionally disallow `Bash`/`Edit`/`Write`. Codex does
    not rely on these frontmatter fields; the body-level untrusted-data rule is
    the cross-host control.
@@ -238,3 +246,42 @@ is harder to inspect, and it would solve only one host. Checked-in
 **Trust boundary stated plainly:** this is the first skill with a network egress path, and it reaches it through `Bash` + `gh` rather than through the `WebFetch`/`WebSearch` ban that Decision 13 layer 0 imposes — a ban whose stated purpose is keeping a poisoned doc read during a skill turn from reaching out. Bundled docs are untrusted by design (Decision 13), and a skill turn that has read one could in principle shape what lands in a public issue under the user's name. The human-reads-the-draft gate is a real mitigation and it is the reason this ships, but it narrows the window, it does not close it: "bias toward sending", "ask once", and "do not re-confirm" are all tuned to reduce exactly the friction that gate depends on, and the scrub list is a blocklist written by the same model that would be under influence. What makes it acceptable is the shape of the action — one fixed repository, no arbitrary URL, a body the user has read, and a host permission prompt that re-displays that body before anything is sent.
 
 **Rejected:** a hosted endpoint (a runtime to operate, anonymous submissions); pre-authorized silent filing via an instruction-file token (public issues under the user's name with no human reading the draft); prefilled issue-form links as a fallback (GitHub truncates long query values); an auth check and duplicate search before sending (friction for a job maintainers do in seconds); granting the skill `Bash(gh:*)` in `allowed-tools` (pre-approval would spend the user's consent a turn before they give it).
+
+## Decision 15: Live governance evidence is fetched through a bounded public exception
+
+**Decision:** `assess-constitutionality` first retrieves the public evidence needed for a live
+assessment under the host's normal permissions. It may call only provider endpoints documented in
+its reference with public chain identifiers, retrieve the exact on-chain anchor, and read proposal
+material directly referenced by that anchor. It is not an open web-research permission, a new
+service dependency, or a frontmatter grant. Existing `allowed-tools` and `disallowed-tools` remain
+unchanged.
+
+**Why:** A mandatory "run this and paste the result" gate made the most evidence-sensitive skill
+unable to establish its own public facts even when the host already had a safe read capability.
+That weakened provenance and turned one unavailable lookup into a blocker for otherwise supported
+findings. First-hand retrieval from a named provider is still only a provider observation, not
+independent consensus verification, but it is distinguishable from user-pasted output and can be
+recorded precisely.
+
+**Boundary:** Requests contain no conversation prose, arbitrary file contents, ambient environment
+values, credentials, or private query payloads. Fetched material is untrusted data and is never
+executed, installed, built, or followed recursively. Anchor conclusions use raw bytes, successful
+status and plausible schema/size, requested/final URLs and redirects; hash mismatches get one
+bounded independent byte-path check before becoming a finding. Retries and IPFS gateway fallback
+are finite. Git refs are resolved to exact commits and material is read without hooks, builds, or
+submodules. Necessary files live in OS temporary storage and are cleaned, never in the user's
+project.
+
+**Host behavior:** Permission and domain controls remain authoritative. The skill never bypasses a
+denial or changes an allowlist automatically. Claude desktop/cloud users may need to allow the
+specific public domains in the controls their host exposes; doing so does not guarantee network,
+DNS, endpoint availability, or organizational policy. Codex has its own sandbox, network, and
+approval settings; Claude settings do not transfer. When a capability is missing, the skill gives
+a targeted command or evidence request for that row, preserves facts established elsewhere, and
+uses Not-yet-verifiable honestly.
+
+**Why this does not generalize:** `query-chain` and `governance-guide` advise developers how to
+choose providers and participate in governance; their job is not to adjudicate a live action from
+public evidence. Converting every advisory skill into an executor would widen egress without the
+evidence need, endpoint allowlist, provenance schema, or three-state fallback that justify this
+exception.

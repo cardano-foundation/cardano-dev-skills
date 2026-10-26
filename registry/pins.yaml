@@ -29,18 +29,18 @@
 "BLS12-381 Examples and Standards": 4aeeefedeea8a8802908be3b7cb525e67a34e40a
 "Blockfrost OpenAPI": 05c6d61311f2d4d5c701d029ba702be86d36da69
 "Buildooor": 7551104ea29d5606c2dd00d17c7ff71a2fe28d29
-"CHaP": 8b4b3fc75c97e8f4c3b504d8582ec748809114e8
+"CHaP": 2c9c2d8bd17d3baf6ff0b4ebd86f9d0dafea95d7
 "CIP-113 Programmable Tokens": 369e8c280609208b388c77937dc3a18e02561b0a
 "CIP-113 Programmable Tokens Platform": ab75bd5d16f4c7d5e5a5ced54ec3bf3d5ff775ce
 "CIP-113 SDK (TypeScript)": 547132ccd417be670534098a8b1cb3d5d2715243
 "CIPs": 4fa39658c9c0e95a13e2957a88afd353b48b5452
-"Cardano Addresses": ef9368855c0ffe552530058c5df04db38529f475
-"Cardano CLI": b215a496b4fa15139a6b73988bb9a5e0b5c27a0f
-"Cardano Connect with Wallet": 47ceba88338f19b576bf72251e8158a7883a5e45
+"Cardano Addresses": c75167069e954ae4f7b42df0d2db3828869be8c7
+"Cardano CLI": 975699dbe322722d80925f492edcbaae8e2972d8
+"Cardano Connect with Wallet": 83c55f4788483218d1446d02930a777921dc3b6e
 "Cardano Constitution": 3d4c0d9cc76ee4a4b02cc9742bd4d92bc408ffe2
 "Cardano Docs": 31616f9ce1cd64d6311a911b6c386681b258a358
 "Cardano GraphQL": fcfe3154115ef176788a60b2eae925ee42aabd7c
-"Cardano Ledger": 7fa3963cce708eae06f2443820de7adfa5dd3ecf
+"Cardano Ledger": b21c518eb6ef27b8e5d3731bc9f432378a39ef1b
 "Cardano Ledger API Blaster": 9938562fd452351655fe2f6b63e583c62422687c
 "Cardano Node Antithesis": 47b94377ed7fa677c20fd42f99816c94d910041c
 "Cardano Node Wiki": 2b069655b5cacda7be6c2ac21a4fa159ec6a4c09
@@ -50,13 +50,13 @@
 "Charli3 Pull Oracle Client": 4f90fa3b1d41d6251ff3de246606b1abacc9cda1
 "Charli3 Pull Oracle Contracts": b5e1ecdefc6e3aae324d59898884bcab7d6e0335
 "Charli3 Pull Oracle SDK": acc01827e66c04b7f83c801a4e63603d6e641dea
-"DB-Sync": ca434ecdfbbf04ed94e424ddbdf0b32bcec403ec
+"DB-Sync": 0c0400fcbfa2ec9b71da114d9c0fa9238c96640d
 "Developer Portal": eb4d045bb61b0dbbc849c2db2f6002bdc25aa21d
-"Developer Portal Templates": 21695b1b9b42d84f4df53e49e16d36af3aa2d6eb
+"Developer Portal Templates": eb4d045bb61b0dbbc849c2db2f6002bdc25aa21d
 "Dingo": e86bf4159ba0754d976888709e8afa69d3bdb5cf
 "Dolos": 300eba1a75d3801775b278c4160f16bfdf6e9874
 "Evolution SDK": cd6c9d4ae6d0db25d57cd8e2e891ce4e854270a3
-"Evolution SDK Packages": c728c87abb4f30ad189855ff211031cc21f240a9
+"Evolution SDK Packages": cd6c9d4ae6d0db25d57cd8e2e891ce4e854270a3
 "GovTool": e6a22b69b42eae7bfee9fd6779cf297ba50283f3
 "Helios": 7364d795562b96d14b1e177b28c103eb240d0f54
 "Hydra": e016d0a20d59ba1e7d34b7074ac0eeeed65201d1
@@ -69,26 +69,26 @@
 "Mithril": caa8432f8cf6653e3b9b4e00ef11169e22799e60
 "Ogmios": 435189aea2d9a047dc395a6f1cdef737d52f1cbe
 "OpShin": 756a6a102b0bd5778029455719cd6f856ac5d34e
-"Oura": 8433b1049b250b1c1ccc174e5ee17d5963effe5c
-"Ouroboros Leios": 49f7c4a2c37577e187e562d196cf8876815918a5
-"Pallas": e6c38ac567ee907db6a3cfdbbcaae1b47908d839
+"Oura": 75482fc7585a2eee71429076c2f5f0f772a158d6
+"Ouroboros Leios": 07e857b14e314f3c88a843b78ed08927b28294ab
+"Pallas": b4a519faa9522a1ab0629d976316d9153dfeebd7
 "Pebble": d6a5a75575d6091bc0bd3f63d5daa225d6772677
-"Plinth": 8fd7b6f345d3265ea3a128b45576685c0538f083
+"Plinth": c3a6a883f29ec15d8e73d95a78aba1c2fcfb7e67
 "Plutarch": 87e11994c45b6af4768e5b6146d9c94879e279b5
 "PyCardano": 877be3ad9a2221fce7eac777c9927430cbc3b868
-"Pyth Lazer Cardano": b6e52cf6a1857cdd17197dbf96dc6e7c254724c0
+"Pyth Lazer Cardano": 8c2d7eace6f8dc973c500d1d407dc04b97be115a
 "SanchoNet": b4ece78e1552ba4e61426fb4fa53aead0e18da4a
 "Scalus": 522f6c6d2392f29c0381b6119e5bde412ccd6f5e
 "Tx3": 4e0e4cf09084a3d17dc71744d0d4db896b91e4d2
 "UTxORPC Go SDK": 139690af7c88a2e2418ad99a13379c4acaa61d8f
 "Yaci DevKit": e67d385799b40aab0992d0b3616dfd8c14ed5ff8
-"Yaci Store": ef856acaf5199679d6eea5275853c6497bd65a61
-"Yaci Store MCP": 5842de3c7755c2aba2c54a4f629fd691324e0f2b
+"Yaci Store": a65a828a86e22a7ef07f902e4d360d0248e551a0
+"Yaci Store MCP": a65a828a86e22a7ef07f902e4d360d0248e551a0
 "blockfrost-go": 7c2f324c451977a542722ebcb6ec1c70f3d26b1e
 "cardano-client-lib": ea79ceea11ce02a350575a9e78ad217330f3de21
 "cardano-js-sdk": 48019e49c826ea77d81be0e2d2907f94406f5e04
 "cip30-test-wallet": 99d5af3d1152a1ac88bf2f1233eaa1e27b47b559
 "gOuroboros": 90e8fe6388e0b88a05b00983c390efa2d3696a31
 "haskell.nix": 1470f6772ed7b6df6ab9f3c3a322e982d9190220
-"iohk-nix": 84287dbfebbfb5d36498c9c816e54252927c13c5
+"iohk-nix": cbc2b81c24ce1788ca5c16ca486061e4ae51babc
 "x402": 4241d56cae2fb7ed06cd18e3a9ff2a3457b1ce54

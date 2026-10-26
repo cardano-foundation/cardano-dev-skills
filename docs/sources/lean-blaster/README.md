@@ -407,6 +407,30 @@ The `Tests/StateMachine` folder contains example on how to use the state machine
 Blaster has been benchmarked against a variety of well-known benchmarks to evaluate its performance and correctness.
 The evaluation can be found on this public repository: [Blaster-benchmarking](https://github.com/input-output-hk/Blaster-benchmarking)
 
+### Latest cross-tactic comparison
+
+Each tactic is benchmarked on **its own latest default branch and that branch's Lean toolchain** (tracked live), so the comparison is fair even when the tools target different Lean versions. Auto-updated weekly by the [`weekly-benchmark`](.github/workflows/benchmark.yml) workflow.
+
+Users with repository write access can comment `/benchmark` on an open PR to run both Blaster variants at that PR's exact head commit. The [PR benchmark workflow](.github/workflows/pr-benchmark.yml) compares matching goals with the latest snapshot committed by the weekly run and posts gains, regressions, and raw results back on the PR. It does not change the published weekly report.
+
+
+| Tactic | Version | ITL4 | MiniF2F | NNG4 | STG4 | UPLCDepth | UPLCWidth | Verina | **Solved** |
+|:--|:--|--:|--:|--:|--:|--:|--:|--:|--:|
+| `blaster` | `v4.24.0` @ `5ba8fcd2e` | 44/44 | 54/96 | 103/108 | 49/52 | 6/7 | 6/6 | 26/108 | **288/421** |
+| `hammer` | `v4.34.0` @ `93734d624` | 44/44 | 40/96 | 103/108 | 47/52 | 6/7 | 6/6 | 7/108 | **253/421** |
+| `grind` | `v4.35.0` @ `(core)` | 44/44 | 35/96 | 93/108 | 41/52 | 0/7 | 0/6 | 1/108 | **214/421** |
+| `auto` | `v4.34.1` @ `6544cf60e` | 44/44 | 32/96 | 100/108 | 4/52 | 0/7 | 6/6 | 4/108 | **190/421** |
+| `aesop` | `v4.35.0` @ `(via mathlib)` | 44/44 | 23/96 | 67/108 | 35/52 | 7/7 | 6/6 | 2/108 | **184/421** |
+| `blaster (only-optimize: 1)` | `v4.24.0` @ `5ba8fcd2e` | 26/44 | 17/96 | 59/108 | 13/52 | 6/7 | 6/6 | 11/108 | **138/421** |
+| `simp` | `v4.35.0` @ `(core)` | 5/44 | 17/96 | 37/108 | 15/52 | 0/7 | 0/6 | 0/108 | **74/421** |
+| `omega` | `v4.35.0` @ `(core)` | 1/44 | 30/96 | 7/108 | 1/52 | 0/7 | 0/6 | 1/108 | **40/421** |
+| `smt +model` | `v4.34.0` @ `79ef7b3d5` | 6/44 | 9/96 | 17/108 | 0/52 | 0/7 | 0/6 | 1/108 | **33/421** |
+
+_Each tactic runs in an isolated Lake project on its **latest default branch** and that branch's own Lean toolchain (tracked live). Cells show theorems **solved / total**; cross-version numbers can shift with mathlib changes, not only tactic quality._
+
+**[Full interactive report →](https://input-output-hk.github.io/Lean-blaster/benchmark/)**
+
+
 <details>
 <summary><b>Lean Natural Number Game</b></summary>
   

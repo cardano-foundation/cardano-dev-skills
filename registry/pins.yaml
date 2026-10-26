@@ -88,7 +88,7 @@
 "cardano-client-lib": ea79ceea11ce02a350575a9e78ad217330f3de21
 "cardano-js-sdk": 48019e49c826ea77d81be0e2d2907f94406f5e04
 "cip30-test-wallet": 99d5af3d1152a1ac88bf2f1233eaa1e27b47b559
-"gOuroboros": c2cb81f55d3f4c2f38d310185b080dfdabdba1cb
+"gOuroboros": 90e8fe6388e0b88a05b00983c390efa2d3696a31
 "haskell.nix": 2cff2414ba43c3573e51381345a390c3f088cecf
 "iohk-nix": 84287dbfebbfb5d36498c9c816e54252927c13c5
 "x402": faa1c694c66a3732aaabbce93bdae140e521a67d

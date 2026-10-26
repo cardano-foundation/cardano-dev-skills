@@ -16,9 +16,11 @@ import (
 	"strings"
 
 	"github.com/blinklabs-io/gouroboros/cbor"
+	"github.com/blinklabs-io/gouroboros/ledger"
 	"github.com/blinklabs-io/gouroboros/ledger/babbage"
 	"github.com/blinklabs-io/gouroboros/ledger/common"
 	"github.com/blinklabs-io/gouroboros/ledger/conway"
+	"github.com/blinklabs-io/gouroboros/ledger/dijkstra"
 	"github.com/blinklabs-io/gouroboros/ledger/shelley"
 
 	"github.com/Salvionied/apollo/v2/backend"
@@ -34,6 +36,16 @@ const (
 // transaction-body fields. It does not affect witness-set or Plutus-data sets.
 type TransactionBodySetTagPolicy uint8
 
+// TargetEra selects the ledger era used to encode a completed transaction.
+type TargetEra uint8
+
+const (
+	// EraConway preserves the historical Apollo transaction format.
+	EraConway TargetEra = iota
+	// EraDijkstra selects the Dijkstra transaction format.
+	EraDijkstra
+)
+
 const (
 	// TransactionBodySetTagPolicyLegacy preserves Apollo's historical encoding:
 	// inputs are untagged while collateral, required signers, and reference
@@ -45,8 +57,13 @@ const (
 )
 
 // ErrPlutusV4RequiresDijkstra reports that an operation needs a Dijkstra-era
-// transaction witness set, while Apollo currently builds Conway transactions.
-var ErrPlutusV4RequiresDijkstra = errors.New("plutus V4 requires Dijkstra transaction support; Apollo currently builds Conway transactions")
+// transaction, while the builder targets Conway.
+var ErrPlutusV4RequiresDijkstra = errors.New("plutus V4 requires the Dijkstra target era; call SetTargetEra(EraDijkstra)")
+
+// ErrPlutusV4WitnessScript reports an attempt to place a Plutus V4 script in
+// the witness set. The Dijkstra ledger accepts V4 scripts only as reference
+// scripts.
+var ErrPlutusV4WitnessScript = errors.New("plutus V4 scripts must be supplied through a reference input, not the witness set")
 
 // Apollo is the main transaction builder.
 type Apollo struct {
@@ -58,6 +75,8 @@ type Apollo struct {
 	preselectedUtxos   []common.Utxo
 	inputAddresses     []common.Address
 	tx                 *conway.ConwayTransaction
+	dijkstraTx         *dijkstra.DijkstraTransaction
+	targetEra          TargetEra
 	datums             []common.Datum
 	requiredSigners    []common.Blake2b224
 	v1scripts          []common.PlutusV1Script
@@ -98,6 +117,13 @@ type Apollo struct {
 	auxiliaryData              *auxData
 	votingProcedures           common.VotingProcedures
 	proposalProcedures         []conway.ConwayProposalProcedure
+	dijkstraProposalProcedures []dijkstra.DijkstraProposalProcedure
+	directDeposits             dijkstra.DijkstraDirectDeposits
+	balanceIntervals           dijkstra.DijkstraAccountBalanceIntervals
+	startingBalanceIntervals   dijkstra.DijkstraAccountBalanceIntervals
+	guards                     []common.Credential
+	guardRedeemers             map[string]redeemerEntry
+	requiredTopLevelGuards     []requiredTopLevelGuard
 	currentTreasury            int64
 	treasuryDonation           int64
 	collateralAmount           int64
@@ -155,9 +181,28 @@ func (a *Apollo) initState() {
 	if a.mintRedeemers == nil {
 		a.mintRedeemers = make(map[string]redeemerEntry)
 	}
+	if a.guardRedeemers == nil {
+		a.guardRedeemers = make(map[string]redeemerEntry)
+	}
 	if a.withdrawals == nil {
 		a.withdrawals = make(map[string]withdrawalEntry)
 	}
+}
+
+// SetTargetEra selects the era used when completing this transaction.
+// Conway is the default. Unsupported values and changes after construction
+// are reported by Complete through the builder's stored error.
+func (a *Apollo) SetTargetEra(era TargetEra) *Apollo {
+	if era != EraConway && era != EraDijkstra {
+		a.setErrOnce(fmt.Errorf("unsupported target era %d", era))
+		return a
+	}
+	if a.tx != nil || a.dijkstraTx != nil {
+		a.setErrOnce(errors.New("target era cannot be changed after transaction construction"))
+		return a
+	}
+	a.targetEra = era
+	return a
 }
 
 // WithContext sets the context used by subsequent chain-context operations.
@@ -438,9 +483,10 @@ func (a *Apollo) Mint(unit Unit, redeemer *common.Datum, exUnits *common.ExUnits
 }
 
 // AttachScript attaches a script to the witness set, deduplicating by hash.
-// It accepts NativeScript and PlutusV1Script through PlutusV3Script. Plutus V4
-// witnesses require Dijkstra-era transaction support and cause Complete to
-// return ErrPlutusV4RequiresDijkstra.
+// It accepts NativeScript and PlutusV1Script through PlutusV3Script. A Plutus
+// V4 script causes Complete to return ErrPlutusV4RequiresDijkstra for a Conway
+// build and ErrPlutusV4WitnessScript for a Dijkstra build, which must supply
+// it through a reference input instead.
 func (a *Apollo) AttachScript(script common.Script) *Apollo {
 	scriptType, err := scriptRefType(script)
 	if err != nil {
@@ -448,7 +494,11 @@ func (a *Apollo) AttachScript(script common.Script) *Apollo {
 		return a
 	}
 	if scriptType == common.ScriptRefTypePlutusV4 {
-		a.setErrOnce(ErrPlutusV4RequiresDijkstra)
+		if a.targetEra == EraDijkstra {
+			a.setErrOnce(ErrPlutusV4WitnessScript)
+		} else {
+			a.setErrOnce(ErrPlutusV4RequiresDijkstra)
+		}
 		return a
 	}
 	hash := script.Hash().String()
@@ -590,7 +640,7 @@ func (a *Apollo) PayToAddress(addr common.Address, lovelace int64, units ...Unit
 // require Dijkstra-era transaction support and are rejected by this
 // Conway-era builder.
 func (a *Apollo) PayToAddressWithReferenceScript(addr common.Address, lovelace int64, script common.Script, units ...Unit) (*Apollo, error) {
-	if isPlutusV4Script(script) {
+	if isPlutusV4Script(script) && a.targetEra != EraDijkstra {
 		return a, ErrPlutusV4RequiresDijkstra
 	}
 	ref, err := NewScriptRef(script)
@@ -741,6 +791,9 @@ func (a *Apollo) DelegateStake(credOrAddr any, poolHash common.Blake2b224) (*Apo
 // RegisterAndDelegateStake creates a combined stake registration and delegation certificate.
 // credOrAddr can be: *common.Credential, common.Credential, common.Address, string (bech32), or nil (uses wallet).
 func (a *Apollo) RegisterAndDelegateStake(credOrAddr any, poolHash common.Blake2b224, coin int64) (*Apollo, error) {
+	if coin < 0 {
+		return a, errors.New("RegisterAndDelegateStake: coin must be non-negative")
+	}
 	cred, err := a.resolveCredential(credOrAddr)
 	if err != nil {
 		return a, err
@@ -749,7 +802,7 @@ func (a *Apollo) RegisterAndDelegateStake(credOrAddr any, poolHash common.Blake2
 		CertType:        uint(common.CertificateTypeStakeRegistrationDelegation),
 		StakeCredential: cred,
 		PoolKeyHash:     poolHash,
-		Amount:          coin,
+		Amount:          uint64(coin), //nolint:gosec // validated non-negative above
 	}
 	a.certificates = append(a.certificates, common.CertificateWrapper{
 		Type:        uint(common.CertificateTypeStakeRegistrationDelegation),
@@ -802,6 +855,9 @@ func (a *Apollo) DelegateStakeAndVote(credOrAddr any, poolHash common.Blake2b224
 // RegisterAndDelegateVote creates a combined registration+vote delegation certificate.
 // credOrAddr can be: *common.Credential, common.Credential, common.Address, string (bech32), or nil (uses wallet).
 func (a *Apollo) RegisterAndDelegateVote(credOrAddr any, drep common.Drep, coin int64) (*Apollo, error) {
+	if coin < 0 {
+		return a, errors.New("RegisterAndDelegateVote: coin must be non-negative")
+	}
 	cred, err := a.resolveCredential(credOrAddr)
 	if err != nil {
 		return a, err
@@ -810,7 +866,7 @@ func (a *Apollo) RegisterAndDelegateVote(credOrAddr any, drep common.Drep, coin 
 		CertType:        uint(common.CertificateTypeVoteRegistrationDelegation),
 		StakeCredential: cred,
 		Drep:            drep,
-		Amount:          coin,
+		Amount:          uint64(coin), //nolint:gosec // validated non-negative above
 	}
 	a.certificates = append(a.certificates, common.CertificateWrapper{
 		Type:        uint(common.CertificateTypeVoteRegistrationDelegation),
@@ -822,6 +878,9 @@ func (a *Apollo) RegisterAndDelegateVote(credOrAddr any, drep common.Drep, coin 
 // RegisterAndDelegateStakeAndVote creates a combined registration+stake+vote delegation certificate.
 // credOrAddr can be: *common.Credential, common.Credential, common.Address, string (bech32), or nil (uses wallet).
 func (a *Apollo) RegisterAndDelegateStakeAndVote(credOrAddr any, poolHash common.Blake2b224, drep common.Drep, coin int64) (*Apollo, error) {
+	if coin < 0 {
+		return a, errors.New("RegisterAndDelegateStakeAndVote: coin must be non-negative")
+	}
 	cred, err := a.resolveCredential(credOrAddr)
 	if err != nil {
 		return a, err
@@ -831,7 +890,7 @@ func (a *Apollo) RegisterAndDelegateStakeAndVote(credOrAddr any, poolHash common
 		StakeCredential: cred,
 		PoolKeyHash:     poolHash,
 		Drep:            drep,
-		Amount:          coin,
+		Amount:          uint64(coin), //nolint:gosec // validated non-negative above
 	}
 	a.certificates = append(a.certificates, common.CertificateWrapper{
 		Type:        uint(common.CertificateTypeStakeVoteRegistrationDelegation),
@@ -865,7 +924,7 @@ func (a *Apollo) RegisterDRep(cred common.Credential, coin int64, anchor *common
 	cert := common.RegistrationDrepCertificate{
 		CertType:       uint(common.CertificateTypeRegistrationDrep),
 		DrepCredential: cred,
-		Amount:         coin,
+		Amount:         uint64(coin), //nolint:gosec // validated non-negative above
 		Anchor:         cloneGovAnchor(anchor),
 	}
 	a.certificates = append(a.certificates, common.CertificateWrapper{
@@ -884,7 +943,7 @@ func (a *Apollo) RetireDRep(cred common.Credential, coin int64) *Apollo {
 	cert := common.DeregistrationDrepCertificate{
 		CertType:       uint(common.CertificateTypeDeregistrationDrep),
 		DrepCredential: cred,
-		Amount:         coin,
+		Amount:         uint64(coin), //nolint:gosec // validated non-negative above
 	}
 	a.certificates = append(a.certificates, common.CertificateWrapper{
 		Type:        uint(common.CertificateTypeDeregistrationDrep),
@@ -1123,12 +1182,152 @@ func (a *Apollo) AddProposal(proposal conway.ConwayProposalProcedure) *Apollo {
 	return a
 }
 
+// AddDijkstraProposal adds a Dijkstra governance proposal. Use this method for
+// Dijkstra protocol parameter updates, including parameters introduced by the
+// era; AddProposal remains the Conway-compatible API.
+func (a *Apollo) AddDijkstraProposal(proposal dijkstra.DijkstraProposalProcedure) *Apollo {
+	if a.targetEra != EraDijkstra {
+		a.setErrOnce(errors.New("dijkstra proposals require the Dijkstra target era"))
+		return a
+	}
+	if _, err := a.dijkstraAccountKey(proposal.PPRewardAccount); err != nil {
+		a.setErrOnce(fmt.Errorf("dijkstra proposal reward account: %w", err))
+		return a
+	}
+	if proposal.PPGovAction.Action == nil {
+		a.setErrOnce(errors.New("dijkstra proposal governance action must not be nil"))
+		return a
+	}
+	proposal.PPAnchor = *cloneGovAnchor(&proposal.PPAnchor)
+	a.dijkstraProposalProcedures = append(a.dijkstraProposalProcedures, proposal)
+	return a
+}
+
+// AddDirectDeposit transfers lovelace from the transaction balance into a
+// registered Dijkstra reward account. The deposit is included in coin
+// selection and serialized in transaction body field 25.
+func (a *Apollo) AddDirectDeposit(account common.Address, amount uint64) *Apollo {
+	if a.targetEra != EraDijkstra {
+		a.setErrOnce(errors.New("direct account deposits require the Dijkstra target era"))
+		return a
+	}
+	key, err := a.dijkstraAccountKey(account)
+	if err != nil {
+		a.setErrOnce(fmt.Errorf("direct deposit account: %w", err))
+		return a
+	}
+	if amount == 0 {
+		a.setErrOnce(errors.New("direct deposit amount must be positive"))
+		return a
+	}
+	if a.directDeposits == nil {
+		a.directDeposits = make(dijkstra.DijkstraDirectDeposits)
+	}
+	if math.MaxUint64-a.directDeposits[key] < amount {
+		a.setErrOnce(errors.New("direct deposit amount overflow"))
+		return a
+	}
+	a.directDeposits[key] += amount
+	return a
+}
+
+// SetAccountBalanceInterval adds or replaces a Dijkstra balance interval for
+// an account at transaction start. A non-nil bound is required by the ledger.
+func (a *Apollo) SetAccountBalanceInterval(account common.Address, interval dijkstra.DijkstraAccountBalanceInterval) *Apollo {
+	if a.targetEra != EraDijkstra {
+		a.setErrOnce(errors.New("account balance intervals require the Dijkstra target era"))
+		return a
+	}
+	key, err := a.dijkstraAccountKey(account)
+	if err != nil {
+		a.setErrOnce(fmt.Errorf("account balance interval account: %w", err))
+		return a
+	}
+	if interval.Exact == nil && interval.LowerBound == nil && interval.UpperBound == nil {
+		a.setErrOnce(errors.New("account balance interval requires an exact value or a bound"))
+		return a
+	}
+	if a.balanceIntervals == nil {
+		a.balanceIntervals = make(dijkstra.DijkstraAccountBalanceIntervals)
+	}
+	a.balanceIntervals[key] = cloneDijkstraBalanceInterval(interval)
+	return a
+}
+
+// SetStartingAccountBalanceInterval adds or replaces a Dijkstra interval for
+// an account's starting balance before deposits and withdrawals are applied.
+func (a *Apollo) SetStartingAccountBalanceInterval(account common.Address, interval dijkstra.DijkstraAccountBalanceInterval) *Apollo {
+	if a.targetEra != EraDijkstra {
+		a.setErrOnce(errors.New("starting account balance intervals require the Dijkstra target era"))
+		return a
+	}
+	key, err := a.dijkstraAccountKey(account)
+	if err != nil {
+		a.setErrOnce(fmt.Errorf("starting account balance interval account: %w", err))
+		return a
+	}
+	if interval.Exact == nil && interval.LowerBound == nil && interval.UpperBound == nil {
+		a.setErrOnce(errors.New("starting account balance interval requires an exact value or a bound"))
+		return a
+	}
+	if a.startingBalanceIntervals == nil {
+		a.startingBalanceIntervals = make(dijkstra.DijkstraAccountBalanceIntervals)
+	}
+	a.startingBalanceIntervals[key] = cloneDijkstraBalanceInterval(interval)
+	return a
+}
+
+func (a *Apollo) dijkstraAccountKey(account common.Address) (cbor.ByteString, error) {
+	if err := common.CheckAccountAddress(account); err != nil {
+		return cbor.ByteString{}, err
+	}
+	if isNilChainContext(a.Context) {
+		return cbor.ByteString{}, errors.New("chain context must not be nil")
+	}
+	if account.NetworkId() != uint(a.Context.NetworkId()) {
+		return cbor.ByteString{}, fmt.Errorf("network id %d does not match chain network %d", account.NetworkId(), a.Context.NetworkId())
+	}
+	accountBytes, err := account.Bytes()
+	if err != nil {
+		return cbor.ByteString{}, err
+	}
+	return cbor.NewByteString(accountBytes), nil
+}
+
+func cloneDijkstraBalanceInterval(interval dijkstra.DijkstraAccountBalanceInterval) *dijkstra.DijkstraAccountBalanceInterval {
+	clone := dijkstra.DijkstraAccountBalanceInterval{}
+	if interval.Exact != nil {
+		value := *interval.Exact
+		clone.Exact = &value
+	}
+	if interval.LowerBound != nil {
+		value := *interval.LowerBound
+		clone.LowerBound = &value
+	}
+	if interval.UpperBound != nil {
+		value := *interval.UpperBound
+		clone.UpperBound = &value
+	}
+	return &clone
+}
+
 // --- Signing & Witness Methods ---
 
 // AddVerificationKeyWitness adds a VKey witness to the transaction.
 func (a *Apollo) AddVerificationKeyWitness(witness common.VkeyWitness) (*Apollo, error) {
-	if a.tx == nil {
+	if a.tx == nil && a.dijkstraTx == nil {
 		return a, errors.New("transaction not built - call Complete() first")
+	}
+	// A decoded transaction keeps its original CBOR, which the encoders prefer
+	// over the struct fields. Drop the transaction and witness-set copies so
+	// the new witness is encoded; the body copy is kept because it fixes the
+	// transaction hash that witnesses sign.
+	if a.dijkstraTx != nil {
+		witnesses := append(a.dijkstraTx.WitnessSet.VkeyWitnesses.Items(), witness)
+		a.dijkstraTx.WitnessSet.VkeyWitnesses = cbor.NewSetType(witnesses, true)
+		a.dijkstraTx.WitnessSet.SetCbor(nil)
+		a.dijkstraTx.SetCbor(nil)
+		return a, nil
 	}
 	var witnesses []common.VkeyWitness
 	if existing := a.tx.WitnessSet.VkeyWitnesses.Items(); existing != nil {
@@ -1136,19 +1335,31 @@ func (a *Apollo) AddVerificationKeyWitness(witness common.VkeyWitness) (*Apollo,
 	}
 	witnesses = append(witnesses, witness)
 	a.tx.WitnessSet.VkeyWitnesses = cbor.NewSetType(witnesses, true)
+	a.tx.WitnessSet.SetCbor(nil)
+	a.tx.SetCbor(nil)
 	return a, nil
 }
 
 // SignWithSkey signs the transaction with a raw secret key.
 func (a *Apollo) SignWithSkey(skey []byte) (*Apollo, error) {
-	if a.tx == nil {
+	if a.tx == nil && a.dijkstraTx == nil {
 		return a, errors.New("transaction not built - call Complete() first")
 	}
-	bodyCbor, err := cbor.Encode(&a.tx.Body)
+	var bodyCbor []byte
+	var err error
+	if a.dijkstraTx != nil {
+		bodyCbor, err = encodeDijkstraBody(&a.dijkstraTx.Body)
+	} else {
+		bodyCbor, err = cbor.Encode(&a.tx.Body)
+	}
 	if err != nil {
 		return a, fmt.Errorf("failed to encode tx body: %w", err)
 	}
-	a.tx.Body.SetCbor(bodyCbor)
+	if a.dijkstraTx != nil {
+		a.dijkstraTx.Body.SetCbor(bodyCbor)
+	} else {
+		a.tx.Body.SetCbor(bodyCbor)
+	}
 	// Hash the freshly encoded body directly; Body.Id() caches its hash and
 	// SetCbor does not invalidate the cache, so it could return a stale digest
 	// if the body was mutated after a previous Id() call.
@@ -1181,11 +1392,35 @@ func (a *Apollo) LoadTxCbor(txCbor string) (*Apollo, error) {
 	if err != nil {
 		return a, fmt.Errorf("invalid hex: %w", err)
 	}
-	var tx conway.ConwayTransaction
-	if _, err := cbor.Decode(txBytes, &tx); err != nil {
-		return a, fmt.Errorf("failed to decode transaction: %w", err)
+	txType, err := ledger.DetermineTransactionType(txBytes)
+	isDijkstra := txType == ledger.TxTypeDijkstra
+	if err != nil {
+		// An otherwise Conway-shaped Dijkstra transaction may have no
+		// Dijkstra-only body fields, so ledger inference cannot distinguish it
+		// from pre-Dijkstra eras. Its three-component envelope is still
+		// unambiguous for the Conway-only formats Apollo loads.
+		var envelope []cbor.RawMessage
+		if _, decodeErr := cbor.Decode(txBytes, &envelope); decodeErr == nil && len(envelope) == 3 {
+			isDijkstra = true
+		}
 	}
-	a.tx = &tx
+	if isDijkstra {
+		var tx dijkstra.DijkstraTransaction
+		if _, err := cbor.DecodeExact(txBytes, &tx); err != nil {
+			return a, fmt.Errorf("failed to decode Dijkstra transaction: %w", err)
+		}
+		a.tx = nil
+		a.dijkstraTx = &tx
+		a.targetEra = EraDijkstra
+	} else {
+		var tx conway.ConwayTransaction
+		if _, err := cbor.DecodeExact(txBytes, &tx); err != nil {
+			return a, fmt.Errorf("failed to decode transaction: %w", err)
+		}
+		a.tx = &tx
+		a.dijkstraTx = nil
+		a.targetEra = EraConway
+	}
 	return a, nil
 }
 
@@ -1195,6 +1430,7 @@ func (a *Apollo) LoadTxCbor(txCbor string) (*Apollo, error) {
 func (a *Apollo) Clone() *Apollo {
 	clone := &Apollo{
 		Context:                    a.Context,
+		targetEra:                  a.targetEra,
 		requestContext:             a.requestContext,
 		isEstimateRequired:         a.isEstimateRequired,
 		Fee:                        a.Fee,
@@ -1217,6 +1453,7 @@ func (a *Apollo) Clone() *Apollo {
 		redeemers:                  make(map[string]redeemerEntry),
 		stakeRedeemers:             make(map[string]redeemerEntry),
 		mintRedeemers:              make(map[string]redeemerEntry),
+		guardRedeemers:             make(map[string]redeemerEntry),
 		withdrawals:                make(map[string]withdrawalEntry),
 	}
 	for _, p := range a.payments {
@@ -1320,10 +1557,35 @@ func (a *Apollo) Clone() *Apollo {
 		}
 		clone.proposalProcedures = append(clone.proposalProcedures, proposalCopy)
 	}
+	for _, proposal := range a.dijkstraProposalProcedures {
+		var proposalCopy dijkstra.DijkstraProposalProcedure
+		if err := cloneCBORValue(proposal, &proposalCopy); err != nil {
+			clone.setErrOnce(fmt.Errorf("clone Dijkstra proposal procedure: %w", err))
+			continue
+		}
+		clone.dijkstraProposalProcedures = append(clone.dijkstraProposalProcedures, proposalCopy)
+	}
 	clone.votingProcedures = cloneVotingProcedures(a.votingProcedures)
+	clone.directDeposits = cloneDijkstraDirectDeposits(a.directDeposits)
+	clone.balanceIntervals = cloneDijkstraAccountBalanceIntervals(a.balanceIntervals)
+	clone.startingBalanceIntervals = cloneDijkstraAccountBalanceIntervals(a.startingBalanceIntervals)
 	cloneRedeemerMap(a.redeemers, clone.redeemers, clone)
 	cloneRedeemerMap(a.stakeRedeemers, clone.stakeRedeemers, clone)
 	cloneRedeemerMap(a.mintRedeemers, clone.mintRedeemers, clone)
+	cloneRedeemerMap(a.guardRedeemers, clone.guardRedeemers, clone)
+	clone.guards = slices.Clone(a.guards)
+	for _, entry := range a.requiredTopLevelGuards {
+		entryCopy := requiredTopLevelGuard{Credential: entry.Credential}
+		if entry.Datum != nil {
+			var datumCopy common.Datum
+			if err := cloneCBORValue(*entry.Datum, &datumCopy); err != nil {
+				clone.setErrOnce(fmt.Errorf("clone required top-level guard datum: %w", err))
+				continue
+			}
+			entryCopy.Datum = &datumCopy
+		}
+		clone.requiredTopLevelGuards = append(clone.requiredTopLevelGuards, entryCopy)
+	}
 	maps.Copy(clone.withdrawals, a.withdrawals)
 	if a.changeAddress != nil {
 		addr := *a.changeAddress
@@ -1354,6 +1616,19 @@ func (a *Apollo) Clone() *Apollo {
 				clone.setErrOnce(fmt.Errorf("clone transaction: decode CBOR: %w", err))
 			} else {
 				clone.tx = &txCopy
+			}
+		}
+	}
+	if a.dijkstraTx != nil {
+		txBytes, err := cbor.Encode(a.dijkstraTx)
+		if err != nil {
+			clone.setErrOnce(fmt.Errorf("clone Dijkstra transaction: encode CBOR: %w", err))
+		} else {
+			var txCopy dijkstra.DijkstraTransaction
+			if _, err := cbor.Decode(txBytes, &txCopy); err != nil {
+				clone.setErrOnce(fmt.Errorf("clone Dijkstra transaction: decode CBOR: %w", err))
+			} else {
+				clone.dijkstraTx = &txCopy
 			}
 		}
 	}
@@ -1566,11 +1841,20 @@ func (a *Apollo) Complete() (*Apollo, error) {
 	if a.err != nil {
 		return a, a.err
 	}
-	if a.tx != nil {
+	if a.tx != nil || a.dijkstraTx != nil {
 		return a, errors.New("transaction already built - call Complete() only once")
 	}
 	if a.wallet == nil {
 		return a, errors.New("wallet is required to complete transaction")
+	}
+	if a.targetEra == EraDijkstra {
+		pp, err := backend.ProtocolParamsContext(a.requestContext, a.Context)
+		if err != nil {
+			return a, fmt.Errorf("failed to get protocol params for Dijkstra era validation: %w", err)
+		}
+		if pp.ProtocolMajorVersion < dijkstra.MinProtocolVersionDijkstra {
+			return a, fmt.Errorf("dijkstra transactions require protocol major version %d or newer; chain reports %d", dijkstra.MinProtocolVersionDijkstra, pp.ProtocolMajorVersion)
+		}
 	}
 
 	// Load UTxOs from input addresses if needed (must happen before collateral selection)
@@ -1601,6 +1885,16 @@ func (a *Apollo) Complete() (*Apollo, error) {
 	totalRequired, err := a.totalOutputValue(outputs)
 	if err != nil {
 		return a, err
+	}
+	if len(a.directDeposits) > 0 {
+		depositTotal, depositErr := dijkstraDirectDepositTotal(a.directDeposits)
+		if depositErr != nil {
+			return a, depositErr
+		}
+		totalRequired, err = totalRequired.Add(NewSimpleValue(depositTotal))
+		if err != nil {
+			return a, fmt.Errorf("direct deposit value overflow: %w", err)
+		}
 	}
 
 	// Adjust for certificate deposits using protocol parameter. Only consult
@@ -1669,7 +1963,10 @@ func (a *Apollo) Complete() (*Apollo, error) {
 		}
 	}
 	// Certificate deregistration refunds are implicit inputs
-	refundValue := a.certificateRefundValue(stakeDeposit, poolDeposit)
+	refundValue, err := a.certificateRefundValue(stakeDeposit, poolDeposit)
+	if err != nil {
+		return a, fmt.Errorf("certificate deposit overflow: %w", err)
+	}
 	if refundValue.Coin > 0 {
 		totalInput, err = totalInput.Add(refundValue)
 		if err != nil {
@@ -1976,12 +2273,24 @@ func (a *Apollo) Complete() (*Apollo, error) {
 			a.tx.TxMetadata = md
 		}
 	}
+	if a.targetEra == EraDijkstra {
+		a.dijkstraTx, err = dijkstraTransactionFromConway(a.tx, a)
+		if err != nil {
+			return a, fmt.Errorf("failed to build Dijkstra transaction: %w", err)
+		}
+	}
 	pp, ppErr := backend.ProtocolParamsContext(a.requestContext, a.Context)
 	if ppErr != nil {
 		return a, fmt.Errorf("failed to get protocol params for transaction size validation: %w", ppErr)
 	}
 	if pp.MaxTxSize > 0 {
-		txBytes, encErr := cbor.Encode(a.tx)
+		var txBytes []byte
+		var encErr error
+		if a.dijkstraTx != nil {
+			txBytes, encErr = cbor.Encode(a.dijkstraTx)
+		} else {
+			txBytes, encErr = cbor.Encode(a.tx)
+		}
 		if encErr != nil {
 			return a, fmt.Errorf("failed to encode completed transaction: %w", encErr)
 		}
@@ -2036,7 +2345,7 @@ func validateOutputValueSizes(
 
 // Sign signs the transaction with the wallet.
 func (a *Apollo) Sign() (*Apollo, error) {
-	if a.tx == nil {
+	if a.tx == nil && a.dijkstraTx == nil {
 		return a, errors.New("transaction not built - call Complete() first")
 	}
 	if a.wallet == nil {
@@ -2044,11 +2353,21 @@ func (a *Apollo) Sign() (*Apollo, error) {
 	}
 
 	// Marshal body to CBOR and set it for downstream consumers
-	bodyCbor, err := cbor.Encode(&a.tx.Body)
+	var bodyCbor []byte
+	var err error
+	if a.dijkstraTx != nil {
+		bodyCbor, err = encodeDijkstraBody(&a.dijkstraTx.Body)
+	} else {
+		bodyCbor, err = cbor.Encode(&a.tx.Body)
+	}
 	if err != nil {
 		return a, fmt.Errorf("failed to encode tx body: %w", err)
 	}
-	a.tx.Body.SetCbor(bodyCbor)
+	if a.dijkstraTx != nil {
+		a.dijkstraTx.Body.SetCbor(bodyCbor)
+	} else {
+		a.tx.Body.SetCbor(bodyCbor)
+	}
 
 	// Hash the freshly encoded body directly; Body.Id() caches its hash and
 	// SetCbor does not invalidate the cache, so it could return a stale digest
@@ -2059,14 +2378,7 @@ func (a *Apollo) Sign() (*Apollo, error) {
 	if err != nil {
 		return a, fmt.Errorf("signing failed: %w", err)
 	}
-
-	var witnesses []common.VkeyWitness
-	if existing := a.tx.WitnessSet.VkeyWitnesses.Items(); existing != nil {
-		witnesses = existing
-	}
-	witnesses = append(witnesses, witness)
-	a.tx.WitnessSet.VkeyWitnesses = cbor.NewSetType(witnesses, true)
-	return a, nil
+	return a.AddVerificationKeyWitness(witness)
 }
 
 // GetTx returns the built transaction.
@@ -2082,11 +2394,23 @@ func (a *Apollo) Sign() (*Apollo, error) {
 // GetTxCbor for the encoding, which is produced fresh on each call and so
 // cannot go stale when Sign adds witnesses.
 func (a *Apollo) GetTx() *conway.ConwayTransaction {
+	if a.targetEra == EraDijkstra {
+		return nil
+	}
 	return a.tx
+}
+
+// GetDijkstraTx returns the built Dijkstra transaction, or nil when the
+// builder targets Conway or has not completed construction.
+func (a *Apollo) GetDijkstraTx() *dijkstra.DijkstraTransaction {
+	return a.dijkstraTx
 }
 
 // GetTxCbor returns the CBOR-encoded transaction.
 func (a *Apollo) GetTxCbor() ([]byte, error) {
+	if a.dijkstraTx != nil {
+		return cbor.Encode(a.dijkstraTx)
+	}
 	if a.tx == nil {
 		return nil, errors.New("no transaction built")
 	}
@@ -2222,8 +2546,23 @@ func (a *Apollo) selectCoins(required, currentInput Value) ([]common.Utxo, error
 	// uniqueness. If the caller pinned an input we are already satisfied;
 	// otherwise selection must contribute one even though no value is needed.
 	covered := currentInput.GreaterOrEqual(required)
+	topUp := false
 	if covered && len(a.preselectedUtxos) > 0 {
-		return nil, nil
+		// Pinned inputs that cover the target can still leave change too small
+		// to emit, which balancing then folds into the fee. While the pool can
+		// fund a change output, select for the shortfall instead.
+		changeMinimum, err := a.unemittableChangeMinimum(required, currentInput)
+		if err != nil {
+			return nil, err
+		}
+		if changeMinimum == 0 {
+			return nil, nil
+		}
+		required, err = required.Add(NewSimpleValue(changeMinimum))
+		if err != nil {
+			return nil, fmt.Errorf("selection target overflow: %w", err)
+		}
+		covered, topUp = false, true
 	}
 
 	// Compute remaining using saturating subtraction rather than Sub,
@@ -2273,6 +2612,11 @@ func (a *Apollo) selectCoins(required, currentInput Value) ([]common.Utxo, error
 			remaining,
 		)
 		if selErr != nil {
+			if topUp {
+				// Nothing left to fund the change; the pinned inputs still
+				// cover the payment and the remainder becomes fee.
+				return nil, nil
+			}
 			return nil, selErr
 		}
 	}
@@ -2310,6 +2654,51 @@ func (a *Apollo) selectCoins(required, currentInput Value) ([]common.Utxo, error
 		a.markUsed(utxoRef(utxo))
 	}
 	return canonical, nil
+}
+
+// unemittableChangeMinimum reports the min-UTxO of the change left after
+// required when that change is too small to be emitted as an output, and 0
+// when there is no change or it already clears min-UTxO.
+func (a *Apollo) unemittableChangeMinimum(required, currentInput Value) (uint64, error) {
+	change := Value{}
+	if currentInput.Coin > required.Coin {
+		change.Coin = currentInput.Coin - required.Coin
+	}
+	if currentInput.Assets != nil {
+		change.Assets = CloneMultiAsset(currentInput.Assets)
+		if required.Assets != nil {
+			subtractAssetsSaturating(change.Assets, required.Assets)
+		}
+		if MultiAssetIsEmpty(change.Assets) {
+			change.Assets = nil
+		}
+	}
+	if change.Coin == 0 && change.Assets == nil {
+		return 0, nil
+	}
+	pp, err := backend.ProtocolParamsContext(a.requestContext, a.Context)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get protocol params: %w", err)
+	}
+	output := NewBabbageOutput(a.getChangeAddress(), change, nil, nil)
+	// Size the output at its minimum, not at the leftover: the coin's own
+	// encoding grows with its value.
+	var minimum uint64
+	for range 3 {
+		coins, err := MinLovelacePostAlonzo(&output, pp.CoinsPerUtxoByteValue())
+		if err != nil {
+			return 0, err
+		}
+		if coins < 0 {
+			return 0, fmt.Errorf("negative min UTxO: %d", coins)
+		}
+		minimum = uint64(coins) //nolint:gosec // checked non-negative above
+		output.OutputAmount.Amount = minimum
+	}
+	if change.Coin >= minimum {
+		return 0, nil
+	}
+	return minimum, nil
 }
 
 // estimatedWitnessCount reports how many vkey witnesses the transaction is
@@ -2353,6 +2742,11 @@ func (a *Apollo) estimatedWitnessCount(inputs []common.Utxo) int {
 	}
 	addPaymentKey(inputs)
 	addPaymentKey(a.collaterals)
+	for _, guard := range a.guards {
+		if guard.CredType == common.CredentialTypeAddrKeyHash {
+			signers[guard.Credential] = struct{}{}
+		}
+	}
 	// A withdrawal is authorised by the stake credential of its reward address.
 	for _, entry := range a.withdrawals {
 		if hash := entry.Address.StakeKeyHash(); hash != (common.Blake2b224{}) {
@@ -2451,7 +2845,16 @@ func (a *Apollo) estimateFee(inputs []common.Utxo, outputs []babbage.BabbageTran
 		}
 	}
 
-	txBytes, err := cbor.Encode(&dummyTx)
+	var txBytes []byte
+	if a.targetEra == EraDijkstra {
+		dijkstraTx, convertErr := dijkstraTransactionFromConway(&dummyTx, a)
+		if convertErr != nil {
+			return 0, fmt.Errorf("failed to build Dijkstra fee estimate: %w", convertErr)
+		}
+		txBytes, err = cbor.Encode(dijkstraTx)
+	} else {
+		txBytes, err = cbor.Encode(&dummyTx)
+	}
 	if err != nil {
 		return 0, fmt.Errorf("failed to encode dummy tx: %w", err)
 	}
@@ -2502,7 +2905,7 @@ func (a *Apollo) referenceScriptFee(inputs []common.Utxo) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return referenceScriptFeeForSize(refScriptSize, pp)
+	return a.eraReferenceScriptFee(refScriptSize, pp)
 }
 
 // referenceScriptFeeWithParams computes the Conway tiered reference-script fee.
@@ -2516,6 +2919,29 @@ func (a *Apollo) referenceScriptFeeWithParams(inputs []common.Utxo, pp backend.P
 	refScriptSize, err := a.totalReferenceScriptSize(inputs)
 	if err != nil {
 		return 0, err
+	}
+	return a.eraReferenceScriptFee(refScriptSize, pp)
+}
+
+// eraReferenceScriptFee prices refScriptSize bytes of reference scripts for
+// the builder's target era. Dijkstra makes the per-transaction size limit, the
+// tier stride, and the tier multiplier protocol parameters, so a Dijkstra build
+// enforces the reported limit and refuses to price against Conway's fixed
+// stride and multiplier when the provider omits them.
+func (a *Apollo) eraReferenceScriptFee(refScriptSize int, pp backend.ProtocolParameters) (int64, error) {
+	if a.targetEra == EraDijkstra && refScriptSize > 0 {
+		if pp.MaximumReferenceScriptsSize > 0 && refScriptSize > pp.MaximumReferenceScriptsSize {
+			return 0, fmt.Errorf(
+				"transaction uses %d bytes of reference scripts, exceeding the protocol maximum of %d",
+				refScriptSize, pp.MaximumReferenceScriptsSize,
+			)
+		}
+		if !pp.HasRefScriptTierParams() {
+			return 0, fmt.Errorf(
+				"transaction uses %d bytes of reference scripts but the protocol parameters provide no Dijkstra reference-script cost stride and multiplier; cannot compute a correct minimum fee",
+				refScriptSize,
+			)
+		}
 	}
 	return referenceScriptFeeForSize(refScriptSize, pp)
 }
@@ -2563,7 +2989,7 @@ func (a *Apollo) totalReferenceScriptSize(inputs []common.Utxo) (int, error) {
 		if script == nil {
 			return nil
 		}
-		if isPlutusV4Script(script) {
+		if isPlutusV4Script(script) && a.targetEra != EraDijkstra {
 			return ErrPlutusV4RequiresDijkstra
 		}
 		total += len(script.RawScriptBytes())
@@ -2655,7 +3081,16 @@ func (a *Apollo) estimateExecutionUnits(
 			prelimTx.TxMetadata = md
 		}
 	}
-	txBytes, err := cbor.Encode(&prelimTx)
+	var txBytes []byte
+	if a.targetEra == EraDijkstra {
+		dijkstraTx, convertErr := dijkstraTransactionFromConway(&prelimTx, a)
+		if convertErr != nil {
+			return nil, fmt.Errorf("failed to build Dijkstra evaluation tx: %w", convertErr)
+		}
+		txBytes, err = cbor.Encode(dijkstraTx)
+	} else {
+		txBytes, err = cbor.Encode(&prelimTx)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode preliminary tx: %w", err)
 	}
@@ -2704,6 +3139,7 @@ func (a *Apollo) estimateExecutionUnits(
 	seenSpend := make(map[string]bool, len(a.redeemers))
 	seenMint := make(map[string]bool, len(a.mintRedeemers))
 	seenStake := make(map[string]bool, len(a.stakeRedeemers))
+	seenGuard := make(map[string]bool, len(a.guardRedeemers))
 	pp, ppErr := backend.ProtocolParamsContext(a.requestContext, a.Context)
 	if ppErr != nil {
 		return nil, fmt.Errorf("failed to get protocol params for execution-unit validation: %w", ppErr)
@@ -2760,6 +3196,15 @@ func (a *Apollo) estimateExecutionUnits(
 			}
 			_ = entry
 			seenStake[skhHex] = true
+		case common.RedeemerTagGuarding:
+			guardKey, ok := a.guardRedeemerKeyAt(evalKey.Index)
+			if !ok {
+				return nil, fmt.Errorf("EvaluateTx returned guarding redeemer index %d out of range", evalKey.Index)
+			}
+			if _, ok := a.guardRedeemers[guardKey]; !ok {
+				return nil, fmt.Errorf("EvaluateTx returned a result for guard %s, which has no registered redeemer", guardKey)
+			}
+			seenGuard[guardKey] = true
 		default:
 			return nil, fmt.Errorf("EvaluateTx returned unsupported redeemer tag %d", evalKey.Tag)
 		}
@@ -2782,6 +3227,11 @@ func (a *Apollo) estimateExecutionUnits(
 	for skhHex := range a.stakeRedeemers {
 		if !seenStake[skhHex] {
 			return nil, fmt.Errorf("execution-unit evaluation returned no result for withdrawal redeemer on stake key %s", skhHex)
+		}
+	}
+	for guardKey := range a.guardRedeemers {
+		if !seenGuard[guardKey] {
+			return nil, fmt.Errorf("execution-unit evaluation returned no result for guarding redeemer on guard %s", guardKey)
 		}
 	}
 
@@ -2809,6 +3259,14 @@ func (a *Apollo) applyExecutionUnits(units map[common.RedeemerKey]common.ExUnits
 			entry := a.stakeRedeemers[stakeKey]
 			entry.ExUnits = exUnits
 			a.stakeRedeemers[stakeKey] = entry
+		case common.RedeemerTagGuarding:
+			guardKey, ok := a.guardRedeemerKeyAt(key.Index)
+			if !ok {
+				continue
+			}
+			entry := a.guardRedeemers[guardKey]
+			entry.ExUnits = exUnits
+			a.guardRedeemers[guardKey] = entry
 		}
 	}
 }
@@ -2913,7 +3371,7 @@ func (a *Apollo) buildBody(
 		body.TxProposalProcedures = a.proposalProcedures
 	}
 	if a.currentTreasury > 0 {
-		body.TxCurrentTreasuryValue = a.currentTreasury
+		body.TxCurrentTreasuryValue = uint64(a.currentTreasury) //nolint:gosec // validated non-negative in SetCurrentTreasuryValue
 	}
 	if a.treasuryDonation > 0 {
 		body.TxDonation = uint64(a.treasuryDonation) //nolint:gosec // validated non-negative above
@@ -2952,7 +3410,8 @@ func (a *Apollo) buildBody(
 	}
 
 	// Script data hash
-	if len(a.redeemers) > 0 || len(a.mintRedeemers) > 0 || len(a.stakeRedeemers) > 0 || len(a.datums) > 0 {
+	if len(a.redeemers) > 0 || len(a.mintRedeemers) > 0 || len(a.stakeRedeemers) > 0 ||
+		len(a.guardRedeemers) > 0 || len(a.datums) > 0 {
 		pp, err := backend.ProtocolParamsContext(a.requestContext, a.Context)
 		if err != nil {
 			return body, err
@@ -3068,6 +3527,16 @@ func (a *Apollo) buildRedeemerMap(inputs []common.Utxo) map[common.RedeemerKey]c
 		}
 	}
 
+	// Guarding redeemers - index based on position in the Dijkstra guard list
+	for guardKey, entry := range a.guardRedeemers {
+		idx, ok := a.guardRedeemerIndex(guardKey)
+		if !ok {
+			continue
+		}
+		key := common.RedeemerKey{Tag: common.RedeemerTagGuarding, Index: idx}
+		result[key] = common.RedeemerValue{Data: entry.Data, ExUnits: entry.ExUnits}
+	}
+
 	return result
 }
 
@@ -3086,7 +3555,7 @@ func (a *Apollo) usedScriptCostModels(
 		used["PlutusV3"] = struct{}{}
 	}
 	for _, utxo := range inputs {
-		if err := addScriptLanguage(used, utxo.Output.ScriptRef()); err != nil {
+		if err := addScriptLanguage(used, utxo.Output.ScriptRef(), a.targetEra == EraDijkstra); err != nil {
 			return nil, err
 		}
 	}
@@ -3101,7 +3570,7 @@ func (a *Apollo) usedScriptCostModels(
 			)
 		}
 		if utxo != nil {
-			if err := addScriptLanguage(used, utxo.Output.ScriptRef()); err != nil {
+			if err := addScriptLanguage(used, utxo.Output.ScriptRef(), a.targetEra == EraDijkstra); err != nil {
 				return nil, err
 			}
 		}
@@ -3110,7 +3579,8 @@ func (a *Apollo) usedScriptCostModels(
 		return nil, nil
 	}
 	if len(used) == 0 {
-		if len(a.redeemers) == 0 && len(a.mintRedeemers) == 0 && len(a.stakeRedeemers) == 0 {
+		if len(a.redeemers) == 0 && len(a.mintRedeemers) == 0 && len(a.stakeRedeemers) == 0 &&
+			len(a.guardRedeemers) == 0 {
 			return nil, nil
 		}
 		if len(available) == 1 {
@@ -3193,6 +3663,13 @@ func (a *Apollo) governanceRequiredValue() (Value, error) {
 		total = uint64(a.treasuryDonation) //nolint:gosec // validated non-negative by AddTreasuryDonation
 	}
 	for _, proposal := range a.proposalProcedures {
+		deposit := proposal.Deposit()
+		if math.MaxUint64-total < deposit {
+			return Value{}, errors.New("governance proposal deposits overflow")
+		}
+		total += deposit
+	}
+	for _, proposal := range a.dijkstraProposalProcedures {
 		deposit := proposal.Deposit()
 		if math.MaxUint64-total < deposit {
 			return Value{}, errors.New("governance proposal deposits overflow")
@@ -3354,7 +3831,8 @@ func (a *Apollo) getChangeAddress() common.Address {
 // (attached scripts or redeemers from reference scripts).
 func (a *Apollo) hasScripts() bool {
 	return len(a.v1scripts) > 0 || len(a.v2scripts) > 0 || len(a.v3scripts) > 0 ||
-		len(a.redeemers) > 0 || len(a.mintRedeemers) > 0 || len(a.stakeRedeemers) > 0
+		len(a.redeemers) > 0 || len(a.mintRedeemers) > 0 || len(a.stakeRedeemers) > 0 ||
+		len(a.guardRedeemers) > 0
 }
 
 // setCollateral auto-selects collateral from UTxOs if needed.
@@ -3780,7 +4258,10 @@ func (a *Apollo) validateCollateral() error {
 
 // adjustForCertificateDeposits adjusts the total required value for certificate deposits.
 func (a *Apollo) adjustForCertificateDeposits(required Value, stakeDeposit, poolDeposit int64) (Value, error) {
-	adj := a.certificateDepositAdjustment(stakeDeposit, poolDeposit)
+	adj, err := a.certificateDepositAdjustment(stakeDeposit, poolDeposit)
+	if err != nil {
+		return required, err
+	}
 	if adj > 0 {
 		deposit := NewSimpleValue(uint64(adj))
 		return required.Add(deposit)
@@ -3790,37 +4271,52 @@ func (a *Apollo) adjustForCertificateDeposits(required Value, stakeDeposit, pool
 
 // certificateRefundValue returns the total deposit refund from deregistration certificates.
 // These refunds are implicit inputs in Cardano's balance equation.
-func (a *Apollo) certificateRefundValue(stakeDeposit, poolDeposit int64) Value {
-	adj := a.certificateDepositAdjustment(stakeDeposit, poolDeposit)
-	if adj < 0 {
-		return NewSimpleValue(uint64(-adj))
+func (a *Apollo) certificateRefundValue(stakeDeposit, poolDeposit int64) (Value, error) {
+	adj, err := a.certificateDepositAdjustment(stakeDeposit, poolDeposit)
+	if err != nil {
+		return Value{}, err
 	}
-	return NewSimpleValue(0)
+	if adj < 0 {
+		return NewSimpleValue(uint64(-adj)), nil
+	}
+	return NewSimpleValue(0), nil
 }
 
 // certificateDepositAdjustment calculates the net deposit change from certificates.
-// Positive means deposits needed, negative means refunds.
-func (a *Apollo) certificateDepositAdjustment(stakeDeposit int64, poolDeposits ...int64) int64 {
+// Positive means deposits needed, negative means refunds. Certificate amounts
+// are unsigned and may come from SetCertificates, so totals are overflow-checked.
+func (a *Apollo) certificateDepositAdjustment(stakeDeposit int64, poolDeposits ...int64) (int64, error) {
 	poolDeposit := int64(0)
 	if len(poolDeposits) > 0 {
 		poolDeposit = poolDeposits[0]
 	}
-	var adjustment int64
+	if stakeDeposit < 0 || poolDeposit < 0 {
+		return 0, errors.New("protocol deposits must be non-negative")
+	}
+	var deposits, refunds uint64
+	add := func(total *uint64, amount uint64) error {
+		if amount > math.MaxUint64-*total {
+			return errors.New("certificate deposit total overflows uint64")
+		}
+		*total += amount
+		return nil
+	}
 	for _, cert := range a.certificates {
+		var err error
 		switch cert.Type {
 		case uint(common.CertificateTypeStakeRegistration):
-			adjustment += stakeDeposit
+			err = add(&deposits, uint64(stakeDeposit))
 		case uint(common.CertificateTypePoolRegistration):
-			adjustment += poolDeposit
+			err = add(&deposits, uint64(poolDeposit))
 		case uint(common.CertificateTypeStakeDeregistration):
-			adjustment -= stakeDeposit
+			err = add(&refunds, uint64(stakeDeposit))
 		case uint(common.CertificateTypeDeregistration):
 			if c, ok := cert.Certificate.(*common.DeregistrationCertificate); ok {
-				adjustment -= c.Amount
+				err = add(&refunds, c.Amount)
 			}
 		case uint(common.CertificateTypeRegistration):
 			if c, ok := cert.Certificate.(*common.RegistrationCertificate); ok {
-				adjustment += c.Amount
+				err = add(&deposits, c.Amount)
 			}
 		case uint(common.CertificateTypeStakeRegistrationDelegation),
 			uint(common.CertificateTypeVoteRegistrationDelegation),
@@ -3828,23 +4324,37 @@ func (a *Apollo) certificateDepositAdjustment(stakeDeposit int64, poolDeposits .
 			// These certificates carry their explicit deposit in Amount.
 			switch c := cert.Certificate.(type) {
 			case *common.StakeRegistrationDelegationCertificate:
-				adjustment += c.Amount
+				err = add(&deposits, c.Amount)
 			case *common.VoteRegistrationDelegationCertificate:
-				adjustment += c.Amount
+				err = add(&deposits, c.Amount)
 			case *common.StakeVoteRegistrationDelegationCertificate:
-				adjustment += c.Amount
+				err = add(&deposits, c.Amount)
 			}
 		case uint(common.CertificateTypeRegistrationDrep):
 			if c, ok := cert.Certificate.(*common.RegistrationDrepCertificate); ok {
-				adjustment += c.Amount
+				err = add(&deposits, c.Amount)
 			}
 		case uint(common.CertificateTypeDeregistrationDrep):
 			if c, ok := cert.Certificate.(*common.DeregistrationDrepCertificate); ok {
-				adjustment -= c.Amount
+				err = add(&refunds, c.Amount)
 			}
 		}
+		if err != nil {
+			return 0, err
+		}
 	}
-	return adjustment
+	if deposits >= refunds {
+		net := deposits - refunds
+		if net > math.MaxInt64 {
+			return 0, errors.New("certificate deposit adjustment overflows int64")
+		}
+		return int64(net), nil
+	}
+	net := refunds - deposits
+	if net > math.MaxInt64 {
+		return 0, errors.New("certificate refund adjustment overflows int64")
+	}
+	return -int64(net), nil
 }
 
 func (a *Apollo) setErrOnce(err error) {
@@ -3865,7 +4375,7 @@ func redeemerEntriesEqual(lhs, rhs redeemerEntry) bool {
 	return bytes.Equal(lhsBytes, rhsBytes)
 }
 
-func addScriptLanguage(used map[string]struct{}, script common.Script) error {
+func addScriptLanguage(used map[string]struct{}, script common.Script, allowV4 bool) error {
 	switch script.(type) {
 	case common.PlutusV1Script, *common.PlutusV1Script:
 		used["PlutusV1"] = struct{}{}
@@ -3874,7 +4384,10 @@ func addScriptLanguage(used map[string]struct{}, script common.Script) error {
 	case common.PlutusV3Script, *common.PlutusV3Script:
 		used["PlutusV3"] = struct{}{}
 	case common.PlutusV4Script, *common.PlutusV4Script:
-		return ErrPlutusV4RequiresDijkstra
+		if !allowV4 {
+			return ErrPlutusV4RequiresDijkstra
+		}
+		used["PlutusV4"] = struct{}{}
 	}
 	return nil
 }

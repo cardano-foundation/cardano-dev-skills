@@ -25,6 +25,7 @@ import (
 
 	"github.com/Salvionied/apollo/v2/backend"
 	"github.com/Salvionied/apollo/v2/internal/backendutil"
+	"github.com/Salvionied/apollo/v2/internal/ogmiosutil"
 )
 
 // BlockFrostChainContext implements backend.ChainContext using the BlockFrost API.
@@ -63,12 +64,12 @@ const (
 )
 
 // NewBlockFrostChainContext creates a new BlockFrost backend.
+//
+// baseUrl is the full API base URL, including any version path, such as
+// constants.BlockfrostBaseUrlMainnet. It is used as given; only trailing
+// slashes are removed before request paths are appended.
 func NewBlockFrostChainContext(baseUrl string, networkId uint8, projectId string) *BlockFrostChainContext {
-	// Ensure base URL ends with version path
 	baseUrl = strings.TrimRight(baseUrl, "/")
-	if !strings.HasSuffix(baseUrl, "/api/v0") && !strings.HasSuffix(baseUrl, "/v0") {
-		baseUrl += "/api/v0"
-	}
 	return &BlockFrostChainContext{
 		baseUrl:   baseUrl,
 		projectId: projectId,
@@ -674,55 +675,9 @@ func parseEvaluateTxResponse(data []byte) (map[common.RedeemerKey]common.ExUnits
 		return nil, fmt.Errorf("unrecognized evaluate response (no result or error): %s", evalErrorSnippet(data))
 	}
 	if strings.HasPrefix(strings.TrimSpace(string(envelope.Result)), "[") {
-		return parseOgmiosV6EvaluationResult(envelope.Result)
+		return ogmiosutil.ParseEvaluationResult(envelope.Result)
 	}
 	return parseOgmiosV5EvaluationResult(envelope.Result)
-}
-
-// parseOgmiosV6EvaluationResult parses the Ogmios v6 evaluateTransaction result
-// array: [{"validator":{"purpose":...,"index":...},"budget":{"memory":...,"cpu":...}}].
-func parseOgmiosV6EvaluationResult(raw json.RawMessage) (map[common.RedeemerKey]common.ExUnits, error) {
-	var items []struct {
-		Validator struct {
-			Purpose string `json:"purpose"`
-			Index   uint64 `json:"index"`
-		} `json:"validator"`
-		Budget struct {
-			Memory uint64 `json:"memory"`
-			Cpu    uint64 `json:"cpu"`
-		} `json:"budget"`
-		Error json.RawMessage `json:"error"`
-	}
-	if err := json.Unmarshal(raw, &items); err != nil {
-		return nil, fmt.Errorf("failed to parse evaluation result: %w", err)
-	}
-	if len(items) == 0 {
-		return nil, errors.New("script evaluation returned no results")
-	}
-	result := make(map[common.RedeemerKey]common.ExUnits, len(items))
-	for _, item := range items {
-		if jsonValuePresent(item.Error) {
-			return nil, fmt.Errorf("script evaluation failed for validator %s:%d: %s",
-				item.Validator.Purpose, item.Validator.Index, string(item.Error))
-		}
-		if item.Validator.Purpose == "" {
-			return nil, fmt.Errorf("malformed evaluation result entry: %s", evalErrorSnippet(raw))
-		}
-		tag, err := backendutil.ParseRedeemerTag(item.Validator.Purpose)
-		if err != nil {
-			return nil, fmt.Errorf("invalid redeemer purpose %q: %w", item.Validator.Purpose, err)
-		}
-		if item.Validator.Index > math.MaxUint32 {
-			return nil, fmt.Errorf("redeemer index %d exceeds uint32 range", item.Validator.Index)
-		}
-		if item.Budget.Memory > math.MaxInt64 || item.Budget.Cpu > math.MaxInt64 {
-			return nil, fmt.Errorf("ExUnits overflow for validator %s:%d: memory=%d cpu=%d",
-				item.Validator.Purpose, item.Validator.Index, item.Budget.Memory, item.Budget.Cpu)
-		}
-		key := common.RedeemerKey{Tag: tag, Index: uint32(item.Validator.Index)}
-		result[key] = common.ExUnits{Memory: int64(item.Budget.Memory), Steps: int64(item.Budget.Cpu)}
-	}
-	return result, nil
 }
 
 // parseOgmiosV5EvaluationResult parses the legacy Ogmios v5 jsonwsp result
@@ -912,6 +867,8 @@ type bfProtocolParams struct {
 	MaxBlockSize       int64           `json:"max_block_size"`
 	MaxTxSize          int64           `json:"max_tx_size"`
 	MaxBlockHeaderSize int64           `json:"max_block_header_size"`
+	ProtocolMajorVer   int64           `json:"protocol_major_ver"`
+	ProtocolMinorVer   int64           `json:"protocol_minor_ver"`
 	KeyDeposit         string          `json:"key_deposit"`
 	PoolDeposit        string          `json:"pool_deposit"`
 	Decentralisation   float64         `json:"decentralisation_param"`
@@ -959,25 +916,35 @@ func (p *bfProtocolParams) toProtocolParams() (backend.ProtocolParameters, error
 	if err != nil {
 		return backend.ProtocolParameters{}, err
 	}
+	protocolMajor, err := backendutil.BoundedInt(p.ProtocolMajorVer, "protocol_major_ver")
+	if err != nil {
+		return backend.ProtocolParameters{}, err
+	}
+	protocolMinor, err := backendutil.BoundedInt(p.ProtocolMinorVer, "protocol_minor_ver")
+	if err != nil {
+		return backend.ProtocolParameters{}, err
+	}
 	pp := backend.ProtocolParameters{
-		MinFeeConstant:      p.MinFeeB,
-		MinFeeCoefficient:   p.MinFeeA,
-		MaxBlockSize:        maxBlockSize,
-		MaxTxSize:           maxTxSize,
-		MaxBlockHeaderSize:  maxBlockHeaderSize,
-		KeyDeposits:         p.KeyDeposit,
-		PoolDeposits:        p.PoolDeposit,
-		MinPoolCost:         p.MinPoolCost,
-		PriceMem:            p.PriceMem,
-		PriceStep:           p.PriceStep,
-		MaxTxExMem:          p.MaxTxExMem,
-		MaxTxExSteps:        p.MaxTxExSteps,
-		MaxBlockExMem:       p.MaxBlockExMem,
-		MaxBlockExSteps:     p.MaxBlockExSteps,
-		MaxValSize:          p.MaxValSize,
-		CollateralPercent:   collateralPercent,
-		MaxCollateralInputs: maxCollateralInputs,
-		CoinsPerUtxoByte:    p.CoinsPerUtxoSize,
+		MinFeeConstant:       p.MinFeeB,
+		MinFeeCoefficient:    p.MinFeeA,
+		MaxBlockSize:         maxBlockSize,
+		MaxTxSize:            maxTxSize,
+		MaxBlockHeaderSize:   maxBlockHeaderSize,
+		ProtocolMajorVersion: protocolMajor,
+		ProtocolMinorVersion: protocolMinor,
+		KeyDeposits:          p.KeyDeposit,
+		PoolDeposits:         p.PoolDeposit,
+		MinPoolCost:          p.MinPoolCost,
+		PriceMem:             p.PriceMem,
+		PriceStep:            p.PriceStep,
+		MaxTxExMem:           p.MaxTxExMem,
+		MaxTxExSteps:         p.MaxTxExSteps,
+		MaxBlockExMem:        p.MaxBlockExMem,
+		MaxBlockExSteps:      p.MaxBlockExSteps,
+		MaxValSize:           p.MaxValSize,
+		CollateralPercent:    collateralPercent,
+		MaxCollateralInputs:  maxCollateralInputs,
+		CoinsPerUtxoByte:     p.CoinsPerUtxoSize,
 	}
 	if p.MinFeeRefScriptCostPerByte != "" {
 		price, err := backendutil.ParseRational(p.MinFeeRefScriptCostPerByte.String())

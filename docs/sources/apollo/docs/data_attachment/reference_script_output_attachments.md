@@ -1,6 +1,6 @@
 # Reference Script Output Attachments
 
-This page documents attaching **reference scripts** (Plutus V1, V2, V3, or Native) to transaction outputs. Apollo v2 provides both a **unified** method that auto-detects the script version and **version-specific** convenience methods. `common.PlutusV4Script` is recognized by `NewScriptRef`, but V4 reference-script payments are rejected for the current Conway transaction format with `ErrPlutusV4RequiresDijkstra`. Implementation: [`apollo.go`](../../apollo.go), [`convenience.go`](../../convenience.go), [`helpers.go`](../../helpers.go).
+This page documents attaching **reference scripts** (Plutus V1, V2, V3, or Native) to transaction outputs. Apollo v2 provides both a **unified** method that auto-detects the script version and **version-specific** convenience methods. `common.PlutusV4Script` is recognized by `NewScriptRef`; V4 reference-script payments require the Dijkstra target era, and a Conway build rejects them with `ErrPlutusV4RequiresDijkstra`. Implementation: [`apollo.go`](../../apollo.go), [`convenience.go`](../../convenience.go), [`helpers.go`](../../helpers.go).
 
 ## Purpose and method signatures
 

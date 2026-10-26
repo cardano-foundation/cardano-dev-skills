@@ -15,7 +15,6 @@ import (
 
 	"github.com/SundaeSwap-finance/kugo"
 	ogmigo "github.com/SundaeSwap-finance/ogmigo/v6"
-	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/num"
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/shared"
 	"github.com/blinklabs-io/gouroboros/cbor"
 	"github.com/blinklabs-io/gouroboros/ledger/babbage"
@@ -302,128 +301,6 @@ func (o *OgmiosChainContext) EvaluateTxContext(
 	return client.EvaluateTx(ctx, txCbor, additionalUtxos)
 }
 
-// commonUtxosToShared converts resolved gouroboros UTxOs into the ogmigo
-// shared.Utxo wire form expected by EvaluateTxWithAdditionalUtxos.
-func commonUtxosToShared(utxos []common.Utxo) ([]shared.Utxo, error) {
-	result := make([]shared.Utxo, 0, len(utxos))
-	for _, utxo := range utxos {
-		su, err := commonUtxoToShared(utxo)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, su)
-	}
-	return result, nil
-}
-
-// commonUtxoToShared converts a single resolved gouroboros UTxO into an
-// ogmigo shared.Utxo. The value is encoded as Ogmios expects: the outer key is
-// "ada" (with inner key "lovelace") for the coin, and the policy ID hex (with
-// inner asset-name hex) for native assets.
-func commonUtxoToShared(utxo common.Utxo) (shared.Utxo, error) {
-	if err := backend.ValidateAdditionalUtxo(utxo); err != nil {
-		return shared.Utxo{}, err
-	}
-
-	out := utxo.Output
-
-	coin, err := bigIntToNum(out.Amount())
-	if err != nil {
-		return shared.Utxo{}, fmt.Errorf("invalid lovelace amount: %w", err)
-	}
-	value := shared.Value{
-		shared.AdaPolicy: {
-			shared.AdaAsset: coin,
-		},
-	}
-	if assets := out.Assets(); assets != nil {
-		for _, policyId := range assets.Policies() {
-			policyHex := hex.EncodeToString(policyId.Bytes())
-			for _, assetName := range assets.Assets(policyId) {
-				qty, err := bigIntToNum(assets.Asset(policyId, assetName))
-				if err != nil {
-					return shared.Utxo{}, fmt.Errorf("invalid asset quantity for policy %s: %w", policyHex, err)
-				}
-				if value[policyHex] == nil {
-					value[policyHex] = map[string]num.Int{}
-				}
-				value[policyHex][hex.EncodeToString(assetName)] = qty
-			}
-		}
-	}
-
-	su := shared.Utxo{
-		Transaction: shared.UtxoTxID{ID: hex.EncodeToString(utxo.Id.Id().Bytes())},
-		Index:       utxo.Id.Index(),
-		Address:     out.Address().String(),
-		Value:       value,
-	}
-
-	// Datum: inline datum CBOR hex goes in Datum, a bare datum hash in DatumHash.
-	if datum := out.Datum(); datum != nil {
-		datumCbor, err := datum.MarshalCBOR()
-		if err != nil {
-			return shared.Utxo{}, fmt.Errorf("failed to encode inline datum: %w", err)
-		}
-		su.Datum = hex.EncodeToString(datumCbor)
-	} else if datumHash := out.DatumHash(); datumHash != nil {
-		su.DatumHash = hex.EncodeToString(datumHash.Bytes())
-	}
-
-	// Reference script: Ogmios expects {"language": ..., "cbor": ...}.
-	if script := out.ScriptRef(); script != nil {
-		scriptJSON, err := ogmiosScriptRefJSON(script)
-		if err != nil {
-			return shared.Utxo{}, err
-		}
-		su.Script = scriptJSON
-	}
-
-	return su, nil
-}
-
-// bigIntToNum converts a big.Int quantity into the ogmigo num.Int used by
-// shared.Value, preserving the full magnitude (no int64 truncation).
-func bigIntToNum(v *big.Int) (num.Int, error) {
-	if v == nil {
-		return num.Int64(0), nil
-	}
-	n, ok := num.New(v.String())
-	if !ok {
-		return num.Int{}, fmt.Errorf("cannot represent quantity %s", v.String())
-	}
-	return n, nil
-}
-
-// ogmiosScriptRefJSON encodes a reference script as the Ogmios script JSON
-// object ({"language": "plutus:vN"|"native", "cbor": "<hex>"}) matching the
-// shape consumed by ogmiosScriptToScriptRef.
-func ogmiosScriptRefJSON(script common.Script) (json.RawMessage, error) {
-	var language string
-	switch script.(type) {
-	case common.PlutusV1Script:
-		language = "plutus:v1"
-	case common.PlutusV2Script:
-		language = "plutus:v2"
-	case common.PlutusV3Script:
-		language = "plutus:v3"
-	case common.PlutusV4Script:
-		language = "plutus:v4"
-	case common.NativeScript:
-		language = "native"
-	default:
-		return nil, fmt.Errorf("unsupported reference script type %T", script)
-	}
-	payload := struct {
-		Language string `json:"language"`
-		Cbor     string `json:"cbor"`
-	}{
-		Language: language,
-		Cbor:     hex.EncodeToString(script.RawScriptBytes()),
-	}
-	return json.Marshal(payload)
-}
-
 // evaluateResponseToExUnits converts an ogmigo EvaluateTxResponse into a
 // redeemer ExUnits map. A response with zero evaluation results is an error:
 // returning an empty map with a nil error would let callers silently keep
@@ -510,6 +387,7 @@ type ogmiosProtocolParams struct {
 	MaxBlockExUnits    ogmiosExUnits   `json:"maxExecutionUnitsPerBlock"`
 	MinUtxoDeposit     *int64          `json:"minUtxoDepositCoefficient"`
 	CostModels         json.RawMessage `json:"plutusCostModels"`
+	Version            *ogmiosVersion  `json:"version"`
 	// Ogmios v6 exposes Conway reference-script pricing as a structured object
 	// {base, range, multiplier}; base is the lovelace-per-byte first-tier price.
 	MinFeeReferenceScripts *ogmiosRefScripts `json:"minFeeReferenceScripts"`
@@ -518,6 +396,11 @@ type ogmiosProtocolParams struct {
 	// optional: Ogmios before v6.5 sends neither.
 	MaxRefScriptsSize   *ogmiosBytes `json:"maxReferenceScriptsSize"`
 	MaxRefScriptsSizeTx *ogmiosBytes `json:"maxReferenceScriptsSizePerTransaction"`
+}
+
+type ogmiosVersion struct {
+	Major int `json:"major"`
+	Minor int `json:"minor"`
 }
 
 type ogmiosRefScripts struct {
@@ -636,6 +519,16 @@ func (p *ogmiosProtocolParams) toProtocolParams() (backend.ProtocolParameters, e
 		CollateralPercent:   p.CollateralPercent,
 		MaxCollateralInputs: p.MaxCollateral,
 		CoinsPerUtxoByte:    strconv.FormatInt(*p.MinUtxoDeposit, 10),
+	}
+
+	if p.Version != nil {
+		if p.Version.Major < 0 || p.Version.Minor < 0 {
+			return backend.ProtocolParameters{}, fmt.Errorf(
+				"invalid protocol version %d.%d", p.Version.Major, p.Version.Minor,
+			)
+		}
+		pp.ProtocolMajorVersion = p.Version.Major
+		pp.ProtocolMinorVersion = p.Version.Minor
 	}
 
 	switch {

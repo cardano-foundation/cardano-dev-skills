@@ -21,19 +21,19 @@ Helpers:
 
 ## Capability matrix (in-tree)
 
-| Capability | Blockfrost | Ogmios | Ogmios (no Kupo) | UTxO RPC | Fixed |
-|------------|:----------:|:------:|:----------------:|:--------:|:-----:|
-| Protocol params | yes | yes | yes | yes | yes |
-| Genesis params | yes | yes | yes | no | yes |
-| Current epoch | yes | yes | yes | no | no |
-| Max tx fee | yes | yes | yes | yes | yes |
-| Tip | yes | yes | yes | yes | no |
-| UTxOs by address | yes | yes | no | yes | yes |
-| Submit | yes | yes | yes | yes | no |
-| EvaluateTx | yes | yes | yes | yes | no |
-| EvaluateTx additional UTxOs | yes | yes | yes | **no** | no |
-| UTxO by ref | yes | yes | yes | yes | yes |
-| Script CBOR | yes | yes | no | no | no |
+| Capability | Blockfrost | Koios | Ogmios | Ogmios (no Kupo) | UTxO RPC | Fixed |
+|------------|:----------:|:-----:|:------:|:----------------:|:--------:|:-----:|
+| Protocol params | yes | yes | yes | yes | yes | yes |
+| Genesis params | yes | yes | yes | yes | no | yes |
+| Current epoch | yes | yes | yes | yes | no | no |
+| Max tx fee | yes | yes | yes | yes | yes | yes |
+| Tip | yes | yes | yes | yes | yes | no |
+| UTxOs by address | yes | yes | yes | no | yes | yes |
+| Submit | yes | yes | yes | yes | yes | no |
+| EvaluateTx | yes | yes | yes | yes | yes | no |
+| EvaluateTx additional UTxOs | yes | yes | yes | yes | **no** | no |
+| UTxO by ref | yes | yes | yes | yes | yes | yes |
+| Script CBOR | yes | yes | yes | no | no | no |
 
 `backend/cache` forwards `CapabilitiesOf(inner)`.
 

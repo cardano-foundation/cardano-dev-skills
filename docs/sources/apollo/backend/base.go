@@ -306,6 +306,16 @@ func (p ProtocolParameters) RefScriptSizeIncrement() int {
 	return DefaultRefScriptSizeIncrement
 }
 
+// HasRefScriptTierParams reports whether the provider supplied both the
+// reference-script tier stride and multiplier rather than leaving them to the
+// Conway defaults. Dijkstra makes both values protocol parameters.
+func (p ProtocolParameters) HasRefScriptTierParams() bool {
+	hasMultiplier := (p.MinFeeReferenceScriptsMultiplierRational != nil &&
+		p.MinFeeReferenceScriptsMultiplierRational.Sign() > 0) ||
+		p.MinFeeReferenceScriptsMultiplier > 0
+	return p.MinFeeReferenceScriptsRange > 0 && hasMultiplier
+}
+
 // RefScriptMultiplier returns the per-tier price multiplier, defaulting to the
 // Conway ledger constant when a provider does not supply it.
 // It is retained for compatibility; fee computation should use

@@ -248,6 +248,10 @@ func (u *UtxoRpcChainContext) ProtocolParamsContext(ctx context.Context) (backen
 		}
 	}
 
+	if err := setProtocolVersion(&pp, params.GetProtocolVersion()); err != nil {
+		return backend.ProtocolParameters{}, err
+	}
+
 	// Conway reference-script base price (lovelace per byte for the first tier),
 	// exposed as a rational number.
 	setReferenceScriptFeePrice(&pp, params.GetMinFeeScriptRefCostPerByte())
@@ -255,6 +259,25 @@ func (u *UtxoRpcChainContext) ProtocolParamsContext(ctx context.Context) (backen
 	pp.CostModels = costModelsFromRpc(params.GetCostModels())
 
 	return pp, nil
+}
+
+// setProtocolVersion copies the chain's protocol version, which gates
+// era-specific transaction formats such as Dijkstra.
+func setProtocolVersion(pp *backend.ProtocolParameters, version *cardano.ProtocolVersion) error {
+	if version == nil {
+		return nil
+	}
+	major, err := backendutil.BoundedIntFromUint64(uint64(version.GetMajor()), "protocol major version")
+	if err != nil {
+		return err
+	}
+	minor, err := backendutil.BoundedIntFromUint64(uint64(version.GetMinor()), "protocol minor version")
+	if err != nil {
+		return err
+	}
+	pp.ProtocolMajorVersion = major
+	pp.ProtocolMinorVersion = minor
+	return nil
 }
 
 func setReferenceScriptFeePrice(pp *backend.ProtocolParameters, price *cardano.RationalNumber) {

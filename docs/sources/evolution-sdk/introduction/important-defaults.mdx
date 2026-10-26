@@ -95,7 +95,7 @@ Data.toDatumHash(datum, CBOR.CML_DATA_DEFAULT_OPTIONS)
 Transaction.toCBORHex(tx, { ledger: CBOR.CML_DEFAULT_OPTIONS, plutusData: CBOR.CML_DATA_DEFAULT_OPTIONS })
 ```
 
-The `plutusData` transaction options cover every new Plutus data item: inline datums, witness datums and redeemer data. A datum decoded from a transaction keeps its bytes.
+The `plutusData` transaction options cover every new Plutus data item: inline datums, witness datums and redeemer data. A datum decoded from a transaction, or fetched with `getDatum`, keeps its bytes.
 
 ### Scripts Are Double-CBOR Encoded
 

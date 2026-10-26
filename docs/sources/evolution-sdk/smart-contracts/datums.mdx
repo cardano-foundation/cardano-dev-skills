@@ -69,6 +69,19 @@ const tx = await client
   .build()
 ```
 
+To spend the output, give its datum to `collectFrom`. The builder matches each datum to its input by hash and writes it in the witness set:
+
+```typescript
+// lockedUtxo: the output locked above; script: the validator at its address
+const spendTx = await client
+  .newTx()
+  .collectFrom({ inputs: [lockedUtxo], redeemer: Data.constr(0n, []), datums: [datum] })
+  .attachScript({ script })
+  .build()
+```
+
+A datum built by hand must be in the layout its hash was computed with, as `datum` is here. For an output someone else locked, fetch the datum with `client.getDatum(lockedUtxo.datumOption)`, which keeps the bytes its hash covers, or let the build fetch each missing datum with `build({ onMissingDatum: "provider" })`. A provider can serve a datum only after an earlier transaction has published it. Outputs this SDK locks never publish theirs, so keep the datum of each output you lock. With neither, `build()` fails and names each input that needs its datum.
+
 ## Type-Safe Datums with TSchema
 
 For production contracts, define your datum structure with TSchema to get compile-time type checking and automatic CBOR encoding:

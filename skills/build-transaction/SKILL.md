@@ -132,7 +132,7 @@ npm install @evolution-sdk/evolution
 
 - Requires Node.js 18+ and TypeScript 5.0+
 - Effect-TS based, type-safe composable API
-- Built-in Blockfrost, Koios, Kupmios, and Maestro providers
+- Built-in Blockfrost, Koios, and Kupmios providers (its Maestro provider no longer works: Maestro shut down its Cardano API)
 - Works in Node.js and browser environments
 
 **PyCardano (Python)**
@@ -209,7 +209,7 @@ cabal build all -O0
 go get github.com/Salvionied/apollo/v2
 ```
 
-- Needs a `backend.ChainContext` (Blockfrost, Maestro, Ogmios, UTxORPC, or a fixed/cached backend)
+- Needs a `backend.ChainContext` (Blockfrost, Ogmios, UTxORPC, or a fixed/cached backend; its Maestro backend no longer works: Maestro shut down its Cardano API)
 - Builds on gOuroboros ledger types, so `common.Address` and friends are shared across the Go stack
 - **Always use the `/v2` module path.** It is the maintained line and what the
   mirror documents. The unsuffixed `github.com/Salvionied/apollo` path is

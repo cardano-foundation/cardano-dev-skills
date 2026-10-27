@@ -63,7 +63,7 @@ const unsignedTx = await txBuilder
 
 **Strengths:**
 - Effect-TS based, type-safe composable API
-- Built-in Blockfrost, Koios, and Kupmios providers (its Maestro provider no longer works: Maestro shut down its Cardano API)
+- Built-in Blockfrost, Koios, and Kupmios providers
 - Supports Plutus V1, V2, V3 and native scripts
 - Works in Node.js and browser environments
 - Declarative, chainable transaction builder
@@ -156,7 +156,7 @@ context.submit_tx(signed_tx)
 
 **Strengths:**
 - Only maintained fluent transaction builder for Go
-- Pluggable chain backends: Blockfrost, Ogmios, UTxORPC, fixed/cached (its Maestro backend no longer works: Maestro shut down its Cardano API)
+- Pluggable chain backends: Blockfrost, Ogmios, UTxORPC, fixed/cached
 - Broad Conway coverage: DRep registration, votes, proposals, treasury donations
 - Shares gOuroboros ledger types, so Go services can pass `common.Address` and
   ledger structs between tx building and node communication without conversion

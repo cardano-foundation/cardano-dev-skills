@@ -209,7 +209,7 @@ When answering from a Yaci Store analytics store:
 
 #### Evolution SDK (TypeScript client over providers)
 
-Not a provider — a TypeScript library that wraps Blockfrost, Kupmios, and Koios behind one query interface, so the provider becomes a config choice rather than a code rewrite. It also ships a Maestro provider, which no longer works: Maestro shut down its Cardano API. For read-only work, build a **provider-only client** (no wallet attached):
+Not a provider — a TypeScript library that wraps Blockfrost, Kupmios, and Koios behind one query interface, so the provider becomes a config choice rather than a code rewrite. For read-only work, build a **provider-only client** (no wallet attached):
 
 ```typescript
 import { Address, Client, preprod } from "@evolution-sdk/evolution"

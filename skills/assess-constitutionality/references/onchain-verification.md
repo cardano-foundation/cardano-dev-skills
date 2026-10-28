@@ -108,7 +108,7 @@ chmod 700 "$work_dir"
 trap 'rm -r -- "$work_dir"' EXIT HUP INT TERM
 anchor_url='<exact anchor retrieval URL>'
 printf 'requested=%s\n' "$anchor_url"
-if curl_meta=$(curl --fail-with-body \
+if curl_meta=$(curl --fail-with-body --proto '=https,http' --proto-redir '=https,http' \
   --connect-timeout 10 --max-time 45 --retry 2 --retry-delay 2 \
   --retry-max-time 90 -H 'Accept-Encoding: identity' --max-filesize 10485760 \
   --dump-header "$work_dir/headers" --output "$work_dir/anchor.bin" \
@@ -131,7 +131,9 @@ python3 -I -c 'import hashlib,sys; p=sys.argv[1]; b=open(p,"rb").read(); print(l
 `curl --retry` is bounded; when a response carries `Retry-After`, honour it within the task's
 finite wait budget rather than hammering the endpoint. Do not use `--compressed`, which can make
 the bytes being hashed differ from the transferred representation. The example intentionally
-does not follow redirects: a 3xx exits nonzero before hashing and its `Location` remains visible
+accepts only HTTP(S): `--proto` makes curl refuse a `file://` or other local-scheme anchor
+before reading anything. It also does not follow redirects: a 3xx exits nonzero before hashing
+and its `Location` remains visible
 in the printed headers. Validate that destination against the retrieval boundary, then rerun the
 same block with it as `anchor_url`, for at most three hops. Preserve the original requested URI
 and every attempted URL in the provenance record.
@@ -274,8 +276,10 @@ the requested ref and resolved commit. Lightweight and annotated tags can both b
 is immutable merely because it is a tag. For an annotated tag, record the tag object and peeled
 commit. Never silently replace the specified ref with `main`.
 
-For a public Git repository, `git ls-remote <repo-url> <exact-ref> '<exact-ref>^{}'` resolves
-without a checkout. On a GitHub URL, the corresponding single file can then be read from
+For a public Git repository,
+`git -c protocol.allow=never -c protocol.https.allow=always ls-remote <repo-url> <exact-ref> '<exact-ref>^{}'`
+resolves without a checkout and refuses any transport other than HTTPS. On a GitHub URL, the
+corresponding single file can then be read from
 `https://raw.githubusercontent.com/<owner>/<repo>/<commit>/<path>`. Those values must all derive
 from the directly referenced public URL/ref, not from a search or local data. Record the material's
 byte hash. If a checkout is genuinely necessary, use an OS temporary directory, disable recursive

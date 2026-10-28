@@ -22,7 +22,7 @@ the canonical source for skills consumed by both Claude Code and Codex.
 |---|---|---|
 | Validate skills + sources (the CI gate) | `python3 scripts/validate.py` | `pyyaml` |
 | Path-portability check alone | `python3 scripts/validate.py --paths-only` | nothing |
-| Test the SessionStart hook | `./hooks/test-check-docs.sh` | nothing |
+| Test the SessionStart hook | `./hooks/test-check-docs.sh` | `python3` |
 | Fetch one source after editing its registry entry | `./scripts/fetch-docs.sh --source "Project Name" --update-pins` | `python3`, git |
 | Build the site | `cd website && npm ci && npm run build` | Node ≥18.17 |
 | PR policy gate (source vetting, skill naming) | `GITHUB_TOKEN=$(gh auth token) python3 scripts/check-pr-policy.py --base origin/main --head HEAD` | `pyyaml` |

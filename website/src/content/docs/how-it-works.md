@@ -83,6 +83,23 @@ durable `AGENTS.md` block directly and does not depend on this hook.
 **Good at:** ambient awareness — surfaces stale docs and missing project
 directives without interrupting flow.
 
+## Public evidence under host permissions
+
+Skills are local-first and remain useful without network access.
+`assess-constitutionality` has one recorded, narrow exception: for a live
+governance action it first tries to read the public provider record, exact
+on-chain anchor bytes, and proposal material that anchor directly references.
+It does not perform open-ended web research, alter permissions, or execute
+fetched content.
+
+Claude desktop/cloud domain controls, when present, may need the specific
+provider, anchor, or direct-material domain allowed. That setting is permission,
+not a guarantee that networking, DNS, or the endpoint works. Codex applies its
+own sandbox, network, and approval settings; Claude settings do not transfer.
+If a host denies one retrieval, the skill preserves evidence acquired elsewhere,
+marks only the affected finding Not-yet-verifiable, and gives a targeted
+fallback.
+
 ## When auto-consultation misses
 
 Vague prompts like *"help me build a Cardano dApp"* may not match any

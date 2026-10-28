@@ -67,5 +67,9 @@ to `docs/sources/` is screened before merge:
    per-source verdict table on the PR.
 
 Skills are covered separately: `scripts/validate.py` enforces the
-tool-grant policy (read-only base grant, network tools disallowed) on
-every skill PR. Full design: `docs/DESIGN.md` Decision 13.
+least-privilege frontmatter policy (read-only base grant, network tools
+disallowed) on every skill PR. A narrow public evidence workflow does not
+widen that grant: it needs a recorded design decision, body-level request and
+untrusted-data boundaries, normal host permissions, provenance, and a targeted
+offline fallback. `assess-constitutionality` is the recorded case; see
+`docs/DESIGN.md` Decisions 13 and 15.

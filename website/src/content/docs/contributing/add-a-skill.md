@@ -74,12 +74,19 @@ Instructions...
 - [ ] Has "When to use", "When NOT to use", "Key principles", "Workflow"
       sections
 - [ ] No MCP dependency (no `search_docs` references)
+- [ ] Remains useful with local access. Any public read-only evidence exception
+      has a recorded DESIGN decision, unchanged least-privilege frontmatter,
+      bounded public identifier/domain sources, precise provenance, and a
+      targeted fallback when the host denies access
 - [ ] Body describes capabilities without requiring Claude or Codex tool names
 - [ ] Bundled-doc paths are written `../../docs/sources/...`, relative to
       `SKILL.md`, and exist (`validate.py` checks both), with no host-specific
       environment variables
 - [ ] Required safety behavior appears in the body, not only in Claude's
       `allowed-tools` or `disallowed-tools` metadata
+- [ ] Retrieval, when explicitly permitted, never sends conversation/local/env
+      contents, executes fetched material, explores recursively, bypasses host
+      domain controls, or changes an allowlist automatically
 - [ ] Deep content in `references/`, one level only — no nested
       subdirectories
 - [ ] No mention of specific deployed dApps; teach categories generically

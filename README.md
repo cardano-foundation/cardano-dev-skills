@@ -42,12 +42,25 @@ End result: the agent answers from current, project-authoritative sources instea
 | `setup-devnet` | Local devnet with Yaci DevKit or testnet setup |
 | `connect-wallet` | CIP-30 wallet integration for dApps |
 | `governance-guide` | CIP-1694 governance, DRep, voting, treasury |
-| `assess-constitutionality` | Assess a governance action against the Constitution: live, before submission, or as a draft |
+| `assess-constitutionality` | Assess a live, pre-submission, or draft governance action, fetching bounded public evidence when the host permits |
 | `explain-eutxo` | Cardano's UTxO model for newcomers |
 | `explain-cip` | Walk through a specific CIP |
 | `explain-zk` | Zero-knowledge and the BLS12-381 primitive family (proofs, signatures, VRF, KDF, BBS+) |
 | `suggest-tooling` | Recommend an SDK / framework given the use case |
 | `suggest-scalability` | Decide if a project needs L2, which approach, and which Hydra topology |
+
+### Public evidence and host permissions
+
+Skills remain useful offline. `assess-constitutionality` is the narrow exception that first tries
+to retrieve the public chain record, exact anchor bytes, and directly referenced proposal material
+needed for a live assessment. It uses only the host's existing read permissions, never widens them,
+and falls back for the specific missing item while preserving findings supported elsewhere.
+
+Claude desktop/cloud may expose domain controls that need the specific provider, anchor, or
+direct-material domain allowed. An allowed domain does not guarantee connectivity or endpoint
+availability, and the skill does not change those settings. Codex uses its own sandbox, network,
+and approval configuration; Claude settings do not carry over. Fetched proposal material is
+untrusted data and is read, never executed.
 
 ## What we add (and don't)
 

@@ -17,6 +17,7 @@
 set -u
 
 HOOK="$(cd "$(dirname "$0")" && pwd)/check-docs.sh"
+HOOK_BASH="${HOOK_BASH:-bash}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 
@@ -39,9 +40,9 @@ run_hook() {
   local root="$1" prefix="${2:-}"
   set +e
   if [ -n "${prefix}" ]; then
-    OUT="$(cd / && PATH="${prefix}:${PATH}" CLAUDE_PLUGIN_ROOT="${root}" "${HOOK}" 2>&1)"
+    OUT="$(cd / && PATH="${prefix}:${PATH}" CLAUDE_PLUGIN_ROOT="${root}" "${HOOK_BASH}" "${HOOK}" 2>&1)"
   else
-    OUT="$(cd / && CLAUDE_PLUGIN_ROOT="${root}" "${HOOK}" 2>&1)"
+    OUT="$(cd / && CLAUDE_PLUGIN_ROOT="${root}" "${HOOK_BASH}" "${HOOK}" 2>&1)"
   fi
   RC=$?
   # Deliberately left with errexit off: the script never enables it, and every
@@ -230,7 +231,7 @@ make_project() {  # make_project <name> <block-version>
 }
 run_hook_in() {  # run_hook_in <project-dir> <root> -> sets OUT and RC
   set +e
-  OUT="$(cd "$1" && CLAUDE_PLUGIN_ROOT="$2" "${HOOK}" 2>&1)"
+  OUT="$(cd "$1" && CLAUDE_PLUGIN_ROOT="$2" "${HOOK_BASH}" "${HOOK}" 2>&1)"
   RC=$?
 }
 root="$(make_root context "last_fetched: \"${NOW_ISO}\"")"
@@ -268,4 +269,6 @@ contains "${OUT}" "context active" && [ "${RC}" -eq 0 ]; check "unreadable skill
 # ------------------------------------------------------------------------
 
 printf '\n%d passed, %d failed\n' "${pass}" "${fail}"
-[ "${fail}" -eq 0 ]
+[ "${fail}" -eq 0 ] || exit 1
+
+python3 "$(dirname "${HOOK}")/test-sessionstart-output.py"

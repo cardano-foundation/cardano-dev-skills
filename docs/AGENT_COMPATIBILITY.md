@@ -11,7 +11,8 @@ Claude Code and Codex.
 | `skills/`, including `references/` | Canonical workflows and Cardano knowledge | No |
 | `docs/sources/`, `registry/` | Canonical bundled reference corpus | No |
 | `scripts/` and CI policy | Shared maintenance and compatibility checks | No, except an explicitly named host check |
-| `.claude-plugin/`, `hooks/`, `CLAUDE.md` | Claude packaging, hooks, and contributor instructions | Yes |
+| `.claude-plugin/`, `CLAUDE.md` | Claude packaging and contributor instructions | Yes |
+| `hooks/` | Optional lifecycle context using the shared SessionStart output format | Yes |
 | `.codex-plugin/`, `.agents/skills`, `AGENTS.md` | Codex packaging, discovery, and contributor instructions | Yes |
 
 Do not create parallel Claude and Codex copies of a skill or reference. Fix the
@@ -77,8 +78,11 @@ so a project can switch agents without changing its Cardano guidance.
   enables normal repository discovery.
 - Both discovery symlinks point to `../skills`. They are adapters, never
   alternate sources of skill content.
-- Claude hooks remain under `hooks/`. Do not claim a hook affects Codex unless
-  a tested Codex adapter is added explicitly.
+- Lifecycle hooks remain under `hooks/`. The SessionStart hook emits one JSON
+  object using the shared `hookSpecificOutput.hookEventName` and
+  `additionalContext` fields. Test the output as JSON as well as checking the
+  notices; host hook support and trust settings still govern execution. Shared
+  skills and the durable project directive must work without lifecycle hooks.
 
 ## Contribution checklist
 

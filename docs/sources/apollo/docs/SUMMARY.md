@@ -12,6 +12,7 @@
 * [Chain backends](backends/README.md)
 * [Capabilities](backends/capabilities.md)
 * [Blockfrost](backends/blockfrost.md)
+* [Koios](backends/koios.md)
 * [Ogmios and Kupo](backends/ogmios.md)
 * [UTxO RPC](backends/utxorpc.md)
 * [Fixed and cache](backends/fixed_and_cache.md)
@@ -28,6 +29,10 @@
 * [Mint and burn](transaction_building/mint_and_burn.md)
 * [Metadata](transaction_building/metadata.md)
 * [Complete, sign, and submit](transaction_building/complete_sign_submit.md)
+
+## Dijkstra
+
+* [Dijkstra transactions](dijkstra/README.md)
 
 ## Coin selection
 

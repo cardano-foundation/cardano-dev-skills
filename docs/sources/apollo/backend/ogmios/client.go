@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Salvionied/apollo/v2/internal/ogmiosutil"
 	"github.com/SundaeSwap-finance/kugo"
 	ogmigo "github.com/SundaeSwap-finance/ogmigo/v6"
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync"
@@ -230,7 +231,7 @@ func (c *ogmigoClient) EvaluateTx(
 	if len(additionalUtxos) > 0 {
 		// Ogmios natively accepts a set of resolved UTxOs so it can evaluate
 		// inputs that are not yet visible on-chain.
-		sharedUtxos, convErr := commonUtxosToShared(additionalUtxos)
+		sharedUtxos, convErr := ogmiosutil.UtxosToShared(additionalUtxos)
 		if convErr != nil {
 			return nil, convErr
 		}

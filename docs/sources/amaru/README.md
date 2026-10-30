@@ -17,8 +17,9 @@
 
 [![][ci-build-and-test-badge]][ci-build-and-test]
 [![][ci-coding-practices-badge]][ci-coding-practices]
+[![][ci-transaction-submission-badge]][ci-transaction-submission]
 [![][nightly-tool-integrations-badge]][nightly-tool-integrations]
-[![][nightly-uplc-benchmarks-badge]][nightly-uplc-benchmarks]
+[![][release-begin-badge]][release-begin]
 
 </div>
 
@@ -47,7 +48,7 @@ Alternatively, Amaru also comes pre-packaged for a few platforms.
 #### <img src="https://raw.githubusercontent.com/pragma-org/amaru/refs/heads/main/.github/icons/docker.svg" height=18 /> Docker Image
 
 ```console
-docker pull ghcr.io/pragma-org/amaru:v10.11.20260925
+docker pull ghcr.io/pragma-org/amaru:v10.11.20261022
 ```
 
 > [!IMPORTANT]
@@ -69,8 +70,8 @@ nix profile install --no-write-lock-file github:pragma-org/amaru#amaru
 #### <img src="https://raw.githubusercontent.com/pragma-org/amaru/refs/heads/main/.github/icons/debian.webp" height=18 /> Debian
 
 ```console
-VERSION=10.11.20260925 ARCH=x86_64; curl -fsSL -o amaru-$VERSION-linux-$ARCH.deb "https://github.com/pragma-org/amaru/releases/download/v$VERSION/amaru-$VERSION-linux-$ARCH.deb"
-VERSION=10.11.20260925 ARCH=x86_64; sudo apt install ./amaru-$VERSION-linux-$ARCH.deb
+VERSION=10.11.20261022 ARCH=x86_64; curl -fsSL -o amaru-$VERSION-linux-$ARCH.deb "https://github.com/pragma-org/amaru/releases/download/v$VERSION/amaru-$VERSION-linux-$ARCH.deb"
+VERSION=10.11.20261022 ARCH=x86_64; sudo apt install ./amaru-$VERSION-linux-$ARCH.deb
 ```
 
 Also available for `ARCH=aarch64`.
@@ -79,8 +80,8 @@ The Debian package installs a systemd unit and reads overrides from `/etc/defaul
 #### <img src="https://raw.githubusercontent.com/pragma-org/amaru/refs/heads/main/.github/icons/red-hat.webp" height=18 /> RPM
 
 ```console
-VERSION=10.11.20260925 ARCH=x86_64; curl -fsSL -o amaru-$VERSION-linux-$ARCH.rpm "https://github.com/pragma-org/amaru/releases/download/v$VERSION/amaru-$VERSION-linux-$ARCH.rpm"
-VERSION=10.11.20260925 ARCH=x86_64; sudo dnf install ./amaru-$VERSION-linux-$ARCH.rpm
+VERSION=10.11.20261022 ARCH=x86_64; curl -fsSL -o amaru-$VERSION-linux-$ARCH.rpm "https://github.com/pragma-org/amaru/releases/download/v$VERSION/amaru-$VERSION-linux-$ARCH.rpm"
+VERSION=10.11.20261022 ARCH=x86_64; sudo dnf install ./amaru-$VERSION-linux-$ARCH.rpm
 ```
 
 Also available for `ARCH=aarch64`.
@@ -149,5 +150,8 @@ See [monitoring/README.md](./monitoring/README.md).
 [nightly-tool-integrations-badge]: https://img.shields.io/github/actions/workflow/status/pragma-org/amaru/nightly-tool-integrations.yml?style=flat-square&logo=applearcade&logoColor=%23ffffff&label=
 [nightly-tool-integrations]: https://github.com/pragma-org/amaru/actions/workflows/nightly-tool-integrations.yml
 
-[nightly-uplc-benchmarks-badge]: https://img.shields.io/github/actions/workflow/status/pragma-org/amaru/nightly-uplc-benchmarks.yml?style=flat-square&logo=blockbench&logoColor=%23ffffff&label=
-[nightly-uplc-benchmarks]: https://github.com/pragma-org/amaru/actions/workflows/nightly-uplc-benchmarks.yml
+[release-begin-badge]: https://img.shields.io/github/actions/workflow/status/pragma-org/amaru/release-begin.yml?style=flat-square&logoColor=%23ffffff&label=&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0iZmVhdGhlciBmZWF0aGVyLW1vb24iPjxwYXRoIGQ9Ik0yMSAxMi43OUE5IDkgMCAxIDEgMTEuMjEgMyA3IDcgMCAwIDAgMjEgMTIuNzl6Ij48L3BhdGg%2BPC9zdmc%2B
+[release-begin]: https://github.com/pragma-org/amaru/actions/workflows/release-begin.yml
+
+[ci-transaction-submission-badge]: https://img.shields.io/github/actions/workflow/status/pragma-org/amaru/ci-transaction-submission.yml?style=flat-square&logoColor=%23ffffff&label=&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0iZmVhdGhlciBmZWF0aGVyLXNlbmQiPjxsaW5lIHgxPSIyMiIgeTE9IjIiIHgyPSIxMSIgeTI9IjEzIj48L2xpbmU%2BPHBvbHlnb24gcG9pbnRzPSIyMiAyIDE1IDIyIDExIDEzIDIgOSAyMiAyIj48L3BvbHlnb24%2BPC9zdmc%2B
+[ci-transaction-submission]: https://github.com/pragma-org/amaru/actions/workflows/ci-transaction-submission.yml

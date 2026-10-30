@@ -13,8 +13,10 @@ ctx := blockfrost.NewBlockFrostChainContext(
 )
 ```
 
-The constructor appends `/api/v0` when the base URL does not already end with
-`/api/v0` or `/v0`.
+The base URL is used as given, so it must include the API version path, as the
+`constants.BlockfrostBaseUrl*` values do. For a self-hosted or third-party
+Blockfrost-compatible provider, pass its full API base URL, such as
+`https://blockfrost.example.com/api/v1`. Trailing slashes are removed.
 
 ## Capabilities
 

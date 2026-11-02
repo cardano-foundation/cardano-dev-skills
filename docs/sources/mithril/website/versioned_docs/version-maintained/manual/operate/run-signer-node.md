@@ -278,6 +278,11 @@ sudo mv mithril-signer /opt/mithril
 
 #### Set up the service
 
+:::info
+For Signer in version **1.2.1 and later**, since protocol configuration is now **decentralized**, the mechanism to retrieve protocol configuration has changed.
+Setting up `PROTOCOL_CONFIGURATION_READER_ADAPTER_CONFIG` as described in the following steps will allow the signer to retrieve this information on the Cardano Chain.
+:::
+
 :::caution
 
 - `User=cardano`:
@@ -293,6 +298,7 @@ sudo mv mithril-signer /opt/mithril
   - `STORE_RETENTION_LIMIT`: if set, this will limit the number of records in some internal stores (5 is a good fit)
   - `ERA_READER_ADAPTER_TYPE=cardano-chain`: replace `cardano-chain` with the era reader adapter type used in your Mithril network
   - `ERA_READER_ADAPTER_PARAMS={"address": "...", "verification_key": "..."}`: replace `{"address": "...", "verification_key": "..."}` with the era reader parameters that you need to compute by running the command `jq -nc --arg address $(wget -q -O - **YOUR_ERA_READER_ADDRESS**) --arg verification_key $(wget -q -O - **YOUR_ERA_READER_VERIFICATION_KEY**) '{"address": $address, "verification_key": $verification_key}'`
+  - `PROTOCOL_CONFIGURATION_READER_ADAPTER_CONFIG`: JSON encoded parameters for the protocol configuration reader adapter. For `cardano-chain` type, compute using: `jq -nc --arg address $(wget -q -O - **YOUR_PROTOCOL_CONFIGURATION_READER_ADDRESS**) --arg verification_key $(wget -q -O - **YOUR_PROTOCOL_CONFIGURATION_READER_VERIFICATION_KEY**) '{"type": "cardano-chain", "address": $address, "verification_key": $verification_key}'` (URLs can be found in the [Network configurations](../getting-started/network-configurations.md))
   - `RELAY_ENDPOINT=http://192.168.1.50:3132` **(optional)**: this is the endpoint of the **Mithril relay**, which is required for **production** deployment only. For **naive** deployment, do not set this variable in your environment file.
 
 :::
@@ -307,6 +313,7 @@ Here is an **example** set of values for **release-mainnet** that will be used i
 - **YOUR_AGGREGATOR_ENDPOINT**: `https://aggregator.release-mainnet.api.mithril.network/aggregator`
 - **YOUR_ERA_READER_ADAPTER_TYPE**: `cardano-chain`
 - **YOUR_ERA_READER_ADAPTER_PARAMS**: `{"address": "addr1qy72kwgm6kypyc5maw0h8mfagwag8wjnx6emgfnsnhqaml6gx7gg4tzplw9l32nsgclqax7stc4u6c5dn0ctljwscm2sqv0teg", "verification_key": "5b31312c3133342c3231352c37362c3134312c3232302c3131312c3135342c36332c3233302c3131342c31322c38372c37342c39342c3137322c3133322c32372c39362c3138362c3132362c3137382c31392c3131342c33302c3234332c36342c3134312c3131302c38332c38362c31395d"}`
+- **PROTOCOL_CONFIGURATION_READER_ADAPTER_CONFIG**: `{"type": "cardano-chain", "address": "addr1v9lsegaw82vh9w37km08s8szleet6adw82xzl8wjujpcyxq84hq9a", "verification_key": "5b3134392c3133392c38352c38302c32342c3130352c3130382c3138332c33352c33382c33382c34342c37332c3130312c3136392c35352c372c37382c302c3136372c3231302c31392c31392c3138372c3134312c37352c3134352c36392c31312c3234382c3132322c31305d"}`
 - **YOUR_RELAY_ENDPOINT**: `192.168.1.50`
 - **YOUR_RELAY_LISTENING_PORT**: `3132`
 - **YOUR_BLOCK_PRODUCER_INTERNAL_IP**: `192.168.1.75`
@@ -333,6 +340,7 @@ DATA_STORES_DIRECTORY=/opt/mithril/stores
 STORE_RETENTION_LIMIT=5
 ERA_READER_ADAPTER_TYPE=**YOUR_ERA_READER_ADAPTER_TYPE**
 ERA_READER_ADAPTER_PARAMS=**YOUR_ERA_READER_ADAPTER_PARAMS**
+PROTOCOL_CONFIGURATION_READER_ADAPTER_CONFIG=**YOUR_PROTOCOL_CONFIGURATION_READER_ADAPTER_CONFIG**
 RELAY_ENDPOINT=**YOUR_RELAY_ENDPOINT**
 EOF'
 ```
@@ -355,6 +363,7 @@ DATA_STORES_DIRECTORY=/opt/mithril/stores
 STORE_RETENTION_LIMIT=5
 ERA_READER_ADAPTER_TYPE=cardano-chain
 ERA_READER_ADAPTER_PARAMS={"address": "addr1qy72kwgm6kypyc5maw0h8mfagwag8wjnx6emgfnsnhqaml6gx7gg4tzplw9l32nsgclqax7stc4u6c5dn0ctljwscm2sqv0teg", "verification_key": "5b31312c3133342c3231352c37362c3134312c3232302c3131312c3135342c36332c3233302c3131342c31322c38372c37342c39342c3137322c3133322c32372c39362c3138362c3132362c3137382c31392c3131342c33302c3234332c36342c3134312c3131302c38332c38362c31395d"}
+PROTOCOL_CONFIGURATION_READER_ADAPTER_CONFIG={"type": "cardano-chain", "address": "addr1v9lsegaw82vh9w37km08s8szleet6adw82xzl8wjujpcyxq84hq9a", "verification_key": "5b3134392c3133392c38352c38302c32342c3130352c3130382c3138332c33352c33382c33382c34342c37332c3130312c3136392c35352c372c37382c302c3136372c3231302c31392c31392c3138372c3134312c37352c3134352c36392c31312c3234382c3132322c31305d"}
 RELAY_ENDPOINT=http://192.168.1.50:3132
 EOF'
 ```
@@ -377,6 +386,7 @@ DATA_STORES_DIRECTORY=/opt/mithril/stores
 STORE_RETENTION_LIMIT=5
 ERA_READER_ADAPTER_TYPE=**YOUR_ERA_READER_ADAPTER_TYPE**
 ERA_READER_ADAPTER_PARAMS=**YOUR_ERA_READER_ADAPTER_PARAMS**
+PROTOCOL_CONFIGURATION_READER_ADAPTER_CONFIG=**YOUR_PROTOCOL_CONFIGURATION_READER_ADAPTER_CONFIG**
 EOF'
 ```
 
@@ -398,6 +408,7 @@ DATA_STORES_DIRECTORY=/opt/mithril/stores
 STORE_RETENTION_LIMIT=5
 ERA_READER_ADAPTER_TYPE=cardano-chain
 ERA_READER_ADAPTER_PARAMS={"address": "addr1qy72kwgm6kypyc5maw0h8mfagwag8wjnx6emgfnsnhqaml6gx7gg4tzplw9l32nsgclqax7stc4u6c5dn0ctljwscm2sqv0teg", "verification_key": "5b31312c3133342c3231352c37362c3134312c3232302c3131312c3135342c36332c3233302c3131342c31322c38372c37342c39342c3137322c3133322c32372c39362c3138362c3132362c3137382c31392c3131342c33302c3234332c36342c3134312c3131302c38332c38362c31395d"}
+PROTOCOL_CONFIGURATION_READER_ADAPTER_CONFIG={"type": "cardano-chain", "address": "addr1v9lsegaw82vh9w37km08s8szleet6adw82xzl8wjujpcyxq84hq9a", "verification_key": "5b3134392c3133392c38352c38302c32342c3130352c3130382c3138332c33352c33382c33382c34342c37332c3130312c3136392c35352c372c37382c302c3136372c3231302c31392c31392c3138372c3134312c37352c3134352c36392c31312c3234382c3132322c31305d"}
 EOF'
 ```
 
@@ -491,7 +502,7 @@ To expose metrics on the endpoint, append the following environment variable to 
 ```bash
 sudo bash -c 'cat >> /opt/mithril/mithril-signer.env << EOF
 ENABLE_METRICS_SERVER=true
-EOF`
+EOF'
 ```
 
 You can also specify a custom listen IP address and port for the metrics server:
@@ -501,7 +512,7 @@ sudo bash -c 'cat >> /opt/mithril/mithril-signer.env << EOF
 ENABLE_METRICS_SERVER=true
 METRICS_SERVER_IP=**YOUR_METRICS_SERVER_IP**
 METRICS_SERVER_PORT=**YOUR_METRICS_SERVER_PORT**
-EOF`
+EOF'
 ```
 
 :::tip
@@ -513,7 +524,7 @@ sudo bash -c 'cat >> /opt/mithril/mithril-signer.env << EOF
 ENABLE_METRICS_SERVER=true
 METRICS_SERVER_IP=0.0.0.0
 METRICS_SERVER_PORT=9090
-EOF`
+EOF'
 ```
 
 :::
@@ -1590,16 +1601,10 @@ First, download the script into the desired directory:
 wget https://mithril.network/doc/scripts/verify_signer_registration.sh
 ```
 
-Make the script executable:
-
-```bash
-chmod +x verify_signer_registration.sh
-```
-
 Finally, execute the script:
 
 ```bash
-PARTY_ID=**YOUR_PARTY_ID** AGGREGATOR_ENDPOINT=**YOUR_AGGREGATOR_ENDPOINT** ./verify_signer_registration.sh
+PARTY_ID=**YOUR_PARTY_ID** AGGREGATOR_ENDPOINT=**YOUR_AGGREGATOR_ENDPOINT** bash verify_signer_registration.sh
 ```
 
 :::tip
@@ -1607,7 +1612,7 @@ PARTY_ID=**YOUR_PARTY_ID** AGGREGATOR_ENDPOINT=**YOUR_AGGREGATOR_ENDPOINT** ./ve
 Here is an example command:
 
 ```bash
-PARTY_ID=pool1hp72sauk0g0yqm4dzllz0pz6j93gewhllkzphn4hykkfmne43y AGGREGATOR_ENDPOINT=https://aggregator.release-mainnet.api.mithril.network/aggregator ./verify_signer_registration.sh
+PARTY_ID=pool1hp72sauk0g0yqm4dzllz0pz6j93gewhllkzphn4hykkfmne43y AGGREGATOR_ENDPOINT=https://aggregator.release-mainnet.api.mithril.network/aggregator bash verify_signer_registration.sh
 ```
 
 :::
@@ -1634,16 +1639,10 @@ First, download the script into the desired directory:
 wget https://mithril.network/doc/scripts/verify_signer_signature.sh
 ```
 
-Make the script executable:
-
-```bash
-chmod +x verify_signer_signature.sh
-```
-
 Finally, execute the script:
 
 ```bash
-PARTY_ID=**YOUR_PARTY_ID** AGGREGATOR_ENDPOINT=**YOUR_AGGREGATOR_ENDPOINT** ./verify_signer_signature.sh
+PARTY_ID=**YOUR_PARTY_ID** AGGREGATOR_ENDPOINT=**YOUR_AGGREGATOR_ENDPOINT** bash verify_signer_signature.sh
 ```
 
 :::tip
@@ -1651,7 +1650,7 @@ PARTY_ID=**YOUR_PARTY_ID** AGGREGATOR_ENDPOINT=**YOUR_AGGREGATOR_ENDPOINT** ./ve
 Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
-PARTY_ID=pool1hp72sauk0g0yqm4dzllz0pz6j93gewhllkzphn4hykkfmne43y AGGREGATOR_ENDPOINT=https://aggregator.release-mainnet.api.mithril.network/aggregator ./verify_signer_signature.sh
+PARTY_ID=pool1hp72sauk0g0yqm4dzllz0pz6j93gewhllkzphn4hykkfmne43y AGGREGATOR_ENDPOINT=https://aggregator.release-mainnet.api.mithril.network/aggregator bash verify_signer_signature.sh
 ```
 
 :::

@@ -9,7 +9,7 @@ import TabItem from '@theme/TabItem';
 
 Here is an updated list of all **Mithril networks**, including their configurations and current statuses:
 
-> Last update: 09/22/2026
+> Last update: 10/22/2026
 
 <Tabs>
   <TabItem value="mainnet" label="Mainnet" default>
@@ -115,7 +115,7 @@ This network is only for the developers of the Mithril Core team.
 | **DMQ status**                                     | Beta 🟢                                                                                                                                                                                                                                                                            |
 | **Aggregator endpoint**                            | `https://aggregator.testing-preview.api.mithril.network/aggregator` [:arrow_upper_right:](https://aggregator.testing-preview.api.mithril.network/aggregator)                                                                                                                       |
 | **Genesis verification key (Legacy)**              | `https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/genesis.vkey` [:arrow_upper_right:](https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/genesis.vkey)                 |
-| **genesis verification key (Dual)**                | `https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/genesis-dual.vkey` [:arrow_upper_right:](https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/genesis-dual.vkey)       |
+| **Genesis verification key (Dual)**                | `https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/genesis-dual.vkey` [:arrow_upper_right:](https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/genesis-dual.vkey)       |
 | **Era reader adapter type**                        | `cardano-chain`                                                                                                                                                                                                                                                                    |
 | **Era reader address**                             | `https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/era.addr` [:arrow_upper_right:](https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/era.addr)                         |
 | **Era reader verification key**                    | `https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/era.vkey` [:arrow_upper_right:](https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/era.vkey)                         |
@@ -123,6 +123,7 @@ This network is only for the developers of the Mithril Core team.
 | **Protocol configuration reader address**          | `https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/protocol-config.addr` [:arrow_upper_right:](https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/protocol-config.addr) |
 | **Protocol configuration reader verification key** | `https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/protocol-config.vkey` [:arrow_upper_right:](https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/protocol-config.vkey) |
 | **Ancillary verification key**                     | `https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/ancillary.vkey` [:arrow_upper_right:](https://raw.githubusercontent.com/IntersectMBO/mithril/main/mithril-infra/configuration/testing-preview/ancillary.vkey)             |
+| **IPNS name of the immutable archives**            | `/ipns/k51qzi5uqu5dj0elu5jdwms8znznw21ost6ewfd46me2q7xuptgeew6z732xr9`                                                                                                                                                                                                             |
 | **Build from**                                     | **Main branch** [:arrow_upper_right:](https://github.com/IntersectMBO/mithril/tree/main)                                                                                                                                                                                           |
 
   </TabItem>

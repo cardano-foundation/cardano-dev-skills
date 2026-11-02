@@ -240,7 +240,7 @@ every run, and k = 100 did it in a one-hour run; k = 200 held. The
 tracer-sidecar receives `SECURITY_PARAM: "200"`.
 
 The scheduled `cardano-node.yaml` runs releases at 01:05 UTC and
-releases-fast at 13:05 UTC, 4 h each, so a releases-fast run crosses two epoch
+releases-fast at 13:05 UTC, 3 h each, so a releases-fast run crosses two epoch
 boundaries.
 
 ## Running locally

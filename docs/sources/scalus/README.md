@@ -123,20 +123,20 @@ Next steps:
 
 ### Scala / sbt
 
-Use Scalus `1.2.0`:
+Use Scalus `1.4.1`:
 
 `project/plugins.sbt`:
 
 ```scala
-addSbtPlugin("org.scalus" % "scalus-sbt-plugin" % "1.2.0")
+addSbtPlugin("org.scalus" % "scalus-sbt-plugin" % "1.4.1")
 ```
 
 `build.sbt`:
 
 ```scala
-scalaVersion := "3.3.8"
+scalaVersion := "3.9.0"
 
-val scalusVersion = "1.2.0"
+val scalusVersion = "1.4.1"
 
 addCompilerPlugin(
   "org.scalus" % "scalus-plugin" % scalusVersion cross CrossVersion.full

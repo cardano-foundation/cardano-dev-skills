@@ -4,8 +4,8 @@ How `blaster-uplc` from [the verification overview](../verification-overview.md)
 Code: `scalus-verification/src/main/scala/scalus/verify/uplcblaster/UplcBlaster.scala` and
 `scalus-verification/src/main/lean/ScalusProofs/Run.lean`. Tests: `UplcBlasterTest`,
 `PreludeProofsTest` and `UplcBlasterLimitsTest`, and `VestingVerificationTest`,
-`HtlcVerificationTest` and `PaymentSplitterVerificationTest` in `scalus-examples`. For how to use
-it, see `scalus-verification/README.md`.
+`HtlcVerificationTest`, `PaymentSplitterVerificationTest` and `MintingPolicyVerificationTest` in
+`scalus-examples`. For how to use it, see `scalus-verification/README.md`.
 
 ## Pipeline
 
@@ -30,8 +30,9 @@ Prop ──lower──► Lowered(binders, body: LeafFormula, leaves: Vector[Pro
 
 Preparation accepts statements built with:
 
-- universal and existential quantifiers over `BigInt`, `Boolean`, `ByteString`, `Data`, and case
-  classes whose fields are of these types or such case classes, at any proposition position;
+- universal and existential quantifiers over `BigInt`, `Boolean`, `ByteString`, `String`,
+  `Data`, lists and maps, and case classes and enums whose fields are of these types or such
+  case classes and enums, at any proposition position;
 - `existsLet(w)(x => p)`, which is lowered as the strict binding `let x = w in p` and introduces
   no SMT quantifier;
 - `&&`, `||`, `!`, `==>` and `<=>` over these leaves:
@@ -39,10 +40,10 @@ Preparation accepts statements built with:
   - a total `call` whose continuation is a test or another total call;
   - a partial call, `whenReturns(f, a)(r => p)`, whose continuation is the same;
   - `denotes(e)`, where `e` has any type;
-  - `equal(a, b)` over `BigInt`, `Boolean` or `Data`.
+  - `equal(a, b)` over `BigInt`, `Boolean`, `ByteString`, `String` or `Data`.
 
 Only quantified variables are limited, because Lean builds their values, and it builds only
-`BigInt`, `Boolean`, `ByteString` and `Data` constants. A call's arguments and result, and the
+`BigInt`, `Boolean`, `ByteString`, `String` and `Data` constants. A call's arguments and result, and the
 operand of `denotes`, can have any type: they live inside a test's program, and the compiler passes
 them.
 
@@ -52,10 +53,91 @@ ranges over the values of its constructor
 variable per field, named `variable.field` in `Lowered.binders` and in a counterexample, and a
 field that is a case class is expanded in turn. Each test that uses the variable starts with
 `let variable = Constructor(fields…)`, which the compiler lowers to the class's own
-representation, as it does for a constructor written in the test. An enum is not expanded: it has
-several constructors. `Quantifiable` has an instance for every case class whose fields have one. The exception is a function registered
-without SIR, which has no declared type: a call to it can pass only `BigInt`, `Boolean` and `Data`
-values (see "The calling convention").
+representation, as it does for a constructor written in the test. `Quantifiable` has an instance
+for every case class whose fields have one. The exception is a function registered without SIR,
+which has no declared type: a call to it can pass only `BigInt`, `Boolean`, `ByteString`,
+`String` and `Data` values (see "The calling convention").
+
+**A variable of an enum**, or of another type of several constructors such as `Option`, ranges
+over the values of all of them. It stands for an integer `variable.case`, which chooses the
+constructor, and for the fields of every constructor, named `variable.Constructor.field`, each
+expanded as above. Each test that uses it starts with
+`let variable = if case == 0 then C0(…) else if case == 1 then C1(…) … else Cn(…)`: the
+constructors in the order of their declaration, with the last one for every integer not taken
+before, so that each integer is a value and the integer needs no premise. A counterexample
+names the constructor by that integer. A constructor passes its type parameters on to the
+enum's, so `Option[BigInt]` is the integer and the `BigInt` of `Some`. A type that contains
+itself and is passed through its constructors has values of every size, which no set of
+variables stands for: it is refused, with that reason, and `forAllData` quantifies over it.
+`Quantifiable` has an instance for every type of several constructors; the tactic checks their
+fields.
+
+**A variable of a list or a map** is one Lean variable in the form the compiler passes it, not
+built from constructors. The form is the lowering's default representation of the type
+(`SirTypeUplcGenerator.defaultRepresentation`): a `List` of a type that is `Data` is a builtin
+list of `Data`, which Lean has as `List Data` and passes as `Const.ConstDataList`; a list of
+pairs is a builtin list of pairs, `List (Data × Data)` passed as `Const.ConstPairDataList`; and
+`SortedMap`, `AssocMap` and `Value`, which is its map, are one `Data.Map`, `List (Data × Data)`
+passed as `Const.Data (Data.Map …)`.
+
+To Lean the items of such a variable are any `Data`, which are more values than its type has. So the
+quantifier restricts it with a predicate derived recursively from the type, along the type's `Data`
+representation: `∀ xs, p xs = true → …`, and an `exists`, written `¬∀¬`, becomes `∃ xs, p xs ∧ …`.
+An integer is `I`, a byte string `B`, a string `B` of its UTF-8 (which the predicate does not
+check), a Boolean `Constr 0|1 []`, a case class or an enum's constructor `Constr` with its tag and
+its fields' encodings, a list `List` of its items', a map `Map` of its keys' and values', with the
+keys of a `SortedMap` of byte strings or integers in ascending order, and a type whose one field it
+wraps, as `PubKeyHash` or `Value`, that field's. The few definitions the predicates use
+(`scalusAll`, `scalusAllPairs`, `scalusAscendingBytes`, …) are written into a check that needs them,
+and not into the library, whose hash every kept result rests on.
+
+The description is public, as `scalus.verify.DataEncoding`: `DataEncoding.of[A]` derives it,
+`leanPredicate` and `leanDefinition(name)` give the Lean predicate, a `Data → Bool`, for a Lean
+file of one's own (after `DataEncoding.leanDefinitions`, with PlutusCore's `Data` opened as
+`Data`), and `outside(data)` checks a `Data` on the JVM. `exact` says whether the predicate holds
+of exactly the type's values.
+
+Where the predicate is exact, the variable's values are its type's, and it can be quantified
+anywhere; Lean's counterexamples are of the type. Where it is not, as for a type that contains
+itself, a string, a function, or keys whose order is not checked, the variable has more values than
+its type: it is refused where it would claim a value (an `exists` in a positive position, a `forAll`
+in a negative one, either under `<=>`), and a counterexample with a value outside the type is
+checked on the JVM and reported as inconclusive. Z3 rarely finds a witness through a recursive
+predicate: an `exists` over a list comes back undetermined, and `existsLet` with a witness proves
+it. Its length is any length, so a program that walks the list meets [the loops Lean does not
+finish](#statements-that-do-not-finish).
+
+**A variable over the `Data` encodings of a type**, `forAllData[A](x => …)`, is one Lean `Data`
+variable, not built from constructors. It ranges over the values of `A` as `forAll[A]` does, each
+given as its encoding: each test that uses it starts with `let x = d.to[A]`, the decoder the macro
+compiles, so the programs read the `Data` themselves. The quantifier restricts `d` with the
+predicate of `A`'s encoding, `DataEncoding.of[A]`, derived as for the items of a list, and the same
+rule applies: where it is exact, as for a case class of integers, `x` can be anywhere; where it is
+not, as for a type that contains itself, whose fields are any `Data` to Lean below the first level,
+it is a variable only where it stands for every value, and a counterexample outside the type is
+inconclusive. `forAll[A]` and `forAllData[A]` state the same of an `A` whose predicate is exact;
+they differ in what Lean searches: many typed variables, or one `Data` behind a premise.
+`forAllData` takes a `FromData[A]`, which `d.to[A]` needs. Its values are the encodings of `A`'s
+values, the `Data` that `toData` gives: a map's keys in order, a constructor's tag and number of
+fields as declared. That is the `Data` the node gives a script as its context, which it builds
+itself, so `forAllData[ScriptContext]` stands for every context a script can get. It is not every
+`Data` that `d.to[A]` reads without failing: the decoder reads what it needs and checks no more, so
+`Data` with unordered keys, or with more fields than the constructor has, is read as a value too. A
+parameter that a transaction supplies, as a datum or a redeemer the script decodes itself, can be
+such `Data`: a statement about it quantifies over `Data`, `forAll[Data](d => …)`, and decodes it in
+the test.
+
+A parameter of a quantifier is such a variable where its type is written annotated in the lambda,
+`forAll((ctx: ScriptContext @UplcRepr(UplcRepresentation.Data), n: BigInt) => …)`, or through an
+alias that is: in `forAll`, `exists`, `existsLet`, `returnsWhen` and `failsWhen`, of one variable or
+several. The annotation is read from the parameter: on a type argument, `forAll[A @UplcRepr(Data)]`,
+the compiler has dropped it by the time the statement is built. The parameter's type is the
+quantifier's, which it ranges over, and not a wider one. A call's result and a contract's variables
+are given, not quantified over, and take no such annotation: it is a compile error there, and on the
+variable of `forAllData`, which is one already. Another representation is the compiler's, as it was.
+The decoder is `d.to[A]`, which the compiler compiles to its own reading of the type's `Data`
+representation, the one the premise is derived from, whatever `FromData` is given; the tactic checks
+that it is.
 
 `<=>` becomes two implications, because each of its operands occurs in both polarities. Each leaf
 program takes only the binders in scope at that leaf. Anything else produces a
@@ -154,9 +236,9 @@ function's own program agree when both are lowered with the same options:
   `UplcBlaster.options`, and returns `Left` on a mismatch, such as a program lowered by another
   backend. Both sides come from one type, so they differ only where the options do;
 - a function registered with a UPLC program but no SIR has no declared type and no signature.
-  A call to it takes its type from the values, which fixes the form only of `BigInt`, `Boolean`
-  and `Data`, so other values are refused: an enum constructor would otherwise be passed as a
-  list of its fields.
+  A call to it takes its type from the values, which fixes the form only of `BigInt`, `Boolean`,
+  `ByteString`, `String` and `Data`, so other values are refused: an enum constructor would
+  otherwise be passed as a list of its fields.
 
 ## Reading leaves by polarity
 
@@ -172,7 +254,9 @@ function's own program agree when both are lowered with the same options:
 positive reading is strong: the program halts within the budget with the right result. A
 negative reading is weak: the program neither halts with the wrong result nor fails within the
 budget, so a run that exhausts the budget counts as possibly right. The overview (§6.2) shows why
-a proof at any budget then holds without the budget.
+a proof at any budget then holds without the budget. A check within a budget (`Budget.Within`)
+reads a run the budget cuts the other way, in the statement's favour, and proves less: [A check
+within a budget](#a-check-within-a-budget).
 
 Every reading is an equation between `Bool` values, for two reasons:
 
@@ -197,6 +281,16 @@ runs out. `ScalusProofs/Run.lean` defines:
   builds `fun xs => runProgramFor script (inputs xs) budget`, optimizes it with Blaster's
   `Optimize.main`, and defines `name` as noncomputable.
 
+  Blaster's optimizer can write a case split the kernel rejects (Lean-blaster#154). It rewrites
+  the type of a branch's binder apart from the condition: `¬ true = b` becomes `false = b`, and
+  `¬ (¬ p ∧ ¬ q)` becomes `p ∨ q`, where `Blaster.dite' c t f` asks for `c` and `¬ c`.
+  `repairedDite` restates the binder of each branch that does not use it as `c` or `¬ c`: a binder
+  the body does not use may be of any type, so the run means what it meant. Where the kernel still
+  rejects the run, as for a branch that uses its binder, `name` is the run as written, and
+  `#blaster` expands it again, in its own optimization. On the deployed one-shot minting script,
+  with the lists it reads limited to one element, the run as written cost `#blaster` 858 s of
+  optimization, and the repaired run 81 s.
+
 The weak readings need `runFor`. With `runSteps`, the negative reading of `denotes` could not
 reject `State.Error`, which might be an exhausted budget, so it would be `True`. A premise
 `denotes(f(x))` would then say nothing, and `!denotes(e)` could never be proved.
@@ -217,7 +311,7 @@ open …
 #import_uplc leaf0 PlutusV3 single_cbor_hex "/tmp/scalus-uplc-blaster-…/Leaf0.flat"
 
 def arguments (x0 : Integer) (x1 : Bool) : List Term :=
-  [Term.Const $ Const.Integer x0, Term.Const $ Const.Bool x1]
+  [Term.Const (Const.Integer x0), Term.Const (Const.Bool x1)]
 
 #prep_uplc_run prepared0 leaf0 arguments 100
 
@@ -365,6 +459,11 @@ The result depends on what `holds` finds:
     `sha3_256(preimage)` for an image.
   - that the statement takes more steps there than a search counts, or holds at no budget on
     Lean's machine.
+
+  Within a budget (`Budget.Within`) nothing is counted. A run the budget cuts counts for the
+  statement there, and a run that ended within the budget ends so with more steps, so the budget
+  is never at fault: the message says that the values do not show what Lean found, and names the
+  `opaque` builtins the programs apply.
 - **Undecided, because a leaf exhausted the replay budget:** `Inconclusive`.
 
 ## Budgets
@@ -396,6 +495,110 @@ counterexamples that a budget too small gives, each of which says how many steps
 needs on it. [Finding the budget](blaster-budget-search.md) is the note about that search, and about
 keeping what it found.
 
+### A check within a budget
+
+`Budget.Within(n)` checks a statement at `n` steps with another reading of the runs the budget cuts.
+A run that has neither halted nor failed at `n` steps is read in the statement's favour: a test the
+statement claims holds of it, and one it assumes does not, and so for `denotes`. The readings are: a
+claimed test is `some true` or cut, an assumed one halted and not `some false`, a claimed `denotes`
+did not fail, an assumed one halted. Where every run ends within the budget the reading is the
+statement's own; so a proof is a proof of the statement on every input on which each test's program
+ends within `n` steps. It is a `VerificationResult.ProvenWithin`, with that bound in words, and not
+a theorem: no later statement uses it as a lemma, and a kept file keeps it as `proved within`, apart
+from a proof. Its fingerprint has its budget, unlike that of a proof: a proof within one budget is
+none within another, which reaches other inputs. A kept file has one result for a statement's name,
+so a run that checks one statement in two ways, within two budgets or within one and without,
+fails, and the two need names of their own. A counterexample is one where the runs the statement rests on ended, so it is replayed
+as any other, and refutes the statement itself.
+
+A run the budget cuts is no witness: a check within a budget is of a statement whose quantifiers all
+stand for every value, a `forAll` in a positive position or an `exists` in a negative one, and
+another is not supported. So a statement about every list, which no budget proves ([Statements that
+do not finish](#statements-that-do-not-finish)), is proved within a budget of the lists whose runs
+end within it: that a list's `length` is not negative within 400 steps, that `filter` does not
+lengthen a list within 100.
+
+### Limits of a variable's collections
+
+`forAllDataLimited[A](x => limit)(x => body)` is `forAllData[A](x => limit ==> body)`, where `limit`
+says how many elements the collections of `x` have. A collection is a list or a map of the type, as
+its `Data` encoding has it: the fields of a case class are none, and neither is a list in a field of
+type `Data`. The macro turns `limit` into `Limits` at compile time, a list of `Limit`s:
+`MaxCollectionLength(n)`, every collection, and `Length(path, min, max)`, the collections at a path
+of fields, a list's elements, or a map's keys or values. A condition of another kind is a compile
+error: a limit is of the shape of the values, and the statement's other conditions are its premise.
+
+A premise does not prune the symbolic run: `#prep_uplc_run` prepares each test's program on its
+own, so the run of `body`'s tests follows every length of every list it reads, as without the
+premise. The limits act inside the programs instead:
+
+- The tactic writes a guard, a program from `x`'s `Data` to whether it meets the limits
+  (`LimitGuards`). It walks the `Data` along the limited paths with `unConstrData`, `sndPair`,
+  `headList` and `tailList`, and checks a collection's length with a walk unrolled to one cell more
+  than its most, or to its least where it has no most.
+- The guard is a test of its own, the premise of the rest under `x`'s quantifier: `∀ x,
+  guard(x) → body`.
+- Every test in `x`'s scope runs the guard first, and fails where it is false: `if guard(x) then
+  test else error`.
+
+Where the limits hold, every test is what it was. Where they do not, the premise is false, and what
+the tests do there says nothing: their failing at once is what prunes the run. Lean's run of a test
+takes each limited list apart as the guard walks it, into its empty list and a cell, and the test's
+own reads of the list find it taken apart. So a loop over a limited list runs to its end, and the
+statement of the values within the limits is proved as a theorem. The guard may check less than the
+limits say, and never more: it does not look into the constructors of a type of several, nor at the
+elements of a list that has no most. Such a guard is not exact: its variable has more values than
+the limits allow, and is a variable only where it stands for every value, as one whose encoding is
+not exact is. Under `!` or in a premise, where the statement asks for a witness, the guard could
+let one through that the limits exclude, so the tactic refuses it there. A counterexample is checked
+against the limits (`Limits.outside`) as it is against the type: a value outside them refutes
+nothing. A bound is at most 64 elements, and a guard of nested walks at most 20000 variables, which
+the tactic counts before it writes the guard: the walks are unrolled, and larger limits are
+refused.
+
+Lean's run relates a read to what an earlier read established only where the two are the same
+terms. Blaster's optimizer resolves `tailList` of a list it has taken apart, but not `List.drop`,
+Lean's reading of `dropList`, which it does not unfold. Code compiled from a field selection reads a
+field with `dropList`, and a hand-written deserializer with `tailList`: two such reads of one field
+take it apart as two lists, and a guard of one bounds the other no more. So in a test the guard
+checks, the tactic writes each `dropList` of a constant as its steps, the list where it is empty and
+its tail otherwise (`DropLists`), and every read of a field is one of tails. Other tests keep their
+`dropList`s: the steps take more of Lean's machine. A proof of a statement with limits is then of the
+programs written so, and the rewriting is trusted as the lowering is: the two agree on the Scalus
+CEK (`DropListsTest`), and a kept result's fingerprint is of the programs written so, not of the
+deployed script's bytes. Blaster resolving `List.drop` of a constant count itself would keep the
+proved programs as compiled.
+
+A search of a statement with limits starts where every test ends on the largest values that meet
+them: each limited list as long as it may be, a map's keys distinct (`Limits.largest`). Below, no
+run ends, the guard's neither, and a counterexample would be of runs the budget cuts, which the
+solver seldom finds: at 100 steps, Blaster was undetermined.
+
+The deployed one-shot minting script on contexts of at most two inputs, two policies and two tokens
+of each (`MintingPolicyVerificationTest`) is proved at 2500 steps, in about 2 min in Lean. Before
+the guards and the steps of `dropList`, it did not finish at any bound. By the bound of the inputs,
+the policies and the tokens of each:
+
+| Bound | Paths of the two tests | Lean | Solver |
+|---|---|---|---|
+| 1 | 83 and 142 | 32 s | 0.1 s, valid |
+| 2 | 1711 and 2080 | 1 min 50 s | 0.6 s, valid |
+| 3 | more than 35000 each | 3.5 h in `#prep_uplc_run` | |
+
+Bounds 1 and 3, and the solver's times, were measured by a spike: it also wrote out the paths and
+the solver's query, and took 7 min at bound 2. The paths multiply: each input is compared with the
+seed, each policy and token with the policy's own, and each comparison with a symbolic value is two
+paths to the end of the script; 88% of them end in the script's error.
+
+The statement can also read the context as the script reads it: with the script's deserializer,
+matching the minting context as the policy does (`onlyTheSeedMintsAsRead`). Then the two tests read
+the `Data` with the same builtins, neither has a `dropList`, and the proof does not rest on the
+steps written for it. At bound 2 it is proved in 1 min 39 s, against 1 min 50 s for the statement
+that reads the context through its type: its test has 1525 paths, against 2080, and the script's
+test has its 1711 whatever the statement reads. So how the statement reads costs little once the
+reads meet; the paths are the script's comparisons. Such a statement takes the deserializer as
+given.
+
 ## Lean workspace and pins
 
 The workspace is `scalus-verification/src/main/lean`: Lean 4.24.0 (`lean-toolchain`),
@@ -418,24 +621,65 @@ The workspace is `scalus-verification/src/main/lean`: Lean 4.24.0 (`lean-toolcha
 - **The toolchain** is `elan` and `z3`, from the default and `ci` nix shells.
 
 CI: `.github/workflows/lean-proofs.yml` runs on a push that changes the verification module,
-the vesting or the HTLC example or the workflow itself, daily, and on demand. The daily run is
-for changes elsewhere, such as in the compiler, which change the programs the proofs are about.
-It builds the workspace of the library and that of the vesting example, then runs
-`sbt scalusVerification/test`, `VestingVerificationTest` and `HtlcVerificationTest` with
+the vesting, HTLC, payment splitter or minting policy example or the workflow itself, daily, and
+on demand. The daily run is for changes elsewhere, such as in the compiler, which change the
+programs the proofs are about. It builds the workspace of the library and that of the vesting
+example, then runs `sbt scalusVerification/test` and the four example suites with
 `SCALUS_REQUIRE_LEAN=1`, so a test that cannot run Lean fails instead of being canceled. In
 `ci-jvm`, without Lean, a suite that keeps its results passes on them, and a test that asks Lean
 is canceled.
 
 ## Limits
 
-- **Types.** A quantified variable is a `BigInt`, a `Boolean`, a `ByteString`, a `Data`, or a
-  case class of them. An enum, a `List` or an `Option` cannot be quantified over yet; quantify
-  over `Data` with `denotes(d.to[A]) ==> …`. Nor can one constructor of `Data`, such as
-  `Data.I`: Lean's variable for it would be any `Data`. Quantify over its field. The operands of `equal` must be `BigInt`, `Boolean`
-  or `Data`. Call arguments and results can have any type.
+- **Types.** A quantified variable is a `BigInt`, a `Boolean`, a `ByteString`, a `String`, a `Data`,
+  a list or a map, or a case class or an enum of them. A list or a map is restricted to its type's
+  values by a predicate derived from the type; where that cannot be exact it is a variable only in a
+  universal position. A type that contains itself and is passed through its constructors cannot be
+  quantified over with `forAll`; `forAllData` quantifies over it, as a variable only where it stands
+  for every value. `forAll[Data](d => denotes(d.to[A]) ==> …)` does not stand for it: `d.to[A]`
+  checks nothing itself, and the premise holds of every `d` that the program's conversion to `A`'s
+  representation reads without failing, which is part of what makes `d` a value of `A`, and a part
+  that depends on the representation. Nor can one constructor of `Data`, such as `Data.I`, be
+  quantified over: Lean's variable for it would be any `Data`. Quantify over its field. The operands
+  of `equal` must be `BigInt`, `Boolean`, `ByteString`, `String` or `Data`. Call arguments and
+  results can have any type.
+- **The type's values, not the ledger's.** A variable's values are those of its type, and an exact
+  predicate is exact for the type: a `Value` with an amount of zero or a policy without tokens is a
+  value of `Value`, which the ledger never puts in a context. An `exists` can be shown by such a
+  value, and a statement about contexts the ledger builds needs the ledger's rules as premises.
+  `forAllData[A]` ranges over the encodings `toData` gives, which are not all the `Data` that
+  `d.to[A]` reads: for `Data` a transaction supplies, quantify over `Data`.
 - **Byte strings.** Lean's model stores a byte string as a `String`, so a `ByteString` variable
-  ranges over more than byte strings. A proof holds of them all the same; a counterexample with
-  a character above 255 cannot be read, and is inconclusive.
+  ranges over more than byte strings. A proof holds of them all the same. A counterexample can
+  have characters above 255: each is read as one of the highest bytes that neither the
+  counterexample nor a constant of the programs uses, in the order of the characters, the same
+  one wherever it is, so equality, length and order see what the solver saw where the bytes in
+  use are all below them. The replay decides (`UplcBlaster.renaming`). A renamed counterexample
+  under which the statement holds says nothing of the budget: the search doubles it, as for a
+  falsification without values. Where more such characters than unused bytes are left, the value
+  is outside its type, and the result is inconclusive.
+- **Strings.** A Plutus string, like Lean's, is a sequence of Unicode scalar values, up to
+  `0x10FFFF` without the surrogates. Blaster gives a `String` variable the solver's string sort,
+  whose characters are the code points up to `0x2FFFF`, surrogates among them. `SmtValues` reads
+  each `\u{…}` escape as one character, so two surrogates are not taken for the pair that would
+  make one character. A counterexample's surrogates are read as characters that are used nowhere,
+  from U+E000 on, and the replay decides; its reason says how the values were read. Appending and
+  comparing strings translate. Renaming characters one to one keeps both, so a statement over
+  them whose variables are all universal, or all existential, has the same truth over the
+  solver's characters as over Plutus's. `encodeUtf8` and `decodeUtf8` see which characters a
+  string has. A statement with variables whose programs apply them is refused when it is lowered.
+  Blaster cannot translate them today, because they go through a character's `UInt32` value, a
+  `BitVec 32`. Once it can, the solver's characters would decide such a statement. A closed
+  statement, which Lean evaluates, may apply them.
+- **Blaster's strings are unsound where characters matter.** The solver has no character above
+  `0x2FFFF`, and Lean has no surrogate. So `blaster` proves Lean statements that are false, and
+  derives `False` from one, through its `blasterProven` axiom: "every one-character string is at
+  most U+2FFFF". It also falsifies true ones with a surrogate (Blaster `6c27ff9`, 2026-10-21;
+  reported as [input-output-hk/Lean-blaster#389](https://github.com/input-output-hk/Lean-blaster/issues/389)).
+  The statements of this tactic do not reach that. Of the string builtins, only `appendString` and
+  `equalsString` translate, and neither depends on which characters there are. `encodeUtf8` and
+  `decodeUtf8`, which do, are refused on values of variables. A real byte string, ordered or
+  measured, has only characters below 256, which the solver has all of.
 - **Byte-level builtins.** Blaster cannot translate `BitVec`, whose width is a value index rather
   than a type parameter. The model stores a byte string as a `String`, so comparing, appending
   and measuring byte strings translate, but reading one byte (`indexByteString`) goes through a
@@ -476,8 +720,8 @@ What is not stated, and why:
   an input range in the statement. The budgets it then needs are where proof cost explodes.
 - **`sqrt` and `isSqrt`.** `sqrt` needs about 405 steps, which is also where proof cost explodes.
 - **`log2` and `pow`.** They reach the bitwise builtins.
-- **`Data` round-trips** of case classes. `Data` binders make them expressible now, as
-  `forAll[Data](d => denotes(d.to[A]) ==> …)`; none is stated yet.
+- **`Data` round-trips** of case classes. `forAllData[A]` can state them, with `equal` over
+  their `Data`; none is stated yet.
 - **Codegen equivalence** (optimizer on and off, PV10 and PV11, the lowering backends). It can now
   be stated:
 
@@ -629,6 +873,118 @@ What it does not show: that a bound of the validity range is inclusive or not, w
 validator does not read and the ledger decides; a transaction of more than two signatures; and
 the published script, which `HtlcContract` compiles with other options.
 
+## What `MintingPolicyVerificationTest` covers
+
+`scalus-examples/jvm/src/test/scala/scalus/examples/oneshotmint/MintingPolicyVerificationTest.scala`
+states properties of the one-shot minting policy example, `scalus.examples.oneshotmint`, in the
+library's Lean workspace. The transaction that spends the policy's seed output mints
+`tokensToMint`, and any other transaction can only burn the policy's tokens.
+
+The specification is written in `MintingPolicy` itself. `mint` is the policy on the
+`MintingContext` that a deserializer reads, an inline function that `mintingPolicyScript` calls.
+It states two guarantees at its head with `Spec.ensures`:
+
+1. a transaction that does not spend the seed burns each of the policy's tokens that it names,
+   and so mints none;
+2. the transaction that spends the seed mints exactly `tokensToMint`: each token has the same
+   quantity in the mint as there, where a token that is not named has none. The clause is
+   written with its own functions, `mintsExactly` and `quantityOf`, and not with the
+   `Value.equalsAssets` the code checks, so that the proof compares two descriptions.
+
+Their functions (`spendsSeed`, `ownTokens`, `burnsOnly`, `mintsExactly`, `quantityOf`) are only
+called by the clauses, so they are erased with them. When the clauses were added, the scripts'
+bytes were compared before and after, and were the same: the version 1 scripts with either
+deserializer, the version 2 script and the Scott-encoded one, with and without error traces and
+the optimizer. That was a check made once, not a test. What a test pins is the three sizes
+`MintingPolicyExampleTest` asserts, with the optimizer, and that erasure removes the clauses and
+their functions from the program's SIR.
+
+**The shape is the ledger's.** For a script of version 1 or 2 the ledger's mint starts with an
+entry of zero ADA (`LedgerToPlutusTranslation.getMintValueV1V2`). A `Mint` variable is the
+policy's parameters (the seed and one token) and what the policy reads of a transaction: one
+input, or two where a Boolean field says so; the policy the script runs as; and a mint of the
+entry of ADA, a policy of one token, and, where another Boolean field says so, a policy of two.
+The solver chooses the Booleans, so one statement covers the four shapes, among them the
+example's minting as the ledger gives it to the policy: the seed alone, and after the entry of
+ADA the policy's token alone. The example's own test builds its contexts without that entry, and
+its burns without an input, so they are not of these shapes. The statements are about the
+`MintingContext` built from a `Mint`, not about a script context: the deserializers and the
+script on the ledger's context are not covered.
+
+| About | Statement | Quantified over | Budget | Time |
+|---|---|---|---|---|
+| `mint` | the two guarantees it states, for a mint whose token names are different | a `Mint`, the context built from it | 5740 | 82 s, together |
+| | the transaction that spends the seed mints the tokens, wherever the seed is among the inputs | | 2098 | 50 s |
+| | a transaction that does not spend the seed burns the tokens | | 2020 | 46 s |
+
+The tactic found the budgets (`Budget.Auto`): from 2020 to 5740. The times are of the tests, each
+with its negative control, recalculated at the kept budgets. The suite keeps five statements. Two
+of them are negative controls, and both are refuted with a counterexample. In the first, a
+transaction spends the seed and mints the token in another quantity, and the policy rejects it.
+In the second, the policy accepts a transaction that does not spend the seed: a burn. With Lean
+the suite takes about 3 min at the kept budgets.
+
+What the suite shows:
+
+- **The policy relies on the mint being a map.** Clause 2 was first stated for every mint, and
+  was refuted. The policy's own tokens were `[("", -1), ("", 0)]`, and `tokensToMint` was
+  `[("", -1)]`. `equalsAssets` compares two lists of tokens one entry at a time and allows
+  trailing zeros, so the policy accepts. But the name `""` has two quantities there, which no
+  mint of the ledger has: its mint is a map, with every name once under a policy, and no
+  quantity is zero but that of the entry of ADA. So the guarantees are stated with a
+  precondition, the contract `mints_of_distinct_token_names`: the two tokens of the second policy
+  have different names. That is all of the ledger's rule the proof needs, and less than the rule,
+  which also orders the policies and the names and has no zero quantity.
+  `Verifier.guarantees` of that contract proves them where it holds. A clause written with
+  `equalsAssets`, as the code is, would have been proved for every mint and said nothing of
+  this.
+- **Clauses are read only where inlining puts them.** `Verifier.guarantees` reads the clauses in
+  the code of the function it is given, outside function values. The policy is the lambda that
+  `mintingPolicyScript` returns. Clauses in that lambda would be inside a function value. A
+  function that calls `mintingPolicyScript` would not contain them at all: it is a module
+  definition, which is not inlined. So the clauses are in `mint`, which is inline, and the
+  statement is about a function that calls `mint` on a minting context of the shape. The script
+  as a whole is covered by explicit statements.
+- **Symbolic Booleans in a shape cost time, not steps.** Choosing the length of two lists with
+  two Booleans multiplies the paths by four. In the first version of the shape, which had
+  neither the entry of ADA nor the Booleans, the transaction that spends the seed was proved to
+  mint the tokens in 16 s at 1996 steps; now it takes 50 s, at 2098 steps.
+- **Scala has no `inline def` inside an `inline def`.** The policy's local `check` became a
+  function of the object when the body moved into `mint`. Inlining expands it as before, and the
+  bytes are the same.
+
+**The script on every context is stated, and not finished.** A test tagged `Unfinished` states of
+the script as the ledger runs it, `deployed` (the optimized deserializer and the policy, with a
+seed and tokens of the test's own), that only the seed mints:
+`forAllData[v1.ScriptContext](ctx => succeeds(deployed, ctx.toData) ==> onlyTheSeedMints(ctx))`.
+The context is one `Data`, with no shape. Within 2000 steps (`Budget.Within`) Lean was still in the
+symbolic run of a test after 10 minutes. Within smaller budgets it finishes, and the time grows
+steeply with the budget:
+
+| Within | The script alone | The statement |
+|---|---|---|
+| 300 | 15 s | 11 s |
+| 600 | 9 s | 32 s |
+| 900 | 69 s | no result in 3 min |
+| 1200 | no result in 3 min | no result in 3 min |
+
+The budget bounds the steps of a path, not the length of each list, so the paths are the
+combinations of the lengths of the context's lists whose runs fit in it.
+
+**With limits, the script on its context is proved.** The same statement, of the contexts of at
+most two inputs, two policies and two tokens of each (`forAllDataLimited`), is proved at 2500 steps:
+of the `Data` the node gives the script, deserializer and all. Its other lists are not limited, and
+the script does not read them. It is proved also reading the context with the script's own
+deserializer (`onlyTheSeedMintsAsRead`), which that statement takes as given.
+[Limits of a variable's collections](#limits-of-a-variables-collections) says how, and what larger
+bounds cost.
+
+What it does not show: a transaction of any other shape (more than two inputs, policies or tokens
+for the deployed script, longer lists for the policy's statements, a transaction without an input,
+or a mint without the entry of ADA, which the ledger does not give a script of version 1 or 2); that
+the tokens are minted once, which follows from the ledger spending an output once; the script on a
+larger context; and the published scripts, which `MintingPolicy` compiles with other options.
+
 ## Statements that do not finish
 
 Some statements are natural to write, and Lean does not return on them. `UplcBlasterLimitsTest`
@@ -689,7 +1045,9 @@ Lean does not finish.
 that go through the whole list, or through every round of the recursion. Some input needs more
 steps than the budget, and there a conclusion, read strongly, is false. Lean's counterexample is
 that input, a long list for instance, and the replay finds the statement true on it:
-inconclusive. Proving them takes induction, which this tactic does not do.
+inconclusive. Proving them takes induction, which this tactic does not do. Within a budget
+([A check within a budget](#a-check-within-a-budget)) they are proved of the inputs whose runs end
+within it.
 
 **Where the time goes.** There are two mechanisms. The reason of a check that is given up names
 the one it was in. They are also told apart with `set_option profiler true` in a check written

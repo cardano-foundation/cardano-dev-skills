@@ -46,13 +46,16 @@ side stays in the backends: Lean 4, Blaster and Z3 today.
   sbt plugin has `leanWorkspace`, `leanInit` and `leanBuild`.
 
 The statements are about real code. `PreludeProofsTest` restates the theorems first written by
-hand in Lean (§8.1). In the examples, `VestingVerificationTest`, `HtlcVerificationTest` and
-`PaymentSplitterVerificationTest` prove properties of validators over script contexts written as
-`Data`. ci-jvm passes on the kept results, and the Lean-Proofs workflow recalculates them nightly
-and on a push that changes what the proofs are made of.
+hand in Lean (§8.1). In the examples, `VestingVerificationTest`, `HtlcVerificationTest`,
+`PaymentSplitterVerificationTest` and `MintingPolicyVerificationTest` prove properties of
+validators over script contexts written as `Data`. ci-jvm passes on the kept results, and the
+Lean-Proofs workflow recalculates them nightly and on a push that changes what the proofs are made
+of.
 
 `Spec` replaces the `spec.requires` / `spec.ensures` clauses of the first prototype, and
-`VestingValidator` states its guarantees with it (§8.2).
+`VestingValidator` states its guarantees with it (§8.2), as does the one-shot `MintingPolicy`
+(`scalus.examples.oneshotmint`), in `mint`, the inline function of the policy on the minting
+context that a deserializer reads.
 
 Statements are declared by name, `statement` or `refute` for a negative control, and run as
 `VerificationRequest`s by `LeanProofs`, which holds each to its `ExpectedOutcome` (§4.5, §5.2).
@@ -243,7 +246,7 @@ supply its own generator registry without changing this marker.
 
 | Version | Types |
 |---|---|
-| v1 | `BigInt`, `Boolean`, `ByteString`, `Data` |
+| v1 | `BigInt`, `Boolean`, `ByteString`, `String`, `Data` |
 | v2 | case classes and enums deriving `ToData`/`FromData` (Lean `structure`/`inductive` plus `IsData` are generated); `List` and `Option` of quantifiable types |
 | later | ledger types (`ScriptContext`, …) with the ledger validity predicate (§6.2) |
 
@@ -668,7 +671,8 @@ Here `tactic` is a proof backend implementing `Tactic`. The following source syn
 target capture is not implemented yet.
 
 `UplcBlaster`, in `scalus.verify.uplcblaster`, is the first `Tactic`. It accepts universal and
-existential quantifiers over `BigInt`, `Boolean`, `ByteString`, `Data` and case classes of them.
+existential quantifiers over `BigInt`, `Boolean`, `ByteString`, `String`, `Data` and case classes
+of them.
 `existsLet` is eliminated by applying the statement body to its supplied witness.
 
 - Each leaf of the body (a Boolean test, a total call, `denotes`, `equal`) is compiled to its own
@@ -779,7 +783,7 @@ enum VerificationResult:
 trait Tactic:
     type Prepared
     def prepare(goal: Goal): Either[CompatibilityReport, Prepared]
-    def run(prepared: Prepared): ExecutionResult
+    def run(prepared: Prepared, earlier: Option[Kept] = None): ExecutionResult
 
 trait ProofArtifact:
     def kind: ProofKind
@@ -869,9 +873,10 @@ backend again for a statement that has not changed. It is the same for every tac
 verifier keeps and looks up, and a tactic says what its results rest on.
 
 Built: `KeptResults` and `Verifier.keeping(results)`, the tactic's side for `blaster-uplc`, and
-the suites of proofs about code, `PreludeProofsTest`, `VestingVerificationTest` and
-`HtlcVerificationTest`, each with its file. A suite about the tactic itself keeps nothing: what it tests is not in a statement's
-fingerprint, and Lean is to be asked every time.
+the suites of proofs about code, `PreludeProofsTest`, `VestingVerificationTest`,
+`HtlcVerificationTest`, `PaymentSplitterVerificationTest` and `MintingPolicyVerificationTest`,
+each with its file. A suite about the tactic itself keeps nothing: what it tests is not in a
+statement's fingerprint, and Lean is to be asked every time.
 
 **What is kept, by the result.**
 
@@ -898,13 +903,12 @@ trait Tactic:
     def fingerprint(prepared: Prepared): Option[Fingerprint]
     /** What is kept of a result: a proof, or a refutation with its counterexample. */
     def keep(prepared: Prepared, result: ExecutionResult): Option[Kept]
-    /** The result that `kept` stands for, made without the backend. */
-    def restore(prepared: Prepared, kept: Kept): Option[ExecutionResult]
-    /** `run`, starting from what was kept of an earlier result. */
-    def run(prepared: Prepared, earlier: Kept): ExecutionResult
+    /** The result that `kept` stands for, made without the backend, or why it no longer stands. */
+    def restore(prepared: Prepared, kept: Kept): Either[String, ExecutionResult]
 ```
 
-A tactic that defines none of them runs as before. A hash is the first 16 hexadecimal digits of
+`run` gets what was kept of an earlier result, where there is one, to start from: a budget that
+was found, for instance. A tactic that defines none of these runs as before. A hash is the first 16 hexadecimal digits of
 a SHA-256: the file is guarded against a change, not against a hand, and the whole hash would
 say no more and read worse.
 
@@ -934,7 +938,7 @@ beside the suite's source, as `<Suite>.proofs.json`.
 {
   "environment": {
     "uplc-blaster": {
-      "Blaster": "3a141c8d06f1",
+      "Blaster": "6c27ff9faa66",
       "PlutusCore": "2919b66445cd",
       "ScalusProofs": "eb9642f1ddd4f46e",
       "toolchain": "leanprover/lean4:v4.24.0"
@@ -993,8 +997,12 @@ beside the suite's source, as `<Suite>.proofs.json`.
   place of the old one, so the file does not grow with every change of the compiler.
 - **The backend's side is said once,** for the file and the tactic. A change of the toolchain or
   of Blaster is then one line that changes, and every entry of the tactic is stale with it. The
-  first result that is kept for the new side takes the others out of the file: they were proved
-  with the old one.
+  first result that is kept for the new side moves the others to the file's `former` results:
+  they were proved with the old one, and are no results. They are still a start, until each is
+  kept again or no test states it, also in a later run than the one that moved them: where the
+  statement and its programs are as they were, the tactic gets the old entry to begin from, and
+  a refutation, which it replays without the backend, is restored as it was
+  (`KeptResults.keptOnAnotherSide`).
 - **A tactic keeps its own notes with a result.** `blaster-uplc` keeps the budget its search came
   to, which a later run starts from
   ([Finding the budget](verification-details/blaster-budget-search.md)), and how the statement
@@ -1053,7 +1061,7 @@ trait Tactic {
     type Prepared
     def name: String
     def prepare(goal: Goal): Either[CompatibilityReport, Prepared]
-    def run(prepared: Prepared): ExecutionResult
+    def run(prepared: Prepared, earlier: Option[Kept] = None): ExecutionResult
 }
 
 final case class Goal(statement: Statement, functions: FunctionTable, lemmas: List[Theorem])
@@ -1134,9 +1142,10 @@ No calibration between Scalus's metering and Lean's steps is needed.
 
 **Limits.**
 
-- Quantified variables are `BigInt`, `Boolean`, `ByteString`, `Data` or case classes of them for
-  now; values inside tests, such as call arguments and results, can have any type. An enum or a
-  list cannot be quantified over yet; quantify over `Data` with `FromData`.
+- Quantified variables are `BigInt`, `Boolean`, `ByteString`, `String`, `Data`, lists and maps
+  (as their representation passes them, restricted to their type's values by a predicate derived
+  from the type), or case classes and enums of them; values inside tests, such as call arguments
+  and results, can have any type.
 - Programs must be compiled without the CIP-153 `Value` and CIP-138 array builtins, which the
   Lean model lacks. A ledger `Value` represented as `Data` is unaffected.
 - Programs that read single bytes or reach the CIP-121/122 bitwise builtins cannot be proved over

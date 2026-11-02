@@ -28,19 +28,19 @@
 "Apollo": c468d60da4a02b90e45e85475fae494aa591399e
 "BLS12-381 Examples and Standards": 3f43b60c92beb98a43331a00ae6a5ec1316acce1
 "Blockfrost OpenAPI": 1d4d5d8bac8f0c641eea5c6f7b1f3fbbed8d1505
-"Buildooor": 7551104ea29d5606c2dd00d17c7ff71a2fe28d29
-"CHaP": 8b4b3fc75c97e8f4c3b504d8582ec748809114e8
+"Buildooor": 361c964cefc706b21a0970590f09e6f63470a148
+"CHaP": 341f9b0705d66a072aa6ee32218e5f482be9f89f
 "CIP-113 Programmable Tokens": 369e8c280609208b388c77937dc3a18e02561b0a
-"CIP-113 Programmable Tokens Platform": ab75bd5d16f4c7d5e5a5ced54ec3bf3d5ff775ce
+"CIP-113 Programmable Tokens Platform": dd94999ef9cb3af7d192e621fd30890fb7282931
 "CIP-113 SDK (TypeScript)": 547132ccd417be670534098a8b1cb3d5d2715243
 "CIPs": cc548aa2e5b24a8c5309abcd43fa911418f92896
-"Cardano Addresses": ef9368855c0ffe552530058c5df04db38529f475
+"Cardano Addresses": 8ff303919af0f02c580074baea082505f0812c8f
 "Cardano CLI": eda1108d7cdf847460899d351cb5b02296d54794
-"Cardano Connect with Wallet": 47ceba88338f19b576bf72251e8158a7883a5e45
+"Cardano Connect with Wallet": 83c55f4788483218d1446d02930a777921dc3b6e
 "Cardano Constitution": 3d4c0d9cc76ee4a4b02cc9742bd4d92bc408ffe2
 "Cardano Docs": 31616f9ce1cd64d6311a911b6c386681b258a358
 "Cardano GraphQL": fcfe3154115ef176788a60b2eae925ee42aabd7c
-"Cardano Ledger": 7fa3963cce708eae06f2443820de7adfa5dd3ecf
+"Cardano Ledger": af08d7b551a31a3e87cf9b46dfa65bf99588294b
 "Cardano Ledger API Blaster": 9938562fd452351655fe2f6b63e583c62422687c
 "Cardano Node Antithesis": 3d7e08657faaa14d47c1c95c02c63d9f65b75dc9
 "Cardano Node Wiki": 2b069655b5cacda7be6c2ac21a4fa159ec6a4c09
@@ -56,7 +56,7 @@
 "Dingo": 857f7bf0a20b1363ccd6351f57186ca6af38f6cd
 "Dolos": 34d2b7f619724de0a19da322b04e41deccea7465
 "Evolution SDK": b7b7672866428546a1172c487e854ae70b8d8da4
-"Evolution SDK Packages": c728c87abb4f30ad189855ff211031cc21f240a9
+"Evolution SDK Packages": b7b7672866428546a1172c487e854ae70b8d8da4
 "GovTool": 34bf94d5c56e701135c0418cd7a3e483810d7b37
 "Helios": 7364d795562b96d14b1e177b28c103eb240d0f54
 "Hydra": 0cfa625237ec79ba0c68db28e8350004e37352d5
@@ -65,25 +65,25 @@
 "Lean Blaster": a16614e5e44a693664043552f259235f15f1c884
 "Masumi": 10e1076d78af452350cdab5bd2bc974b7a17ce28
 "Mesh SDK": e83c3ad07d89ce4ea73b72c6f892404a4474df85
-"Mesh SDK Packages": 0e5138cca0de0defcf73106cf035a30233cd5159
+"Mesh SDK Packages": 6808a6817da4d0672544106fb126ac2f77a027ea
 "Mithril": 1f55bfa4725043e454c5a077aa01b36910b85e2e
 "Ogmios": 435189aea2d9a047dc395a6f1cdef737d52f1cbe
 "OpShin": 756a6a102b0bd5778029455719cd6f856ac5d34e
-"Oura": 8433b1049b250b1c1ccc174e5ee17d5963effe5c
-"Ouroboros Leios": 49f7c4a2c37577e187e562d196cf8876815918a5
-"Pallas": e6c38ac567ee907db6a3cfdbbcaae1b47908d839
+"Oura": 75482fc7585a2eee71429076c2f5f0f772a158d6
+"Ouroboros Leios": b5fc3639bb021e25222778faf5d7e1c8d9ff5cd1
+"Pallas": b4a519faa9522a1ab0629d976316d9153dfeebd7
 "Pebble": 66e26380e3302137c5263b6f8e5dc49351366737
-"Plinth": 8fd7b6f345d3265ea3a128b45576685c0538f083
-"Plutarch": 87e11994c45b6af4768e5b6146d9c94879e279b5
+"Plinth": 1ef5a0eef37772e35b1e587f7a3b0afa61be4358
+"Plutarch": 84f02d544c10d67084c8a0e304758ec8cfbc5dd7
 "PyCardano": 877be3ad9a2221fce7eac777c9927430cbc3b868
-"Pyth Lazer Cardano": b6e52cf6a1857cdd17197dbf96dc6e7c254724c0
+"Pyth Lazer Cardano": c875af6c87b08b507664c76d839e82d6167c9356
 "SanchoNet": b4ece78e1552ba4e61426fb4fa53aead0e18da4a
 "Scalus": 678562d32b1354a399b387ee2b92b0b081eb0d0c
 "Tx3": 4e0e4cf09084a3d17dc71744d0d4db896b91e4d2
 "UTxORPC Go SDK": 3161ac9ea8eb31914643540b8c64a4ad05948c55
 "Yaci DevKit": e67d385799b40aab0992d0b3616dfd8c14ed5ff8
-"Yaci Store": ef856acaf5199679d6eea5275853c6497bd65a61
-"Yaci Store MCP": 5842de3c7755c2aba2c54a4f629fd691324e0f2b
+"Yaci Store": c78bea2cc3b9c7063a013c286c8a952a63402a76
+"Yaci Store MCP": c78bea2cc3b9c7063a013c286c8a952a63402a76
 "blockfrost-go": 7c2f324c451977a542722ebcb6ec1c70f3d26b1e
 "cardano-client-lib": 4649b91433f2c5558f5f1035df7e27c31e97a1aa
 "cardano-js-sdk": 48019e49c826ea77d81be0e2d2907f94406f5e04

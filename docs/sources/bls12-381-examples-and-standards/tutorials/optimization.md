@@ -1716,7 +1716,7 @@ nova fold --nifs --circuit step_circuit.r1cs --steps ./step_witnesses/ \
   --compression-r1cs compression.r1cs --out bundle.ivc.json
 
 # prove the single folded instance with Groth16
-nova compress --groth16 --circuit step_circuit.r1cs --steps ./step_witnesses/ \
+nova compress --circuit step_circuit.r1cs --steps ./step_witnesses/ \
   --proving-key compression.pk --out compression.proof.json
 
 # verify: transcript/state-chain check + ONE pairing check
@@ -1761,7 +1761,7 @@ And notice what the commands now *don't* contain. There is no ceremony step:
 nova fold --nifs --circuit step_circuit.r1cs --steps ./step_witnesses/ --out bundle.ivc.json
 
 # compress: prove the final instance with a transparent sumcheck argument
-nova compress --circuit step_circuit.r1cs --steps ./step_witnesses/ --out sumcheck.proof.json
+nova compress --sumcheck --circuit step_circuit.r1cs --steps ./step_witnesses/ --out sumcheck.proof.json
 
 # verify: transcript/state-chain check + sumcheck (pairing-free)
 nova verify --ivc bundle.ivc.json --sumcheck-proof sumcheck.proof.json

@@ -291,11 +291,12 @@ func (n *Node) initLeiosVoteManager(ctx context.Context) error {
 		// committee computation and the stake snapshot queries behind
 		// it.
 		SlotProvider: n.ledgerState,
-		// Source the vote-acceptance past bound from the same pipeline
-		// timing the pipeline manager uses, so the two components admit
-		// votes over the same window and cannot drift.
-		VoteWindowSlots: n.leiosPipelineTiming().VoteWindowSlots,
-		PromRegistry:    n.config.promRegistry,
+		// Source local vote production and relayed vote acceptance from the
+		// pipeline's corresponding boundaries. Relayed votes remain useful
+		// until the certification deadline even after local voting closes.
+		VoteWindowSlots:        n.leiosPipelineTiming().VoteWindowSlots,
+		CertifyByDeadlineSlots: n.leiosPipelineTiming().CertifyByDeadlineSlots,
+		PromRegistry:           n.config.promRegistry,
 	})
 	if err != nil {
 		return fmt.Errorf("create leios vote manager: %w", err)
@@ -304,6 +305,7 @@ func (n *Node) initLeiosVoteManager(ctx context.Context) error {
 		return fmt.Errorf("start leios vote manager: %w", err)
 	}
 	n.leiosVoteManager = mgr
+	n.leiosCertificateVerifier.Store(mgr)
 	// Deliberately not wired into ouroboros here. Run initializes the Leios
 	// managers before it constructs Ouroboros, so reaching for the instance
 	// at this point dereferences a nil pointer. attachLeiosHandlers installs

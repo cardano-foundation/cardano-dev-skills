@@ -12,7 +12,11 @@ import (
 	"strings"
 )
 
-const metadataStringMaxBytes = 64
+const (
+	metadataStringMaxBytes = 64
+	maxMetadataJSONBytes   = 8 << 20
+	maxMetadataJSONDepth   = 512
+)
 
 var (
 	maxMetadataInteger = new(big.Int).SetUint64(^uint64(0))
@@ -48,6 +52,9 @@ func ShelleyMetadataFromJSON(jsonData []byte) (map[uint64]any, error) {
 
 // ShelleyMetadataFromJSONWithSchema parses metadata JSON using the requested Cardano mapping.
 func ShelleyMetadataFromJSONWithSchema(jsonData []byte, schema MetadataJSONSchema) (map[uint64]any, error) {
+	if err := validateMetadataJSONBounds(jsonData); err != nil {
+		return nil, err
+	}
 	var raw any
 	dec := json.NewDecoder(bytes.NewReader(jsonData))
 	dec.UseNumber()
@@ -62,6 +69,40 @@ func ShelleyMetadataFromJSONWithSchema(jsonData []byte, schema MetadataJSONSchem
 		return nil, fmt.Errorf("decode metadata JSON: %w", err)
 	}
 	return parseTopLevelMetadata(raw, schema)
+}
+
+func validateMetadataJSONBounds(data []byte) error {
+	if len(data) > maxMetadataJSONBytes {
+		return fmt.Errorf("metadata JSON exceeds %d bytes", maxMetadataJSONBytes)
+	}
+	depth := 0
+	inString := false
+	escaped := false
+	for _, ch := range data {
+		if inString {
+			switch {
+			case escaped:
+				escaped = false
+			case ch == '\\':
+				escaped = true
+			case ch == '"':
+				inString = false
+			}
+			continue
+		}
+		switch ch {
+		case '"':
+			inString = true
+		case '[', '{':
+			depth++
+			if depth > maxMetadataJSONDepth {
+				return fmt.Errorf("metadata JSON exceeds %d nested containers", maxMetadataJSONDepth)
+			}
+		case ']', '}':
+			depth--
+		}
+	}
+	return nil
 }
 
 func parseTopLevelMetadata(raw any, schema MetadataJSONSchema) (map[uint64]any, error) {

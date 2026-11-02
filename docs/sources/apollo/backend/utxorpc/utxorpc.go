@@ -5,12 +5,15 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"math/big"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/blinklabs-io/gouroboros/cbor"
@@ -20,8 +23,12 @@ import (
 	"github.com/blinklabs-io/gouroboros/ledger/shelley"
 	alphacardano "github.com/utxorpc/go-codegen/utxorpc/v1alpha/cardano"
 	alphaquery "github.com/utxorpc/go-codegen/utxorpc/v1alpha/query"
+	"github.com/utxorpc/go-codegen/utxorpc/v1alpha/query/queryconnect"
 	alphasubmit "github.com/utxorpc/go-codegen/utxorpc/v1alpha/submit"
+	"github.com/utxorpc/go-codegen/utxorpc/v1alpha/submit/submitconnect"
 	alphasync "github.com/utxorpc/go-codegen/utxorpc/v1alpha/sync"
+	"github.com/utxorpc/go-codegen/utxorpc/v1alpha/sync/syncconnect"
+	"github.com/utxorpc/go-codegen/utxorpc/v1alpha/watch/watchconnect"
 	cardano "github.com/utxorpc/go-codegen/utxorpc/v1beta/cardano"
 	query "github.com/utxorpc/go-codegen/utxorpc/v1beta/query"
 	submit "github.com/utxorpc/go-codegen/utxorpc/v1beta/submit"
@@ -46,14 +53,25 @@ type UtxoRpcChainContext struct {
 
 	versionMu sync.Mutex
 	version   protoVersion
+
+	cacheMu        sync.Mutex
+	cachedParams   *backend.ProtocolParameters
+	cachedGenesis  *backend.GenesisParameters
+	paramsCacheAt  time.Time
+	genesisCacheAt time.Time
 }
+
+// cacheExpiry is how long protocol and genesis parameters are reused before
+// the server is asked again. The transaction builder reads them many times per
+// transaction.
+const cacheExpiry = 5 * time.Minute
 
 var _ backend.ContextChainContext = (*UtxoRpcChainContext)(nil)
 
 // Capabilities reports the UTxO RPC operations supported by this client.
 func (u *UtxoRpcChainContext) Capabilities() backend.CapabilitySet {
 	return backend.CapabilitySet(backend.AllCapabilities) &^
-		backend.CapabilitySet(backend.CapabilityGenesisParams|backend.CapabilityCurrentEpoch|
+		backend.CapabilitySet(backend.CapabilityCurrentEpoch|
 			backend.CapabilityEvaluateTxAdditionalUtxos|backend.CapabilityScriptCbor)
 }
 
@@ -71,10 +89,13 @@ func (e *EvaluationError) Error() string {
 func NewUtxoRpcChainContext(baseUrl string, networkId uint8, headers map[string]string) *UtxoRpcChainContext {
 	opts := []sdk.ClientOption{
 		sdk.WithBaseUrl(baseUrl),
+		sdk.WithConnectOptions(connect.WithReadMaxBytes(maxRpcResponseBytes)),
 	}
 	if len(headers) > 0 {
 		opts = append(opts, sdk.WithHeaders(headers))
 	}
+	baseClient := sdk.NewClient(opts...)
+	opts = append(opts, sdk.WithHttpClient(&boundedResponseClient{client: baseClient.HTTPClient()}))
 	client := sdk.NewClient(opts...)
 	// Both clients are built up front because neither constructor performs
 	// network I/O; only the one that ends up negotiated is ever used.
@@ -84,49 +105,99 @@ func NewUtxoRpcChainContext(baseUrl string, networkId uint8, headers map[string]
 	if len(headers) > 0 {
 		alphaOpts = append(alphaOpts, alphasdk.WithHeaders(headers))
 	}
+	baseAlphaClient := alphasdk.NewClient(alphaOpts...)
+	alphaOpts = append(alphaOpts, alphasdk.WithHttpClient(&boundedResponseClient{client: baseAlphaClient.HTTPClient()}))
+	alphaClient := alphasdk.NewClient(alphaOpts...)
+	alphaConnectOpts := []connect.ClientOption{connect.WithGRPC(), connect.WithReadMaxBytes(maxRpcResponseBytes)}
+	alphaClient.Query = queryconnect.NewQueryServiceClient(alphaClient.HTTPClient(), baseUrl, alphaConnectOpts...)
+	alphaClient.Submit = submitconnect.NewSubmitServiceClient(alphaClient.HTTPClient(), baseUrl, alphaConnectOpts...)
+	alphaClient.Sync = syncconnect.NewSyncServiceClient(alphaClient.HTTPClient(), baseUrl, alphaConnectOpts...)
+	alphaClient.Watch = watchconnect.NewWatchServiceClient(alphaClient.HTTPClient(), baseUrl, alphaConnectOpts...)
 	return &UtxoRpcChainContext{
 		client:      client,
-		alphaClient: alphasdk.NewClient(alphaOpts...),
+		alphaClient: alphaClient,
 		networkId:   networkId,
 	}
 }
 
-func bigIntToInt64(bi *cardano.BigInt) int64 {
+const (
+	maxRpcResponseBytes = 16 * 1024 * 1024
+	maxRpcPageItems     = 1000
+)
+
+type boundedResponseClient struct {
+	client connect.HTTPClient
+}
+
+func (c *boundedResponseClient) Do(req *http.Request) (*http.Response, error) {
+	resp, err := c.client.Do(req)
+	if err != nil || resp == nil || resp.Body == nil {
+		return resp, err
+	}
+	if resp.ContentLength > maxRpcResponseBytes {
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("UTxO RPC response exceeds %d bytes", maxRpcResponseBytes)
+	}
+	resp.Body = &boundedResponseBody{ReadCloser: resp.Body, remaining: maxRpcResponseBytes + 1}
+	return resp, nil
+}
+
+type boundedResponseBody struct {
+	io.ReadCloser
+	remaining int64
+}
+
+func (b *boundedResponseBody) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	if b.remaining == 0 {
+		return 0, fmt.Errorf("UTxO RPC response exceeds %d bytes", maxRpcResponseBytes)
+	}
+	if int64(len(p)) > b.remaining {
+		p = p[:b.remaining]
+	}
+	n, err := b.ReadCloser.Read(p)
+	b.remaining -= int64(n)
+	if b.remaining == 0 {
+		return n, fmt.Errorf("UTxO RPC response exceeds %d bytes", maxRpcResponseBytes)
+	}
+	return n, err
+}
+
+func requiredFeeInt64(bi *cardano.BigInt, field string) (int64, error) {
 	if bi == nil {
-		return 0
+		return 0, fmt.Errorf("missing %s", field)
 	}
 	oneof := bi.GetBigInt()
 	if oneof == nil {
-		return 0
+		return 0, fmt.Errorf("missing %s", field)
 	}
+	var value int64
 	switch v := oneof.(type) {
 	case *cardano.BigInt_Int:
 		if v == nil {
-			return 0
+			return 0, fmt.Errorf("missing %s", field)
 		}
-		return v.Int
+		value = v.Int
 	case *cardano.BigInt_BigUInt:
 		if v == nil {
-			return 0
+			return 0, fmt.Errorf("missing %s", field)
 		}
 		n := new(big.Int).SetBytes(v.BigUInt)
 		if !n.IsInt64() {
-			return math.MaxInt64
+			return 0, fmt.Errorf("%s exceeds int64 range", field)
 		}
-		return n.Int64()
+		value = n.Int64()
 	case *cardano.BigInt_BigNInt:
-		if v == nil {
-			return 0
-		}
-		n := new(big.Int).SetBytes(v.BigNInt)
-		n.Neg(n)
-		if !n.IsInt64() {
-			return math.MinInt64
-		}
-		return n.Int64()
+		return 0, fmt.Errorf("invalid negative %s", field)
 	default:
-		return 0
+		return 0, fmt.Errorf("missing %s", field)
 	}
+	if value <= 0 {
+		return 0, fmt.Errorf("invalid %s", field)
+	}
+	return value, nil
 }
 
 func bigIntToString(bi *cardano.BigInt) string {
@@ -165,6 +236,28 @@ func (u *UtxoRpcChainContext) ProtocolParams() (backend.ProtocolParameters, erro
 }
 
 func (u *UtxoRpcChainContext) ProtocolParamsContext(ctx context.Context) (backend.ProtocolParameters, error) {
+	u.cacheMu.Lock()
+	if u.cachedParams != nil && time.Since(u.paramsCacheAt) < cacheExpiry {
+		pp := backendutil.CloneProtocolParams(*u.cachedParams)
+		u.cacheMu.Unlock()
+		return pp, nil
+	}
+	u.cacheMu.Unlock()
+
+	pp, err := u.fetchProtocolParams(ctx)
+	if err != nil {
+		return backend.ProtocolParameters{}, err
+	}
+
+	cached := backendutil.CloneProtocolParams(pp)
+	u.cacheMu.Lock()
+	u.cachedParams = &cached
+	u.paramsCacheAt = time.Now()
+	u.cacheMu.Unlock()
+	return pp, nil
+}
+
+func (u *UtxoRpcChainContext) fetchProtocolParams(ctx context.Context) (backend.ProtocolParameters, error) {
 	msg, err := callWithVersionFallback(ctx, u,
 		func(ctx context.Context) (*query.ReadParamsResponse, error) {
 			req := connect.NewRequest(&query.ReadParamsRequest{})
@@ -215,9 +308,17 @@ func (u *UtxoRpcChainContext) ProtocolParamsContext(ctx context.Context) (backen
 		return backend.ProtocolParameters{}, err
 	}
 
+	minFeeCoefficient, err := requiredFeeInt64(params.GetMinFeeCoefficient(), "min fee coefficient")
+	if err != nil {
+		return backend.ProtocolParameters{}, err
+	}
+	minFeeConstant, err := requiredFeeInt64(params.GetMinFeeConstant(), "min fee constant")
+	if err != nil {
+		return backend.ProtocolParameters{}, err
+	}
 	pp := backend.ProtocolParameters{
-		MinFeeCoefficient:   bigIntToInt64(params.GetMinFeeCoefficient()),
-		MinFeeConstant:      bigIntToInt64(params.GetMinFeeConstant()),
+		MinFeeCoefficient:   minFeeCoefficient,
+		MinFeeConstant:      minFeeConstant,
 		MaxBlockSize:        maxBlockSize,
 		MaxTxSize:           maxTxSize,
 		MaxBlockHeaderSize:  maxBlockHeaderSize,
@@ -238,14 +339,15 @@ func (u *UtxoRpcChainContext) ProtocolParamsContext(ctx context.Context) (backen
 		pp.MaxBlockExSteps = strconv.FormatUint(blockEx.GetSteps(), 10)
 	}
 
-	prices := params.GetPrices()
-	if prices != nil {
-		if prices.GetMemory() != nil && prices.GetMemory().GetDenominator() != 0 {
-			pp.PriceMem = float64(prices.GetMemory().GetNumerator()) / float64(prices.GetMemory().GetDenominator())
-		}
-		if prices.GetSteps() != nil && prices.GetSteps().GetDenominator() != 0 {
-			pp.PriceStep = float64(prices.GetSteps().GetNumerator()) / float64(prices.GetSteps().GetDenominator())
-		}
+	priceMem, priceStep, err := requiredExecutionPrices(params.GetPrices())
+	if err != nil {
+		return backend.ProtocolParameters{}, err
+	}
+	pp.PriceMem = priceMem
+	pp.PriceStep = priceStep
+
+	if err := setProtocolVersion(&pp, params.GetProtocolVersion()); err != nil {
+		return backend.ProtocolParameters{}, err
 	}
 
 	// Conway reference-script base price (lovelace per byte for the first tier),
@@ -255,6 +357,34 @@ func (u *UtxoRpcChainContext) ProtocolParamsContext(ctx context.Context) (backen
 	pp.CostModels = costModelsFromRpc(params.GetCostModels())
 
 	return pp, nil
+}
+
+func requiredExecutionPrices(prices *cardano.ExPrices) (float64, float64, error) {
+	if prices == nil || prices.GetMemory() == nil || prices.GetMemory().GetNumerator() <= 0 || prices.GetMemory().GetDenominator() == 0 ||
+		prices.GetSteps() == nil || prices.GetSteps().GetNumerator() <= 0 || prices.GetSteps().GetDenominator() == 0 {
+		return 0, 0, errors.New("missing or invalid execution prices")
+	}
+	return float64(prices.GetMemory().GetNumerator()) / float64(prices.GetMemory().GetDenominator()),
+		float64(prices.GetSteps().GetNumerator()) / float64(prices.GetSteps().GetDenominator()), nil
+}
+
+// setProtocolVersion copies the chain's protocol version, which gates
+// era-specific transaction formats such as Dijkstra.
+func setProtocolVersion(pp *backend.ProtocolParameters, version *cardano.ProtocolVersion) error {
+	if version == nil {
+		return nil
+	}
+	major, err := backendutil.BoundedIntFromUint64(uint64(version.GetMajor()), "protocol major version")
+	if err != nil {
+		return err
+	}
+	minor, err := backendutil.BoundedIntFromUint64(uint64(version.GetMinor()), "protocol minor version")
+	if err != nil {
+		return err
+	}
+	pp.ProtocolMajorVersion = major
+	pp.ProtocolMinorVersion = minor
+	return nil
 }
 
 func setReferenceScriptFeePrice(pp *backend.ProtocolParameters, price *cardano.RationalNumber) {
@@ -295,11 +425,133 @@ func (u *UtxoRpcChainContext) GenesisParams() (backend.GenesisParameters, error)
 	return u.GenesisParamsContext(context.Background())
 }
 
+// GenesisParamsContext reads the chain's genesis configuration with
+// ReadGenesis. A server that implements ReadGenesis in neither utxorpc.v1beta
+// nor utxorpc.v1alpha yields an error matching backend.ErrUnsupported.
+// ReadGenesis is newer than the other queries, so a server may serve it in a
+// different version from the one negotiated for them; both are tried.
 func (u *UtxoRpcChainContext) GenesisParamsContext(ctx context.Context) (backend.GenesisParameters, error) {
-	if err := ctx.Err(); err != nil {
+	u.cacheMu.Lock()
+	if u.cachedGenesis != nil && time.Since(u.genesisCacheAt) < cacheExpiry {
+		gp := *u.cachedGenesis
+		u.cacheMu.Unlock()
+		return gp, nil
+	}
+	u.cacheMu.Unlock()
+
+	msg, err := callEitherVersion(ctx, u,
+		func(ctx context.Context) (*query.ReadGenesisResponse, error) {
+			req := connect.NewRequest(&query.ReadGenesisRequest{})
+			u.client.AddHeadersToRequest(req)
+			resp, err := u.client.ReadGenesisWithContext(ctx, req)
+			if err != nil {
+				return nil, err
+			}
+			return resp.Msg, nil
+		},
+		func(ctx context.Context) (*query.ReadGenesisResponse, error) {
+			req := connect.NewRequest(&alphaquery.ReadGenesisRequest{})
+			u.alphaClient.AddHeadersToRequest(req)
+			resp, err := u.alphaClient.ReadGenesisWithContext(ctx, req)
+			if err != nil {
+				return nil, err
+			}
+			return transcodeTo(resp.Msg, &query.ReadGenesisResponse{})
+		},
+	)
+	if err != nil {
+		if isUnimplemented(err) {
+			return backend.GenesisParameters{}, fmt.Errorf(
+				"%w: %w",
+				backend.NewUnsupportedError("UTxO RPC server", backend.CapabilityGenesisParams),
+				err,
+			)
+		}
 		return backend.GenesisParameters{}, err
 	}
-	return backend.GenesisParameters{}, backend.NewUnsupportedError("UTxO RPC", backend.CapabilityGenesisParams)
+
+	genesis := msg.GetCardano()
+	if genesis == nil {
+		return backend.GenesisParameters{}, errors.New("no cardano genesis in response")
+	}
+	gp, err := genesisFromRpc(genesis)
+	if err != nil {
+		return backend.GenesisParameters{}, err
+	}
+
+	u.cacheMu.Lock()
+	u.cachedGenesis = &gp
+	u.genesisCacheAt = time.Now()
+	u.cacheMu.Unlock()
+	return gp, nil
+}
+
+// genesisFromRpc converts a UTxO RPC genesis configuration. Proto3 cannot tell
+// an absent scalar from zero, so a zero where the ledger requires a positive
+// value is treated as missing rather than passed on.
+func genesisFromRpc(g *cardano.Genesis) (backend.GenesisParameters, error) {
+	coeff := g.GetActiveSlotsCoeff()
+	// The coefficient is a probability in (0, 1].
+	if coeff == nil || coeff.GetDenominator() == 0 || coeff.GetNumerator() <= 0 ||
+		int64(coeff.GetNumerator()) > int64(coeff.GetDenominator()) {
+		return backend.GenesisParameters{}, fmt.Errorf("invalid active slots coefficient %v", coeff)
+	}
+	if g.GetEpochLength() == 0 {
+		return backend.GenesisParameters{}, errors.New("genesis epoch length is missing")
+	}
+	// UTxO RPC reports slot length in milliseconds; GenesisParameters holds
+	// whole seconds, so a length that is not one is rejected, not rounded.
+	slotMillis := g.GetSlotLength()
+	if slotMillis == 0 {
+		return backend.GenesisParameters{}, errors.New("genesis slot length is missing")
+	}
+	if slotMillis%1000 != 0 {
+		return backend.GenesisParameters{}, fmt.Errorf(
+			"genesis slot length %d ms is not a whole number of seconds", slotMillis,
+		)
+	}
+	if g.GetSystemStart() == "" {
+		return backend.GenesisParameters{}, errors.New("genesis system start is missing")
+	}
+	systemStart, err := time.Parse(time.RFC3339, g.GetSystemStart())
+	if err != nil {
+		return backend.GenesisParameters{}, fmt.Errorf("invalid genesis system start %q: %w", g.GetSystemStart(), err)
+	}
+	supply := g.GetMaxLovelaceSupply()
+	if supply == nil || supply.GetBigInt() == nil {
+		return backend.GenesisParameters{}, errors.New("genesis max lovelace supply is missing")
+	}
+	maxSupply := bigIntToString(supply)
+	if strings.HasPrefix(maxSupply, "-") {
+		return backend.GenesisParameters{}, fmt.Errorf("negative genesis max lovelace supply %s", maxSupply)
+	}
+
+	gp := backend.GenesisParameters{
+		ActiveSlotsCoefficient: float64(coeff.GetNumerator()) / float64(coeff.GetDenominator()),
+		MaxLovelaceSupply:      maxSupply,
+		SystemStart:            systemStart.Unix(),
+	}
+	fields := []struct {
+		dst   *int
+		value uint32
+		name  string
+	}{
+		{&gp.UpdateQuorum, g.GetUpdateQuorum(), "update quorum"},
+		{&gp.NetworkMagic, g.GetNetworkMagic(), "network magic"},
+		{&gp.EpochLength, g.GetEpochLength(), "epoch length"},
+		{&gp.SlotsPerKesPeriod, g.GetSlotsPerKesPeriod(), "slots per KES period"},
+		{&gp.SlotLength, slotMillis / 1000, "slot length"},
+		{&gp.MaxKesEvolutions, g.GetMaxKesEvolutions(), "max KES evolutions"},
+		{&gp.SecurityParam, g.GetSecurityParam(), "security param"},
+	}
+	for _, field := range fields {
+		value, err := backendutil.BoundedIntFromUint64(uint64(field.value), field.name)
+		if err != nil {
+			return backend.GenesisParameters{}, err
+		}
+		*field.dst = value
+	}
+	return gp, nil
 }
 
 func (u *UtxoRpcChainContext) NetworkId() uint8 {
@@ -375,10 +627,10 @@ func (u *UtxoRpcChainContext) UtxosContext(ctx context.Context, address common.A
 	}
 
 	var utxos []common.Utxo
+	var references backendutil.UtxoReferenceSet
 	seenTokens := make(map[string]struct{})
-	const maxPages = 10_000
 	var startToken string
-	for page := 0; page < maxPages; page++ {
+	for {
 		page, err := u.searchUtxosPage(ctx, addrBytes, startToken)
 		if err != nil {
 			if startToken == "" {
@@ -389,6 +641,11 @@ func (u *UtxoRpcChainContext) UtxosContext(ctx context.Context, address common.A
 				startToken,
 				err,
 			)
+		}
+		for _, utxo := range page.utxos {
+			if err := references.Add(utxo); err != nil {
+				return nil, err
+			}
 		}
 		utxos = append(utxos, page.utxos...)
 		next := page.nextToken
@@ -401,7 +658,6 @@ func (u *UtxoRpcChainContext) UtxosContext(ctx context.Context, address common.A
 		seenTokens[next] = struct{}{}
 		startToken = next
 	}
-	return nil, fmt.Errorf("UTxO RPC pagination exceeded %d pages", maxPages)
 }
 
 // utxoPage is one page of a UTxO search, already converted to Apollo's types.
@@ -431,7 +687,9 @@ func (u *UtxoRpcChainContext) searchUtxosPage(
 ) (utxoPage, error) {
 	return callWithVersionFallback(ctx, u,
 		func(ctx context.Context) (utxoPage, error) {
+			maxItems := int32(maxRpcPageItems)
 			req := connect.NewRequest(&query.SearchUtxosRequest{
+				MaxItems: &maxItems,
 				Predicate: &query.UtxoPredicate{
 					Match: &query.AnyUtxoPattern{
 						UtxoPattern: &query.AnyUtxoPattern_Cardano{
@@ -452,6 +710,9 @@ func (u *UtxoRpcChainContext) searchUtxosPage(
 			if err != nil {
 				return utxoPage{}, err
 			}
+			if len(resp.Msg.GetItems()) > maxRpcPageItems {
+				return utxoPage{}, fmt.Errorf("UTxO RPC returned %d items in a page, maximum %d", len(resp.Msg.GetItems()), maxRpcPageItems)
+			}
 			page := utxoPage{nextToken: resp.Msg.GetNextToken()}
 			for _, item := range resp.Msg.GetItems() {
 				utxo, err := utxoFromRpc(item)
@@ -464,6 +725,7 @@ func (u *UtxoRpcChainContext) searchUtxosPage(
 		},
 		func(ctx context.Context) (utxoPage, error) {
 			req := connect.NewRequest(&alphaquery.SearchUtxosRequest{
+				MaxItems: maxRpcPageItems,
 				Predicate: &alphaquery.UtxoPredicate{
 					Match: &alphaquery.AnyUtxoPattern{
 						UtxoPattern: &alphaquery.AnyUtxoPattern_Cardano{
@@ -481,6 +743,9 @@ func (u *UtxoRpcChainContext) searchUtxosPage(
 			resp, err := u.alphaClient.SearchUtxosWithContext(ctx, req)
 			if err != nil {
 				return utxoPage{}, err
+			}
+			if len(resp.Msg.GetItems()) > maxRpcPageItems {
+				return utxoPage{}, fmt.Errorf("UTxO RPC returned %d items in a page, maximum %d", len(resp.Msg.GetItems()), maxRpcPageItems)
 			}
 			page := utxoPage{nextToken: resp.Msg.GetNextToken()}
 			for _, item := range resp.Msg.GetItems() {
@@ -540,6 +805,9 @@ func (u *UtxoRpcChainContext) SubmitTxContext(ctx context.Context, txCbor []byte
 	}
 	var result common.Blake2b256
 	copy(result[:], ref)
+	if err := backend.VerifySubmittedTxID(txCbor, result); err != nil {
+		return common.Blake2b256{}, err
+	}
 	return result, nil
 }
 
@@ -800,6 +1068,9 @@ func (u *UtxoRpcChainContext) UtxoByRefContext(
 		return nil, errors.New("utxo not found")
 	}
 	utxo := found[0]
+	if err := backend.ValidateUtxoRef(&utxo, txHash, index); err != nil {
+		return nil, err
+	}
 	return &utxo, nil
 }
 

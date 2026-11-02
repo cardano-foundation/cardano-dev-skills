@@ -22,10 +22,19 @@ context. Construction is unchanged.
 
 UTxO RPC does **not** report:
 
-- `CapabilityGenesisParams`
 - `CapabilityCurrentEpoch`
 - `CapabilityEvaluateTxAdditionalUtxos`
 - `CapabilityScriptCbor`
+
+Genesis parameters come from `ReadGenesis`. A server that implements it in
+neither `utxorpc.v1beta` nor `utxorpc.v1alpha` returns an error matching
+`backend.ErrUnsupported`. `ReadGenesis` tries both versions regardless of the
+version negotiated for other calls, since a server may add it to only one. The
+slot length must be a whole number of seconds, because
+`GenesisParameters.SlotLength` holds seconds, and the active slots coefficient
+must lie in (0, 1].
+
+Protocol and genesis parameters are cached for five minutes per context.
 
 Do not pass additional UTxOs into evaluation. Apollo already omits them when
 the capability is absent, so script transactions evaluate against the

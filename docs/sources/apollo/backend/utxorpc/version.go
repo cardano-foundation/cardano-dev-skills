@@ -113,6 +113,45 @@ func callWithVersionFallback[T any](
 	return result, nil
 }
 
+// callEitherVersion runs a request against the negotiated version, or v1beta
+// before one is negotiated, and retries it against the other version only
+// when the first reports it unimplemented. Unlike callWithVersionFallback it
+// neither follows nor changes the negotiated version: it is for RPCs that a
+// server may implement in only one version even though every other call is
+// served by the other.
+func callEitherVersion[T any](
+	ctx context.Context,
+	u *UtxoRpcChainContext,
+	beta func(context.Context) (T, error),
+	alpha func(context.Context) (T, error),
+) (T, error) {
+	first, second := beta, alpha
+	firstName, secondName := protoVersionV1Beta, protoVersionV1Alpha
+	if u.negotiatedVersion() == protoVersionV1Alpha {
+		first, second = alpha, beta
+		firstName, secondName = secondName, firstName
+	}
+
+	result, firstErr := first(ctx)
+	if !isUnimplemented(firstErr) {
+		return result, firstErr
+	}
+	result, secondErr := second(ctx)
+	if secondErr == nil {
+		return result, nil
+	}
+	if isUnimplemented(secondErr) {
+		return result, fmt.Errorf(
+			"implemented in neither utxorpc.%s nor utxorpc.%s: %w",
+			firstName, secondName, secondErr,
+		)
+	}
+	return result, fmt.Errorf(
+		"utxorpc.%s unimplemented, and the utxorpc.%s fallback failed: %w",
+		firstName, secondName, secondErr,
+	)
+}
+
 // transcode reprojects a v1alpha message onto its v1beta counterpart so the
 // conversion helpers in this package only ever read v1beta types.
 //

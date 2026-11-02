@@ -10,6 +10,16 @@ import (
 	"github.com/blinklabs-io/plutigo/data"
 )
 
+// plutusNil reports a plain nil or a typed-nil PlutusData pointer. A type
+// assertion succeeds for the typed nil, and the next field read panics.
+func plutusNil(pd data.PlutusData) bool {
+	if pd == nil {
+		return true
+	}
+	v := reflect.ValueOf(pd)
+	return v.Kind() == reflect.Pointer && v.IsNil()
+}
+
 func marshalInt(val reflect.Value) (data.PlutusData, error) {
 	switch val.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -73,7 +83,7 @@ func marshalBool(val reflect.Value, useIndef bool) (data.PlutusData, error) {
 
 func unmarshalInt(pd data.PlutusData, fieldVal reflect.Value) error {
 	integer, ok := pd.(*data.Integer)
-	if !ok {
+	if !ok || plutusNil(integer) || integer.Inner == nil {
 		return fmt.Errorf("expected Integer, got %T", pd)
 	}
 	switch fieldVal.Kind() {
@@ -167,7 +177,7 @@ func unmarshalInt(pd data.PlutusData, fieldVal reflect.Value) error {
 
 func unmarshalBigInt(pd data.PlutusData, fieldVal reflect.Value) error {
 	integer, ok := pd.(*data.Integer)
-	if !ok {
+	if !ok || plutusNil(integer) || integer.Inner == nil {
 		return fmt.Errorf("expected Integer, got %T", pd)
 	}
 	switch fieldVal.Type() {
@@ -183,7 +193,7 @@ func unmarshalBigInt(pd data.PlutusData, fieldVal reflect.Value) error {
 
 func unmarshalBytes(pd data.PlutusData, fieldVal reflect.Value) error {
 	bs, ok := pd.(*data.ByteString)
-	if !ok {
+	if !ok || plutusNil(bs) {
 		return fmt.Errorf("expected ByteString, got %T", pd)
 	}
 	if fieldVal.Kind() != reflect.Slice || fieldVal.Type().Elem().Kind() != reflect.Uint8 {
@@ -195,7 +205,7 @@ func unmarshalBytes(pd data.PlutusData, fieldVal reflect.Value) error {
 
 func unmarshalStringBytes(pd data.PlutusData, fieldVal reflect.Value) error {
 	bs, ok := pd.(*data.ByteString)
-	if !ok {
+	if !ok || plutusNil(bs) {
 		return fmt.Errorf("expected ByteString, got %T", pd)
 	}
 	if fieldVal.Kind() != reflect.String {
@@ -207,7 +217,7 @@ func unmarshalStringBytes(pd data.PlutusData, fieldVal reflect.Value) error {
 
 func unmarshalHexString(pd data.PlutusData, fieldVal reflect.Value) error {
 	bs, ok := pd.(*data.ByteString)
-	if !ok {
+	if !ok || plutusNil(bs) {
 		return fmt.Errorf("expected ByteString, got %T", pd)
 	}
 	if fieldVal.Kind() != reflect.String {
@@ -219,7 +229,7 @@ func unmarshalHexString(pd data.PlutusData, fieldVal reflect.Value) error {
 
 func unmarshalBool(pd data.PlutusData, fieldVal reflect.Value) error {
 	constr, ok := pd.(*data.Constr)
-	if !ok {
+	if !ok || plutusNil(constr) {
 		return fmt.Errorf("expected Constr for Bool, got %T", pd)
 	}
 	if !constrTagEqual(constr.Tag, 0) && !constrTagEqual(constr.Tag, 1) {

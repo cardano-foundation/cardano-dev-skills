@@ -8,6 +8,7 @@ import (
 	"github.com/blinklabs-io/gouroboros/ledger/common"
 
 	"github.com/Salvionied/apollo/v2/backend"
+	"github.com/Salvionied/apollo/v2/internal/backendutil"
 )
 
 // CachedChainContext wraps another ChainContext with time-based caching.
@@ -20,6 +21,9 @@ type CachedChainContext struct {
 	cachedGenesis  *backend.GenesisParameters
 	paramsCacheAt  time.Time
 	genesisCacheAt time.Time
+
+	cachedMaxTxFee  *uint64
+	maxTxFeeCacheAt time.Time
 }
 
 var _ backend.ContextChainContext = (*CachedChainContext)(nil)
@@ -44,17 +48,7 @@ func (c *CachedChainContext) ProtocolParams() (backend.ProtocolParameters, error
 func (c *CachedChainContext) ProtocolParamsContext(ctx context.Context) (backend.ProtocolParameters, error) {
 	c.mu.Lock()
 	if c.cachedParams != nil && time.Since(c.paramsCacheAt) < c.ttl {
-		pp := *c.cachedParams
-		// Deep copy CostModels to prevent callers from mutating the cache.
-		if pp.CostModels != nil {
-			cm := make(map[string][]int64, len(pp.CostModels))
-			for k, v := range pp.CostModels {
-				dup := make([]int64, len(v))
-				copy(dup, v)
-				cm[k] = dup
-			}
-			pp.CostModels = cm
-		}
+		pp := backendutil.CloneProtocolParams(*c.cachedParams)
 		c.mu.Unlock()
 		return pp, nil
 	}
@@ -65,17 +59,7 @@ func (c *CachedChainContext) ProtocolParamsContext(ctx context.Context) (backend
 		return pp, err
 	}
 
-	// Deep copy CostModels before storing to prevent callers from mutating the cache.
-	cached := pp
-	if cached.CostModels != nil {
-		cm := make(map[string][]int64, len(cached.CostModels))
-		for k, v := range cached.CostModels {
-			dup := make([]int64, len(v))
-			copy(dup, v)
-			cm[k] = dup
-		}
-		cached.CostModels = cm
-	}
+	cached := backendutil.CloneProtocolParams(pp)
 
 	c.mu.Lock()
 	c.cachedParams = &cached
@@ -127,8 +111,29 @@ func (c *CachedChainContext) MaxTxFee() (uint64, error) {
 	return c.MaxTxFeeContext(context.Background())
 }
 
+// MaxTxFeeContext caches the wrapped context's result for the same TTL as
+// protocol parameters. Wrapped contexts commonly derive it from their own
+// protocol parameters, so passing every call through would bypass the cache.
 func (c *CachedChainContext) MaxTxFeeContext(ctx context.Context) (uint64, error) {
-	return backend.MaxTxFeeContext(ctx, c.inner)
+	c.mu.Lock()
+	if c.cachedMaxTxFee != nil && time.Since(c.maxTxFeeCacheAt) < c.ttl {
+		fee := *c.cachedMaxTxFee
+		c.mu.Unlock()
+		return fee, nil
+	}
+	c.mu.Unlock()
+
+	fee, err := backend.MaxTxFeeContext(ctx, c.inner)
+	if err != nil {
+		return fee, err
+	}
+
+	c.mu.Lock()
+	c.cachedMaxTxFee = &fee
+	c.maxTxFeeCacheAt = time.Now()
+	c.mu.Unlock()
+
+	return fee, nil
 }
 
 func (c *CachedChainContext) Tip() (uint64, error) {

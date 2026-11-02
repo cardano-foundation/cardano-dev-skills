@@ -1,10 +1,14 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/blinklabs-io/gouroboros/ledger/common"
+
+	"github.com/Salvionied/apollo/v2/internal/scriptutil"
 )
 
 var errNilChainContext = errors.New("chain context is nil")
@@ -111,10 +115,25 @@ func SubmitTxContext(ctx context.Context, chainContext ChainContext, txCbor []by
 	if isNilInterface(chainContext) {
 		return common.Blake2b256{}, errNilChainContext
 	}
+	want, parseErr := submittedTxID(txCbor)
+	submitted := bytes.Clone(txCbor)
+	var result common.Blake2b256
+	var err error
 	if cc, ok := chainContext.(ContextChainContext); ok {
-		return cc.SubmitTxContext(normalizeContext(ctx), txCbor)
+		result, err = cc.SubmitTxContext(normalizeContext(ctx), submitted)
+	} else {
+		result, err = chainContext.SubmitTx(submitted)
 	}
-	return chainContext.SubmitTx(txCbor)
+	if err != nil {
+		return common.Blake2b256{}, err
+	}
+	if parseErr != nil {
+		return common.Blake2b256{}, parseErr
+	}
+	if err := verifySubmittedTxID(want, result); err != nil {
+		return common.Blake2b256{}, err
+	}
+	return result, nil
 }
 
 // EvaluateTxContext calls the context-aware implementation when available,
@@ -145,10 +164,35 @@ func UtxoByRefContext(
 	if isNilInterface(chainContext) {
 		return nil, errNilChainContext
 	}
+	var utxo *common.Utxo
+	var err error
 	if cc, ok := chainContext.(ContextChainContext); ok {
-		return cc.UtxoByRefContext(normalizeContext(ctx), txHash, index)
+		utxo, err = cc.UtxoByRefContext(normalizeContext(ctx), txHash, index)
+	} else {
+		utxo, err = chainContext.UtxoByRef(txHash, index)
 	}
-	return chainContext.UtxoByRef(txHash, index)
+	if err != nil {
+		return nil, err
+	}
+	if err := ValidateUtxoRef(utxo, txHash, index); err != nil {
+		return nil, err
+	}
+	return utxo, nil
+}
+
+// ValidateUtxoRef rejects a lookup result that does not match its requested reference.
+func ValidateUtxoRef(utxo *common.Utxo, txHash common.Blake2b256, index uint32) error {
+	if utxo == nil {
+		return nil
+	}
+	if isNilInterface(utxo.Id) {
+		return errors.New("provider returned UTxO without a reference")
+	}
+	if utxo.Id.Id() != txHash || utxo.Id.Index() != index {
+		return fmt.Errorf("provider returned UTxO %x#%d for requested %x#%d",
+			utxo.Id.Id().Bytes(), utxo.Id.Index(), txHash.Bytes(), index)
+	}
+	return nil
 }
 
 // ScriptCborContext calls the context-aware implementation when available,
@@ -161,10 +205,21 @@ func ScriptCborContext(
 	if isNilInterface(chainContext) {
 		return nil, errNilChainContext
 	}
+	var scriptCbor []byte
+	var err error
 	if cc, ok := chainContext.(ContextChainContext); ok {
-		return cc.ScriptCborContext(normalizeContext(ctx), scriptHash)
+		scriptCbor, err = cc.ScriptCborContext(normalizeContext(ctx), scriptHash)
+	} else {
+		scriptCbor, err = chainContext.ScriptCbor(scriptHash)
 	}
-	return chainContext.ScriptCbor(scriptHash)
+	if err != nil {
+		return nil, err
+	}
+	scriptCbor = bytes.Clone(scriptCbor)
+	if _, err := scriptutil.ScriptRefFromHash(scriptHash, scriptCbor); err != nil {
+		return nil, err
+	}
+	return scriptCbor, nil
 }
 
 // BindContext returns a ChainContext whose blocking methods dispatch through

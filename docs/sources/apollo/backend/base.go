@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"math/bits"
 	"reflect"
 	"strconv"
 
@@ -306,6 +307,16 @@ func (p ProtocolParameters) RefScriptSizeIncrement() int {
 	return DefaultRefScriptSizeIncrement
 }
 
+// HasRefScriptTierParams reports whether the provider supplied both the
+// reference-script tier stride and multiplier rather than leaving them to the
+// Conway defaults. Dijkstra makes both values protocol parameters.
+func (p ProtocolParameters) HasRefScriptTierParams() bool {
+	hasMultiplier := (p.MinFeeReferenceScriptsMultiplierRational != nil &&
+		p.MinFeeReferenceScriptsMultiplierRational.Sign() > 0) ||
+		p.MinFeeReferenceScriptsMultiplier > 0
+	return p.MinFeeReferenceScriptsRange > 0 && hasMultiplier
+}
+
 // RefScriptMultiplier returns the per-tier price multiplier, defaulting to the
 // Conway ledger constant when a provider does not supply it.
 // It is retained for compatibility; fee computation should use
@@ -350,11 +361,39 @@ func TierRefScriptFee(totalRefScriptSize int, baseFeePerByte float64, sizeIncrem
 }
 
 // TierRefScriptFeeRational computes the Conway tiered reference-script fee
-// using exact provider-supplied rational values. The result is the ledger's
-// floor of the final accumulated rational fee.
+// using exact provider-supplied rational values. Fees that exceed int64 or
+// cannot be computed within the work limit saturate at MaxInt64. Callers that
+// need an error for those cases should use TierRefScriptFeeRationalChecked.
 func TierRefScriptFeeRational(totalRefScriptSize int, baseFeePerByte *big.Rat, sizeIncrement int, multiplier *big.Rat) int64 {
+	fee, err := TierRefScriptFeeRationalChecked(totalRefScriptSize, baseFeePerByte, sizeIncrement, multiplier)
+	if err != nil {
+		return math.MaxInt64
+	}
+	return fee
+}
+
+const (
+	maxRefScriptFeeIterations   = 512
+	maxRefScriptFeeRationalBits = 65536
+)
+
+func refScriptRationalTooLarge(value *big.Rat) bool {
+	return value.Num().BitLen() > maxRefScriptFeeRationalBits || value.Denom().BitLen() > maxRefScriptFeeRationalBits
+}
+
+func floorRefScriptFee(value *big.Rat) (int64, error) {
+	result := new(big.Int).Quo(value.Num(), value.Denom())
+	if !result.IsInt64() {
+		return 0, errors.New("reference-script fee exceeds int64")
+	}
+	return result.Int64(), nil
+}
+
+// TierRefScriptFeeRationalChecked computes the exact tiered fee or returns an
+// error before provider-supplied parameters can require excessive work.
+func TierRefScriptFeeRationalChecked(totalRefScriptSize int, baseFeePerByte *big.Rat, sizeIncrement int, multiplier *big.Rat) (int64, error) {
 	if totalRefScriptSize <= 0 || baseFeePerByte == nil || baseFeePerByte.Sign() <= 0 {
-		return 0
+		return 0, nil
 	}
 	if sizeIncrement <= 0 {
 		sizeIncrement = DefaultRefScriptSizeIncrement
@@ -362,29 +401,106 @@ func TierRefScriptFeeRational(totalRefScriptSize int, baseFeePerByte *big.Rat, s
 	if multiplier == nil || multiplier.Sign() <= 0 {
 		multiplier = big.NewRat(defaultRefScriptMultiplierNum, defaultRefScriptMultiplierDen)
 	}
+	if refScriptRationalTooLarge(baseFeePerByte) || refScriptRationalTooLarge(multiplier) {
+		return 0, errors.New("reference-script fee parameters exceed rational size limit")
+	}
+	if multiplier.Cmp(big.NewRat(1, 1)) == 0 {
+		fee := new(big.Rat).Mul(baseFeePerByte, new(big.Rat).SetInt64(int64(totalRefScriptSize)))
+		if refScriptRationalTooLarge(fee) {
+			return 0, errors.New("reference-script fee exceeds rational size limit")
+		}
+		return floorRefScriptFee(fee)
+	}
+	var remainingTailDenominator *big.Rat
+	if multiplier.Cmp(big.NewRat(1, 1)) < 0 {
+		remainingTailDenominator = new(big.Rat).Sub(big.NewRat(1, 1), multiplier)
+	}
 	acc := new(big.Rat)
 	price := new(big.Rat).Set(baseFeePerByte)
 	incr := new(big.Rat).SetInt64(int64(sizeIncrement))
 	n := totalRefScriptSize
+	iterations := 0
 	for n >= sizeIncrement {
+		if iterations >= maxRefScriptFeeIterations {
+			return remainingRefScriptFee(acc, price, n, sizeIncrement, multiplier)
+		}
 		acc.Add(acc, new(big.Rat).Mul(incr, price))
-		price.Mul(price, multiplier)
+		if refScriptRationalTooLarge(acc) {
+			return 0, errors.New("reference-script fee exceeds rational size limit")
+		}
+		if _, err := floorRefScriptFee(acc); err != nil {
+			return 0, err
+		}
 		n -= sizeIncrement
+		iterations++
+		if n == 0 {
+			return floorRefScriptFee(acc)
+		}
+		price.Mul(price, multiplier)
+		if refScriptRationalTooLarge(price) {
+			return 0, errors.New("reference-script fee exceeds rational size limit")
+		}
+		if remainingTailDenominator != nil {
+			upper := new(big.Rat).Mul(incr, price)
+			upper.Quo(upper, remainingTailDenominator)
+			upper.Add(upper, acc)
+			if refScriptRationalTooLarge(upper) {
+				return 0, errors.New("reference-script fee exceeds rational size limit")
+			}
+			floorAcc := new(big.Int).Quo(acc.Num(), acc.Denom())
+			strictUpperFloor := new(big.Int).Sub(upper.Num(), big.NewInt(1))
+			strictUpperFloor.Quo(strictUpperFloor, upper.Denom())
+			if floorAcc.Cmp(strictUpperFloor) == 0 {
+				return floorAcc.Int64(), nil
+			}
+		}
 	}
 	if n > 0 {
 		acc.Add(acc, new(big.Rat).Mul(new(big.Rat).SetInt64(int64(n)), price))
 	}
-	// floor(acc): acc is non-negative, so integer division of num/denom truncates
-	// toward zero, i.e. floors.
-	result := new(big.Int).Quo(acc.Num(), acc.Denom())
-	if !result.IsInt64() {
-		// A negative fee would be catastrophic: callers could treat it as a
-		// credit and construct an underpriced transaction. The public helper
-		// predates error returns, so saturate at MaxInt64 and let fee validation
-		// reject the impossible result upstream.
-		return math.MaxInt64
+	if refScriptRationalTooLarge(acc) {
+		return 0, errors.New("reference-script fee exceeds rational size limit")
 	}
-	return result.Int64()
+	return floorRefScriptFee(acc)
+}
+
+// remainingRefScriptFee sums whole tiers by doubling the geometric series,
+// then adds the final partial tier. The bit estimate limits intermediate work.
+func remainingRefScriptFee(acc, price *big.Rat, remainingBytes, stride int, multiplier *big.Rat) (int64, error) {
+	count := remainingBytes / stride
+	remainder := remainingBytes % stride
+	priceBits := max(price.Num().BitLen(), price.Denom().BitLen())
+	factorBits := max(multiplier.Num().BitLen(), multiplier.Denom().BitLen())
+	headroom := maxRefScriptFeeRationalBits - priceBits - bits.Len(uint(remainingBytes)) - bits.Len(uint(count)) - 4
+	if headroom < 0 || count > headroom/factorBits {
+		return 0, errors.New("reference-script fee exceeds rational size limit")
+	}
+	power := big.NewRat(1, 1)
+	sum := new(big.Rat)
+	blockPower := new(big.Rat).Set(multiplier)
+	blockSum := big.NewRat(1, 1)
+	for count > 0 {
+		if count&1 != 0 {
+			sum.Add(sum, new(big.Rat).Mul(power, blockSum))
+			power.Mul(power, blockPower)
+		}
+		count >>= 1
+		if count > 0 {
+			blockSum.Add(blockSum, new(big.Rat).Mul(blockPower, blockSum))
+			blockPower.Mul(blockPower, blockPower)
+		}
+		if refScriptRationalTooLarge(power) || refScriptRationalTooLarge(sum) ||
+			refScriptRationalTooLarge(blockPower) || refScriptRationalTooLarge(blockSum) {
+			return 0, errors.New("reference-script fee exceeds rational size limit")
+		}
+	}
+	tail := new(big.Rat).Mul(new(big.Rat).SetInt64(int64(stride)), sum)
+	tail.Add(tail, new(big.Rat).Mul(new(big.Rat).SetInt64(int64(remainder)), power))
+	acc.Add(acc, tail.Mul(tail, price))
+	if refScriptRationalTooLarge(acc) {
+		return 0, errors.New("reference-script fee exceeds rational size limit")
+	}
+	return floorRefScriptFee(acc)
 }
 
 func rationalFromFloat64(value float64) *big.Rat {

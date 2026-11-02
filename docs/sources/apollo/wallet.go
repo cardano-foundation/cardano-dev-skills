@@ -184,13 +184,28 @@ type KeyPairWallet struct {
 
 // NewKeyPairWallet creates a wallet from a BIP32 extended private key and address.
 // The key must be a 96-byte BIP32-Ed25519 extended private key; bursa's bip32
-// primitives panic on other lengths, so this is validated up front.
+// primitives panic on other lengths, so this is validated up front. The key
+// must control the address's payment credential.
 func NewKeyPairWallet(addr common.Address, key bip32.XPrv) (*KeyPairWallet, error) {
 	if len(key) != 96 {
 		return nil, fmt.Errorf("invalid BIP32 extended private key length: expected 96 bytes, got %d", len(key))
 	}
+	switch addr.Type() {
+	case common.AddressTypeKeyKey,
+		common.AddressTypeKeyScript,
+		common.AddressTypeKeyPointer,
+		common.AddressTypeKeyNone:
+	default:
+		return nil, errors.New("key-pair wallet requires a payment-key address")
+	}
+	if err := validateAddress(addr); err != nil {
+		return nil, fmt.Errorf("invalid key-pair wallet address: %w", err)
+	}
 	keyCopy := make(bip32.XPrv, len(key))
 	copy(keyCopy, key)
+	if common.Blake2b224Hash(keyCopy.PublicKey()) != addr.PaymentKeyHash() {
+		return nil, errors.New("private key does not control the wallet address payment credential")
+	}
 	return &KeyPairWallet{
 		address:    addr,
 		privateKey: keyCopy,

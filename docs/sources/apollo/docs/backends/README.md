@@ -27,15 +27,22 @@ particular `EvaluateTx`'s `additionalUtxos` argument
 Network ID is `1` for mainnet and `0` for testnets. There is no
 `constants.MAINNET` enum.
 
+Blockfrost, Koios, and UTxO RPC follow provider pagination until they have the
+complete address result. Repeated output references or pagination tokens are
+rejected instead of returning an incomplete or duplicated result. UTxO RPC
+also limits each individual response to 16 MiB.
+
 ## Which backend
 
 | Backend | Package | Typical use |
 |---------|---------|-------------|
 | [Blockfrost](blockfrost.md) | `backend/blockfrost` | Hosted HTTP; reports full capabilities including additional UTxOs |
+| [Koios](koios.md) | `backend/koios` | Hosted or self-hosted HTTP; reports full capabilities including additional UTxOs |
 | [Ogmios + Kupo](ogmios.md) | `backend/ogmios` | Self-hosted node; Kupo optional for address UTxOs and script CBOR |
 | [UTxO RPC](utxorpc.md) | `backend/utxorpc` | gRPC/`connect`; prefers `utxorpc.v1beta`, falls back to v1alpha |
 | [Fixed](fixed_and_cache.md) | `backend/fixed` | Deterministic tests; no live chain |
 | [Cache](fixed_and_cache.md) | `backend/cache` | TTL wrapper around another context |
+| [Local evaluation](localeval.md) | `backend/localeval` | Evaluates scripts in-process; wraps another context or runs offline |
 
 Out-of-tree backends should still implement `ChainContext`. Optional
 `CapabilityReporter` lets callers discover gaps without a probe request.

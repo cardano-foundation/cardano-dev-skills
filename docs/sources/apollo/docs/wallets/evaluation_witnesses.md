@@ -1,11 +1,21 @@
 # Evaluation witnesses
 
-When a script transaction lists required signers, the execution-unit evaluator
-sees a preliminary body and will reject it unless those signatures are valid.
-Apollo builds **evaluation-only** witnesses for that draft. They are not kept
-in the unsigned transaction `Complete()` returns.
+Apollo sends unsigned preliminary transactions for execution-unit evaluation
+by default. It does not ask the wallet or registered witness providers to sign
+those drafts. Some evaluators reject a draft whose body lists required signers
+without their signatures. In that case, use a trusted evaluator and explicitly
+enable signed evaluation, or set the redeemers' `ExUnits` and call
+`DisableExecutionUnitsEstimation()`.
+
+`AllowSignedEvaluation()` lets Apollo obtain valid signatures for each
+preliminary body and send them to the evaluator. Although these witnesses are
+not kept in the unsigned transaction `Complete()` returns, the evaluator may
+be able to submit the signed draft. This can spend inputs or consume collateral.
+Only enable it when the evaluator is trusted with that authority.
 
 ## Who supplies them
+
+When signed evaluation is enabled:
 
 1. A non-external `Wallet` signs with its payment key when that hash is
    required.
@@ -28,7 +38,8 @@ func (remoteEvaluationSigner) EvaluationWitnesses(
     return nil, nil
 }
 
-builder.AddEvaluationWitnessProvider(remoteEvaluationSigner{})
+builder.AddEvaluationWitnessProvider(remoteEvaluationSigner{}).
+    AllowSignedEvaluation()
 ```
 
 Witnesses are checked: ed25519 vkey and signature lengths, hash must be in the
@@ -42,8 +53,8 @@ vkey hash before the evaluator sees them.
 
 - Script transactions with `AddRequiredSigner*` (for example a spend that
   checks extra signatures).
-- Watch-only builders: without a provider, `Complete()` cannot estimate
-  execution units and fails with missing evaluation witnesses.
+- Watch-only builders using signed evaluation: without a provider, `Complete()`
+  fails with missing evaluation witnesses.
 
 Turn estimation off with `DisableExecutionUnitsEstimation()` only when you
 already set `ExUnits` on every redeemer (`CollectFrom`, `Mint`, withdrawals).

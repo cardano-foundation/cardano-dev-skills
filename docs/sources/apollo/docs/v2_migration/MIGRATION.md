@@ -379,7 +379,7 @@ import "github.com/Salvionied/apollo/txBuilding/Backend/Base"
 import "github.com/Salvionied/apollo/v2/backend"
 ```
 
-Supported backends: `blockfrost`, `ogmios`, `utxorpc`, `fixed` (testing).
+Supported backends: `blockfrost`, `koios`, `ogmios`, `utxorpc`, `fixed` (testing).
 
 **Ogmios takes a config, not clients.** `NewOgmiosChainContext` no longer
 accepts `*ogmigo.Client` and `*kugo.Client`, and it now returns an error. No
@@ -626,7 +626,8 @@ documentation and exported declarations are the authoritative complete API.
 - `RegisterAndDelegateStakeAndVote(credOrAddr, poolHash, drep, coin) (*Apollo, error)`
 - `RegisterAndDelegateStakeAndVoteFromAddress(addr, poolHash, drep, coin) (*Apollo, error)`
 - `RegisterAndDelegateStakeAndVoteFromBech32(bech32, poolHash, drep, coin) (*Apollo, error)`
-- `RegisterPool(params) *Apollo`
+- `RegisterPool(params) *Apollo` (new pool, pays the pool deposit)
+- `UpdatePool(params) *Apollo` (re-registration of a registered pool, no deposit)
 - `DeregisterPool(poolHash, epoch) *Apollo`
 - `SetCertificates(certs) *Apollo`
 - `GetStakeCredentialFromWallet() (Credential, error)`

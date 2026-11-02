@@ -8,7 +8,7 @@ CBOR, scripts, addresses, and transaction bodies come from
 [struct-tag encoder](plutusencoder/README.md).
 
 The module path is `github.com/Salvionied/apollo/v2`. Apollo v2 requires Go
-1.26.8 or newer — the `go` directive in `go.mod` is a hard floor.
+1.26.10 or newer — the `go` directive in `go.mod` is a hard floor.
 
 ## Start here
 
@@ -16,7 +16,7 @@ The module path is `github.com/Salvionied/apollo/v2`. Apollo v2 requires Go
   Blockfrost payment, and the `Complete` → `Sign` → `Submit` loop.
 - **[Fluent builder and errors](getting_started/fluent_api.md)** — chaining
   methods that cannot fail, and why `Complete()` is where stored errors surface.
-- **[Chain backends](backends/README.md)** — Blockfrost, Ogmios/Kupo,
+- **[Chain backends](backends/README.md)** — Blockfrost, Koios, Ogmios/Kupo,
   UTxO RPC, the in-memory `fixed` backend, and the cache wrapper.
 
 ## Build transactions

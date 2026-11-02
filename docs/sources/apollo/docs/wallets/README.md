@@ -48,8 +48,10 @@ log it.
 ## Key-pair wallet
 
 `NewKeyPairWallet(addr, key)` takes a 96-byte BIP32-Ed25519 extended private
-key. Other lengths are rejected up front (bursa panics on them). There is no
-staking key: `StakePubKeyHash()` is zero.
+key. Other lengths are rejected up front (bursa panics on them). The address
+must have a payment-key credential controlled by that key. There is no staking
+key: `StakePubKeyHash()` is zero. Use `SetChangeAddress` when change should go
+to a different address.
 
 This is **not** a replacement for v1 `SetWalletFromKeypair` of raw vkey/skey
 pairs. Build an address, then wrap it.

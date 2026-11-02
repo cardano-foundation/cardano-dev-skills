@@ -1,6 +1,6 @@
 # Reference Script Output Attachments
 
-This page documents attaching **reference scripts** (Plutus V1, V2, V3, or Native) to transaction outputs. Apollo v2 provides both a **unified** method that auto-detects the script version and **version-specific** convenience methods. `common.PlutusV4Script` is recognized by `NewScriptRef`, but V4 reference-script payments are rejected for the current Conway transaction format with `ErrPlutusV4RequiresDijkstra`. Implementation: [`apollo.go`](../../apollo.go), [`convenience.go`](../../convenience.go), [`helpers.go`](../../helpers.go).
+This page documents attaching **reference scripts** (Plutus V1, V2, V3, or Native) to transaction outputs. Apollo v2 provides both a **unified** method that auto-detects the script version and **version-specific** convenience methods. `common.PlutusV4Script` is recognized by `NewScriptRef`; V4 reference-script payments require the Dijkstra target era, and a Conway build rejects them with `ErrPlutusV4RequiresDijkstra`. Implementation: [`apollo.go`](../../apollo.go), [`convenience.go`](../../convenience.go), [`helpers.go`](../../helpers.go).
 
 ## Purpose and method signatures
 
@@ -30,12 +30,13 @@ func (a *Apollo) PayToContractWithReferenceScript(addr common.Address, datum *co
 
 Creates a payment to a script address with an **inline datum** and a reference script.
 
-### Version-specific: PayToContractWithV1/V2/V3ReferenceScript
+### Version-specific: PayToContractWithV1/V2/V3/V4ReferenceScript
 
 ```go
 func (a *Apollo) PayToContractWithV1ReferenceScript(addr common.Address, datum *common.Datum, lovelace int64, script common.PlutusV1Script, units ...Unit) (*Apollo, error)
 func (a *Apollo) PayToContractWithV2ReferenceScript(addr common.Address, datum *common.Datum, lovelace int64, script common.PlutusV2Script, units ...Unit) (*Apollo, error)
 func (a *Apollo) PayToContractWithV3ReferenceScript(addr common.Address, datum *common.Datum, lovelace int64, script common.PlutusV3Script, units ...Unit) (*Apollo, error)
+func (a *Apollo) PayToContractWithV4ReferenceScript(addr common.Address, datum *common.Datum, lovelace int64, script common.PlutusV4Script, units ...Unit) (*Apollo, error)
 ```
 
 Type-safe wrappers with inline datum. These delegate to the unified `PayToContractWithReferenceScript` method.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/blinklabs-io/gouroboros/ledger/common"
 	"github.com/blinklabs-io/plutigo/data"
 )
 
@@ -67,10 +68,29 @@ func marshalField(fieldVal reflect.Value, field reflect.StructField) (data.Plutu
 	if err != nil {
 		return nil, fmt.Errorf("field %s: %w", field.Name, err)
 	}
+	return marshalFieldWithType(fieldVal, field, plutusType)
+}
 
-	// BigInt handles nil *big.Int directly, so dispatch before pointer dereference
-	if plutusType == "BigInt" {
+func marshalFieldWithType(fieldVal reflect.Value, field reflect.StructField, plutusType string) (data.PlutusData, error) {
+	// BigInt handles nil *big.Int directly, so dispatch before pointer dereference.
+	// Maybe and Address likewise accept a nil pointer or a non-pointer value.
+	switch plutusType {
+	case "BigInt":
 		return marshalBigInt(fieldVal)
+	case "Maybe":
+		return marshalMaybe(fieldVal)
+	case "Address":
+		if fieldVal.Kind() == reflect.Pointer {
+			if fieldVal.IsNil() {
+				return nil, fmt.Errorf("field %s: nil address", field.Name)
+			}
+			fieldVal = fieldVal.Elem()
+		}
+		addr, ok := fieldVal.Interface().(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("field %s: Address requires common.Address, got %s", field.Name, fieldVal.Type())
+		}
+		return marshalAddress(addr)
 	}
 
 	// Dereference pointers
@@ -110,6 +130,44 @@ func marshalField(fieldVal reflect.Value, field reflect.StructField) (data.Plutu
 		return marshalSliceOrNested(fieldVal, field, false)
 	case "Map":
 		return marshalSliceAsMap(fieldVal, field)
+	case "Either":
+		return marshalEither(fieldVal)
+	case "OutputDatum":
+		od, ok := fieldVal.Interface().(OutputDatum)
+		if !ok {
+			return nil, fmt.Errorf("field %s: OutputDatum requires plutusencoder.OutputDatum, got %s", field.Name, fieldVal.Type())
+		}
+		return marshalOutputDatum(od)
+	case "Interval":
+		iv, ok := fieldVal.Interface().(Interval)
+		if !ok {
+			return nil, fmt.Errorf("field %s: Interval requires plutusencoder.Interval, got %s", field.Name, fieldVal.Type())
+		}
+		return marshalInterval(iv)
+	case "Value", "V4Value":
+		v, ok := fieldVal.Interface().(Value)
+		if !ok {
+			return nil, fmt.Errorf("field %s: %s requires plutusencoder.Value, got %s", field.Name, plutusType, fieldVal.Type())
+		}
+		return marshalPlutusValue(v, plutusType == "V4Value")
+	case "Credential":
+		cred, ok := fieldVal.Interface().(common.Credential)
+		if !ok {
+			return nil, fmt.Errorf("credential requires common.Credential, got %s", fieldVal.Type())
+		}
+		return marshalCredential(cred)
+	case "TxOutRef":
+		ref, ok := fieldVal.Interface().(TxOutRef)
+		if !ok {
+			return nil, fmt.Errorf("TxOutRef requires plutusencoder.TxOutRef, got %s", fieldVal.Type())
+		}
+		return marshalTxOutRef(ref)
+	case "AssetClass":
+		asset, ok := fieldVal.Interface().(AssetClass)
+		if !ok {
+			return nil, fmt.Errorf("AssetClass requires plutusencoder.AssetClass, got %s", fieldVal.Type())
+		}
+		return marshalAssetClass(asset)
 	case "Custom":
 		return nil, fmt.Errorf("field %s tagged Custom but doesn't implement PlutusMarshaler", field.Name)
 	default:

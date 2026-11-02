@@ -59,6 +59,24 @@ type CertificateWrapper struct {
 	Certificate Certificate
 }
 
+// ValidatePreConwayCertificateTypes rejects certificate constructors that
+// were introduced with the Conway era.
+func ValidatePreConwayCertificateTypes(
+	certificates []CertificateWrapper,
+) error {
+	for idx, certificate := range certificates {
+		if CertificateType(certificate.Type) >
+			CertificateTypeMoveInstantaneousRewards {
+			return fmt.Errorf(
+				"certificate type is not valid before Conway: index %d type %d",
+				idx,
+				certificate.Type,
+			)
+		}
+	}
+	return nil
+}
+
 func (c *CertificateWrapper) UnmarshalCBOR(data []byte) error {
 	// Determine cert type
 	certType, err := cbor.DecodeIdFromList(data)
@@ -345,7 +363,7 @@ func (c *StakeRegistrationCertificate) UnmarshalCBOR(cborData []byte) error {
 	return nil
 }
 
-func (c *StakeRegistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c StakeRegistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	stakeCred, err := c.StakeCredential.Utxorpc()
 	if err != nil {
 		return nil, err
@@ -357,7 +375,7 @@ func (c *StakeRegistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	}, nil
 }
 
-func (c *StakeRegistrationCertificate) Type() uint {
+func (c StakeRegistrationCertificate) Type() uint {
 	return c.CertType
 }
 
@@ -381,7 +399,7 @@ func (c *StakeDeregistrationCertificate) UnmarshalCBOR(cborData []byte) error {
 	return nil
 }
 
-func (c *StakeDeregistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c StakeDeregistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	stakeDeReg, err := c.StakeCredential.Utxorpc()
 	if err != nil {
 		return nil, err
@@ -395,7 +413,7 @@ func (c *StakeDeregistrationCertificate) Utxorpc() (*utxorpc.Certificate, error)
 		nil
 }
 
-func (c *StakeDeregistrationCertificate) Type() uint {
+func (c StakeDeregistrationCertificate) Type() uint {
 	return c.CertType
 }
 
@@ -423,7 +441,7 @@ func (c *StakeDelegationCertificate) UnmarshalCBOR(cborData []byte) error {
 	return nil
 }
 
-func (c *StakeDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c StakeDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	stakeCred, err := c.StakeCredential.Utxorpc()
 	if err != nil {
 		return nil, err
@@ -439,7 +457,7 @@ func (c *StakeDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 		nil
 }
 
-func (c *StakeDelegationCertificate) Type() uint {
+func (c StakeDelegationCertificate) Type() uint {
 	return c.CertType
 }
 
@@ -729,6 +747,68 @@ type PoolRelay struct {
 	Hostname *string `json:"hostname,omitempty"`
 }
 
+// UnmarshalJSON accepts both the public flat relay representation and the
+// tagged representation emitted by cardano-ledger for Shelley genesis files.
+func (p *PoolRelay) UnmarshalJSON(data []byte) error {
+	type flatPoolRelay PoolRelay
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	if raw, ok := fields["single host address"]; ok {
+		var relay struct {
+			Port *uint32 `json:"port"`
+			Ipv4 *net.IP `json:"IPv4"`
+			Ipv6 *net.IP `json:"IPv6"`
+		}
+		if err := json.Unmarshal(raw, &relay); err != nil {
+			return err
+		}
+		*p = PoolRelay{
+			Type: PoolRelayTypeSingleHostAddress,
+			Port: relay.Port,
+			Ipv4: relay.Ipv4,
+			Ipv6: relay.Ipv6,
+		}
+		return p.validateCBORBounds()
+	}
+	if raw, ok := fields["single host name"]; ok {
+		var relay struct {
+			Port     *uint32 `json:"port"`
+			Hostname string  `json:"dnsName"`
+		}
+		if err := json.Unmarshal(raw, &relay); err != nil {
+			return err
+		}
+		*p = PoolRelay{
+			Type:     PoolRelayTypeSingleHostName,
+			Port:     relay.Port,
+			Hostname: &relay.Hostname,
+		}
+		return p.validateCBORBounds()
+	}
+	if raw, ok := fields["multi host name"]; ok {
+		var relay struct {
+			Hostname string `json:"dnsName"`
+		}
+		if err := json.Unmarshal(raw, &relay); err != nil {
+			return err
+		}
+		*p = PoolRelay{
+			Type:     PoolRelayTypeMultiHostName,
+			Hostname: &relay.Hostname,
+		}
+		return p.validateCBORBounds()
+	}
+
+	var relay flatPoolRelay
+	if err := json.Unmarshal(data, &relay); err != nil {
+		return err
+	}
+	*p = PoolRelay(relay)
+	return p.validateCBORBounds()
+}
+
 func (p PoolRelay) validateCBORBounds() error {
 	switch p.Type {
 	case PoolRelayTypeSingleHostAddress, PoolRelayTypeSingleHostName:
@@ -763,7 +843,7 @@ func (p PoolRelay) validateCBORBounds() error {
 // The check is decode-only. MarshalCBOR normalizes through net.IP.To4 and
 // To16, which a relay built from genesis or JSON needs: net.ParseIP yields
 // the 16-byte IPv4-in-IPv6 form for a dotted-quad address.
-func (p *PoolRelay) validateDecodedAddressWidths() error {
+func (p PoolRelay) validateDecodedAddressWidths() error {
 	if p.Ipv4 != nil && len(*p.Ipv4) != poolRelayIpv4Size {
 		return fmt.Errorf(
 			"%w: ipv4 must be %d bytes, got %d",
@@ -957,7 +1037,7 @@ func (p PoolRelay) MarshalCBOR() ([]byte, error) {
 	}
 }
 
-func (p *PoolRelay) Utxorpc() (*utxorpc.Relay, error) {
+func (p PoolRelay) Utxorpc() (*utxorpc.Relay, error) {
 	ret := &utxorpc.Relay{}
 	if p.Port != nil {
 		ret.Port = *p.Port
@@ -1147,6 +1227,15 @@ func validatePoolMarginCBOR(data []byte, requireUintComponents bool) error {
 			tag.Number,
 		)
 	}
+	if count, _, indefinite := cbor.ArrayInfo(
+		cbor.SkipTags(tag.Content),
+	); !indefinite && count >= 0 && count != 2 {
+		return fmt.Errorf(
+			"%w: expected two components, got %d",
+			ErrPoolMarginOutsideUnitInterval,
+			count,
+		)
+	}
 	var components []cbor.RawMessage
 	if _, err := cbor.Decode(tag.Content, &components); err != nil {
 		return fmt.Errorf("%w: %w", ErrPoolMarginOutsideUnitInterval, err)
@@ -1271,14 +1360,8 @@ func (p *PoolRegistrationCertificate) UnmarshalJSON(data []byte) error {
 		Margin        json.RawMessage `json:"margin"`
 		RewardAccount json.RawMessage `json:"rewardAccount"`
 		PoolOwners    []string        `json:"poolOwners"`
-		Relays        []struct {
-			Type     int     `json:"type"`
-			Port     *uint32 `json:"port,omitempty"`
-			Ipv4     *net.IP `json:"ipv4,omitempty"`
-			Ipv6     *net.IP `json:"ipv6,omitempty"`
-			Hostname *string `json:"hostname,omitempty"`
-		} `json:"relays"`
-		PoolMetadata *PoolMetadata `json:"poolMetadata,omitempty"`
+		Relays        []PoolRelay     `json:"relays"`
+		PoolMetadata  *PoolMetadata   `json:"poolMetadata,omitempty"`
 
 		// Shelley genesis staking.pools uses different field names than the
 		// on-chain / API representation above for the same values. Accept both
@@ -1319,17 +1402,10 @@ func (p *PoolRegistrationCertificate) UnmarshalJSON(data []byte) error {
 	p.Pledge = tmp.Pledge
 	p.Cost = tmp.Cost
 	p.LeiosKey = tmp.LeiosKey
-	p.Relays = make([]PoolRelay, len(tmp.Relays))
-	for i, relay := range tmp.Relays {
-		p.Relays[i] = PoolRelay{
-			Type:     relay.Type,
-			Port:     relay.Port,
-			Ipv4:     relay.Ipv4,
-			Ipv6:     relay.Ipv6,
-			Hostname: relay.Hostname,
-		}
-	}
+	p.Relays = tmp.Relays
 	p.PoolMetadata = poolMetadata
+	p.DecodeStoreCbor.SetCbor(nil)
+	p.clearRewardAccountMetadata()
 
 	// Handle margin field
 	margin, err := ParsePoolMarginJSON(tmp.Margin)
@@ -1340,31 +1416,20 @@ func (p *PoolRegistrationCertificate) UnmarshalJSON(data []byte) error {
 
 	// Handle reward account
 	if len(tmp.RewardAccount) > 0 {
-		var ra struct {
-			Credential struct {
-				KeyHash string `json:"key hash"`
-			} `json:"credential"`
+		credential, networkId, networkKnown, err := decodePoolRewardAccountJSON(
+			tmp.RewardAccount,
+		)
+		if err != nil {
+			return err
 		}
-		if err := json.Unmarshal(tmp.RewardAccount, &ra); err != nil {
-			return fmt.Errorf("failed to unmarshal reward account: %w", err)
-		}
-
-		if ra.Credential.KeyHash != "" {
-			hashBytes, err := hex.DecodeString(ra.Credential.KeyHash)
-			if err != nil {
-				return fmt.Errorf(
-					"failed to decode reward account key hash: %w",
-					err,
-				)
+		p.RewardAccount = AddrKeyHash(credential.Credential)
+		if networkKnown {
+			if err := p.SetRewardAccountCredential(
+				credential,
+				networkId,
+			); err != nil {
+				return err
 			}
-			if len(hashBytes) != AddressHashSize {
-				return fmt.Errorf(
-					"invalid key hash length: expected %d, got %d",
-					AddressHashSize,
-					len(hashBytes),
-				)
-			}
-			p.RewardAccount = AddrKeyHash(hashBytes)
 		}
 	}
 
@@ -1414,13 +1479,79 @@ func (p *PoolRegistrationCertificate) UnmarshalJSON(data []byte) error {
 		p.PoolOwners = owners
 	}
 
-	// JSON reward accounts do not carry the wire header needed to recover
-	// credential type or network identity. The decoded-CBOR cache is likewise
-	// stale after JSON replaces certificate fields.
-	p.DecodeStoreCbor.SetCbor(nil)
-	p.clearRewardAccountMetadata()
-
 	return nil
+}
+
+func decodePoolRewardAccountJSON(
+	data json.RawMessage,
+) (Credential, uint, bool, error) {
+	var hashText string
+	if err := json.Unmarshal(data, &hashText); err == nil {
+		var hash Blake2b224
+		if err := hash.UnmarshalText([]byte(hashText)); err != nil {
+			return Credential{}, 0, false, fmt.Errorf(
+				"failed to decode reward account key hash: %w",
+				err,
+			)
+		}
+		return Credential{
+			CredType:   CredentialTypeAddrKeyHash,
+			Credential: hash,
+		}, 0, false, nil
+	}
+
+	var rewardAccount struct {
+		Credential struct {
+			KeyHash       string `json:"keyHash"`
+			LegacyKeyHash string `json:"key hash"`
+			ScriptHash    string `json:"scriptHash"`
+		} `json:"credential"`
+		Network string `json:"network"`
+	}
+	if err := json.Unmarshal(data, &rewardAccount); err != nil {
+		return Credential{}, 0, false, fmt.Errorf(
+			"failed to unmarshal reward account: %w",
+			err,
+		)
+	}
+	credentialType := uint(CredentialTypeAddrKeyHash)
+	hashText = rewardAccount.Credential.KeyHash
+	if hashText == "" {
+		hashText = rewardAccount.Credential.LegacyKeyHash
+	}
+	if hashText == "" {
+		credentialType = CredentialTypeScriptHash
+		hashText = rewardAccount.Credential.ScriptHash
+	}
+	if hashText == "" {
+		return Credential{}, 0, false, errors.New(
+			"reward account credential is required",
+		)
+	}
+	var hash Blake2b224
+	if err := hash.UnmarshalText([]byte(hashText)); err != nil {
+		return Credential{}, 0, false, fmt.Errorf(
+			"failed to decode reward account hash: %w",
+			err,
+		)
+	}
+	credential := Credential{
+		CredType:   credentialType,
+		Credential: hash,
+	}
+	switch rewardAccount.Network {
+	case "":
+		return credential, 0, false, nil
+	case "Testnet":
+		return credential, AddressNetworkTestnet, true, nil
+	case "Mainnet":
+		return credential, AddressNetworkMainnet, true, nil
+	default:
+		return Credential{}, 0, false, fmt.Errorf(
+			"invalid reward account network: %s",
+			rewardAccount.Network,
+		)
+	}
 }
 
 // MarshalJSON rejects programmatically constructed margins that do not satisfy
@@ -1437,7 +1568,7 @@ func (c PoolRegistrationCertificate) MarshalJSON() ([]byte, error) {
 	return json.Marshal(poolRegistrationCertificateJSON(c))
 }
 
-func (c PoolRegistrationCertificate) isCertificate() {}
+func (c *PoolRegistrationCertificate) isCertificate() {}
 
 func (c *PoolRegistrationCertificate) UnmarshalCBOR(cborData []byte) error {
 	type legacyPoolRegistrationCertificate struct {
@@ -1581,7 +1712,7 @@ func (c PoolRegistrationCertificate) MarshalCBOR() ([]byte, error) {
 	})
 }
 
-func (c PoolRegistrationCertificate) rewardAccountBytes() ([]byte, error) {
+func (c *PoolRegistrationCertificate) rewardAccountBytes() ([]byte, error) {
 	if !c.rewardAccountNetworkIdKnown || !c.rewardAccountCredentialKnown {
 		return nil, errors.New(
 			"pool reward account metadata is required for CBOR encoding",
@@ -1694,7 +1825,7 @@ func (c *PoolRetirementCertificate) UnmarshalCBOR(cborData []byte) error {
 	return nil
 }
 
-func (c *PoolRetirementCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c PoolRetirementCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	return &utxorpc.Certificate{
 		Certificate: &utxorpc.Certificate_PoolRetirement{
 			PoolRetirement: &utxorpc.PoolRetirementCert{
@@ -1705,7 +1836,7 @@ func (c *PoolRetirementCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	}, nil
 }
 
-func (c *PoolRetirementCertificate) Type() uint {
+func (c PoolRetirementCertificate) Type() uint {
 	return c.CertType
 }
 
@@ -1731,7 +1862,7 @@ func (c *GenesisKeyDelegationCertificate) UnmarshalCBOR(cborData []byte) error {
 	return nil
 }
 
-func (c *GenesisKeyDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c GenesisKeyDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	return &utxorpc.Certificate{
 		Certificate: &utxorpc.Certificate_GenesisKeyDelegation{
 			GenesisKeyDelegation: &utxorpc.GenesisKeyDelegationCert{
@@ -1743,7 +1874,7 @@ func (c *GenesisKeyDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error
 	}, nil
 }
 
-func (c *GenesisKeyDelegationCertificate) Type() uint {
+func (c GenesisKeyDelegationCertificate) Type() uint {
 	return c.CertType
 }
 
@@ -1930,7 +2061,7 @@ func (c *MoveInstantaneousRewardsCertificate) UnmarshalCBOR(
 	return nil
 }
 
-func (c *MoveInstantaneousRewardsCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c MoveInstantaneousRewardsCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	from, err := mirSourceToUtxorpc(c.Reward.Source)
 	if err != nil {
 		return nil, err
@@ -1960,7 +2091,7 @@ func (c *MoveInstantaneousRewardsCertificate) Utxorpc() (*utxorpc.Certificate, e
 	}, nil
 }
 
-func (c *MoveInstantaneousRewardsCertificate) Type() uint {
+func (c MoveInstantaneousRewardsCertificate) Type() uint {
 	return c.CertType
 }
 
@@ -2008,7 +2139,7 @@ func (c *RegistrationCertificate) UnmarshalCBOR(
 	return nil
 }
 
-func (c *RegistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c RegistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	stakeCred, err := c.StakeCredential.Utxorpc()
 	if err != nil {
 		return nil, err
@@ -2023,12 +2154,12 @@ func (c *RegistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	}, nil
 }
 
-func (c *RegistrationCertificate) Type() uint {
+func (c RegistrationCertificate) Type() uint {
 	return c.CertType
 }
 
 // DepositAmount returns the deposit amount as a *big.Int
-func (c *RegistrationCertificate) DepositAmount() *big.Int {
+func (c RegistrationCertificate) DepositAmount() *big.Int {
 	return new(big.Int).SetUint64(c.Amount)
 }
 
@@ -2055,7 +2186,7 @@ func (c *DeregistrationCertificate) UnmarshalCBOR(
 	return nil
 }
 
-func (c *DeregistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c DeregistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	stakeCred, err := c.StakeCredential.Utxorpc()
 	if err != nil {
 		return nil, err
@@ -2070,12 +2201,12 @@ func (c *DeregistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	}, nil
 }
 
-func (c *DeregistrationCertificate) Type() uint {
+func (c DeregistrationCertificate) Type() uint {
 	return c.CertType
 }
 
 // DepositAmount returns the deposit amount as a *big.Int
-func (c *DeregistrationCertificate) DepositAmount() *big.Int {
+func (c DeregistrationCertificate) DepositAmount() *big.Int {
 	return new(big.Int).SetUint64(c.Amount)
 }
 
@@ -2102,7 +2233,7 @@ func (c *VoteDelegationCertificate) UnmarshalCBOR(
 	return nil
 }
 
-func (c *VoteDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c VoteDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	drep, err := c.Drep.Utxorpc()
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert DRep: %w", err)
@@ -2121,7 +2252,7 @@ func (c *VoteDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	}, nil
 }
 
-func (c *VoteDelegationCertificate) Type() uint {
+func (c VoteDelegationCertificate) Type() uint {
 	return c.CertType
 }
 
@@ -2149,7 +2280,7 @@ func (c *StakeVoteDelegationCertificate) UnmarshalCBOR(
 	return nil
 }
 
-func (c *StakeVoteDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c StakeVoteDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	// Handle DRep conversion with error checking
 	drepProto, err := c.Drep.Utxorpc()
 	if err != nil {
@@ -2170,7 +2301,7 @@ func (c *StakeVoteDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error)
 	}, nil
 }
 
-func (c *StakeVoteDelegationCertificate) Type() uint {
+func (c StakeVoteDelegationCertificate) Type() uint {
 	return c.CertType
 }
 
@@ -2198,7 +2329,7 @@ func (c *StakeRegistrationDelegationCertificate) UnmarshalCBOR(
 	return nil
 }
 
-func (c *StakeRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c StakeRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	stakeCred, err := c.StakeCredential.Utxorpc()
 	if err != nil {
 		return nil, err
@@ -2214,12 +2345,12 @@ func (c *StakeRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certificate
 	}, nil
 }
 
-func (c *StakeRegistrationDelegationCertificate) Type() uint {
+func (c StakeRegistrationDelegationCertificate) Type() uint {
 	return c.CertType
 }
 
 // DepositAmount returns the deposit amount as a *big.Int
-func (c *StakeRegistrationDelegationCertificate) DepositAmount() *big.Int {
+func (c StakeRegistrationDelegationCertificate) DepositAmount() *big.Int {
 	return new(big.Int).SetUint64(c.Amount)
 }
 
@@ -2247,7 +2378,7 @@ func (c *VoteRegistrationDelegationCertificate) UnmarshalCBOR(
 	return nil
 }
 
-func (c *VoteRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c VoteRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	// Handle DRep conversion with error checking
 	drep, err := c.Drep.Utxorpc()
 	if err != nil {
@@ -2268,12 +2399,12 @@ func (c *VoteRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certificate,
 	}, nil
 }
 
-func (c *VoteRegistrationDelegationCertificate) Type() uint {
+func (c VoteRegistrationDelegationCertificate) Type() uint {
 	return c.CertType
 }
 
 // DepositAmount returns the deposit amount as a *big.Int
-func (c *VoteRegistrationDelegationCertificate) DepositAmount() *big.Int {
+func (c VoteRegistrationDelegationCertificate) DepositAmount() *big.Int {
 	return new(big.Int).SetUint64(c.Amount)
 }
 
@@ -2302,7 +2433,7 @@ func (c *StakeVoteRegistrationDelegationCertificate) UnmarshalCBOR(
 	return nil
 }
 
-func (c *StakeVoteRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c StakeVoteRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	// Handle DRep conversion with error checking
 	drepProto, err := c.Drep.Utxorpc()
 	if err != nil {
@@ -2325,12 +2456,12 @@ func (c *StakeVoteRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certifi
 	}, nil
 }
 
-func (c *StakeVoteRegistrationDelegationCertificate) Type() uint {
+func (c StakeVoteRegistrationDelegationCertificate) Type() uint {
 	return c.CertType
 }
 
 // DepositAmount returns the deposit amount as a *big.Int
-func (c *StakeVoteRegistrationDelegationCertificate) DepositAmount() *big.Int {
+func (c StakeVoteRegistrationDelegationCertificate) DepositAmount() *big.Int {
 	return new(big.Int).SetUint64(c.Amount)
 }
 
@@ -2357,7 +2488,7 @@ func (c *AuthCommitteeHotCertificate) UnmarshalCBOR(
 	return nil
 }
 
-func (c *AuthCommitteeHotCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c AuthCommitteeHotCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	coldCred, err := c.ColdCredential.Utxorpc()
 	if err != nil {
 		return nil, err
@@ -2376,7 +2507,7 @@ func (c *AuthCommitteeHotCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	}, nil
 }
 
-func (c *AuthCommitteeHotCertificate) Type() uint {
+func (c AuthCommitteeHotCertificate) Type() uint {
 	return c.CertType
 }
 
@@ -2403,7 +2534,7 @@ func (c *ResignCommitteeColdCertificate) UnmarshalCBOR(
 	return nil
 }
 
-func (c *ResignCommitteeColdCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c ResignCommitteeColdCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	var anchor *utxorpc.Anchor
 	if c.Anchor != nil {
 		anchor = &utxorpc.Anchor{
@@ -2425,7 +2556,7 @@ func (c *ResignCommitteeColdCertificate) Utxorpc() (*utxorpc.Certificate, error)
 	}, nil
 }
 
-func (c *ResignCommitteeColdCertificate) Type() uint {
+func (c ResignCommitteeColdCertificate) Type() uint {
 	return c.CertType
 }
 
@@ -2453,7 +2584,7 @@ func (c *RegistrationDrepCertificate) UnmarshalCBOR(
 	return nil
 }
 
-func (c *RegistrationDrepCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c RegistrationDrepCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	// Handle anchor data if present
 	var anchor *utxorpc.Anchor
 	if c.Anchor != nil {
@@ -2477,12 +2608,12 @@ func (c *RegistrationDrepCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	}, nil
 }
 
-func (c *RegistrationDrepCertificate) Type() uint {
+func (c RegistrationDrepCertificate) Type() uint {
 	return c.CertType
 }
 
 // DepositAmount returns the deposit amount as a *big.Int
-func (c *RegistrationDrepCertificate) DepositAmount() *big.Int {
+func (c RegistrationDrepCertificate) DepositAmount() *big.Int {
 	return new(big.Int).SetUint64(c.Amount)
 }
 
@@ -2526,7 +2657,7 @@ func (c *DeregistrationDrepCertificate) UnmarshalCBOR(
 	return nil
 }
 
-func (c *DeregistrationDrepCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c DeregistrationDrepCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	drepCred, err := c.DrepCredential.Utxorpc()
 	if err != nil {
 		return nil, err
@@ -2541,12 +2672,12 @@ func (c *DeregistrationDrepCertificate) Utxorpc() (*utxorpc.Certificate, error) 
 	}, nil
 }
 
-func (c *DeregistrationDrepCertificate) Type() uint {
+func (c DeregistrationDrepCertificate) Type() uint {
 	return c.CertType
 }
 
 // DepositAmount returns the deposit amount as a *big.Int
-func (c *DeregistrationDrepCertificate) DepositAmount() *big.Int {
+func (c DeregistrationDrepCertificate) DepositAmount() *big.Int {
 	return new(big.Int).SetUint64(c.Amount)
 }
 
@@ -2590,7 +2721,7 @@ func (c *UpdateDrepCertificate) UnmarshalCBOR(
 	return nil
 }
 
-func (c *UpdateDrepCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+func (c UpdateDrepCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	var anchor *utxorpc.Anchor
 	if c.Anchor != nil {
 		anchor = &utxorpc.Anchor{
@@ -2612,6 +2743,6 @@ func (c *UpdateDrepCertificate) Utxorpc() (*utxorpc.Certificate, error) {
 	}, nil
 }
 
-func (c *UpdateDrepCertificate) Type() uint {
+func (c UpdateDrepCertificate) Type() uint {
 	return c.CertType
 }

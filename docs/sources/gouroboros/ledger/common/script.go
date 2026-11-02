@@ -902,7 +902,7 @@ type NativeScript struct {
 
 func (NativeScript) isScript() {}
 
-func (n *NativeScript) Item() any {
+func (n NativeScript) Item() any {
 	return n.item
 }
 
@@ -1154,17 +1154,18 @@ func FirstInvalidNativeScriptIn(
 		}
 	}
 
-	validityStart := tx.ValidityIntervalStart()
+	validityStart, validityStartPresent := TransactionValidityIntervalLowerBound(
+		tx,
+	)
 	validityEnd, validityEndPresent := TransactionValidityIntervalUpperBound(tx)
-	if !validityEndPresent {
-		validityEnd = ^uint64(0)
-	}
 
 	for _, nativeScript := range nativeScripts {
-		if !nativeScript.Evaluate(
+		if !nativeScript.EvaluateWithBounds(
 			slot,
 			validityStart,
 			validityEnd,
+			validityStartPresent,
+			validityEndPresent,
 			keyHashes,
 		) {
 			return nativeScript.Hash(), true
@@ -1257,37 +1258,79 @@ type NativeScriptRequireGuard struct {
 //   - validityStart: The transaction's validity start slot (0 if not set)
 //   - validityEnd: The transaction's validity end slot (math.MaxUint64 if not set)
 //   - keyHashes: Set of key hashes from VKey witnesses in the transaction
-func (n *NativeScript) Evaluate(
+func (n NativeScript) Evaluate(
 	slot uint64,
 	validityStart, validityEnd uint64,
 	keyHashes map[Blake2b224]bool,
 ) bool {
 	return n.evaluate(nativeScriptEvalContext{
-		validityStart: validityStart,
-		validityEnd:   validityEnd,
-		keyHashes:     keyHashes,
+		validityStart:        validityStart,
+		validityEnd:          validityEnd,
+		validityStartPresent: true,
+		validityEndPresent:   true,
+		keyHashes:            keyHashes,
 	})
 }
 
-func (n *NativeScript) EvaluateWithGuards(
+// EvaluateWithBounds evaluates a native script while preserving whether each
+// transaction validity bound was present on the wire.
+func (n NativeScript) EvaluateWithBounds(
+	slot uint64,
+	validityStart, validityEnd uint64,
+	validityStartPresent, validityEndPresent bool,
+	keyHashes map[Blake2b224]bool,
+) bool {
+	return n.evaluate(nativeScriptEvalContext{
+		validityStart:        validityStart,
+		validityEnd:          validityEnd,
+		validityStartPresent: validityStartPresent,
+		validityEndPresent:   validityEndPresent,
+		keyHashes:            keyHashes,
+	})
+}
+
+func (n NativeScript) EvaluateWithGuards(
 	slot uint64,
 	validityStart, validityEnd uint64,
 	keyHashes map[Blake2b224]bool,
 	guardCredentials []Credential,
 ) bool {
 	return n.evaluate(nativeScriptEvalContext{
-		validityStart:    validityStart,
-		validityEnd:      validityEnd,
-		keyHashes:        keyHashes,
-		guardCredentials: newCredentialSet(guardCredentials),
+		validityStart:        validityStart,
+		validityEnd:          validityEnd,
+		validityStartPresent: true,
+		validityEndPresent:   true,
+		keyHashes:            keyHashes,
+		guardCredentials:     newCredentialSet(guardCredentials),
+	})
+}
+
+// EvaluateWithGuardsAndBounds evaluates a guarded native script while
+// preserving whether each transaction validity bound was present on the wire.
+func (n NativeScript) EvaluateWithGuardsAndBounds(
+	slot uint64,
+	validityStart, validityEnd uint64,
+	validityStartPresent, validityEndPresent bool,
+	keyHashes map[Blake2b224]bool,
+	guardCredentials []Credential,
+) bool {
+	return n.evaluate(nativeScriptEvalContext{
+		validityStart:        validityStart,
+		validityEnd:          validityEnd,
+		validityStartPresent: validityStartPresent,
+		validityEndPresent:   validityEndPresent,
+		keyHashes:            keyHashes,
+		guardCredentials:     newCredentialSet(guardCredentials),
 	})
 }
 
 type nativeScriptEvalContext struct {
-	validityStart    uint64
-	validityEnd      uint64
-	keyHashes        map[Blake2b224]bool
-	guardCredentials map[credentialKey]bool
+	validityStart        uint64
+	validityEnd          uint64
+	validityStartPresent bool
+	validityEndPresent   bool
+	keyHashes            map[Blake2b224]bool
+	guardCredentials     map[credentialKey]bool
 }
 
 type credentialKey struct {
@@ -1306,7 +1349,7 @@ func newCredentialSet(credentials []Credential) map[credentialKey]bool {
 	return ret
 }
 
-func (n *NativeScript) evaluate(ctx nativeScriptEvalContext) bool {
+func (n NativeScript) evaluate(ctx nativeScriptEvalContext) bool {
 	if n.item == nil {
 		return false
 	}
@@ -1357,13 +1400,13 @@ func (n *NativeScript) evaluate(ctx nativeScriptEvalContext) bool {
 		// Transaction is only valid at or after this slot
 		// For native scripts, we check against the transaction's validity interval
 		// The tx must start at or after the script's slot requirement
-		return ctx.validityStart >= s.Slot
+		return ctx.validityStartPresent && ctx.validityStart >= s.Slot
 
 	case *NativeScriptInvalidHereafter:
 		// Transaction is only valid before this slot
 		// The tx must end at or before the script's slot requirement
 		// TTL = X means tx valid at slots [start, X), which is entirely within [0, X)
-		return ctx.validityEnd <= s.Slot
+		return ctx.validityEndPresent && ctx.validityEnd <= s.Slot
 
 	case *NativeScriptRequireGuard:
 		if ctx.guardCredentials == nil {

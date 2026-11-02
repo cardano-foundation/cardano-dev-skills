@@ -14,7 +14,7 @@ npx cip30-test-wallet init-script [--options <file.json>] [--network 0|1] [--nam
 | `--mnemonic-env <VAR>` | Reads the mnemonic from this environment variable, so it never appears on the command line or in shell history |
 | `--out <file.js>` | Writes the script to this file. Without it the script goes to stdout |
 
-Flags win over the options file. Without any flag the script installs the default wallet on testnet. Exit 0 on success, 2 when an argument or the options file is invalid. `npx cip30-test-wallet --help`, or `-h` in its place, prints the usage of both commands, as does a call without arguments.
+Flags win over the options file. Without any flag the script installs the default wallet on testnet. Exit 0 on success, 2 when an argument or the options file is invalid. `npx cip30-test-wallet init-script --help`, or `-h`, prints the usage of this command. `npx cip30-test-wallet --help` prints the usage of both commands, as does a call without arguments.
 
 ```json
 { "networkId": 0, "utxos": [{ "lovelace": 50000000 }], "quirks": { "signHangs": true } }

@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 
 	"github.com/blinklabs-io/gouroboros/cbor"
 	"golang.org/x/crypto/blake2b"
@@ -106,9 +107,10 @@ type VerifyConfig struct {
 	// This is for callers that need to distinguish a representable block from
 	// a validation failure before applying their own validation.
 	SkipHeaderValidation bool
-	// SkipBodyHashValidation disables body hash verification in VerifyBlock().
-	// When false (default), full block CBOR must be available for validation.
-	// Useful for scenarios where full block CBOR is unavailable.
+	// SkipBodyHashValidation disables block body integrity verification in
+	// VerifyBlock(), including the signed body size and body hash checks. When
+	// false (default), full block CBOR must be available for validation. Useful
+	// for scenarios where full block CBOR is unavailable.
 	SkipBodyHashValidation bool
 	// SkipTransactionValidation disables transaction validation in VerifyBlock().
 	// When false (default), LedgerState and ProtocolParameters must be set.
@@ -132,10 +134,38 @@ type VerifyConfig struct {
 	LedgerState LedgerState
 	// ProtocolParameters provides the current protocol parameters for
 	// transaction validation and block-limits validation.
-	// Required if SkipTransactionValidation is false. When set and
+	// Required for Shelley-family transaction validation when
+	// SkipTransactionValidation is false. When set and
 	// SkipBlockLimitsValidation is false, also enables block-wide
 	// execution-unit and size validation (see SkipBlockLimitsValidation).
 	ProtocolParameters ProtocolParameters
+	// ByronTxFeePolicy is the Byron linear transaction fee policy. It is
+	// required for Byron transaction validation when SkipTransactionValidation
+	// is false; validation fails closed when it is nil.
+	ByronTxFeePolicy *ByronTxFeePolicy
+}
+
+// ByronTxFeePolicy is the Byron TxSizeLinear fee policy. Both values are in
+// nano-lovelace (1e-9 lovelace), the unit used by the Byron genesis
+// txFeePolicy, so the minimum fee for a transaction of size bytes is
+// ceil((Summand + Multiplier*size) / 1e9) lovelace.
+type ByronTxFeePolicy struct {
+	Summand    uint64
+	Multiplier uint64
+}
+
+// MinFee returns the minimum fee in lovelace for a serialized transaction of
+// txSize bytes.
+func (p ByronTxFeePolicy) MinFee(txSize int) *big.Int {
+	total := new(big.Int).SetUint64(p.Multiplier)
+	total.Mul(total, big.NewInt(int64(txSize)))
+	total.Add(total, new(big.Int).SetUint64(p.Summand))
+	denominator := big.NewInt(1_000_000_000)
+	quotient, remainder := new(big.Int).QuoRem(total, denominator, new(big.Int))
+	if remainder.Sign() > 0 {
+		quotient.Add(quotient, big.NewInt(1))
+	}
+	return quotient
 }
 
 // ValidateBlockBodyHash validates the block body hash during parsing.
@@ -220,17 +250,11 @@ func ValidateBlockBodyHash(
 // enabled), so the redundant decode is skipped entirely when the check is a
 // no-op. Tracked as a known follow-up rather than addressed here.
 func BlockBodySizeFromCbor(rawCbor []byte) (uint64, error) {
-	var raw []cbor.RawMessage
-	if _, err := cbor.Decode(rawCbor, &raw); err != nil {
+	raw, _, err := decodeBlockArrayBytes(rawCbor)
+	if err != nil {
 		return 0, fmt.Errorf(
 			"failed to decode block CBOR for body size calculation: %w",
 			err,
-		)
-	}
-	if len(raw) < 2 {
-		return 0, fmt.Errorf(
-			"invalid block CBOR structure for body size calculation: expected at least 2 elements, got %d",
-			len(raw),
 		)
 	}
 	var size uint64

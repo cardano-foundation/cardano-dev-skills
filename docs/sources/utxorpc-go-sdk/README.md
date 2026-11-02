@@ -1,475 +1,423 @@
 # UTxO RPC Go SDK
 
-A Go client library for interacting with [UTxO RPC](https://utxorpc.org) servers. UTxO RPC is a specification for a common interface that can be used to query and submit transactions to UTxO-based blockchains.
+A Go client for [UTxO RPC](https://utxorpc.org) servers, with generic Query,
+Submit, Sync, and Watch clients and optional Cardano helpers. The default
+package targets **v1beta** and uses Connect RPC in gRPC mode over HTTP/2.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/utxorpc/go-sdk.svg)](https://pkg.go.dev/github.com/utxorpc/go-sdk)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-## Features
-
-This SDK implements the [UTxO RPC specification](https://utxorpc.org/spec) with the following services:
-
-- **[Query Service](https://utxorpc.org/spec/query)** - Read UTxOs, protocol parameters, chain data, and more
-- **[Submit Service](https://utxorpc.org/spec/submit)** - Submit and evaluate transactions, watch mempool
-- **[Sync Service](https://utxorpc.org/spec/sync)** - Fetch blocks and follow the chain tip in real-time
-- **[Watch Service](https://utxorpc.org/spec/watch)** - Watch for specific transactions across blocks
-- **Streaming Support** - Server-sent events for real-time blockchain updates
-- **HTTP/2 Transport** - Built on Connect RPC with HTTP/2 support
-- **Configurable Timeouts** - Dial and request timeouts for production use
-- **Cardano Helpers** - High-level convenience methods for Cardano blockchain
-
 ## Installation
+
+Requires **Go 1.26.10 or later**, as declared in [go.mod](go.mod).
 
 ```bash
 go get github.com/utxorpc/go-sdk
 ```
 
-Requires Go 1.24.0 or later.
+| Package | Purpose |
+| --- | --- |
+| `github.com/utxorpc/go-sdk` (package `sdk`) | Generic v1beta client, header management, streaming, and pagination |
+| `github.com/utxorpc/go-sdk/cardano` | Cardano UTxO searches, transaction helpers, and block helpers |
+| `github.com/utxorpc/go-sdk/v1alpha` | Frozen legacy client for v1alpha servers |
 
-## Quick Start
+## Quick start
 
-For general information about UTxO RPC concepts, visit the [UTxO RPC documentation](https://utxorpc.org/docs).
-
-### Using the Generic SDK
-
-The top-level SDK package provides a blockchain-agnostic client that works with any UTxO RPC server:
-
-```go
-package main
-
-import (
-    "context"
-    "errors"
-    "fmt"
-    "log"
-    "net"
-
-    "connectrpc.com/connect"
-    "github.com/utxorpc/go-codegen/utxorpc/v1beta/query"
-    "github.com/utxorpc/go-sdk"
-)
-
-func main() {
-    // Create a client with options
-    client := sdk.NewClient(
-        sdk.WithBaseUrl("https://preview.utxorpc-v0.demeter.run"),
-        sdk.WithHeaders(map[string]string{
-            "dmtr-api-key": "your-api-key",
-        }),
-    )
-
-    // Query protocol parameters
-    req := connect.NewRequest(&query.ReadParamsRequest{})
-    resp, err := client.ReadParamsWithContext(context.Background(), req)
-    if err != nil {
-        var transportErr net.Error
-        if errors.As(err, &transportErr) {
-            log.Printf("transport error: %v", transportErr)
-            return
-        }
-        if connectErr, ok := sdk.AsConnectError(err); ok {
-            log.Printf(
-                "RPC error: code=%s message=%q metadata=%v",
-                connectErr.Code(),
-                connectErr.Message(),
-                connectErr.Meta(),
-            )
-            return
-        }
-        log.Printf("local error: %v", err)
-        return
-    }
-
-    fmt.Printf("Ledger Tip Slot: %d\n", resp.Msg.GetLedgerTip().GetSlot())
-}
-```
-
-### Using the Cardano Package
-
-The `cardano` subpackage provides high-level helpers specifically for Cardano:
+Set `UTXORPC_URL` to your server's base URL. If your provider uses the
+`dmtr-api-key` header, set `DMTR_API_KEY` as well; other authentication headers
+can be supplied with `WithHeaders`.
 
 ```go
 package main
 
 import (
-    "fmt"
-    "log"
+	"context"
+	"fmt"
+	"log"
+	"os"
+	"time"
 
-    "github.com/utxorpc/go-sdk"
-    "github.com/utxorpc/go-sdk/cardano"
+	"connectrpc.com/connect"
+	"github.com/utxorpc/go-codegen/utxorpc/v1beta/query"
+	sdk "github.com/utxorpc/go-sdk"
 )
 
 func main() {
-    // Create a Cardano-specific client
-    client := cardano.NewClient(sdk.WithBaseUrl("https://preview.utxorpc-v0.demeter.run"))
-    client.UtxorpcClient.SetHeader("dmtr-api-key", "your-api-key")
+	baseURL := os.Getenv("UTXORPC_URL")
+	if baseURL == "" {
+		log.Fatal("set UTXORPC_URL to your UTxO RPC server URL")
+	}
+	client := sdk.NewClient(sdk.WithBaseUrl(baseURL))
+	if key := os.Getenv("DMTR_API_KEY"); key != "" {
+		client.SetHeader("dmtr-api-key", key)
+	}
 
-    // Get protocol parameters
-    resp, err := client.GetProtocolParameters()
-    if err != nil {
-        log.Printf("get protocol parameters: %v", err)
-        return
-    }
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-    fmt.Printf("Slot: %d\n", resp.Msg.GetLedgerTip().GetSlot())
-
-    // Get a UTxO by transaction reference
-    utxo, err := client.GetUtxoByRef(
-        "24efe5f12d1d93bb419cfb84338d6602dfe78c614b489edb72df0594a077431c",
-        0,
-    )
-    if err != nil {
-        log.Printf("get UTxO: %v", err)
-        return
-    }
-
-    for _, item := range utxo.Msg.GetItems() {
-        fmt.Printf("Coin: %d\n", item.GetCardano().GetCoin())
-    }
+	req := connect.NewRequest(&query.ReadParamsRequest{})
+	resp, err := client.ReadParamsWithContext(ctx, req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Ledger tip slot: %d\n", resp.Msg.GetLedgerTip().GetSlot())
 }
 ```
 
-### Using v1alpha (Legacy)
+Every generic RPC wrapper has two forms: `ReadParams(req)` uses
+`context.Background()`, and `ReadParamsWithContext(ctx, req)` uses the caller's
+context. Both inject configured headers before dispatching.
 
-The previous `v1alpha` UTxO RPC version remains available under the `v1alpha` subpackage for users targeting servers that have not yet upgraded. Migration from earlier SDK releases is a one-line import change:
+### Cardano helpers
+
+Use the same SDK options for a Cardano client. With `baseURL` and `ctx` from
+above, and `github.com/utxorpc/go-sdk/cardano` imported:
 
 ```go
-import (
-    sdk "github.com/utxorpc/go-sdk/v1alpha"
-    "github.com/utxorpc/go-codegen/utxorpc/v1alpha/query"
-)
+client := cardano.NewClient(sdk.WithBaseUrl(baseURL))
+if key := os.Getenv("DMTR_API_KEY"); key != "" {
+	client.UtxorpcClient.SetHeader("dmtr-api-key", key)
+}
+resp, err := client.GetTipWithContext(ctx)
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Printf("Tip slot: %d\n", resp.Msg.GetTip().GetSlot())
 ```
 
-The `v1alpha` subpackage exposes the same `UtxorpcClient`, options, wrapper methods, and `HandleError` utility as the top-level package — only the underlying protobuf types differ.
+The generic client is available through `client.UtxorpcClient`, including its
+service wrappers and header management methods.
 
-The `cardano` helper subpackage is `v1beta` only; there is no v1alpha cardano helper.
-
-## Client Configuration
-
-The SDK uses a functional options pattern for configuration:
+## Client configuration
 
 ```go
 client := sdk.NewClient(
-    sdk.WithBaseUrl("https://your-utxorpc-server.com"),
-    sdk.WithHeaders(map[string]string{
-        "Authorization": "Bearer token",
-    }),
-    sdk.WithDialTimeout(10 * time.Second),
-    sdk.WithRequestTimeout(30 * time.Second),
+	sdk.WithBaseUrl(os.Getenv("UTXORPC_URL")),
+	sdk.WithDialTimeout(10*time.Second),
+	sdk.WithRequestTimeout(30*time.Second),
 )
 ```
 
-### Available Options
+| Option | Behavior |
+| --- | --- |
+| `WithBaseUrl(url)` | Server base URL; `https://` uses TLS, `http://` uses cleartext HTTP/2 (h2c) |
+| `WithHeaders(headers)` | Initial headers injected by SDK wrappers |
+| `WithDialTimeout(duration)` | Connection establishment timeout for the default HTTP client |
+| `WithRequestTimeout(duration)` | Timeout for the entire request, including reading the response |
+| `WithHttpClient(client)` | Supply a `connect.HTTPClient`; SDK dial and request timeout options then have no effect |
+| `WithConnectOptions(options...)` | Apply Connect client options to all four services |
 
-| Option | Description |
-|--------|-------------|
-| `WithBaseUrl(url)` | Set the UTxO RPC server URL |
-| `WithHeaders(headers)` | Set custom HTTP headers (e.g., API keys) |
-| `WithDialTimeout(duration)` | Timeout for establishing connections |
-| `WithRequestTimeout(duration)` | Timeout for individual requests |
-| `WithHttpClient(client)` | Provide a custom HTTP client |
-| `WithConnectOptions(options...)` | Apply Connect options such as interceptors to every service |
+The default transport uses Go's `net/http` HTTP/2 support, requires TLS 1.2 or
+later for HTTPS, and does not follow redirects. With no request timeout set,
+there is no client-wide request deadline. A nonzero request timeout also
+limits streaming responses; use a cancellable context and a suitable timeout
+for long-running streams.
 
-### Error Handling
+`SetURL` rebuilds all four service clients with the new URL and existing
+Connect options. It reuses the HTTP client, so create a new client when
+switching between HTTPS and cleartext HTTP/2.
 
-RPC methods return ordinary Go errors and never require panic-based handling.
-Use `errors.As` with `net.Error` to identify underlying transport failures.
-Use `sdk.AsConnectError` to inspect a Connect/gRPC status code, message,
-details, and response metadata. Errors that match neither category are local
-failures such as invalid input or decoding errors.
-
-`sdk.HandleError` remains available for compatibility but is deprecated
-because it panics. Migrate by returning or logging the error and inspecting it
-as shown in the quick-start example.
-
-### Interceptors and Retry
-
-Connect client options can be passed without replacing the SDK's HTTP client:
+### Headers and direct service access
 
 ```go
-client := sdk.NewClient(
-    sdk.WithBaseUrl("https://your-utxorpc-server.com"),
-    sdk.WithConnectOptions(
-        connect.WithInterceptors(metricsInterceptor),
-    ),
-)
-```
-
-The options apply to Query, Submit, Sync, and Watch clients, including clients
-rebuilt by `SetURL`. The SDK does not retry calls by default. A retry
-interceptor should be limited to transient status codes and idempotent reads;
-do not retry `SubmitTx` or other non-idempotent operations unless the
-application provides its own deduplication guarantee.
-
-### Dynamic Header Management
-
-```go
-// Set a single header
-client.SetHeader("dmtr-api-key", "your-key")
-
-// Set multiple headers
-client.SetHeaders(map[string]string{
-    "dmtr-api-key": "your-key",
-    "X-Custom":     "value",
-})
-
-// Remove a header
-client.RemoveHeader("X-Custom")
-
-// Get current headers
+client.SetHeader("dmtr-api-key", os.Getenv("DMTR_API_KEY"))
+client.SetHeaders(map[string]string{"Authorization": "Bearer " + token})
+client.RemoveHeader("Authorization")
 headers := client.Headers()
 ```
 
+`SetHeaders` replaces the entire stored map. `WithHeaders` and `SetHeaders`
+retain the supplied map; `Headers` returns the live map when one is set.
+Configure headers and URLs before concurrent use, or synchronize mutations
+with calls yourself. Use separate request objects for concurrent calls.
+
+The exported `Query`, `Submit`, `Sync`, and `Watch` fields are generated
+Connect clients. Direct calls require explicit header injection:
+
+```go
+req := connect.NewRequest(&query.ReadParamsRequest{})
+client.AddHeadersToRequest(req)
+resp, err := client.Query.ReadParams(ctx, req)
+```
+
+Prefer `client.ReadParamsWithContext(ctx, req)` for automatic header injection.
+
+### Interceptors and retry
+
+```go
+client := sdk.NewClient(
+	sdk.WithBaseUrl(os.Getenv("UTXORPC_URL")),
+	sdk.WithConnectOptions(connect.WithInterceptors(metricsInterceptor)),
+)
+```
+
+Connect options apply to all services and survive `SetURL`. They are applied
+in order after the default `connect.WithGRPC()` option. Repeated
+`WithConnectOptions` calls append options.
+
+The SDK does not retry calls automatically. Limit retry interceptors to
+transient failures on idempotent reads. Retrying transaction submission needs
+an application-level deduplication guarantee.
+
 ## Services
 
-For detailed information about each service, see the [UTxO RPC specification](https://utxorpc.org/spec).
+These methods are available on `*sdk.UtxorpcClient`. Each has a `WithContext`
+variant and takes a `*connect.Request` containing the corresponding v1beta
+protobuf request from `github.com/utxorpc/go-codegen/utxorpc/v1beta/...`.
 
-### Query Service
+| Service | Unary methods | Streaming methods |
+| --- | --- | --- |
+| Query | `ReadData`, `ReadEraSummary`, `ReadGenesis`, `ReadParams`, `ReadState`, `ReadTx`, `ReadUtxos`, `SearchUtxos` | — |
+| Submit | `EvalTx`, `SubmitTx`, `ReadMempool` | `WaitForTx`, `WatchMempool` |
+| Sync | `DumpHistory`, `FetchBlock`, `ReadTip` | `FollowTip` |
+| Watch | — | `WatchTx` |
 
-Read blockchain data without modifying state:
+See the [package reference](https://pkg.go.dev/github.com/utxorpc/go-sdk) for
+signatures and the [UTxO RPC specification](https://utxorpc.org/spec) for
+request and response semantics. Server support for individual methods may vary.
 
-```go
-// Read UTxOs by reference
-client.Query.ReadUtxos(ctx, req)
+## Pagination
 
-// Search UTxOs with patterns
-client.Query.SearchUtxos(ctx, req)
-
-// Read protocol parameters
-client.Query.ReadParams(ctx, req)
-
-// Read chain data
-client.Query.ReadData(ctx, req)
-
-// Read selected chain state
-client.Query.ReadState(ctx, req)
-```
-
-### Submit Service
-
-Submit and manage transactions:
+`SearchUtxos` and `DumpHistory` return one page. Use `SearchUtxosPages` or
+`DumpHistoryPages` (and their `WithContext` variants) to iterate all pages:
 
 ```go
-// Submit a transaction
-client.Submit.SubmitTx(ctx, req)
-
-// Evaluate a transaction (dry run)
-client.Submit.EvalTx(ctx, req)
-
-// Read current mempool
-client.Submit.ReadMempool(ctx, req)
-
-// Stream: Wait for transaction confirmation
-stream, _ := client.Submit.WaitForTx(ctx, req)
-
-// Stream: Watch mempool changes
-stream, _ := client.Submit.WatchMempool(ctx, req)
+// import "google.golang.org/protobuf/proto"
+// predicate is a *query.UtxoPredicate describing the UTxOs to match.
+req := connect.NewRequest(&query.SearchUtxosRequest{
+	Predicate: predicate,
+	MaxItems:  proto.Int32(100),
+})
+for page, err := range client.SearchUtxosPagesWithContext(ctx, req) {
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, item := range page.Msg.GetItems() {
+		fmt.Println(item.GetTxoRef())
+	}
+}
 ```
 
-### Sync Service
+The helpers return lazy `iter.Seq2` sequences of responses and errors. Breaking
+iteration prevents further page requests. Each helper clones the protobuf
+request, copies request headers to each page, and injects stored client headers.
+The original request is unchanged. An RPC error is yielded once and ends
+iteration.
 
-Synchronize with the blockchain:
+Iteration starts at the request's `StartToken`. UTxO searches follow string
+`NextToken` values until empty; history pages follow `*sync.BlockRef` tokens
+until nil. For manual pagination, save a response's `NextToken` and pass it
+as the next request's `StartToken`.
+
+## Cardano API
+
+See the [Cardano package reference](https://pkg.go.dev/github.com/utxorpc/go-sdk/cardano)
+for full signatures. Helpers return Connect responses or server streams.
+
+| Purpose | Helpers |
+| --- | --- |
+| Protocol parameters | `GetProtocolParameters` |
+| UTxOs by reference | `GetUtxoByRef`, `GetUtxosByRefs` |
+| UTxO search | `GetUtxosByAddress`, `GetUtxosByAddressWithAsset`, `GetUtxosByAsset` |
+| Paginated UTxO search | `GetUtxosByAddressPages`, `GetUtxosByAddressWithAssetPages`, `GetUtxosByAssetPages` |
+| Transactions | `SubmitTransaction`, `EvaluateTransaction`, `GetMempoolTransactions` |
+| Transaction streams | `WaitForTransaction`, `WatchMempoolTransactions`, `WatchTransaction` |
+| Blocks | `GetTip`, `GetBlockByRef`, `ReadBlock`, `WatchBlocksByRef` |
+
+### Input encodings
+
+- `GetUtxoByRef` tries a transaction hash as hex first, then standard base64.
+  `GetUtxosByRefs` takes `[]*query.TxoRef` with raw hash bytes.
+- Address searches take raw bytes. Decode bech32 addresses first, for example
+  with `common.NewAddress` from
+  `github.com/blinklabs-io/gouroboros/ledger/common`, then call `Bytes()`.
+- Asset policy IDs and asset names are raw bytes. Decode hex strings before
+  passing them. `GetUtxosByAsset` requires at least one non-nil filter;
+  address-plus-asset searches allow both filters to be empty.
+- `SubmitTransaction` and `EvaluateTransaction` take signed transaction CBOR
+  as hex. `WaitForTransaction` takes a hex transaction hash.
+- `GetBlockByRef`, `WatchBlocksByRef`, and `WatchTransaction` take a hex block
+  hash and a slot. An empty hash and slot `-1` omit the reference or intersect;
+  the server determines the behavior. `WatchTransaction` watches transactions
+  from a block intersect, rather than selecting a transaction by its hash.
+- `ReadBlock` takes a `*sync.BlockRef` and checks that the first returned block
+  is a Cardano block with a header. It returns the full `FetchBlock` response.
+
+### Search options
+
+Cardano search helpers return a single page of up to 100 items by default,
+starting with an empty token and requesting all fields. All three search
+helpers and their `Pages` variants accept these options:
+
+| Option | Purpose |
+| --- | --- |
+| `cardano.WithSearchMaxItems(n)` | Set the maximum number of results per page |
+| `cardano.WithSearchStartToken(token)` | Resume from a search response's `NextToken` |
+| `cardano.WithSearchFieldMask(paths...)` | Select protobuf field-mask paths; no paths requests all fields |
+
+For a Cardano `client` and decoded `addressBytes`:
 
 ```go
-// Fetch a specific block
-client.Sync.FetchBlock(ctx, req)
-
-// Read historical blocks
-client.Sync.DumpHistory(ctx, req)
-
-// Read current chain tip
-client.Sync.ReadTip(ctx, req)
-
-// Stream: Follow the chain tip
-stream, _ := client.Sync.FollowTip(ctx, req)
+for page, err := range client.GetUtxosByAddressPagesWithContext(
+	ctx,
+	addressBytes,
+	cardano.WithSearchMaxItems(50),
+) {
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, item := range page.Msg.GetItems() {
+		fmt.Printf("Coin: %v\n", item.GetCardano().GetCoin())
+	}
+}
 ```
 
-### Watch Service
+### Context variants
 
-Watch for transactions:
+Every helper has a `WithContext` variant, but some take a protobuf request
+instead of the convenience arguments:
+
+| Convenience call | Context call's arguments after `ctx` |
+| --- | --- |
+| `SubmitTransaction(txCborHex)` | `*submit.SubmitTxRequest` |
+| `EvaluateTransaction(txCborHex)` | `*submit.EvalTxRequest` |
+| `WaitForTransaction(txHashHex)` | `*submit.WaitForTxRequest` |
+| `GetBlockByRef(blockHashHex, slot)` | `*sync.FetchBlockRequest` |
+| `WatchBlocksByRef(blockHashHex, slot)` | `*sync.FollowTipRequest` |
+| `WatchTransaction(blockHashHex, slot)` | `*watch.WatchTxRequest` |
+
+These context variants take hashes and transaction CBOR already decoded to
+bytes in the protobuf request. Other helpers retain their convenience
+arguments after `ctx`.
+
+## Working with streams
+
+Streams use Connect RPC server streaming over HTTP/2. Close each stream,
+process messages with `Receive` and `Msg`, and check `Err` after the loop.
+For a generic SDK client, with the v1beta `sync` package imported:
 
 ```go
-// Stream: Watch for specific transactions
-stream, _ := client.Watch.WatchTx(ctx, req)
-```
-
-## Cardano Package API
-
-The `cardano` package wraps the generic SDK with Cardano-specific convenience methods:
-
-### Query Methods
-
-```go
-// Protocol parameters
-client.GetProtocolParameters()
-
-// UTxO queries
-client.GetUtxoByRef(txHash, index)
-client.GetUtxosByRefs(refs)
-client.GetUtxosByAddress(address)
-client.GetUtxosByAddressWithAsset(address, policyId, assetName)
-client.GetUtxosByAsset(policyId, assetName)
-```
-
-### Transaction Methods
-
-```go
-// Submit a signed transaction (hex-encoded CBOR)
-client.SubmitTransaction(txCbor)
-
-// Evaluate a transaction
-client.EvaluateTransaction(txCbor)
-
-// Read mempool
-client.GetMempoolTransactions()
-
-// Stream: Wait for confirmation
-stream, _ := client.WaitForTransaction(txRef)
-
-// Stream: Watch mempool
-stream, _ := client.WatchMempoolTransactions()
-```
-
-### Sync Methods
-
-```go
-// Get current tip
-client.GetTip()
-
-// Fetch block by reference
-client.GetBlockByRef(hash, slot)
-
-// Read and validate a block
-client.ReadBlock(blockRef)
-
-// Stream: Follow blocks from a point
-stream, _ := client.WatchBlocksByRef(hash, slot)
-
-// Stream: Watch transactions
-stream, _ := client.WatchTransaction(hash, slot)
-```
-
-All methods have `WithContext` variants for timeout and cancellation control.
-
-## Examples
-
-The `examples/` directory contains complete, runnable examples:
-
-### Query Example
-
-```bash
-export UTXORPC_URL="https://preview.utxorpc-v0.demeter.run"
-export DMTR_API_KEY="your-api-key"
-go run examples/query/main.go
-```
-
-Demonstrates:
-- Getting protocol parameters
-- Reading UTxOs by transaction reference
-- Searching UTxOs by address
-- Filtering UTxOs by native assets
-
-### Submit Example
-
-```bash
-go run examples/submit/main.go
-```
-
-Demonstrates:
-- Submitting transactions
-- Reading mempool state
-- Waiting for transaction confirmation
-- Watching mempool for changes
-
-### Sync Example
-
-```bash
-go run examples/sync/main.go
-```
-
-Demonstrates:
-- Fetching blocks by hash and slot
-- Following the chain tip with streaming
-- Handling Apply/Undo/Reset actions
-
-## Working with Streams
-
-For real-time updates, the SDK provides streaming methods:
-
-```go
-// Start following the chain tip
-stream, err := client.WatchBlocksByRef(blockHash, slot)
+req := connect.NewRequest(&sync.FollowTipRequest{})
+stream, err := client.FollowTipWithContext(ctx, req)
 if err != nil {
-    log.Fatal(err)
+	log.Fatal(err)
 }
 defer stream.Close()
 
-// Process incoming blocks
 for stream.Receive() {
-    resp := stream.Msg()
-    action := resp.GetAction()
-
-    switch a := action.(type) {
-    case *sync.FollowTipResponse_Apply:
-        fmt.Println("New block applied")
-        // Handle new block
-    case *sync.FollowTipResponse_Undo:
-        fmt.Println("Block rolled back")
-        // Handle rollback
-    case *sync.FollowTipResponse_Reset_:
-        fmt.Println("Chain reset")
-        // Handle reset
-    }
+	switch action := stream.Msg().GetAction().(type) {
+	case *sync.FollowTipResponse_Apply:
+		fmt.Println("Apply:", action.Apply)
+	case *sync.FollowTipResponse_Undo:
+		fmt.Println("Undo:", action.Undo)
+	case *sync.FollowTipResponse_Reset_:
+		fmt.Println("Reset:", action.Reset_)
+	}
 }
-
 if err := stream.Err(); err != nil {
-    log.Fatal("Stream error:", err)
+	log.Print(err)
 }
 ```
 
-## Error Handling
+Handle Apply, Undo, and Reset events to keep local chain state consistent.
+Use a context whose lifetime covers the stream, and cancel it when finished.
+The SDK does not automatically reconnect or resume a failed stream.
 
-The SDK provides utilities for handling Connect RPC errors:
+## Error handling
+
+RPC methods return Go errors. Inspect underlying transport failures with
+`errors.As` and RPC status information with `sdk.AsConnectError`:
 
 ```go
-resp, err := client.SubmitTransaction(txCbor)
+// import "errors" and "net"
+resp, err := client.ReadParamsWithContext(ctx, req)
 if err != nil {
-    var connectErr *connect.Error
-    if errors.As(err, &connectErr) {
-        fmt.Printf("Error Code: %v\n", connectErr.Code())
-        fmt.Printf("Message: %s\n", connectErr.Message())
-        fmt.Printf("Details: %v\n", connectErr.Details())
-    }
+	var transportErr net.Error
+	if errors.As(err, &transportErr) {
+		log.Printf("transport error: %v", transportErr)
+	} else if rpcErr, ok := sdk.AsConnectError(err); ok {
+		log.Printf("RPC error: code=%s message=%q", rpcErr.Code(), rpcErr.Message())
+	} else {
+		log.Printf("local error: %v", err)
+	}
+	return
 }
+fmt.Printf("Ledger tip slot: %d\n", resp.Msg.GetLedgerTip().GetSlot())
 ```
+
+The returned `*connect.Error` also exposes `Details()` and `Meta()`.
+`sdk.HandleError` is a deprecated compatibility helper that prints and panics;
+handle returned errors explicitly in new code.
+
+## Legacy v1alpha
+
+For a v1alpha server, use matching SDK and generated protobuf imports:
+
+```go
+import (
+	"github.com/utxorpc/go-codegen/utxorpc/v1alpha/query"
+	sdk "github.com/utxorpc/go-sdk/v1alpha"
+)
+```
+
+The legacy package retains service wrappers, header management, and
+background/context method pairs for v1alpha. It is frozen for new features
+and has no Cardano helper package. It does not provide v1beta additions such
+as `ReadState`, `DumpHistory`, page iterators, `WithConnectOptions`, or
+`AsConnectError`; inspect `*connect.Error` with `errors.As` instead.
+
+When migrating to v1beta, update both SDK and generated protobuf import paths,
+and adapt requests and response handling to the v1beta schema. The packages'
+`ClientOption` types are distinct.
+
+## Examples
+
+Run examples from the repository root after setting `UTXORPC_URL` and, if
+needed, `DMTR_API_KEY`:
+
+```bash
+go run ./examples/query
+go run ./examples/submit
+go run ./examples/sync
+```
+
+- [Query](examples/query/main.go): protocol parameters, era summaries, genesis,
+  UTxOs by reference, address searches, and native asset filters.
+- [Submit](examples/submit/main.go): reads the mempool by default. Edit the
+  `mode` variable to select `submitTx`, `waitForTx`, or `watchMempool`; replace
+  the transaction CBOR or hash with your own data for submission or waiting.
+- [Sync](examples/sync/main.go): fetches a block, then follows chain-tip events
+  including Apply, Undo, and Reset.
+
+The examples contain sample Cardano addresses and block/transaction references.
+Replace them with data for your server's network. They fall back to a Demeter
+preview endpoint when `UTXORPC_URL` is unset.
 
 ## Development
 
 ```bash
-# Run tests
-make test
-
-# Format code
-make format
-
-# Build examples
-make build
-
-# Tidy dependencies
-make mod-tidy
+make test       # go mod tidy, then go test -v -race ./...
+make format     # go fmt ./... and gofmt -s -w
+make build      # build example binaries in the repository root
+make mod-tidy   # tidy module dependencies
+make golines    # optional 80-column formatting; requires golines
+golangci-lint run
 ```
 
-## Related Projects
+CI runs golangci-lint with the linters and formatters in
+[.golangci.yml](.golangci.yml); there is no `make lint` target.
+Tests use local fixtures and test servers. Live server checks are separate;
+building examples does not run them. See [AGENTS.md](AGENTS.md) for repository
+conventions and contribution guidance.
 
-**UTxO RPC Ecosystem:**
-- [utxorpc.org](https://utxorpc.org) - Official UTxO RPC website and documentation
-- [UTxO RPC Specification](https://utxorpc.org/spec) - The protocol specification
-- [SDKs in Other Languages](https://utxorpc.org/sdks) - Client libraries for Python, Rust, and more
-- [go-codegen](https://github.com/utxorpc/go-codegen) - Generated protobuf types for Go
+## Related projects
 
-**Cardano Libraries:**
-- [gouroboros](https://github.com/blinklabs-io/gouroboros) - Cardano library for address handling and CBOR
+- [UTxO RPC](https://utxorpc.org) — protocol documentation and ecosystem
+- [go-codegen](https://github.com/utxorpc/go-codegen) — generated protobuf and
+  Connect clients
+- [gouroboros](https://github.com/blinklabs-io/gouroboros) — Cardano primitives
+  used by the examples
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+[Apache License 2.0](LICENSE).

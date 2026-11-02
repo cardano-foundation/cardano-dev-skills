@@ -15,7 +15,7 @@ import (
 	sdk "github.com/utxorpc/go-sdk"
 )
 
-// Client is a high-level Cardano client. It embeds a generic
+// Client is a high-level Cardano client. It holds a generic
 // [*sdk.UtxorpcClient] (accessible via the UtxorpcClient field) for header
 // management and direct service access, and adds Cardano-specific helpers
 // that build the appropriate request types and decode common input formats.

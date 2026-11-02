@@ -25,7 +25,7 @@ This section documents how to attach **Plutus datums** (hash or inline) and **re
 
 Each functionality page above includes method signatures, behavior, side-by-side Apollo + CLI examples, evidence labels, and caveats.
 
-Plutus V4 reference scripts are recognized by the underlying types, but the current Conway transaction builder rejects V4 reference-script payments with `ErrPlutusV4RequiresDijkstra`; V4 requires Dijkstra-era transaction support.
+Plutus V4 reference-script payments require the Dijkstra target era; a Conway build rejects them with `ErrPlutusV4RequiresDijkstra`. See [Dijkstra transactions](../dijkstra/README.md#plutus-v4).
 
 ## See also
 

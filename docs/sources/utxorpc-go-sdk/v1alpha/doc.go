@@ -1,19 +1,23 @@
 // Package v1alpha is the legacy UTxO RPC client targeting the v1alpha
-// protobuf schema. It mirrors the API of the parent [github.com/utxorpc/go-sdk]
-// package one-for-one — same [UtxorpcClient], options, method pairs, and
-// [HandleError] utility — only the underlying request/response types come
-// from utxorpc/v1alpha rather than utxorpc/v1beta.
+// protobuf schema. It retains service wrappers, header management, and
+// background/context method pairs using request and response types from
+// utxorpc/v1alpha. This package is frozen for new features; its API differs
+// from the current [github.com/utxorpc/go-sdk] v1beta package.
+//
+// ReadState, DumpHistory, page iterators, WithConnectOptions, and AsConnectError
+// are available only in the parent package. ClientOption types from the two
+// packages are distinct and cannot be interchanged.
 //
 // # Use the parent package for new code
 //
 // Prefer [github.com/utxorpc/go-sdk] for new development. This package exists
 // so callers pinned to servers that have not yet upgraded to v1beta can
-// continue to compile and run. Migration is a one-line import change once
-// the server speaks v1beta:
+// continue to compile and run. Once the server speaks v1beta, update both SDK
+// and generated protobuf imports, then adapt requests and response handling
+// to the v1beta schema:
 //
 //	import (
-//	    sdk "github.com/utxorpc/go-sdk"           // new (v1beta)
-//	    // sdk "github.com/utxorpc/go-sdk/v1alpha" // old
+//	    sdk "github.com/utxorpc/go-sdk"
 //	    "github.com/utxorpc/go-codegen/utxorpc/v1beta/query"
 //	)
 //
@@ -23,12 +27,21 @@
 // # Quick start
 //
 //	client := v1alpha.NewClient(
-//	    v1alpha.WithBaseUrl("https://your-v1alpha-server.example"),
-//	    v1alpha.WithHeaders(map[string]string{"dmtr-api-key": "..."}),
+//	    v1alpha.WithBaseUrl(os.Getenv("UTXORPC_URL")),
 //	)
+//	if key := os.Getenv("DMTR_API_KEY"); key != "" {
+//	    client.SetHeader("dmtr-api-key", key)
+//	}
 //
 //	req := connect.NewRequest(&query.ReadParamsRequest{}) // utxorpc/v1alpha/query
-//	resp, err := client.ReadParams(req)
+//	resp, err := client.ReadParamsWithContext(ctx, req)
+//	if err != nil {
+//	    return err
+//	}
+//	fmt.Println(resp.Msg.GetLedgerTip().GetSlot())
+//
+// Set UTXORPC_URL to a v1alpha server's base URL. The snippet assumes a
+// caller's context ctx and matching v1alpha query types from go-codegen.
 //
 // # API surface
 //
@@ -63,7 +76,10 @@
 //
 //	HandleError(err) — prints the Connect code/message/details and panics.
 //
+// Prefer inspecting returned errors with [errors.As] and [*connect.Error]
+// instead of calling HandleError. Direct calls through the service fields
+// require explicit [UtxorpcClient.AddHeadersToRequest] calls.
+//
 // See the [github.com/utxorpc/go-sdk] package documentation for the
-// method-pair convention, transport details, and streaming patterns; they
-// apply identically here.
+// method-pair convention, transport configuration, and streaming patterns.
 package v1alpha

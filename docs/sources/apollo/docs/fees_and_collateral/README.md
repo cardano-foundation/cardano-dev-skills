@@ -11,6 +11,10 @@ The reference-script price is preserved as a rational when the provider supplies
 one (`MinFeeRefScriptCostPerByteRational`); it is not round-tripped through a
 lossy float.
 
+Dijkstra builds additionally require the provider to report the tier stride
+and multiplier, and enforce the reported per-transaction reference-script size
+limit; see [Dijkstra transactions](../dijkstra/README.md#reference-script-fees).
+
 Helpers on the builder:
 
 | Method | Role |

@@ -593,6 +593,9 @@ func ComputeScriptDataHash(
 	if len(redeemers) == 0 && len(datums) == 0 {
 		return nil, nil
 	}
+	if len(redeemers) > 0 && len(costModels) == 0 {
+		return nil, errors.New("missing cost models for redeemers")
+	}
 
 	// An absent field 5 hashes as the empty Conway redeemer map 0xa0, which is
 	// what a nil map must not encode to (CBOR null).
@@ -620,6 +623,9 @@ func ComputeScriptDataHash(
 	usedVersions := make(map[uint]struct{})
 	numericCostModels := make(map[uint][]int64)
 	for lang, costs := range costModels {
+		if len(redeemers) > 0 && len(costs) == 0 {
+			return nil, fmt.Errorf("empty cost model for %s", lang)
+		}
 		var version uint
 		switch lang {
 		case "PlutusV1":

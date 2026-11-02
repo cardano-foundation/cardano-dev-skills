@@ -1,6 +1,0 @@
-type: object
-description: System parameters at a specific block height
-properties:
-  dParameter:
-    $ref: ./d_parameter.yaml
-    description: The D-parameter controlling validator committee composition

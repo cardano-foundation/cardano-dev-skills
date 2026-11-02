@@ -73,6 +73,10 @@ The LeiosFetch protocol retrieves Leios-specific data including blocks, block tr
 | **BlockRange** | 5 | Server | Streaming blocks in range |
 | **Done** | 6 | None | Terminal state |
 
+### Pipelining
+
+A client may pipeline `BlockRequest` and `BlockTxsRequest` behind a request the server has not answered yet, so the server can receive them while in `Block` or `BlockTxs`. The server queues each one until the protocol returns to `Idle`, then answers it, so replies follow request order. Queued requests are bounded by the receive queue, the state's pending-message byte limit, and the protocol's ingress limit; a client that keeps sending past them fails the connection. `VotesRequest` and `BlockRangeRequest` are not pipelined: the reference client does not send them, and one sent while a reply is outstanding is a protocol violation.
+
 ## Messages
 
 | Message | Type ID | Direction | Description |
@@ -152,6 +156,36 @@ CIP-0164 says a server should disconnect when requested data is unavailable.
 `VoterId` is the voter's index in the epoch's stake-based committee.
 `Votes` keeps the wire payload as raw CBOR and provides typed helpers for
 validated `common.LeiosVote` values.
+
+## Reply correlation
+
+The client retains the active request and rejects a reply that does not
+describe it, failing the connection with `ErrUnexpectedResponse`. Replies echo
+no selector, so each is bound through its content:
+
+- `Block`: the endorser block must decode and hash to the requested point's
+  hash. As in the reference node, the hash is taken over the canonical
+  re-encoding of the references, not the bytes received, so an endorser block
+  with wider CBOR heads still matches.
+- `BlockTxs`: the reply must carry one transaction per bit in the requested
+  bitmaps. This is checked once, when the reply is decoded.
+- `Votes`: every vote must decode as a `LeiosVote` (so a malformed signature
+  fails the connection) and match a requested `(SlotNo, VoterId)` pair, no more
+  often than that pair was requested. There can be no more votes than
+  requested; a server may return fewer.
+- `BlockRange`: every block must be a well-formed endorser block, and each
+  transaction must match the reference at the same position: the Blake2b-256
+  hash of its CBOR and its encoded size. Messages 13 and 14 carry unwrapped
+  `block_transaction` items, not the `#6.24` wrapping that `BlockTxs` uses, and
+  the hash and size are taken over those items as sent. No block may repeat
+  within the stream.
+  The request endpoints are ranking-block points and a reply carries only the
+  endorser block they certify, so the endpoints, the number of replies and
+  their order are not compared to the request.
+
+`BlockTxs` transactions are only counted, not matched to their endorser block's
+references, because the reply does not name the block. A late reply to an
+abandoned request is drained without validation.
 
 ## Timeouts
 

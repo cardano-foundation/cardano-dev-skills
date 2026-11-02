@@ -35,9 +35,6 @@ the full Playwright suite. Fixed problems are removed, not kept as history.
   rendered URL parameters, so a second click made before the re-render overwrites the first. Playwright's
   untick-then-tick leaves the previous filter ticked. Real users hit it too when clicking quickly. Reported to the
   outcomes UI developers for a fix in that package; GovTool's router is left as it is.
-- **SPO vote totals differ between the list and the details page (4K, 4G).** For example, 63.97M ₳ in
-  `/proposal/list` and 60.41M ₳ on the details page (`/proposal/get`). This also failed on QA with the Haskell
-  backend. The cause is not yet pinned down; the list is served from a cached snapshot.
 - **A new DRep's id and an updated vote rationale do not appear after the transaction (2N, 5L).** The backend
   caches `/drep/list` per search term and `/drep/getVotes` per DRep, and serves stale-while-revalidate: after
   the 20 s lifetime it still answers the old value once. The frontend fetches once when the transaction settles

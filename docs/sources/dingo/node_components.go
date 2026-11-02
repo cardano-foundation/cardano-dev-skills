@@ -95,6 +95,7 @@ func (n *Node) newPeerGovernor() *peergov.PeerGovernor {
 	}
 
 	peerGovConfig := peergov.PeerGovernorConfig{
+		ControlGroups:   n.genesisControlGroups(),
 		Logger:          n.config.logger,
 		EventBus:        n.eventBus,
 		ConnManager:     n.connManager,
@@ -151,11 +152,11 @@ func (n *Node) newDatabaseLifecycleManager() *dblifecycle.Manager {
 	)
 }
 
-func (n *Node) midnightServerConfig(ctx context.Context) midnightserver.Config {
+func (n *Node) midnightServerConfig() midnightserver.Config {
 	return midnightserver.Config{
 		Logger:   n.config.logger,
 		Metadata: n.db.Metadata(),
-		BlockNumberByHash: func(hash []byte) (uint64, bool, error) {
+		BlockNumberByHash: func(ctx context.Context, hash []byte) (uint64, bool, error) {
 			block, err := database.BlockByHash(ctx, n.db, hash)
 			if err != nil {
 				if errors.Is(err, models.ErrBlockNotFound) {
@@ -253,8 +254,11 @@ func (n *Node) configureSnapshotManager() error {
 		func(
 			txn *database.Txn,
 			evt event.EpochTransitionEvent,
+			incomingEraID uint,
 		) ([]*models.PoolStakeSnapshot, error) {
-			return n.snapshotMgr.CurrentBoundarySPOStakeRows(n.ctx, txn, evt)
+			return n.snapshotMgr.CurrentBoundarySPOStakeRows(
+				n.ctx, txn, evt, incomingEraID,
+			)
 		},
 	)
 	return nil

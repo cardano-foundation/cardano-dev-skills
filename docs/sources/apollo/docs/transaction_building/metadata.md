@@ -21,6 +21,7 @@ JSON mappings match cardano-cli:
 Top-level JSON must be an object whose keys are metadata labels. Integers are
 bounded to `[-(2^64-1), 2^64-1]`. Strings in no-schema metadata are at most 64
 bytes. `MetadataMap` preserves non-string keys (including bytes).
+Metadata JSON input is limited to 8 MiB and 512 nested objects or arrays.
 
 v2 had a bug where metadata never reached the chain: `buildMetadata` returned
 a map without storing encoding, and gouroboros serializes auxiliary data from

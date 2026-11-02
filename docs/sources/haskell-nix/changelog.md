@@ -1,6 +1,18 @@
 This file contains a summary of changes to Haskell.nix and `nix-tools`
 that will impact users.
 
+## October 25, 2026
+
+  * Removed the `haskell-nix` knobs `emulatorNativeBuilderPackages` and
+    `emulatorNativeBuilderTH`.  Template Haskell slices, the `base` and
+    `th-orphans` slices and the native GHC 9.14 library no longer get
+    `emulatorSystemFeatures`: built on emulated (`nix-linux-builder`)
+    hosts they all passed.  `emulatorSystemFeatures` now applies only to
+    checks for hosts matching `emulatorNativeBuilderCheck`, by default
+    32-bit x86 Linux, whose exes cannot run under Rosetta.
+    `usesTemplateHaskell` stays: it still selects `-fexternal-interpreter`
+    for dynamically linked musl hosts.
+
 ## October 16, 2026
 
 New compiler: `ghc914-sh`, GHC 9.14 from the stable-haskell fork, built

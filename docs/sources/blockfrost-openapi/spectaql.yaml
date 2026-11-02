@@ -5,7 +5,7 @@ spectaql:
   themeDir: ./spectaql-theme
 
 introspection:
-  schemaFile: ./midnight-indexer-api.graphql
+  schemaFile: ./.cache/spectaql/midnight-indexer-api.graphql
   queryNameStrategy: capitalizeFirst
   fieldExpansionDepth: 3
 
@@ -14,7 +14,9 @@ info:
   description: |
     The Midnight Indexer API exposes a GraphQL API that enables clients to query and subscribe to blockchain data — blocks, transactions, contracts, and wallet-related events — indexed from the Midnight blockchain.
 
-    The deployed version of the Midnight Indexer API is **v4**.
+    The deployed version of the Midnight Indexer API is **v4.4**.
+
+    Types, fields, queries, and subscriptions marked **Beta** are unstable upstream and may change without notice. This includes the bridge API, contract events, and the DUST generation and Merkle tree API.
 
     For the raw GraphQL schema specification, see the [Midnight Indexer GraphQL Schema](midnight-indexer-api.graphql).
 
@@ -93,7 +95,7 @@ info:
         Example:
         ```json
         {
-          "query": "query GetBlock($offset: BlockOffset) { block(offset: $offset) { hash height } }",
+          "query": "query GetBlock(\$offset: BlockOffset) { block(offset: \$offset) { hash height } }",
           "variables": { "offset": { "height": 100 } }
         }
         ```
@@ -157,7 +159,7 @@ info:
         curl -X POST https://midnight-mainnet.blockfrost.io/api/v0 \
           -H "project_id: YOUR_PROJECT_ID" \
           -H "Content-Type: application/json" \
-          -d '{"query": "{ transactions(offset: { hash: \"YOUR_TX_HASH\" }) { hash protocolVersion fees { paidFees estimatedFees } block { height hash } } }"}'
+          -d '{"query": "{ transactions(offset: { hash: \"YOUR_TX_HASH\" }) { hash protocolVersion block { height hash } ... on RegularTransaction { fee } } }"}'
         ```
 
         **Query DUST generation status:**
@@ -264,6 +266,29 @@ info:
         };
         ```
 
+    - title: WebSocket Close Codes
+      description: |
+        Close codes sent by the Midnight Indexer, including the `graphql-transport-ws` protocol codes (`4400`, `4401`, `4403`, `4408`, `4409` and others), are forwarded to your client unchanged, with these exceptions:
+
+        | Code | Meaning |
+        |------|---------|
+        | `4004`, `4005`, `4006` | The upstream connection closed with `1004`, `1005` or `1006`. These codes are reserved and can't be sent in a close frame, so Blockfrost adds 3000 to them. `4006` means the connection to the indexer dropped without a close frame (abnormal closure). |
+        | `4429` | Close reason `Rate limit exceeded`: too many `subscribe` messages for your project from the same IP address. |
+        | `1013` | `WebSocket send queue exceeded`: too many messages were queued for the connection, usually because the client isn't reading them fast enough. |
+
+        In all of these cases, reconnect and subscribe again. To avoid missing events, resume from the last event you processed with the subscription's cursor argument:
+
+        | Subscription | Resume with |
+        |--------------|-------------|
+        | `blocks`, `contractActions` | `offset` (a `BlockOffset`) |
+        | `dustLedgerEvents`, `zswapLedgerEvents` | `id` |
+        | `contractEvents` | `id`, or `filter.fromBlock` |
+        | `shieldedTransactions` | `index` |
+        | `unshieldedTransactions` | `transactionId` |
+        | `shieldedNullifierTransactions`, `dustNullifierTransactions` | `fromBlock` |
+        | `dustGenerations` | Subscribe again with a newer `blockHash`; each subscription returns a complete snapshot at that block. |
+        | `bridgePoolUpdates`, `bridgeBalance` | No cursor. Both emit the current state when you subscribe, but updates sent while you were disconnected are not replayed. |
+
     - title: Query Limits
       description: |
         The server may apply limitations to queries:
@@ -325,6 +350,8 @@ info:
 
         The viewing key can be in Bech32m format (preferred, e.g. `mn_shield-esk1...`) or hex.
 
+        To skip scanning the start of the chain, pass `options: { startIndex: N }` to `connect`; the indexer then searches for relevant transactions from transaction index `N` onwards.
+
         **Step 2 — Subscribe to shielded transactions:**
 
         Using the session ID from the `connect` mutation, subscribe via WebSocket:
@@ -333,15 +360,17 @@ info:
           "id": "1",
           "type": "subscribe",
           "payload": {
-            "query": "subscription($sid: HexEncoded!) { shieldedTransactions(sessionId: $sid, sendProgressUpdates: true) { ... on ViewingUpdate { index update { ... on RelevantTransaction { transaction { hash } } } } ... on ShieldedTransactionsProgress { highestIndex highestRelevantIndex highestRelevantWalletIndex } } }",
+            "query": "subscription(\$sid: HexEncoded!) { shieldedTransactions(sessionId: \$sid) { ... on RelevantTransaction { transaction { hash zswapStartIndex zswapEndIndex } zswapCollapsedUpdate { startIndex endIndex update } } ... on ShieldedTransactionsProgress { highestZswapEndIndex highestCheckedZswapEndIndex highestRelevantZswapEndIndex } } }",
             "variables": { "sid": "SESSION_ID_HEX" }
           }
         }
         ```
 
         The subscription emits two event types:
-        * `ViewingUpdate` — contains relevant transactions and Merkle tree updates for the wallet
-        * `ShieldedTransactionsProgress` — reports sync progress (`highestIndex`, `highestRelevantIndex`, `highestRelevantWalletIndex`), useful for showing progress in a UI. Controlled by the `sendProgressUpdates` parameter (default: `true`).
+        * `RelevantTransaction` — a transaction relevant for the wallet. When there is a gap between the current zswap index and the transaction's `zswapStartIndex`, it also carries a `zswapCollapsedUpdate` with the collapsed Merkle tree update for that gap.
+        * `ShieldedTransactionsProgress` — reports sync progress (`highestZswapEndIndex`, `highestCheckedZswapEndIndex`, `highestRelevantZswapEndIndex`), useful for showing progress in a UI.
+
+        Pass the optional `index` argument to resume the subscription from a given index instead of zero.
 
         **Step 3 — Disconnect when done:**
         ```bash
@@ -359,6 +388,15 @@ info:
         * `unshieldedTransactions(address: UnshieldedAddress!, transactionId: Int)` — unshielded transaction events for an address, with optional resume from a specific transaction ID
         * `dustLedgerEvents(id: Int)` — DUST ledger state changes (initial UTXOs, generation time updates, spend processing, parameter changes)
         * `zswapLedgerEvents(id: Int)` — zswap ledger state changes
+        * `shieldedNullifierTransactions(nullifierPrefixes: [HexEncoded!]!, fromBlock: Int, toBlock: Int)` — references to transactions containing shielded (zswap) nullifiers that match the given prefixes; completes after `toBlock` if set
+        * `dustNullifierTransactions(nullifierLeBytesPrefixes: [HexEncoded!]!, fromBlock: Int, toBlock: Int)` — references to transactions containing DUST nullifiers that match the given little-endian prefixes; completes after `toBlock` if set
+
+        The following subscriptions are **Beta**:
+
+        * `contractEvents(filter: ContractEventFilter!, id: Int)` — contract events (mints, burns, spends, receives, pause/unpause, and custom events) matching a filter, in ID order; completes once `filter.toBlock` is reached if set
+        * `dustGenerations(dustAddress: DustAddress!, blockHash: HexEncoded!, dtimeCutoffHeight: Int!)` — a consistent snapshot of a DUST address's generations at a given block, interleaved with collapsed Merkle tree updates; completes once emitted
+        * `bridgePoolUpdates` — bridge pool summary snapshots emitted alongside pool-affecting events
+        * `bridgeBalance(address: HexEncoded!)` — a recipient's bridge balance, re-emitted when it changes
 
     - title: Resources
       description: |

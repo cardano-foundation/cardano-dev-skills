@@ -3,13 +3,13 @@ package fixed
 import (
 	"encoding/hex"
 	"errors"
-	"math/big"
 	"strconv"
 	"sync"
 
 	"github.com/blinklabs-io/gouroboros/ledger/common"
 
 	"github.com/Salvionied/apollo/v2/backend"
+	"github.com/Salvionied/apollo/v2/internal/backendutil"
 )
 
 // FixedChainContext is a backend with preset protocol/genesis parameters and UTxOs.
@@ -94,23 +94,7 @@ func utxoRefKey(txHash common.Blake2b256, index uint32) string {
 }
 
 func (f *FixedChainContext) ProtocolParams() (backend.ProtocolParameters, error) {
-	pp := f.protocolParams
-	if pp.CostModels != nil {
-		cm := make(map[string][]int64, len(pp.CostModels))
-		for k, v := range pp.CostModels {
-			dup := make([]int64, len(v))
-			copy(dup, v)
-			cm[k] = dup
-		}
-		pp.CostModels = cm
-	}
-	if pp.MinFeeRefScriptCostPerByteRational != nil {
-		pp.MinFeeRefScriptCostPerByteRational = new(big.Rat).Set(pp.MinFeeRefScriptCostPerByteRational)
-	}
-	if pp.MinFeeReferenceScriptsMultiplierRational != nil {
-		pp.MinFeeReferenceScriptsMultiplierRational = new(big.Rat).Set(pp.MinFeeReferenceScriptsMultiplierRational)
-	}
-	return pp, nil
+	return backendutil.CloneProtocolParams(f.protocolParams), nil
 }
 
 func (f *FixedChainContext) GenesisParams() (backend.GenesisParameters, error) {

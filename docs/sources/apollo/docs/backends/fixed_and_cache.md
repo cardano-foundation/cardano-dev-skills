@@ -20,12 +20,14 @@ input.
 
 **Capabilities:** protocol params, genesis params, max tx fee, UTxOs, UTxO by
 ref. No tip, submit, evaluate, epoch, or script CBOR — it does not pretend to
-be a node.
+be a node. Wrap it with [`backend/localeval`](localeval.md) to evaluate
+scripts in tests.
 
 ## `backend/cache`
 
 TTL wrapper around any `ChainContext`. Caches protocol and genesis parameters
-so a multi-step `Complete()` does not re-fetch them on every probe.
+and `MaxTxFee` so a multi-step `Complete()` does not re-fetch them on every
+probe. Errors are not cached.
 
 ```go
 import (
@@ -37,5 +39,6 @@ import (
 cached := cache.NewCachedChainContext(inner, 5*time.Minute)
 ```
 
-Capabilities are those of `inner`. Cost-model maps are deep-copied on read so
-callers cannot mutate the cache.
+Capabilities are those of `inner`. Cached protocol parameters are deep-copied
+on read, including cost models and reference-script prices, so callers cannot
+mutate the cache.

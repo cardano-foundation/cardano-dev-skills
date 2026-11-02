@@ -279,7 +279,7 @@ sudo mv mithril-signer /opt/mithril
 #### Set up the service
 
 :::info
-For Signer in version **1.2.1 and upper**, since protocol configuration is now **decentralized**, the mechanism to retrieve protocol configuration has changed.
+For Signer in version **1.2.1 and later**, since protocol configuration is now **decentralized**, the mechanism to retrieve protocol configuration has changed.
 Setting up `PROTOCOL_CONFIGURATION_READER_ADAPTER_CONFIG` as described in the following steps will allow the signer to retrieve this information on the Cardano Chain.
 :::
 
@@ -502,7 +502,7 @@ To expose metrics on the endpoint, append the following environment variable to 
 ```bash
 sudo bash -c 'cat >> /opt/mithril/mithril-signer.env << EOF
 ENABLE_METRICS_SERVER=true
-EOF`
+EOF'
 ```
 
 You can also specify a custom listen IP address and port for the metrics server:
@@ -512,7 +512,7 @@ sudo bash -c 'cat >> /opt/mithril/mithril-signer.env << EOF
 ENABLE_METRICS_SERVER=true
 METRICS_SERVER_IP=**YOUR_METRICS_SERVER_IP**
 METRICS_SERVER_PORT=**YOUR_METRICS_SERVER_PORT**
-EOF`
+EOF'
 ```
 
 :::tip
@@ -524,7 +524,7 @@ sudo bash -c 'cat >> /opt/mithril/mithril-signer.env << EOF
 ENABLE_METRICS_SERVER=true
 METRICS_SERVER_IP=0.0.0.0
 METRICS_SERVER_PORT=9090
-EOF`
+EOF'
 ```
 
 :::
@@ -1601,16 +1601,10 @@ First, download the script into the desired directory:
 wget https://mithril.network/doc/scripts/verify_signer_registration.sh
 ```
 
-Make the script executable:
-
-```bash
-chmod +x verify_signer_registration.sh
-```
-
 Finally, execute the script:
 
 ```bash
-PARTY_ID=**YOUR_PARTY_ID** AGGREGATOR_ENDPOINT=**YOUR_AGGREGATOR_ENDPOINT** ./verify_signer_registration.sh
+PARTY_ID=**YOUR_PARTY_ID** AGGREGATOR_ENDPOINT=**YOUR_AGGREGATOR_ENDPOINT** bash verify_signer_registration.sh
 ```
 
 :::tip
@@ -1618,7 +1612,7 @@ PARTY_ID=**YOUR_PARTY_ID** AGGREGATOR_ENDPOINT=**YOUR_AGGREGATOR_ENDPOINT** ./ve
 Here is an example command:
 
 ```bash
-PARTY_ID=pool1hp72sauk0g0yqm4dzllz0pz6j93gewhllkzphn4hykkfmne43y AGGREGATOR_ENDPOINT=https://aggregator.release-mainnet.api.mithril.network/aggregator ./verify_signer_registration.sh
+PARTY_ID=pool1hp72sauk0g0yqm4dzllz0pz6j93gewhllkzphn4hykkfmne43y AGGREGATOR_ENDPOINT=https://aggregator.release-mainnet.api.mithril.network/aggregator bash verify_signer_registration.sh
 ```
 
 :::
@@ -1645,16 +1639,10 @@ First, download the script into the desired directory:
 wget https://mithril.network/doc/scripts/verify_signer_signature.sh
 ```
 
-Make the script executable:
-
-```bash
-chmod +x verify_signer_signature.sh
-```
-
 Finally, execute the script:
 
 ```bash
-PARTY_ID=**YOUR_PARTY_ID** AGGREGATOR_ENDPOINT=**YOUR_AGGREGATOR_ENDPOINT** ./verify_signer_signature.sh
+PARTY_ID=**YOUR_PARTY_ID** AGGREGATOR_ENDPOINT=**YOUR_AGGREGATOR_ENDPOINT** bash verify_signer_signature.sh
 ```
 
 :::tip
@@ -1662,7 +1650,7 @@ PARTY_ID=**YOUR_PARTY_ID** AGGREGATOR_ENDPOINT=**YOUR_AGGREGATOR_ENDPOINT** ./ve
 Here is an example of the aforementioned command created with the example set for `release-mainnet`:
 
 ```bash
-PARTY_ID=pool1hp72sauk0g0yqm4dzllz0pz6j93gewhllkzphn4hykkfmne43y AGGREGATOR_ENDPOINT=https://aggregator.release-mainnet.api.mithril.network/aggregator ./verify_signer_signature.sh
+PARTY_ID=pool1hp72sauk0g0yqm4dzllz0pz6j93gewhllkzphn4hykkfmne43y AGGREGATOR_ENDPOINT=https://aggregator.release-mainnet.api.mithril.network/aggregator bash verify_signer_signature.sh
 ```
 
 :::

@@ -736,10 +736,13 @@ func VerifyBlock(
 	return verifyBlock(block, eta0Hex, slotsPerKesPeriod, config, false)
 }
 
-// VerifyBlockLocal checks header cryptography and body integrity without
-// reading ledger state or protocol parameters. Success does not certify
-// transaction validity, block limits, pool registration, certificates, or the
-// Dijkstra header rules that depend on protocol parameters.
+// VerifyBlockLocal checks body integrity and the header cryptography that does
+// not require chain state or protocol parameters. Byron blocks have no Praos
+// VRF or KES evidence, so their local check validates the body proof; their
+// OBFT/PBFT signature and delegation rules remain chain-context checks.
+// Success does not certify transaction validity, block limits, pool
+// registration, certificates, or the Dijkstra header rules that depend on
+// protocol parameters.
 func VerifyBlockLocal(
 	block Block,
 	eta0Hex string,
@@ -757,6 +760,12 @@ func verifyBlock(
 	localOnly bool,
 ) (bool, string, uint64, uint64, error) {
 	vrfHex := ""
+	if localOnly {
+		switch block.(type) {
+		case *byron.ByronMainBlock, *byron.ByronEpochBoundaryBlock:
+			return verifyByronBlockLocal(block)
+		}
+	}
 
 	// Decode eta0
 	eta0, err := hex.DecodeString(eta0Hex)
@@ -1061,24 +1070,53 @@ func verifyBlock(
 		)
 	}
 
-	// Verify block body hash (can be skipped via config)
-	// Intended usage: production should keep this enabled for security.
-	// Tests or environments lacking full block CBOR may set
-	// VerifyConfig{SkipBodyHashValidation:true} to bypass this check.
+	// Verify the signed block body size and body hash for post-Byron blocks.
+	// These local integrity checks are independent of protocol-parameter block
+	// limits and share the explicit body-integrity validation bypass.
 	expectedBodyHash := block.BlockBodyHash()
 	if block.Era() != byron.EraByron && !config.SkipBodyHashValidation {
 		rawCbor := block.Cbor()
 		if len(rawCbor) == 0 {
 			return false, "", 0, 0, common.NewValidationError(
 				common.ValidationErrorTypeConfiguration,
-				"block CBOR is required for body hash verification",
+				"block CBOR is required for body size verification",
 				map[string]any{
-					"slot":                      slot,
-					"block_number":              blockNo,
-					"era":                       era,
-					"skip_body_hash_validation": config.SkipBodyHashValidation,
+					"slot":         slot,
+					"block_number": blockNo,
+					"era":          era,
 				},
 				nil,
+			)
+		}
+		bodySize, sizeErr := common.BlockBodySizeFromCbor(rawCbor)
+		if sizeErr != nil {
+			return false, "", 0, 0, common.NewValidationError(
+				common.ValidationErrorTypeProtocol,
+				"failed to calculate block body size",
+				map[string]any{
+					"slot":         slot,
+					"block_number": blockNo,
+					"era":          era,
+				},
+				sizeErr,
+			)
+		}
+		declaredBodySize := block.BlockBodySize()
+		if bodySize != declaredBodySize {
+			return false, "", 0, 0, common.NewValidationError(
+				common.ValidationErrorTypeProtocol,
+				"block body size differs from signed header",
+				map[string]any{
+					"slot":               slot,
+					"block_number":       blockNo,
+					"era":                era,
+					"body_size":          bodySize,
+					"declared_body_size": declaredBodySize,
+				},
+				common.BlockBodySizeMismatchError{
+					BlockBodySize:         bodySize,
+					DeclaredBlockBodySize: declaredBodySize,
+				},
 			)
 		}
 		era := block.Era()
@@ -1113,6 +1151,29 @@ func verifyBlock(
 		return false, "", 0, 0, err
 	}
 	return true, vrfHex, blockNo, slot, nil
+}
+
+func verifyByronBlockLocal(
+	block Block,
+) (bool, string, uint64, uint64, error) {
+	var err error
+	switch typedBlock := block.(type) {
+	case *byron.ByronMainBlock:
+		err = typedBlock.ValidateBodyProof()
+	case *byron.ByronEpochBoundaryBlock:
+		err = typedBlock.ValidateBodyProof()
+	default:
+		err = fmt.Errorf("unsupported Byron block type %T", block)
+	}
+	if err != nil {
+		return false, "", 0, 0, common.NewValidationError(
+			common.ValidationErrorTypeProtocol,
+			"Byron block body proof validation failed",
+			map[string]any{"block_type": fmt.Sprintf("%T", block)},
+			err,
+		)
+	}
+	return true, "", block.BlockNumber(), block.SlotNumber(), nil
 }
 
 // VerifyBlockState checks the Dijkstra header rules, certificates, block
@@ -1195,12 +1256,7 @@ func VerifyBlockState(block Block, config common.VerifyConfig) error {
 					limitsErr,
 				)
 			}
-			// A zero-value MaxBlockExUnits (both Memory and Steps unset)
-			// is treated as "no limit" and skipped, consistent with the
-			// maxBodySize > 0 / maxHeaderSize > 0 guards below.
-			hasNonZeroMaxExUnits := maxExUnits.Memory > 0 ||
-				maxExUnits.Steps > 0
-			if hasMaxExUnits && hasNonZeroMaxExUnits && len(txs) > 0 {
+			if hasMaxExUnits && len(txs) > 0 {
 				totalExUnits, sumErr := sumBlockExUnits(txs)
 				if sumErr != nil {
 					return common.NewValidationError(
@@ -1300,16 +1356,48 @@ func VerifyBlockState(block Block, config common.VerifyConfig) error {
 	}
 
 	// Verify transactions (can be skipped via config)
-	// Requires LedgerState and ProtocolParameters in config if enabled.
+	// Byron requires LedgerState; Shelley-family eras require LedgerState and
+	// ProtocolParameters.
 	if block.Era() == byron.EraByron && !config.SkipTransactionValidation {
 		if mainBlock, ok := block.(*byron.ByronMainBlock); ok {
+			if len(mainBlock.Body.TxPayload) > 0 && config.LedgerState == nil {
+				return common.NewValidationError(
+					common.ValidationErrorTypeConfiguration,
+					"ledger state is required for Byron transaction validation",
+					map[string]any{
+						"block_slot":   slot,
+						"block_number": blockNo,
+						"era":          era,
+					},
+					nil,
+				)
+			}
+			blockState := common.NewBlockLedgerState(config.LedgerState)
 			for idx := range mainBlock.Body.TxPayload {
-				if err := mainBlock.Body.TxPayload[idx].ValidateVKeyWitnesses(
+				tx := &mainBlock.Body.TxPayload[idx]
+				if err := tx.ValidateAgainstUtxo(
 					mainBlock.BlockHeader.ProtocolMagic,
+					blockState,
+					config.ByronTxFeePolicy,
 				); err != nil {
 					return common.NewValidationError(
 						common.ValidationErrorTypeTransaction,
-						"Byron block transaction witness validation failed",
+						"Byron block transaction validation failed",
+						map[string]any{
+							"block_slot":   slot,
+							"block_number": blockNo,
+							"transaction":  idx,
+						},
+						err,
+					)
+				}
+				if err := blockState.ApplyTransaction(
+					tx,
+					config.ProtocolParameters,
+				); err != nil {
+					return common.NewValidationError(
+						common.ValidationErrorTypeTransaction,
+						"failed to apply Byron block transaction",
 						map[string]any{
 							"block_slot":   slot,
 							"block_number": blockNo,

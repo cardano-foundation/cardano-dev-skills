@@ -12,9 +12,9 @@ import (
 	"github.com/blinklabs-io/gouroboros/ledger/conway"
 )
 
-// EvaluationWitnessProvider supplies signing witnesses used only while
-// evaluating a preliminary transaction. It is optional so Wallet remains
-// compatible with hardware and remote wallets that cannot sign automatically.
+// EvaluationWitnessProvider supplies signing witnesses for a preliminary
+// transaction when AllowSignedEvaluation is enabled. The evaluator receives
+// those witnesses and may be able to submit the signed transaction.
 type EvaluationWitnessProvider interface {
 	EvaluationWitnesses(
 		txBodyHash common.Blake2b256,
@@ -50,8 +50,8 @@ func missingSignerHashes(required map[common.Blake2b224]struct{}, found map[comm
 }
 
 // evaluationWitnesses resolves and validates witnesses for the exact
-// preliminary body sent to an evaluator. These witnesses are intentionally
-// local to evaluation and are never retained in a completed transaction.
+// preliminary body sent to an evaluator. They are not retained in the
+// completed transaction, but the evaluator receives valid signatures.
 func (a *Apollo) evaluationWitnesses(body *conway.ConwayTransactionBody) ([]common.VkeyWitness, error) {
 	requiredHashes := body.TxRequiredSigners.Items()
 	if len(requiredHashes) == 0 {

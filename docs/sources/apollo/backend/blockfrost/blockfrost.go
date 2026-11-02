@@ -11,7 +11,6 @@ import (
 	"math"
 	"math/big"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,6 +24,8 @@ import (
 
 	"github.com/Salvionied/apollo/v2/backend"
 	"github.com/Salvionied/apollo/v2/internal/backendutil"
+	"github.com/Salvionied/apollo/v2/internal/ogmiosutil"
+	"github.com/Salvionied/apollo/v2/internal/scriptutil"
 )
 
 // BlockFrostChainContext implements backend.ChainContext using the BlockFrost API.
@@ -63,17 +64,17 @@ const (
 )
 
 // NewBlockFrostChainContext creates a new BlockFrost backend.
+//
+// baseUrl is the full API base URL, including any version path, such as
+// constants.BlockfrostBaseUrlMainnet. It is used as given; only trailing
+// slashes are removed before request paths are appended.
 func NewBlockFrostChainContext(baseUrl string, networkId uint8, projectId string) *BlockFrostChainContext {
-	// Ensure base URL ends with version path
 	baseUrl = strings.TrimRight(baseUrl, "/")
-	if !strings.HasSuffix(baseUrl, "/api/v0") && !strings.HasSuffix(baseUrl, "/v0") {
-		baseUrl += "/api/v0"
-	}
 	return &BlockFrostChainContext{
 		baseUrl:   baseUrl,
 		projectId: projectId,
 		networkId: networkId,
-		client:    &http.Client{Timeout: 30 * time.Second},
+		client:    &http.Client{Timeout: 30 * time.Second, CheckRedirect: backendutil.SameOriginRedirect},
 	}
 }
 
@@ -126,17 +127,7 @@ func (b *BlockFrostChainContext) ProtocolParams() (backend.ProtocolParameters, e
 func (b *BlockFrostChainContext) ProtocolParamsContext(ctx context.Context) (backend.ProtocolParameters, error) {
 	b.mu.Lock()
 	if b.cachedParams != nil && time.Since(b.paramsCacheAt) < cacheExpiry {
-		pp := *b.cachedParams
-		// Deep copy CostModels to prevent callers from mutating the cache.
-		if pp.CostModels != nil {
-			cm := make(map[string][]int64, len(pp.CostModels))
-			for k, v := range pp.CostModels {
-				dup := make([]int64, len(v))
-				copy(dup, v)
-				cm[k] = dup
-			}
-			pp.CostModels = cm
-		}
+		pp := backendutil.CloneProtocolParams(*b.cachedParams)
 		b.mu.Unlock()
 		return pp, nil
 	}
@@ -157,17 +148,7 @@ func (b *BlockFrostChainContext) ProtocolParamsContext(ctx context.Context) (bac
 		return backend.ProtocolParameters{}, err
 	}
 
-	// Deep copy CostModels before storing to prevent callers from mutating the cache.
-	cached := pp
-	if cached.CostModels != nil {
-		cm := make(map[string][]int64, len(cached.CostModels))
-		for k, v := range cached.CostModels {
-			dup := make([]int64, len(v))
-			copy(dup, v)
-			cm[k] = dup
-		}
-		cached.CostModels = cm
-	}
+	cached := backendutil.CloneProtocolParams(pp)
 
 	b.mu.Lock()
 	b.cachedParams = &cached
@@ -283,35 +264,37 @@ func (b *BlockFrostChainContext) Utxos(address common.Address) ([]common.Utxo, e
 }
 
 func (b *BlockFrostChainContext) UtxosContext(ctx context.Context, address common.Address) ([]common.Utxo, error) {
-	const maxPages = 1000
+	const maxPageItems = 1000
 	var allUtxos []common.Utxo
+	var references backendutil.UtxoReferenceSet
 	resolver := newScriptRefResolver(ctx, b)
 
-	for page := 1; page <= maxPages+1; page++ {
+	for page := uint64(1); ; page++ {
 		path := fmt.Sprintf("/addresses/%s/utxos?page=%d", address.String(), page)
 		data, err := b.requestContext(ctx, "GET", path, nil, "")
 		if err != nil {
 			return nil, err
 		}
 
-		var rawUtxos []bfAddressUTxO
-		if err := json.Unmarshal(data, &rawUtxos); err != nil {
+		rawUtxos, err := backendutil.DecodeLimitedArray[bfAddressUTxO](data, maxPageItems)
+		if err != nil {
 			return nil, err
 		}
 		if len(rawUtxos) == 0 {
 			return allUtxos, nil
-		}
-		if page > maxPages {
-			return nil, fmt.Errorf("UTxO pagination exceeded %d pages; results may be incomplete", maxPages)
 		}
 
 		utxos, err := b.hydrateUtxoPage(rawUtxos, address, resolver.resolve)
 		if err != nil {
 			return nil, err
 		}
+		for _, utxo := range utxos {
+			if err := references.Add(utxo); err != nil {
+				return nil, err
+			}
+		}
 		allUtxos = append(allUtxos, utxos...)
 	}
-	return allUtxos, nil
 }
 
 func (b *BlockFrostChainContext) SubmitTx(txCbor []byte) (common.Blake2b256, error) {
@@ -337,6 +320,9 @@ func (b *BlockFrostChainContext) SubmitTxContext(ctx context.Context, txCbor []b
 	}
 	var result common.Blake2b256
 	copy(result[:], hashBytes)
+	if err := backend.VerifySubmittedTxID(txCbor, result); err != nil {
+		return common.Blake2b256{}, err
+	}
 	return result, nil
 }
 
@@ -674,55 +660,9 @@ func parseEvaluateTxResponse(data []byte) (map[common.RedeemerKey]common.ExUnits
 		return nil, fmt.Errorf("unrecognized evaluate response (no result or error): %s", evalErrorSnippet(data))
 	}
 	if strings.HasPrefix(strings.TrimSpace(string(envelope.Result)), "[") {
-		return parseOgmiosV6EvaluationResult(envelope.Result)
+		return ogmiosutil.ParseEvaluationResult(envelope.Result)
 	}
 	return parseOgmiosV5EvaluationResult(envelope.Result)
-}
-
-// parseOgmiosV6EvaluationResult parses the Ogmios v6 evaluateTransaction result
-// array: [{"validator":{"purpose":...,"index":...},"budget":{"memory":...,"cpu":...}}].
-func parseOgmiosV6EvaluationResult(raw json.RawMessage) (map[common.RedeemerKey]common.ExUnits, error) {
-	var items []struct {
-		Validator struct {
-			Purpose string `json:"purpose"`
-			Index   uint64 `json:"index"`
-		} `json:"validator"`
-		Budget struct {
-			Memory uint64 `json:"memory"`
-			Cpu    uint64 `json:"cpu"`
-		} `json:"budget"`
-		Error json.RawMessage `json:"error"`
-	}
-	if err := json.Unmarshal(raw, &items); err != nil {
-		return nil, fmt.Errorf("failed to parse evaluation result: %w", err)
-	}
-	if len(items) == 0 {
-		return nil, errors.New("script evaluation returned no results")
-	}
-	result := make(map[common.RedeemerKey]common.ExUnits, len(items))
-	for _, item := range items {
-		if jsonValuePresent(item.Error) {
-			return nil, fmt.Errorf("script evaluation failed for validator %s:%d: %s",
-				item.Validator.Purpose, item.Validator.Index, string(item.Error))
-		}
-		if item.Validator.Purpose == "" {
-			return nil, fmt.Errorf("malformed evaluation result entry: %s", evalErrorSnippet(raw))
-		}
-		tag, err := backendutil.ParseRedeemerTag(item.Validator.Purpose)
-		if err != nil {
-			return nil, fmt.Errorf("invalid redeemer purpose %q: %w", item.Validator.Purpose, err)
-		}
-		if item.Validator.Index > math.MaxUint32 {
-			return nil, fmt.Errorf("redeemer index %d exceeds uint32 range", item.Validator.Index)
-		}
-		if item.Budget.Memory > math.MaxInt64 || item.Budget.Cpu > math.MaxInt64 {
-			return nil, fmt.Errorf("ExUnits overflow for validator %s:%d: memory=%d cpu=%d",
-				item.Validator.Purpose, item.Validator.Index, item.Budget.Memory, item.Budget.Cpu)
-		}
-		key := common.RedeemerKey{Tag: tag, Index: uint32(item.Validator.Index)}
-		result[key] = common.ExUnits{Memory: int64(item.Budget.Memory), Steps: int64(item.Budget.Cpu)}
-	}
-	return result, nil
 }
 
 // parseOgmiosV5EvaluationResult parses the legacy Ogmios v5 jsonwsp result
@@ -824,6 +764,9 @@ func (b *BlockFrostChainContext) UtxoByRefContext(
 			if err != nil {
 				return nil, err
 			}
+			if err := backend.ValidateUtxoRef(&utxo, txHash, index); err != nil {
+				return nil, err
+			}
 			return &utxo, nil
 		}
 	}
@@ -835,6 +778,20 @@ func (b *BlockFrostChainContext) ScriptCbor(scriptHash common.Blake2b224) ([]byt
 }
 
 func (b *BlockFrostChainContext) ScriptCborContext(
+	ctx context.Context,
+	scriptHash common.Blake2b224,
+) ([]byte, error) {
+	scriptCbor, err := b.fetchScriptCborContext(ctx, scriptHash)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := scriptutil.ScriptRefFromHash(scriptHash, scriptCbor); err != nil {
+		return nil, err
+	}
+	return scriptCbor, nil
+}
+
+func (b *BlockFrostChainContext) fetchScriptCborContext(
 	ctx context.Context,
 	scriptHash common.Blake2b224,
 ) ([]byte, error) {
@@ -907,17 +864,19 @@ type bfTxOut struct {
 // --- BlockFrost response types ---
 
 type bfProtocolParams struct {
-	MinFeeA            int64           `json:"min_fee_a"`
-	MinFeeB            int64           `json:"min_fee_b"`
+	MinFeeA            *int64          `json:"min_fee_a"`
+	MinFeeB            *int64          `json:"min_fee_b"`
 	MaxBlockSize       int64           `json:"max_block_size"`
 	MaxTxSize          int64           `json:"max_tx_size"`
 	MaxBlockHeaderSize int64           `json:"max_block_header_size"`
+	ProtocolMajorVer   int64           `json:"protocol_major_ver"`
+	ProtocolMinorVer   int64           `json:"protocol_minor_ver"`
 	KeyDeposit         string          `json:"key_deposit"`
 	PoolDeposit        string          `json:"pool_deposit"`
 	Decentralisation   float64         `json:"decentralisation_param"`
 	MinPoolCost        string          `json:"min_pool_cost"`
-	PriceMem           float64         `json:"price_mem"`
-	PriceStep          float64         `json:"price_step"`
+	PriceMem           *float64        `json:"price_mem"`
+	PriceStep          *float64        `json:"price_step"`
 	MaxTxExMem         string          `json:"max_tx_ex_mem"`
 	MaxTxExSteps       string          `json:"max_tx_ex_steps"`
 	MaxBlockExMem      string          `json:"max_block_ex_mem"`
@@ -939,6 +898,18 @@ type bfProtocolParams struct {
 }
 
 func (p *bfProtocolParams) toProtocolParams() (backend.ProtocolParameters, error) {
+	if p.MinFeeA == nil || *p.MinFeeA <= 0 {
+		return backend.ProtocolParameters{}, errors.New("missing or invalid min_fee_a")
+	}
+	if p.MinFeeB == nil || *p.MinFeeB <= 0 {
+		return backend.ProtocolParameters{}, errors.New("missing or invalid min_fee_b")
+	}
+	if p.PriceMem == nil || *p.PriceMem <= 0 || math.IsNaN(*p.PriceMem) || math.IsInf(*p.PriceMem, 0) {
+		return backend.ProtocolParameters{}, errors.New("missing or invalid price_mem")
+	}
+	if p.PriceStep == nil || *p.PriceStep <= 0 || math.IsNaN(*p.PriceStep) || math.IsInf(*p.PriceStep, 0) {
+		return backend.ProtocolParameters{}, errors.New("missing or invalid price_step")
+	}
 	maxBlockSize, err := backendutil.BoundedInt(p.MaxBlockSize, "max_block_size")
 	if err != nil {
 		return backend.ProtocolParameters{}, err
@@ -959,25 +930,35 @@ func (p *bfProtocolParams) toProtocolParams() (backend.ProtocolParameters, error
 	if err != nil {
 		return backend.ProtocolParameters{}, err
 	}
+	protocolMajor, err := backendutil.BoundedInt(p.ProtocolMajorVer, "protocol_major_ver")
+	if err != nil {
+		return backend.ProtocolParameters{}, err
+	}
+	protocolMinor, err := backendutil.BoundedInt(p.ProtocolMinorVer, "protocol_minor_ver")
+	if err != nil {
+		return backend.ProtocolParameters{}, err
+	}
 	pp := backend.ProtocolParameters{
-		MinFeeConstant:      p.MinFeeB,
-		MinFeeCoefficient:   p.MinFeeA,
-		MaxBlockSize:        maxBlockSize,
-		MaxTxSize:           maxTxSize,
-		MaxBlockHeaderSize:  maxBlockHeaderSize,
-		KeyDeposits:         p.KeyDeposit,
-		PoolDeposits:        p.PoolDeposit,
-		MinPoolCost:         p.MinPoolCost,
-		PriceMem:            p.PriceMem,
-		PriceStep:           p.PriceStep,
-		MaxTxExMem:          p.MaxTxExMem,
-		MaxTxExSteps:        p.MaxTxExSteps,
-		MaxBlockExMem:       p.MaxBlockExMem,
-		MaxBlockExSteps:     p.MaxBlockExSteps,
-		MaxValSize:          p.MaxValSize,
-		CollateralPercent:   collateralPercent,
-		MaxCollateralInputs: maxCollateralInputs,
-		CoinsPerUtxoByte:    p.CoinsPerUtxoSize,
+		MinFeeConstant:       *p.MinFeeB,
+		MinFeeCoefficient:    *p.MinFeeA,
+		MaxBlockSize:         maxBlockSize,
+		MaxTxSize:            maxTxSize,
+		MaxBlockHeaderSize:   maxBlockHeaderSize,
+		ProtocolMajorVersion: protocolMajor,
+		ProtocolMinorVersion: protocolMinor,
+		KeyDeposits:          p.KeyDeposit,
+		PoolDeposits:         p.PoolDeposit,
+		MinPoolCost:          p.MinPoolCost,
+		PriceMem:             *p.PriceMem,
+		PriceStep:            *p.PriceStep,
+		MaxTxExMem:           p.MaxTxExMem,
+		MaxTxExSteps:         p.MaxTxExSteps,
+		MaxBlockExMem:        p.MaxBlockExMem,
+		MaxBlockExSteps:      p.MaxBlockExSteps,
+		MaxValSize:           p.MaxValSize,
+		CollateralPercent:    collateralPercent,
+		MaxCollateralInputs:  maxCollateralInputs,
+		CoinsPerUtxoByte:     p.CoinsPerUtxoSize,
 	}
 	if p.MinFeeRefScriptCostPerByte != "" {
 		price, err := backendutil.ParseRational(p.MinFeeRefScriptCostPerByte.String())
@@ -988,13 +969,8 @@ func (p *bfProtocolParams) toProtocolParams() (backend.ProtocolParameters, error
 		pp.MinFeeRefScriptCostPerByte, _ = price.Float64()
 	}
 
-	// Parse cost models from BlockFrost JSON.
-	// Prefer cost_models_raw (canonical integer arrays). Fall back to
-	// cost_models which may be either:
-	//   - array format:  {"PlutusV1": [205665, 812, ...]}
-	//   - keyed format:  {"PlutusV1": {"addInteger-cpu-arguments-intercept": 205665, ...}}
-	// Both formats use keys "PlutusV1" through "PlutusV4" which match the
-	// canonical form expected by ComputeScriptDataHash.
+	// Use only positional integer arrays for cost models. Named parameter
+	// maps do not reliably preserve the ledger's parameter order.
 	if len(p.CostModelsRaw) > 0 && string(p.CostModelsRaw) != "null" {
 		var rawModels map[string][]int64
 		if err := json.Unmarshal(p.CostModelsRaw, &rawModels); err != nil {
@@ -1006,32 +982,10 @@ func (p *bfProtocolParams) toProtocolParams() (backend.ProtocolParameters, error
 	}
 	if pp.CostModels == nil && len(p.CostModels) > 0 {
 		var arrayModels map[string][]int64
-		if err := json.Unmarshal(p.CostModels, &arrayModels); err == nil {
-			pp.CostModels = arrayModels
-		} else {
-			// Fall back to keyed format (map[string]map[string]int64).
-			var keyedModels map[string]map[string]int64
-			if err := json.Unmarshal(p.CostModels, &keyedModels); err != nil {
-				return pp, fmt.Errorf("failed to parse cost models: %w", err)
-			}
-			pp.CostModels = make(map[string][]int64, len(keyedModels))
-			for lang, costs := range keyedModels {
-				// Sort parameter names alphabetically. The Cardano ledger
-				// serializes cost models as a flat list of integers whose
-				// positions correspond to alphabetically-sorted parameter
-				// names (see IntersectMBO/cardano-ledger#2902).
-				sortedKeys := make([]string, 0, len(costs))
-				for k := range costs {
-					sortedKeys = append(sortedKeys, k)
-				}
-				sort.Strings(sortedKeys)
-				values := make([]int64, 0, len(costs))
-				for _, k := range sortedKeys {
-					values = append(values, costs[k])
-				}
-				pp.CostModels[lang] = values
-			}
+		if err := json.Unmarshal(p.CostModels, &arrayModels); err != nil {
+			return pp, fmt.Errorf("failed to parse cost_models as integer arrays: %w", err)
 		}
+		pp.CostModels = arrayModels
 	}
 
 	return pp, nil
@@ -1243,7 +1197,7 @@ func (b *BlockFrostChainContext) hydrateUtxoWithScriptResolver(
 		return common.Utxo{}, fmt.Errorf("unexpected UTxO output type: %T", utxo.Output)
 	}
 	if len(raw.InlineDatum) > 0 && string(raw.InlineDatum) != "null" {
-		datumOpt, err := inlineDatumOptionFromBlockfrost(raw.InlineDatum)
+		datumOpt, err := inlineDatumOptionFromBlockfrost(raw.InlineDatum, raw.DataHash)
 		if err != nil {
 			return common.Utxo{}, fmt.Errorf("failed to decode inline datum: %w", err)
 		}
@@ -1312,7 +1266,7 @@ func (r *scriptRefResolver) resolve(hashHex string) (*common.ScriptRef, error) {
 // inline_datum field, which is a CBOR-encoded datum serialized as a hex string.
 // The original CBOR bytes are preserved exactly (no JSON decode/re-encode
 // round-trip) so the datum hash is not altered by a non-canonical re-encoding.
-func inlineDatumOptionFromBlockfrost(raw json.RawMessage) (*babbage.BabbageTransactionOutputDatumOption, error) {
+func inlineDatumOptionFromBlockfrost(raw json.RawMessage, datumHash string) (*babbage.BabbageTransactionOutputDatumOption, error) {
 	var datumCborHex string
 	if err := json.Unmarshal(raw, &datumCborHex); err != nil {
 		return nil, fmt.Errorf("inline datum must be a CBOR hex string: %w", err)
@@ -1320,6 +1274,21 @@ func inlineDatumOptionFromBlockfrost(raw json.RawMessage) (*babbage.BabbageTrans
 	datumBytes, err := hex.DecodeString(datumCborHex)
 	if err != nil {
 		return nil, fmt.Errorf("invalid inline datum CBOR hex %q: %w", datumCborHex, err)
+	}
+	if datumHash == "" {
+		return nil, errors.New("inline datum is missing its data hash")
+	}
+	hashBytes, err := hex.DecodeString(datumHash)
+	if err != nil {
+		return nil, fmt.Errorf("invalid data hash hex %q: %w", datumHash, err)
+	}
+	if len(hashBytes) != common.Blake2b256Size {
+		return nil, fmt.Errorf("invalid data hash length: expected %d bytes, got %d", common.Blake2b256Size, len(hashBytes))
+	}
+	var claimed common.Blake2b256
+	copy(claimed[:], hashBytes)
+	if computed := common.Blake2b256Hash(datumBytes); computed != claimed {
+		return nil, fmt.Errorf("inline datum hash mismatch: computed %s, provider claimed %s", computed, datumHash)
 	}
 	// Inline datum option: [1, #6.24(datum_cbor)]
 	cborBytes, err := cbor.Encode([]any{1, cbor.Tag{Number: 24, Content: datumBytes}})
@@ -1350,51 +1319,9 @@ func (b *BlockFrostChainContext) scriptRefByHashContext(
 	}
 	var scriptHash common.Blake2b224
 	copy(scriptHash[:], hashBytes)
-	scriptCbor, err := b.ScriptCborContext(ctx, scriptHash)
+	scriptCbor, err := b.fetchScriptCborContext(ctx, scriptHash)
 	if err != nil {
 		return nil, err
 	}
-	return scriptRefFromHash(scriptHash, scriptCbor)
-}
-
-func scriptRefFromHash(
-	scriptHash common.Blake2b224,
-	scriptCbor []byte,
-) (*common.ScriptRef, error) {
-	var native common.NativeScript
-	if _, err := cbor.Decode(scriptCbor, &native); err == nil && native.Hash() == scriptHash {
-		return &common.ScriptRef{
-			Type:   common.ScriptRefTypeNativeScript,
-			Script: native,
-		}, nil
-	}
-	v1 := common.PlutusV1Script(scriptCbor)
-	if v1.Hash() == scriptHash {
-		return &common.ScriptRef{
-			Type:   common.ScriptRefTypePlutusV1,
-			Script: v1,
-		}, nil
-	}
-	v2 := common.PlutusV2Script(scriptCbor)
-	if v2.Hash() == scriptHash {
-		return &common.ScriptRef{
-			Type:   common.ScriptRefTypePlutusV2,
-			Script: v2,
-		}, nil
-	}
-	v3 := common.PlutusV3Script(scriptCbor)
-	if v3.Hash() == scriptHash {
-		return &common.ScriptRef{
-			Type:   common.ScriptRefTypePlutusV3,
-			Script: v3,
-		}, nil
-	}
-	v4 := common.PlutusV4Script(scriptCbor)
-	if v4.Hash() == scriptHash {
-		return &common.ScriptRef{
-			Type:   common.ScriptRefTypePlutusV4,
-			Script: v4,
-		}, nil
-	}
-	return nil, errors.New("unable to determine reference script language from script hash")
+	return scriptutil.ScriptRefFromHash(scriptHash, scriptCbor)
 }

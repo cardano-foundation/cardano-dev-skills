@@ -1,7 +1,0 @@
-type: object
-description: A dust output
-properties:
-  nonce:
-    type: string
-    description: The hex-encoded 32-byte nonce
-    example: "0x..."

@@ -28,10 +28,12 @@ import (
 	"math/big"
 	"math/bits"
 	"reflect"
+	"slices"
 	"sort"
 	"sync"
 
 	"github.com/blinklabs-io/gouroboros/cbor"
+	"github.com/blinklabs-io/gouroboros/internal/transactionwire"
 )
 
 const (
@@ -142,6 +144,119 @@ type cachedLedgerState struct {
 	// signatures is the caller's pre-verified witness signature result, read
 	// by UtxoValidateSignatures. It is nil for plain VerifyTransaction calls.
 	signatures *PreverifiedSignatures
+	// memo holds values derived from one transaction and this state, which
+	// several rules would otherwise each derive again. See
+	// TransactionScopedMemo.
+	memoMu sync.Mutex
+	memo   []*transactionScopedMemoEntry
+}
+
+// transactionScopedMemoEntry holds tx itself, not its address, so the
+// transaction stays reachable for as long as the memo does and a later
+// allocation can never be mistaken for it. done is closed once value and err
+// are set, so concurrent callers for the same entry wait for one build.
+type transactionScopedMemoEntry struct {
+	key   any
+	tx    Transaction
+	value any
+	err   error
+	done  chan struct{}
+}
+
+// TransactionScopedMemoizer is implemented by the ledger state that
+// validation rules receive while one transaction is validated. Values derived
+// from the transaction and the ledger state can be computed once there and
+// shared by the rules, because neither changes for the duration of that
+// validation.
+type TransactionScopedMemoizer interface {
+	// TransactionScopedMemo returns the value and error build produced for
+	// key and tx, calling build the first time. A transaction is identified
+	// by object, so a distinct transaction value, such as a Dijkstra
+	// sub-transaction, never shares an entry. A transaction that is not a
+	// pointer is never memoized.
+	TransactionScopedMemo(
+		tx Transaction,
+		key any,
+		build func() (any, error),
+	) (any, error)
+}
+
+// NewTransactionScopedLedgerState returns ledgerState wrapped as the
+// transaction-scoped state VerifyTransaction gives its rules: UTxO lookups and
+// TransactionScopedMemo values are shared for as long as it is used. Use one
+// for exactly one transaction validation, during which the ledger state it
+// wraps must not change. A nil state, or one that is already scoped, is
+// returned unchanged.
+func NewTransactionScopedLedgerState(ledgerState LedgerState) LedgerState {
+	return newTransactionScopedLedgerState(ledgerState, nil)
+}
+
+func newTransactionScopedLedgerState(
+	ledgerState LedgerState,
+	signatures *PreverifiedSignatures,
+) LedgerState {
+	if ledgerState == nil ||
+		(reflect.ValueOf(ledgerState).Kind() == reflect.Pointer &&
+			reflect.ValueOf(ledgerState).IsNil()) {
+		return ledgerState
+	}
+	if cached, ok := ledgerState.(*cachedLedgerState); ok &&
+		cached.signatures == signatures {
+		return cached
+	}
+	return &cachedLedgerState{
+		LedgerState: ledgerState,
+		lookups:     make(map[utxoCacheKey]cachedUtxoLookup),
+		signatures:  signatures,
+	}
+}
+
+// IsTransactionScopedLedgerState reports whether ledgerState is the state
+// NewTransactionScopedLedgerState returns. An adapter that merely forwards
+// TransactionScopedMemoizer is not, because it may resolve UTxOs differently
+// from the state it forwards to.
+func IsTransactionScopedLedgerState(ledgerState LedgerState) bool {
+	_, ok := ledgerState.(*cachedLedgerState)
+	return ok
+}
+
+// TransactionScopedMemo implements TransactionScopedMemoizer. build runs
+// with the memo unlocked, so it may itself use the memo under another key.
+// Concurrent callers for one transaction and key share a single build. A key
+// that is not comparable is never memoized.
+func (c *cachedLedgerState) TransactionScopedMemo(
+	tx Transaction,
+	key any,
+	build func() (any, error),
+) (any, error) {
+	txValue := reflect.ValueOf(tx)
+	if tx == nil || txValue.Kind() != reflect.Pointer || txValue.IsNil() ||
+		(key != nil && !reflect.ValueOf(key).Comparable()) {
+		return build()
+	}
+	c.memoMu.Lock()
+	for _, entry := range c.memo {
+		if entry.tx == tx && entry.key == key {
+			c.memoMu.Unlock()
+			<-entry.done
+			return entry.value, entry.err
+		}
+	}
+	entry := &transactionScopedMemoEntry{
+		key: key, tx: tx, done: make(chan struct{}),
+	}
+	c.memo = append(c.memo, entry)
+	c.memoMu.Unlock()
+	defer close(entry.done)
+	entry.value, entry.err = build()
+	return entry.value, entry.err
+}
+
+// UnwrapLedgerState implements LedgerStateUnwrapper, so a package that walks
+// its own adapters one layer at a time can reach the state beneath this one
+// without skipping an adapter that sits between them.
+func (c *cachedLedgerState) UnwrapLedgerState() LedgerState {
+	return c.LedgerState
 }
 
 // LedgerStateUnwrapper exposes the provider beneath a validation-time
@@ -239,8 +354,9 @@ func UtxoValidateOutsideForecast(
 	if !hasRedeemers {
 		return nil
 	}
-	if ledgerState != nil && (reflect.ValueOf(ledgerState).Kind() != reflect.Pointer ||
-		!reflect.ValueOf(ledgerState).IsNil()) {
+	if ledgerState != nil &&
+		(reflect.ValueOf(ledgerState).Kind() != reflect.Pointer ||
+			!reflect.ValueOf(ledgerState).IsNil()) {
 		if _, err := ledgerState.SlotToTime(upperBound); err == nil {
 			return nil
 		}
@@ -266,11 +382,33 @@ func (s *cachedLedgerState) UtxoById(input TransactionInput) (Utxo, error) {
 // UtxoValidateCurrentTreasuryValue checks a transaction's optional current
 // treasury value against the ledger state.
 func UtxoValidateCurrentTreasuryValue(
-	tx Transaction, slot uint64, ledgerState LedgerState, protocolParams ProtocolParameters,
+	tx Transaction,
+	slot uint64,
+	ledgerState LedgerState,
+	protocolParams ProtocolParameters,
 ) error {
 	if !tx.IsValid() {
 		return nil
 	}
+	return UtxoValidateCurrentTreasuryValueAnyPhase(
+		tx,
+		slot,
+		ledgerState,
+		protocolParams,
+	)
+}
+
+// UtxoValidateCurrentTreasuryValueAnyPhase performs the same check as
+// UtxoValidateCurrentTreasuryValue without skipping phase-2-invalid
+// transactions. Dijkstra LEDGER and SUBLEDGER validate the treasury value
+// before branching on Phase2Valid, whereas Conway LEDGER validates it only
+// inside that branch.
+func UtxoValidateCurrentTreasuryValueAnyPhase(
+	tx Transaction,
+	_ uint64,
+	ledgerState LedgerState,
+	_ ProtocolParameters,
+) error {
 	bodies := SubTransactionBodiesFromTransaction(tx)
 	values := make([]*big.Int, 0, len(bodies)+1)
 	for _, body := range bodies {
@@ -284,8 +422,11 @@ func UtxoValidateCurrentTreasuryValue(
 	if len(values) == 0 {
 		return nil
 	}
-	if ledgerState == nil || (reflect.ValueOf(ledgerState).Kind() == reflect.Pointer && reflect.ValueOf(ledgerState).IsNil()) {
-		return TreasuryValueQueryError{Err: TreasuryValueProviderUnavailableError{}}
+	if ledgerState == nil ||
+		(reflect.ValueOf(ledgerState).Kind() == reflect.Pointer && reflect.ValueOf(ledgerState).IsNil()) {
+		return TreasuryValueQueryError{
+			Err: TreasuryValueProviderUnavailableError{},
+		}
 	}
 	expected, err := ledgerState.TreasuryValue()
 	if err != nil {
@@ -293,7 +434,10 @@ func UtxoValidateCurrentTreasuryValue(
 	}
 	for _, supplied := range values {
 		if supplied.Cmp(new(big.Int).SetUint64(expected)) != 0 {
-			return CurrentTreasuryValueMismatchError{Supplied: new(big.Int).Set(supplied), Expected: expected}
+			return CurrentTreasuryValueMismatchError{
+				Supplied: new(big.Int).Set(supplied),
+				Expected: expected,
+			}
 		}
 	}
 	return nil
@@ -415,15 +559,7 @@ func VerifyTransactionWithSignatures(
 	validationRules []UtxoValidationRuleFunc,
 	signatures *PreverifiedSignatures,
 ) error {
-	if ledgerState != nil &&
-		(reflect.ValueOf(ledgerState).Kind() != reflect.Pointer ||
-			!reflect.ValueOf(ledgerState).IsNil()) {
-		ledgerState = &cachedLedgerState{
-			LedgerState: ledgerState,
-			lookups:     make(map[utxoCacheKey]cachedUtxoLookup),
-			signatures:  signatures,
-		}
-	}
+	ledgerState = newTransactionScopedLedgerState(ledgerState, signatures)
 	for i, rule := range validationRules {
 		if err := rule(tx, slot, ledgerState, protocolParams); err != nil {
 			details := map[string]any{"rule_index": i, "slot": slot}
@@ -441,29 +577,30 @@ func VerifyTransactionWithSignatures(
 	return nil
 }
 
-// txTypeAlonzo is the first era whose historical on-wire CBOR includes the
-// 1-byte IsValid boolean field. The fee-relevant size excludes this byte only
-// when the transaction actually has the 4-component Alonzo-style envelope.
-const txTypeAlonzo = 4
+const (
+	// txTypeAlonzo is the first era whose mempool transaction envelope may
+	// carry the IsValid boolean.
+	txTypeAlonzo = 4
+	// txTypeConway is the last era that uses the Alonzo transaction size
+	// encoding. Dijkstra has its own three-component envelope.
+	txTypeConway = 6
+)
 
 // TxSize returns the size of a transaction as the Cardano ledger spec defines
 // it — the measure used both for fees and for maxTxSize.
 //
-// For Alonzo through Conway the on-wire CBOR is a 4-element array
-// [body, witnesses, isValid, metadata], while the Haskell
-// toCBORForSizeComputation encodes only 3 elements. The IsValid flag is not
-// part of the transaction the chain sized: a block stores bodies, witness
-// sets, IsValid flags and auxiliary data in four parallel arrays, and
-// reconstructing a standalone transaction re-attaches that byte. So the size
-// is the full on-wire length minus 1. Dijkstra block transactions use a
-// 3-element envelope, so no adjustment applies unless an explicitly
-// 4-component transaction is being sized.
+// For Alonzo through Conway the Haskell toCBORForSizeComputation encodes a
+// canonical 3-element array [body, witnesses, metadata]. Mempool transaction
+// CBOR may additionally carry IsValid as a fourth component, and the received
+// outer array may use another valid framing. Neither changes the size used by
+// the ledger: the three retained components keep their received bytes and get
+// a canonical one-byte array header. Dijkstra uses its own three-component
+// envelope.
 //
 // Every rule expressed against a transaction's size must use this, not
-// len(tx.Cbor()). The two differ by exactly one byte, which only matters for a
-// transaction sitting exactly on a limit — rare enough to survive a long way
-// into a replay before a single transaction built to fill maxTxSize exposes
-// it.
+// len(tx.Cbor()). The two can differ when the received envelope carries
+// IsValid or uses non-canonical outer-array framing. That difference matters
+// most for a transaction sitting exactly on a limit.
 //
 // When the transaction has no stored CBOR (e.g. programmatically constructed),
 // the function falls back to encoding the transaction to compute its size.
@@ -476,11 +613,19 @@ func TxSize(tx Transaction) (int, error) {
 		var err error
 		cborData, err = cbor.Encode(tx)
 		if err != nil {
-			return 0, fmt.Errorf("failed to encode transaction for size: %w", err)
+			return 0, fmt.Errorf(
+				"failed to encode transaction for size: %w",
+				err,
+			)
 		}
 	}
 	fullSize := len(cborData)
-	if tx.Type() >= txTypeAlonzo {
+	if tx.Type() >= txTypeAlonzo && tx.Type() <= txTypeConway {
+		if size, ok := alonzoFamilyTransactionSize(cborData); ok {
+			return size, nil
+		}
+	}
+	if tx.Type() > txTypeConway {
 		dec, err := cbor.NewStreamDecoder(cborData)
 		if err == nil {
 			arrayLen, _, _, decodeErr := dec.DecodeArrayHeader()
@@ -490,6 +635,19 @@ func TxSize(tx Transaction) (int, error) {
 		}
 	}
 	return fullSize, nil
+}
+
+func alonzoFamilyTransactionSize(cborData []byte) (int, bool) {
+	envelope, err := transactionwire.DecodeAlonzoFamilyEnvelope(cborData)
+	if err != nil || envelope.WireSize != len(cborData) {
+		return 0, false
+	}
+	_, auxiliaryData, err := envelope.DecodeValidityAndAuxiliaryData()
+	if err != nil {
+		return 0, false
+	}
+	return 1 + len(envelope.Body) + len(envelope.WitnessSet) +
+		len(auxiliaryData), true
 }
 
 // TxSizeForFee returns the fee-relevant size of a transaction. It is the same
@@ -862,7 +1020,11 @@ func ValidateRequiredVKeyWitnesses(tx Transaction) error {
 // fields, so Shelley through Babbage require signatures from a quorum of the
 // currently delegated genesis keys. A ledger state that cannot answer the
 // query fails closed rather than admitting an unauthorized certificate.
-func ValidateMIRGenesisQuorum(tx Transaction, slot uint64, ls LedgerState) error {
+func ValidateMIRGenesisQuorum(
+	tx Transaction,
+	slot uint64,
+	ls LedgerState,
+) error {
 	hasMIR := false
 	for _, cert := range tx.Certificates() {
 		if _, ok := cert.(*MoveInstantaneousRewardsCertificate); ok {
@@ -955,7 +1117,9 @@ func ValidateClassicProtocolParameterUpdates(
 			return ProtocolParameterUpdateWitnessError{Delegate: genesisKey}
 		}
 	}
-	currentEpoch, slotOfNoReturn, err := windowState.ProtocolParameterUpdateWindow(slot)
+	currentEpoch, slotOfNoReturn, err := windowState.ProtocolParameterUpdateWindow(
+		slot,
+	)
 	if err != nil {
 		return err
 	}
@@ -1184,12 +1348,10 @@ func collectTransactionScriptRequirements(
 	}
 	addRequirement := func(hash ScriptHash, tag RedeemerTag, index int) {
 		ret.required[hash] = struct{}{}
+		//nolint:gosec // transaction collections are bounded
 		ret.purposes = append(ret.purposes, scriptRequirement{
-			hash: hash,
-			redeemer: RedeemerKey{
-				Tag:   tag,
-				Index: uint32(index), // #nosec G115 -- transaction collections are bounded
-			},
+			hash:     hash,
+			redeemer: RedeemerKey{Tag: tag, Index: uint32(index)},
 		})
 	}
 	addWitnessSet := func(wits TransactionWitnessSet) error {
@@ -1238,7 +1400,7 @@ func collectTransactionScriptRequirements(
 		return ret, err
 	}
 
-	resolvedInputs := make(map[string]Utxo, len(tx.Inputs()))
+	resolvedInputs := make(map[transactionInputKey]Utxo, len(tx.Inputs()))
 	if ls != nil {
 		for _, input := range tx.Inputs() {
 			utxo, err := ls.UtxoById(input)
@@ -1247,7 +1409,7 @@ func collectTransactionScriptRequirements(
 				// evaluation. Preserve that error precedence here.
 				continue
 			}
-			resolvedInputs[input.String()] = utxo
+			resolvedInputs[newTransactionInputKey(input)] = utxo
 			if utxo.Output != nil && utxo.Output.ScriptRef() != nil {
 				hash, err := addAvailableScript(
 					ret.available,
@@ -1262,7 +1424,10 @@ func collectTransactionScriptRequirements(
 		for _, input := range tx.ReferenceInputs() {
 			utxo, err := ls.UtxoById(input)
 			if err != nil {
-				return ret, ReferenceInputResolutionError{Input: input, Err: err}
+				return ret, ReferenceInputResolutionError{
+					Input: input,
+					Err:   err,
+				}
 			}
 			if utxo.Output != nil && utxo.Output.ScriptRef() != nil {
 				hash, err := addAvailableScript(
@@ -1285,7 +1450,7 @@ func collectTransactionScriptRequirements(
 		return inputs[i].Index() < inputs[j].Index()
 	})
 	for index, input := range inputs {
-		utxo, ok := resolvedInputs[input.String()]
+		utxo, ok := resolvedInputs[newTransactionInputKey(input)]
 		if !ok || utxo.Output == nil {
 			continue
 		}
@@ -1418,11 +1583,15 @@ func collectTransactionScriptRequirements(
 
 	for index, proposal := range tx.ProposalProcedures() {
 		if proposal == nil {
-			return ret, MalformedAuthorizationError{Subject: "nil proposal procedure"}
+			return ret, MalformedAuthorizationError{
+				Subject: "nil proposal procedure",
+			}
 		}
 		govAction := proposal.GovAction()
 		if govAction == nil {
-			return ret, MalformedAuthorizationError{Subject: "nil governance action"}
+			return ret, MalformedAuthorizationError{
+				Subject: "nil governance action",
+			}
 		}
 		if actionWithPolicy, ok := govAction.(GovActionWithPolicy); ok {
 			policyHash := actionWithPolicy.GetPolicyHash()
@@ -2012,32 +2181,18 @@ func EncodeLangViews(
 		case 0: // PlutusV1
 			// Tag is double-serialized: serialize(serialize(0)) => 0x4100.
 			tag = []byte{0x41, 0x00}
-			// Cost model uses indefinite-length list, wrapped in a bytestring
-			// This is the "double bagging" for PlutusV1 compatibility
-			indefList := make(cbor.IndefLengthList, len(costModel))
-			for i, v := range costModel {
-				indefList[i] = any(v)
-			}
-			indefBytes, indefErr := cbor.Encode(indefList)
-			if indefErr != nil {
-				return nil, indefErr
-			}
-			// Wrap the indefinite list bytes in a CBOR bytestring
-			params, err = cbor.Encode(indefBytes)
-			if err != nil {
-				return nil, err
-			}
-
 		case 1, 2, 3: // PlutusV2, PlutusV3, PlutusV4
 			// Tags are single-byte CBOR encodings for small unsigned ints.
 			tag = []byte{byte(version)}
-			// Cost model uses definite-length list (no bytestring wrapper)
-			params, err = cbor.Encode(costModel)
-			if err != nil {
-				return nil, err
-			}
 		default:
-			return nil, fmt.Errorf("unsupported Plutus version for lang views: %d", version)
+			return nil, fmt.Errorf(
+				"unsupported Plutus version for lang views: %d",
+				version,
+			)
+		}
+		params, err = langViewParams(version, costModel)
+		if err != nil {
+			return nil, err
 		}
 
 		views = append(views, langView{tag: tag, params: params})
@@ -2057,7 +2212,8 @@ func EncodeLangViews(
 	result := make([]byte, 0, totalSize)
 	// Encode map length (definite-length map)
 	if len(views) < 24 {
-		result = append(result, 0xa0+byte(len(views))) //nolint:gosec // len < 24
+		//nolint:gosec // len < 24
+		result = append(result, 0xa0+byte(len(views)))
 	} else {
 		result = append(result, 0xb8, byte(len(views))) //nolint:gosec // len < 256
 	}
@@ -2069,6 +2225,80 @@ func EncodeLangViews(
 	}
 
 	return result, nil
+}
+
+// langViewParamsMemoMax bounds langViewParamsMemo. A chain has a handful of
+// distinct cost models in force at once, so this is never reached in practice;
+// a full memo is emptied rather than evicted from.
+const langViewParamsMemoMax = 16
+
+type langViewParamsEntry struct {
+	version   uint
+	costModel []int64
+	params    []byte
+}
+
+// langViewParamsMemo holds encoded language-view parameters by content. Every
+// script data hash check encodes the cost models of the languages its
+// transaction uses, and the cost models change only with the protocol
+// parameters, so the encoding is almost always one already made.
+var langViewParamsMemo struct {
+	sync.Mutex
+	entries []langViewParamsEntry
+}
+
+// langViewParams returns the encoded language-view parameters of costModel for
+// version: for PlutusV1 an indefinite-length list wrapped in a byte string
+// ("double bagging"), for later versions a definite-length list. The result is
+// shared and must not be modified.
+func langViewParams(version uint, costModel []int64) ([]byte, error) {
+	langViewParamsMemo.Lock()
+	for _, entry := range langViewParamsMemo.entries {
+		// CBOR encodes a nil slice as null and an empty one as an empty
+		// array, so nil-ness is part of the key.
+		if entry.version == version &&
+			(entry.costModel == nil) == (costModel == nil) &&
+			slices.Equal(entry.costModel, costModel) {
+			langViewParamsMemo.Unlock()
+			return entry.params, nil
+		}
+	}
+	langViewParamsMemo.Unlock()
+
+	var params []byte
+	if version == 0 {
+		indefList := make(cbor.IndefLengthList, len(costModel))
+		for i, v := range costModel {
+			indefList[i] = any(v)
+		}
+		indefBytes, err := cbor.Encode(indefList)
+		if err != nil {
+			return nil, err
+		}
+		params, err = cbor.Encode(indefBytes)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		params, err = cbor.Encode(costModel)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	langViewParamsMemo.Lock()
+	if len(langViewParamsMemo.entries) >= langViewParamsMemoMax {
+		langViewParamsMemo.entries = nil
+	}
+	langViewParamsMemo.entries = append(langViewParamsMemo.entries,
+		langViewParamsEntry{
+			version:   version,
+			costModel: slices.Clone(costModel),
+			params:    params,
+		})
+	langViewParamsMemo.Unlock()
+	return params, nil
 }
 
 // ShortLex compares byte slices by length first, then lexicographically

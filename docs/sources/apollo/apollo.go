@@ -22,6 +22,7 @@ import (
 	"github.com/blinklabs-io/gouroboros/ledger/conway"
 	"github.com/blinklabs-io/gouroboros/ledger/dijkstra"
 	"github.com/blinklabs-io/gouroboros/ledger/shelley"
+	"github.com/blinklabs-io/plutigo/data"
 
 	"github.com/Salvionied/apollo/v2/backend"
 )
@@ -92,6 +93,9 @@ type Apollo struct {
 	collaterals        []common.Utxo
 	Fee                int64
 	FeePadding         int64
+	maxFee             int64
+	maxFeeSet          bool
+	maxPaymentIncrease uint64
 	Ttl                int64
 	ValidityStart      int64
 	totalCollateral    int64
@@ -380,6 +384,26 @@ func (a *Apollo) SetFeePadding(padding int64) *Apollo {
 	return a
 }
 
+// SetMaxFee approves the largest total transaction fee in lovelace. Complete
+// requires this limit and rejects fees above it, including fee padding and
+// change absorbed into the fee.
+func (a *Apollo) SetMaxFee(fee int64) *Apollo {
+	if fee < 0 {
+		a.setErrOnce(errors.New("SetMaxFee: fee must be non-negative"))
+		return a
+	}
+	a.maxFee = fee
+	a.maxFeeSet = true
+	return a
+}
+
+// SetMaxPaymentIncrease approves the total lovelace that minimum-UTxO
+// adjustments may add to payments. Without this call, payments cannot grow.
+func (a *Apollo) SetMaxPaymentIncrease(increase uint64) *Apollo {
+	a.maxPaymentIncrease = increase
+	return a
+}
+
 // SetCoinSelector sets the coin selection algorithm used by Complete to
 // choose inputs. When unset, the package default selector is used.
 func (a *Apollo) SetCoinSelector(selector CoinSelector) *Apollo {
@@ -442,6 +466,10 @@ func (a *Apollo) AddCollateral(utxo common.Utxo) *Apollo {
 // than being silently rehashed into a transaction the ledger would refuse.
 func (a *Apollo) AddDatum(datum *common.Datum) *Apollo {
 	if datum != nil {
+		if err := datumTreeError(datum.Data); err != nil {
+			a.setErrOnce(fmt.Errorf("AddDatum: %w", err))
+			return a
+		}
 		if _, err := DatumWireCbor(datum); err != nil {
 			a.setErrOnce(fmt.Errorf("AddDatum: %w", err))
 			return a
@@ -486,9 +514,14 @@ func (a *Apollo) Mint(unit Unit, redeemer *common.Datum, exUnits *common.ExUnits
 		if exUnits != nil {
 			eu = *exUnits
 		}
+		cloned, err := cloneDatumValue(*redeemer)
+		if err != nil {
+			a.setErrOnce(err)
+			return a
+		}
 		a.mintRedeemers[unit.PolicyId] = redeemerEntry{
 			Tag:     common.RedeemerTagMint,
-			Data:    *redeemer,
+			Data:    cloned,
 			ExUnits: eu,
 		}
 		a.isEstimateRequired = true
@@ -559,9 +592,14 @@ func (a *Apollo) CollectFrom(utxo common.Utxo, redeemer common.Datum, exUnits co
 	a.isEstimateRequired = true
 	a.preselectedUtxos = append(a.preselectedUtxos, utxo)
 	ref := utxoRef(utxo)
+	cloned, err := cloneDatumValue(redeemer)
+	if err != nil {
+		a.setErrOnce(err)
+		return a
+	}
 	a.redeemers[ref] = redeemerEntry{
 		Tag:     common.RedeemerTagSpend,
-		Data:    redeemer,
+		Data:    cloned,
 		ExUnits: exUnits,
 	}
 	return a
@@ -569,11 +607,16 @@ func (a *Apollo) CollectFrom(utxo common.Utxo, redeemer common.Datum, exUnits co
 
 // PayToContract creates a payment to a script address with an inline datum.
 func (a *Apollo) PayToContract(addr common.Address, datum *common.Datum, lovelace int64, units ...Unit) *Apollo {
+	stored, err := cloneDatum(datum)
+	if err != nil {
+		a.setErrOnce(err)
+		return a
+	}
 	p := &Payment{
 		Receiver: addr,
 		Lovelace: lovelace,
 		Units:    units,
-		Datum:    datum,
+		Datum:    stored,
 		IsInline: true,
 	}
 	a.payments = append(a.payments, p)
@@ -590,13 +633,18 @@ func (a *Apollo) PayToContractWithDatumHash(addr common.Address, datum *common.D
 	}
 	if datum != nil {
 		// Hash the bytes the datum will occupy in the witness set, so the
-		// output's datum hash matches the datum the ledger sees.
-		hash, err := DatumHash(datum)
+		// output's datum hash matches the datum the ledger sees. Store a
+		// clone so later mutation of the caller's datum cannot change it.
+		stored, err := cloneDatum(datum)
+		if err != nil {
+			return a, err
+		}
+		hash, err := DatumHash(stored)
 		if err != nil {
 			return a, err
 		}
 		p.DatumHash = hash.Bytes()
-		a.datums = append(a.datums, *datum)
+		a.datums = append(a.datums, *stored)
 	}
 	a.payments = append(a.payments, p)
 	return a, nil
@@ -1070,9 +1118,14 @@ func (a *Apollo) AddWithdrawal(address common.Address, amount uint64, redeemerDa
 			return a
 		}
 		key := hex.EncodeToString(skh.Bytes())
+		cloned, err := cloneDatumValue(*redeemerData)
+		if err != nil {
+			a.setErrOnce(err)
+			return a
+		}
 		entry := redeemerEntry{
 			Tag:  common.RedeemerTagReward,
-			Data: *redeemerData,
+			Data: cloned,
 		}
 		if exUnits != nil {
 			entry.ExUnits = *exUnits
@@ -1386,6 +1439,9 @@ func (a *Apollo) SignWithSkey(skey []byte) (*Apollo, error) {
 	if err := a.validateTransactionBodyIntegrity(); err != nil {
 		return a, err
 	}
+	if err := a.checkCurrentFeeLimit(); err != nil {
+		return a, err
+	}
 	var bodyCbor []byte
 	var err error
 	if a.dijkstraTx != nil {
@@ -1485,6 +1541,9 @@ func (a *Apollo) Clone() *Apollo {
 		isEstimateRequired:         a.isEstimateRequired,
 		Fee:                        a.Fee,
 		FeePadding:                 a.FeePadding,
+		maxFee:                     a.maxFee,
+		maxFeeSet:                  a.maxFeeSet,
+		maxPaymentIncrease:         a.maxPaymentIncrease,
 		forceFee:                   a.forceFee,
 		Ttl:                        a.Ttl,
 		ValidityStart:              a.ValidityStart,
@@ -1730,6 +1789,111 @@ func isNilPayment(payment PaymentI) bool {
 	}
 }
 
+func cloneDatum(datum *common.Datum) (*common.Datum, error) {
+	if datum == nil {
+		return nil, nil
+	}
+	cloned, err := cloneDatumValue(*datum)
+	if err != nil {
+		return nil, err
+	}
+	return &cloned, nil
+}
+
+// maxDatumCloneDepth stops a hostile datum from growing the walk without limit.
+const maxDatumCloneDepth = 1024
+
+func datumTreeError(pd data.PlutusData) error {
+	if pd == nil {
+		return nil
+	}
+	return checkDatumTree(pd, 0)
+}
+
+func checkDatumTree(pd data.PlutusData, depth int) error {
+	if depth > maxDatumCloneDepth {
+		return fmt.Errorf("datum exceeds maximum depth %d", maxDatumCloneDepth)
+	}
+	if pd == nil {
+		return errors.New("datum PlutusData is nil")
+	}
+	v := reflect.ValueOf(pd)
+	if v.Kind() == reflect.Pointer && v.IsNil() {
+		return errors.New("datum PlutusData is nil")
+	}
+	switch node := pd.(type) {
+	case *data.List:
+		return checkDatumItems(node.Items, depth)
+	case data.List:
+		return checkDatumItems(node.Items, depth)
+	case *data.Constr:
+		return checkDatumItems(node.Fields, depth)
+	case data.Constr:
+		return checkDatumItems(node.Fields, depth)
+	case *data.Map:
+		return checkDatumPairs(node.Pairs, depth)
+	case data.Map:
+		return checkDatumPairs(node.Pairs, depth)
+	case *data.Value:
+		return checkDatumValue(node.Inner, depth)
+	case data.Value:
+		return checkDatumValue(node.Inner, depth)
+	case *data.Integer:
+		return checkDatumInteger(node.Inner)
+	case data.Integer:
+		return checkDatumInteger(node.Inner)
+	}
+	return nil
+}
+
+func checkDatumItems(items []data.PlutusData, depth int) error {
+	for _, item := range items {
+		if err := checkDatumTree(item, depth+1); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkDatumPairs(pairs [][2]data.PlutusData, depth int) error {
+	for _, pair := range pairs {
+		if err := checkDatumTree(pair[0], depth+1); err != nil {
+			return err
+		}
+		if err := checkDatumTree(pair[1], depth+1); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkDatumValue(inner *data.Map, depth int) error {
+	if inner == nil {
+		return nil
+	}
+	return checkDatumTree(inner, depth+1)
+}
+
+func checkDatumInteger(inner *big.Int) error {
+	if inner == nil {
+		return errors.New("datum PlutusData is nil")
+	}
+	return nil
+}
+
+func cloneDatumValue(datum common.Datum) (common.Datum, error) {
+	if err := datumTreeError(datum.Data); err != nil {
+		return common.Datum{}, err
+	}
+	if datum.Data != nil {
+		datum.Data = datum.Data.Clone()
+	}
+	if raw := datum.Cbor(); len(raw) > 0 {
+		datum.SetCbor(raw)
+	}
+	return datum, nil
+}
+
 func cloneCBORValue(src, dst any) error {
 	encoded, err := cbor.Encode(src)
 	if err != nil {
@@ -1909,6 +2073,9 @@ func (a *Apollo) Complete() (*Apollo, error) {
 	a.initState()
 	if a.err != nil {
 		return a, a.err
+	}
+	if !a.maxFeeSet {
+		return a, errors.New("maximum transaction fee is required: call SetMaxFee")
 	}
 	if a.tx != nil || a.dijkstraTx != nil {
 		return a, errors.New("transaction already built - call Complete() only once")
@@ -2194,6 +2361,9 @@ func (a *Apollo) Complete() (*Apollo, error) {
 	if fee < 0 {
 		fee = 0
 	}
+	if err := a.checkFeeLimit(fee); err != nil {
+		return a, err
+	}
 
 	// Compute totalInput once (it does not change across iterations).
 	totalInput, err = a.sumUtxoValues(allInputUtxos)
@@ -2254,6 +2424,9 @@ func (a *Apollo) Complete() (*Apollo, error) {
 			return a, balanceErr
 		}
 		outputs, fee = balanced.Outputs, balanced.Fee
+		if err := a.checkFeeLimit(fee); err != nil {
+			return a, err
+		}
 		if err := a.finalizeCollateral(fee); err != nil {
 			return a, err
 		}
@@ -2289,6 +2462,9 @@ func (a *Apollo) Complete() (*Apollo, error) {
 				nextFee = 0
 			}
 		}
+		if err := a.checkFeeLimit(nextFee); err != nil {
+			return a, err
+		}
 		// Never settle on a fee below one already required by a shape that was
 		// considered. Around the change output's min-UTxO threshold the same
 		// transaction is bistable: at the lower fee the change clears min-UTxO
@@ -2314,6 +2490,9 @@ func (a *Apollo) Complete() (*Apollo, error) {
 	}
 	if !converged {
 		return a, errors.New("evaluation transaction did not converge after 5 iterations")
+	}
+	if err := a.checkFeeLimit(fee); err != nil {
+		return a, err
 	}
 
 	// Build transaction body
@@ -2423,6 +2602,9 @@ func (a *Apollo) Sign() (*Apollo, error) {
 	if err := a.validateTransactionBodyIntegrity(); err != nil {
 		return a, err
 	}
+	if err := a.checkCurrentFeeLimit(); err != nil {
+		return a, err
+	}
 
 	// Marshal body to CBOR and set it for downstream consumers
 	var bodyCbor []byte
@@ -2530,7 +2712,28 @@ func (a *Apollo) loadUtxos() error {
 
 func (a *Apollo) buildOutputs() ([]babbage.BabbageTransactionOutput, error) {
 	outputs := make([]babbage.BabbageTransactionOutput, 0, len(a.payments))
-	for _, payment := range a.payments {
+	var totalIncrease uint64
+	for i, original := range a.payments {
+		var payment PaymentI
+		if builtIn, ok := original.(*Payment); ok {
+			copy := *builtIn
+			payment = &copy
+		} else if cloner, ok := original.(PaymentCloner); ok {
+			var err error
+			payment, err = cloner.ClonePayment()
+			if err != nil {
+				return nil, fmt.Errorf("clone payment %d: %w", i, err)
+			}
+			if isNilPayment(payment) {
+				return nil, fmt.Errorf("clone payment %d: returned nil", i)
+			}
+		} else {
+			return nil, fmt.Errorf("payment %d of type %T must implement PaymentCloner", i, original)
+		}
+		requested, err := payment.ToValue()
+		if err != nil {
+			return nil, fmt.Errorf("payment %d requested value: %w", i, err)
+		}
 		if err := payment.EnsureMinUTXO(backend.BindContext(a.requestContext, a.Context)); err != nil {
 			return nil, fmt.Errorf("failed to ensure min UTxO: %w", err)
 		}
@@ -2542,9 +2745,46 @@ func (a *Apollo) buildOutputs() ([]babbage.BabbageTransactionOutput, error) {
 		if err != nil {
 			return nil, err
 		}
+		actual := babbageOut.OutputAmount.Amount
+		if actual > requested.Coin {
+			increase := actual - requested.Coin
+			if increase > a.maxPaymentIncrease-totalIncrease {
+				return nil, fmt.Errorf("payment %d requires %d lovelace (requested %d), exceeding approved minimum-UTxO increase of %d lovelace", i, actual, requested.Coin, a.maxPaymentIncrease)
+			}
+			totalIncrease += increase
+		}
 		outputs = append(outputs, *babbageOut)
 	}
 	return outputs, nil
+}
+
+func (a *Apollo) checkFeeLimit(fee int64) error {
+	if !a.maxFeeSet {
+		return errors.New("maximum transaction fee is required: call SetMaxFee")
+	}
+	if fee < 0 {
+		return fmt.Errorf("negative fee: %d", fee)
+	}
+	if fee > a.maxFee {
+		return fmt.Errorf("transaction fee %d lovelace exceeds approved maximum of %d lovelace", fee, a.maxFee)
+	}
+	return nil
+}
+
+func (a *Apollo) checkCurrentFeeLimit() error {
+	if !a.maxFeeSet {
+		return errors.New("maximum transaction fee is required: call SetMaxFee")
+	}
+	var fee uint64
+	if a.dijkstraTx != nil {
+		fee = a.dijkstraTx.Body.TxFee
+	} else {
+		fee = a.tx.Body.TxFee
+	}
+	if fee > uint64(a.maxFee) { //nolint:gosec // SetMaxFee rejects negative values
+		return fmt.Errorf("transaction fee %d lovelace exceeds approved maximum of %d lovelace", fee, a.maxFee)
+	}
+	return nil
 }
 
 func (a *Apollo) totalOutputValue(outputs []babbage.BabbageTransactionOutput) (Value, error) {
@@ -3321,6 +3561,8 @@ func (a *Apollo) estimateExecutionUnits(
 // applyExecutionUnits is deliberately separate from estimateExecutionUnits:
 // callers only reach it after the complete evaluator response was validated.
 func (a *Apollo) applyExecutionUnits(units map[common.RedeemerKey]common.ExUnits, inputs []common.Utxo) {
+	sortedPolicies := a.sortedMintPolicyIds()
+	sortedWithdrawals := a.sortedWithdrawalKeys()
 	for key, exUnits := range units {
 		switch key.Tag {
 		case common.RedeemerTagSpend:
@@ -3329,12 +3571,12 @@ func (a *Apollo) applyExecutionUnits(units map[common.RedeemerKey]common.ExUnits
 			entry.ExUnits = exUnits
 			a.redeemers[ref] = entry
 		case common.RedeemerTagMint:
-			policy := a.sortedMintPolicyIds()[key.Index]
+			policy := sortedPolicies[key.Index]
 			entry := a.mintRedeemers[policy]
 			entry.ExUnits = exUnits
 			a.mintRedeemers[policy] = entry
 		case common.RedeemerTagReward:
-			wd := a.withdrawals[a.sortedWithdrawalKeys()[key.Index]]
+			wd := a.withdrawals[sortedWithdrawals[key.Index]]
 			stakeKey := hex.EncodeToString(wd.Address.StakeKeyHash().Bytes())
 			entry := a.stakeRedeemers[stakeKey]
 			entry.ExUnits = exUnits

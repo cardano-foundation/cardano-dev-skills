@@ -100,7 +100,7 @@ func NewScriptContextV3(
 	// example -- then diverges from the rest of the network. The redeemers
 	// map inside TxInfo is normalized where it is built; this covers the
 	// copy the V3 context carries alongside it.
-	redeemer.Data = data.Normalize(redeemer.Data)
+	redeemer.Data = data.NormalizeShared(redeemer.Data)
 	return ScriptContextV3{
 		TxInfo:     txInfo,
 		Redeemer:   redeemer,
@@ -262,7 +262,11 @@ func NewTxInfoV1FromTransaction(
 	strictValidityUpperBound bool,
 	protocolVersionMajor uint,
 ) (TxInfoV1, error) {
-	validityRange, err := validityRangeInfo(slotState, tx, strictValidityUpperBound)
+	validityRange, err := validityRangeInfo(
+		slotState,
+		tx,
+		strictValidityUpperBound,
+	)
 	if err != nil {
 		return TxInfoV1{}, err
 	}
@@ -272,6 +276,7 @@ func NewTxInfoV1FromTransaction(
 	}
 	inputs := SortInputs(tx.Inputs())
 	withdrawals := withdrawalsInfo(tx.Withdrawals())
+	plutusWithdrawals := plutusV1V2WithdrawalsInfo(tx.Withdrawals())
 	witnessDatums := buildWitnessDatums(tx.Witnesses())
 	certs := tx.Certificates()
 	redeemers, err := redeemersInfo(
@@ -292,13 +297,23 @@ func NewTxInfoV1FromTransaction(
 		return TxInfoV1{}, err
 	}
 	tmpData := dataInfo(tx.Witnesses())
+	filterByron := tx.Type() == eraIdAlonzo
 	contextInputs, err := contextInputsForPlutus(
-		expandInputs(inputs, resolvedInputs), true,
+		expandInputs(inputs, resolvedInputs), filterByron,
 	)
 	if err != nil {
 		return TxInfoV1{}, err
 	}
-	contextOutputs, err := contextOutputsForPlutus(tx.Outputs(), true)
+	if tx.Type() > eraIdAlonzo {
+		_, err = contextInputsForPlutus(
+			expandInputs(SortInputs(tx.ReferenceInputs()), resolvedInputs),
+			false,
+		)
+		if err != nil {
+			return TxInfoV1{}, err
+		}
+	}
+	contextOutputs, err := contextOutputsForPlutus(tx.Outputs(), filterByron)
 	if err != nil {
 		return TxInfoV1{}, err
 	}
@@ -309,7 +324,7 @@ func NewTxInfoV1FromTransaction(
 		Mint:         *assetMint,
 		ValidRange:   validityRange,
 		Certificates: certs,
-		Withdrawals:  withdrawals.ToPairs(),
+		Withdrawals:  plutusWithdrawals.ToPairs(),
 		Signatories:  signatoriesInfo(tx.RequiredSigners()),
 		Redeemers:    redeemers,
 		Data:         tmpData,
@@ -399,7 +414,11 @@ func NewTxInfoV2FromTransaction(
 	strictValidityUpperBound bool,
 	protocolVersionMajor uint,
 ) (TxInfoV2, error) {
-	validityRange, err := validityRangeInfo(slotState, tx, strictValidityUpperBound)
+	validityRange, err := validityRangeInfo(
+		slotState,
+		tx,
+		strictValidityUpperBound,
+	)
 	if err != nil {
 		return TxInfoV2{}, err
 	}
@@ -409,6 +428,7 @@ func NewTxInfoV2FromTransaction(
 	}
 	inputs := SortInputs(tx.Inputs())
 	withdrawals := withdrawalsInfo(tx.Withdrawals())
+	plutusWithdrawals := plutusV1V2WithdrawalsInfo(tx.Withdrawals())
 	witnessDatums := buildWitnessDatums(tx.Witnesses())
 	certs := tx.Certificates()
 	redeemers, err := redeemersInfo(
@@ -453,7 +473,7 @@ func NewTxInfoV2FromTransaction(
 		Mint:            *assetMint,
 		ValidRange:      validityRange,
 		Certificates:    certs,
-		Withdrawals:     withdrawals,
+		Withdrawals:     plutusWithdrawals,
 		Signatories:     signatoriesInfo(tx.RequiredSigners()),
 		Redeemers:       redeemers,
 		Data:            tmpData,
@@ -772,7 +792,8 @@ func contextInputsForPlutus(
 ) ([]ResolvedInput, error) {
 	ret := make([]ResolvedInput, 0, len(inputs))
 	for _, input := range inputs {
-		if input.Output != nil && input.Output.Address().Type() == lcommon.AddressTypeByron {
+		if input.Output != nil &&
+			input.Output.Address().Type() == lcommon.AddressTypeByron {
 			if filterByron {
 				continue
 			}
@@ -789,7 +810,8 @@ func contextOutputsForPlutus(
 ) ([]lcommon.TransactionOutput, error) {
 	ret := make([]lcommon.TransactionOutput, 0, len(outputs))
 	for _, output := range outputs {
-		if output != nil && output.Address().Type() == lcommon.AddressTypeByron {
+		if output != nil &&
+			output.Address().Type() == lcommon.AddressTypeByron {
 			if filterByron {
 				continue
 			}
@@ -854,18 +876,38 @@ func validityRangeInfo(
 func withdrawalsInfo(
 	withdrawals map[*lcommon.Address]*big.Int,
 ) KeyValuePairs[*lcommon.Address, *big.Int] {
-	ret := make(KeyValuePairs[*lcommon.Address, *big.Int], 0, len(withdrawals))
-	for addr, amt := range withdrawals {
-		ret = append(
-			ret,
-			KeyValuePair[*lcommon.Address, *big.Int]{
-				Key:   addr,
-				Value: amt,
-			},
-		)
+	return withdrawalsInfoInOrder(
+		withdrawals,
+		SortWithdrawalAddresses(withdrawals),
+	)
+}
+
+func plutusV1V2WithdrawalsInfo(
+	withdrawals map[*lcommon.Address]*big.Int,
+) KeyValuePairs[*lcommon.Address, *big.Int] {
+	sorted := make([]*lcommon.Address, 0, len(withdrawals))
+	for address := range withdrawals {
+		sorted = append(sorted, address)
 	}
-	sorted := SortWithdrawalAddresses(withdrawals)
-	ret = ret[:0]
+	slices.SortFunc(sorted, func(a, b *lcommon.Address) int {
+		aCredential, _ := a.StakeCredential()
+		bCredential, _ := b.StakeCredential()
+		if c := cmp.Compare(aCredential.CredType, bCredential.CredType); c != 0 {
+			return c
+		}
+		return bytes.Compare(
+			aCredential.Credential[:],
+			bCredential.Credential[:],
+		)
+	})
+	return withdrawalsInfoInOrder(withdrawals, sorted)
+}
+
+func withdrawalsInfoInOrder(
+	withdrawals map[*lcommon.Address]*big.Int,
+	sorted []*lcommon.Address,
+) KeyValuePairs[*lcommon.Address, *big.Int] {
+	ret := make(KeyValuePairs[*lcommon.Address, *big.Int], 0, len(withdrawals))
 	for _, addr := range sorted {
 		ret = append(ret, KeyValuePair[*lcommon.Address, *big.Int]{
 			Key:   addr,
@@ -898,7 +940,7 @@ func dataInfo(
 				// script always observes the encoding the Plutus encoder writes, never
 				// the definite/indefinite-length choice this transaction was built
 				// with. serialiseData exposes the difference.
-				Value: data.Normalize(datum.Data),
+				Value: data.NormalizeShared(datum.Data),
 			},
 		)
 	}
@@ -953,7 +995,7 @@ func redeemersInfo(
 				Value: Redeemer{
 					Tag:     key.Tag,
 					Index:   key.Index,
-					Data:    data.Normalize(redeemerValue.Data.Data),
+					Data:    data.NormalizeShared(redeemerValue.Data.Data),
 					ExUnits: redeemerValue.ExUnits,
 				},
 			},

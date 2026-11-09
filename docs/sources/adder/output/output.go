@@ -16,10 +16,12 @@ package output
 
 // We import the various plugins that we want to be auto-registered
 import (
+	_ "github.com/blinklabs-io/adder/output/discord"
 	_ "github.com/blinklabs-io/adder/output/log"
 	_ "github.com/blinklabs-io/adder/output/notify"
 	_ "github.com/blinklabs-io/adder/output/notifyjson"
 	_ "github.com/blinklabs-io/adder/output/push"
+	_ "github.com/blinklabs-io/adder/output/slack"
 	_ "github.com/blinklabs-io/adder/output/telegram"
 	_ "github.com/blinklabs-io/adder/output/webhook"
 )

@@ -7,6 +7,7 @@ transaction operations:
 builder, err := apollo.New(chainContext).
     SetTargetEra(apollo.EraDijkstra).
     AddPayment(payment).
+    SetMaxFee(1_000_000).
     Complete()
 if err != nil {
     return err

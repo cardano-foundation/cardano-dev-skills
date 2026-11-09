@@ -44,7 +44,7 @@ The paper, implementation notes, and benchmark tables are in
 
 ```go
 // Default: MACS with dust sweeping
-builder := apollo.New(ctx)
+builder := apollo.New(ctx).SetMaxFee(1_000_000)
 
 // v1 greedy behaviour
 builder = builder.SetCoinSelector(&apollo.LargestFirstSelector{})

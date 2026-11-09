@@ -163,8 +163,8 @@ from a _powers-of-tau ceremony_ where many participants each contribute
 randomness, and the setup stays safe as long as at least one participant
 discarded their part.
 
-Hydra reuses the [EIP-4844](https://eips.ethereum.org/EIPS/eip-4844) trusted setup
-from the Ethereum KZG ceremony, which had roughly 140,000 participants. The setup
+Hydra reuses the [32768-point setup](https://github.com/ethereum/kzg-ceremony-verifier/blob/cd73fdcf5bd060954c652e90606d46f29f0b137b/output_setups/trusted_setup_32768.json)
+from the Ethereum KZG ceremony, which recorded 141,416 contributions. The setup
 bytes are embedded into the binary at compile time and pinned by a SHA-256 digest,
 so every node uses the same canonical CRS and the file can be verified
 independently against the published ceremony output.
@@ -249,12 +249,23 @@ head to `Closed` rather than wedging it.
 
 ### Head size limit
 
-The embedded trusted setup provides 4096 G1 powers of tau, and an accumulator over
+The embedded trusted setup provides 32768 G1 powers of tau, and an accumulator over
 `n` elements needs `n + 1` of them. A snapshot can therefore commit to at most
-**4095** outputs, counting any pending commit or decommit alongside the UTxO set.
+**32767** outputs, counting any pending commit or decommit alongside the UTxO set.
 A requested snapshot that would exceed this is rejected with
 `ReqSnUTxOSetTooLarge`, so the head cannot reach a state it would be unable to fan
 out.
+
+Snapshot construction enforces the same bound, including outputs owed by pending
+commits and decommits. The optimistic local UTxO may temporarily exceed it:
+`TxValid` indicates local ledger acceptance, not inclusion in the next snapshot.
+Transactions that do not fit are pruned when a snapshot is applied; new deposits
+that do not fit are deferred. Confirm any merges an expanding decommit relies on
+before submitting it.
+
+For a head already stalled on an older version,
+[side-load the last confirmed snapshot](/docs/how-to/sideload-snapshot) on all
+nodes to clear pending local state.
 
 The same bound applies to a snapshot supplied by a client rather than by a peer.
 A [side-loaded snapshot](/docs/how-to/sideload-snapshot) above the limit is

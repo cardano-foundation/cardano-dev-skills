@@ -115,6 +115,7 @@ v3, err := applied.Script.V3()
 
 redeemer, err := bp.EncodeRedeemerValue("token.mint", "mint", int64(1))
 tx, err := apollo.New(cc).
+    SetMaxFee(1_000_000).
     SetWallet(wallet).
     AttachScript(v3).
     Mint(unit, redeemer, nil).

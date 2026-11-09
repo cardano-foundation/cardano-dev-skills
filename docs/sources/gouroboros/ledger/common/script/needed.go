@@ -135,6 +135,31 @@ func NewTxScriptView(
 	tx lcommon.Transaction,
 	ls lcommon.LedgerState,
 ) (TxScriptView, error) {
+	// Only the scoped state itself is trusted: an adapter above it may
+	// resolve UTxOs differently, and a view built through it must not be
+	// shared with rules that see the scoped state directly.
+	memo, ok := ls.(lcommon.TransactionScopedMemoizer)
+	if ok && tx != nil && lcommon.IsTransactionScopedLedgerState(ls) {
+		value, err := memo.TransactionScopedMemo(
+			tx,
+			txScriptViewMemoKey{},
+			func() (any, error) { return newTxScriptView(tx, ls) },
+		)
+		view, _ := value.(TxScriptView)
+		return view, err
+	}
+	return newTxScriptView(tx, ls)
+}
+
+// txScriptViewMemoKey is NewTxScriptView's TransactionScopedMemo key. Rules
+// build the view independently, several times per transaction, and share it
+// read-only.
+type txScriptViewMemoKey struct{}
+
+func newTxScriptView(
+	tx lcommon.Transaction,
+	ls lcommon.LedgerState,
+) (TxScriptView, error) {
 	var view TxScriptView
 	if tx == nil {
 		return view, nil
@@ -444,14 +469,14 @@ func ScriptPurposes(
 			Purpose: purpose,
 		})
 	}
-	byId := make(map[string]lcommon.Utxo, len(resolvedInputs))
+	byId := make(map[transactionInputKey]lcommon.Utxo, len(resolvedInputs))
 	for _, utxo := range resolvedInputs {
 		if utxo.Id != nil {
-			byId[utxo.Id.String()] = utxo
+			byId[transactionInputKey{txID: utxo.Id.Id(), index: utxo.Id.Index()}] = utxo
 		}
 	}
 	for idx, input := range SortInputs(body.Inputs()) {
-		utxo, ok := byId[input.String()]
+		utxo, ok := byId[transactionInputKey{txID: input.Id(), index: input.Index()}]
 		if !ok || utxo.Output == nil {
 			continue
 		}

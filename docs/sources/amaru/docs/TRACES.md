@@ -1511,11 +1511,34 @@ For information on how to use and filter these traces, see [monitoring/README.md
 
 | name | kind | levels | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- | --- |
-| `forge_failed` | `event` | error | public | Forging the header or storing it failed. The node shuts down. Step ∈ {sign_header, validate_header, store_header, store_block}. | slot, step, error |  |
+| `block_body` | `event` | debug, info | public | The non-empty block body selected for the current forge attempt. | slot, tx_count, size_bytes, ex_units, ref_scripts_size |  |
+| `build_block` | `span` |  | public | Transaction selection for building blocks | slot |  |
+| `forge_failed` | `event` | error | public | Forging the header or storing it failed. The node shuts down. Step ∈ {sign_header, validate_header, store_header, store_block, seal_block}. | slot, step, error |  |
 | `forged` | `event` | info | public | A block was forged and stored, and its tip sent to chain selection. | slot, header_hash, parent |  |
 | `kes_period` | `event` | info | public | The in-memory KES key moved to a new period. | period |  |
-| `missed_slot` | `event` | warn | public | A led slot was not forged. Reason ∈ {ocert_not_yet_valid, ocert_expired, tip_ahead, not_led, woke_late, parent_not_stored}. | slot, reason |  |
+| `missed_slot` | `event` | warn | public | A led slot was not forged. Reason ∈ {ocert_not_yet_valid, ocert_expired, tip_ahead, not_led, woke_late, parent_not_stored, ledger_tip_changed}. | slot, reason |  |
 | `schedule` | `event` | debug, info | public | Leader schedules still held, with how many led slots remain in each epoch and how many of k blocks since freeze have been adopted. \`next_slot\` is the UTC onset of the next armed led slot, \`YYYY-MM-DDTHH:MM:SS.ffffffZ\`. | slots, freeze_depth, settled | next_slot |
+| `take_for_forge_failed` | `event` | error | public | Selecting transactions for block forging failed; an empty block is forged instead. | slot, step, error |  |
+
+<details><summary>event: `block_body`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `slot` | `integer` | ✓ |
+| `tx_count` | `integer` | ✓ |
+| `size_bytes` | `integer` | ✓ |
+| `ex_units` | `string` | ✓ |
+| `ref_scripts_size` | `integer` | ✓ |
+
+</details>
+
+<details><summary>span: `build_block`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `slot` | `integer` | ✓ |
+
+</details>
 
 <details><summary>event: `forge_failed`</summary>
 
@@ -1562,6 +1585,16 @@ For information on how to use and filter these traces, see [monitoring/README.md
 | `freeze_depth` | `integer` | ✓ |
 | `settled` | `boolean` | ✓ |
 | `next_slot` | `["string","null"]` |  |
+
+</details>
+
+<details><summary>event: `take_for_forge_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `slot` | `integer` | ✓ |
+| `step` | `string` | ✓ |
+| `error` | `string` | ✓ |
 
 </details>
 
@@ -2181,7 +2214,7 @@ For information on how to use and filter these traces, see [monitoring/README.md
 | name | kind | levels | public | description | required fields | optional fields |
 | --- | --- | --- | --- | --- | --- | --- |
 | `block` | `span` |  | public | Block-related rules and other preflight checks |  |  |
-| `phase_one` | `span` |  | public | All phase one validations |  | preflight_micros, certificates_micros, collateral_micros, collateral_return_micros, donation_micros, fees_micros, inputs_micros, metadata_micros, mint_micros, outputs_micros, proposals_micros, scripts_micros, signatures_micros, validity_interval_micros, votes_micros, withdrawals_micros |
+| `phase_one` | `span` |  | public | All phase one validations |  | preflight_micros, certificates_micros, fees_micros, inputs_micros, metadata_micros, mint_micros, outputs_micros, proposals_micros, scripts_micros, signatures_micros, treasury_micros, validity_interval_micros, votes_micros, withdrawals_micros |
 | `phase_two` | `span` |  | public | Initialize script context and cost models for phase-2 validations, common to all scripts |  | script_context_micros |
 
 <details><summary>span: `phase_one`</summary>
@@ -2190,9 +2223,6 @@ For information on how to use and filter these traces, see [monitoring/README.md
 | --- | --- | --- |
 | `preflight_micros` | `integer` |  |
 | `certificates_micros` | `integer` |  |
-| `collateral_micros` | `integer` |  |
-| `collateral_return_micros` | `integer` |  |
-| `donation_micros` | `integer` |  |
 | `fees_micros` | `integer` |  |
 | `inputs_micros` | `integer` |  |
 | `metadata_micros` | `integer` |  |
@@ -2201,6 +2231,7 @@ For information on how to use and filter these traces, see [monitoring/README.md
 | `proposals_micros` | `integer` |  |
 | `scripts_micros` | `integer` |  |
 | `signatures_micros` | `integer` |  |
+| `treasury_micros` | `integer` |  |
 | `validity_interval_micros` | `integer` |  |
 | `votes_micros` | `integer` |  |
 | `withdrawals_micros` | `integer` |  |

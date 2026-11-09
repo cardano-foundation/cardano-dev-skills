@@ -152,6 +152,9 @@ This is not an exhaustive list of existing and planned features, but it covers t
       - [X] Every key-hash reward credential present in withdrawals requires a
         DRep vote delegation at PV10/PV11, including zero amounts
     - [X] Dijkstra
+      - Pool BLS proofs use the IETF proof domain by default. Networks that
+        require the older signature domain can select it through
+        `common.DijkstraBlsProofDomainState`; validation checks only that domain.
       - [X] Blocks
       - [X] Transactions
       - [X] TX inputs
@@ -227,6 +230,17 @@ This is not an exhaustive list of existing and planned features, but it covers t
     - [X] Encode as bech32 ([CIP-0005](https://cips.cardano.org/cip/CIP-0005))
     - [X] Deserialize from CBOR
     - [X] Retrieve staking key
+
+## Native script encoding
+
+Constructed native scripts use the Haskell `cardano-binary` framing rule:
+child lists with up to 23 elements have a definite length, and lists with
+24 or more elements have an indefinite length. This applies to `all`, `any`,
+and threshold containers at every nesting level.
+
+Decoded native scripts retain their original CBOR bytes for serialization
+and hashing. Reconstructing a script from its fields can change its hash
+and address if its original encoding used a different framing.
 
 ## Testing
 

@@ -345,15 +345,17 @@ func scriptPurposeBuilder(
 					resolvedInput = tmpResolvedInput
 					resolved = true
 					if resolvedInput.Output == nil {
-						return nil, UnmatchedRedeemerError{RedeemerKey: redeemerKey}
+						return nil, UnmatchedRedeemerError{
+							RedeemerKey: redeemerKey,
+						}
 					}
 					if tmpDatum := resolvedInput.Output.Datum(); tmpDatum != nil {
 						// Inline datum - use it directly
-						datum = data.Normalize(tmpDatum.Data)
+						datum = data.NormalizeShared(tmpDatum.Data)
 					} else if datumHash := resolvedInput.Output.DatumHash(); datumHash != nil {
 						// No inline datum - check witness datums by hash
 						if witnessDatum, exists := witnessDatums[*datumHash]; exists && witnessDatum != nil {
-							datum = data.Normalize(witnessDatum.Data)
+							datum = data.NormalizeShared(witnessDatum.Data)
 						}
 					}
 					break
@@ -364,7 +366,7 @@ func scriptPurposeBuilder(
 			}
 			return ScriptPurposeSpending{
 				Input: resolvedInput,
-				Datum: data.Normalize(datum),
+				Datum: datum,
 			}, nil
 		case lcommon.RedeemerTagMint:
 			mintPolicies := mint.Policies()
@@ -454,16 +456,16 @@ func BuildScriptPurpose(
 		var datum data.PlutusData
 		if d := utxo.Output.Datum(); d != nil {
 			// Inline datum - use it directly
-			datum = data.Normalize(d.Data)
+			datum = data.NormalizeShared(d.Data)
 		} else if datumHash := utxo.Output.DatumHash(); datumHash != nil {
 			// No inline datum - check witness datums by hash
 			if witnessDatum, exists := witnessDatums[*datumHash]; exists && witnessDatum != nil {
-				datum = data.Normalize(witnessDatum.Data)
+				datum = data.NormalizeShared(witnessDatum.Data)
 			}
 		}
 		return ScriptPurposeSpending{
 			Input: utxo,
-			Datum: data.Normalize(datum),
+			Datum: datum,
 		}, nil
 	case lcommon.RedeemerTagMint:
 		policies := mint.Policies()

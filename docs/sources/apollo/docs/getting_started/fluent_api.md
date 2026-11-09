@@ -26,12 +26,12 @@ you also check it later at `Complete()`.
 ## Methods that cannot fail at the call site
 
 Methods such as `PayToAddress`, `AddPayment`, `Mint`, `AttachScript`,
-`AddCollateral`, and `SetFee` return only `*Apollo`. If they hit a problem they
+`AddCollateral`, `SetFee`, and `SetMaxFee` return only `*Apollo`. If they hit a problem they
 call `setErrOnce` and store the **first** error. Later fluent calls still run,
 but `Complete()` returns that stored error and does not build a body.
 
 ```go
-builder = builder.PayToAddress(addr, 1_000_000).AttachScript(script)
+builder = builder.PayToAddress(addr, 1_000_000).AttachScript(script).SetMaxFee(1_000_000)
 builder, err = builder.Complete() // reports the first stored error, if any
 ```
 

@@ -86,6 +86,7 @@ func main() {
     builder, err = builder.
         AddLoadedUTxOs(utxos...).
         PayToAddress(receiver, 1_000_000).
+        SetMaxFee(300_000).
         Complete()
     if err != nil {
         panic(err)

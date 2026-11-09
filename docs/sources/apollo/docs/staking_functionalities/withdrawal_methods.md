@@ -49,7 +49,7 @@ import (
     apollo "github.com/Salvionied/apollo/v2"
 )
 
-a := apollo.New(cc)
+a := apollo.New(cc).SetMaxFee(1_000_000)
 a.SetWallet(wallet)
 a.AddLoadedUTxOs(utxos...)
 a.PayToAddress(myAddr, 10_000_000)

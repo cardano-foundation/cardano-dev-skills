@@ -2,11 +2,12 @@
 
 `apollo.New(chainContext)` returns a fluent builder. Methods accumulate
 inputs, outputs, scripts, certificates, metadata, and governance actions.
-`Complete()` balances the transaction; `Sign()` attaches the wallet witness;
+`Complete()` balances the transaction after `SetMaxFee` approves a total fee
+ceiling; `Sign()` attaches the wallet witness;
 `Submit()` publishes it.
 
 ```go
-builder := apollo.New(chainContext)
+builder := apollo.New(chainContext).SetMaxFee(1_000_000)
 builder, err = builder.SetWalletFromMnemonic(mnemonic)
 builder = builder.AddLoadedUTxOs(utxos...).PayToAddress(receiver, 2_000_000)
 builder, err = builder.Complete()

@@ -60,7 +60,7 @@ pairs. Build an address, then wrap it.
 
 ```go
 addr, err := apollo.ParseAddress("addr1...")
-builder = apollo.New(ctx).SetWallet(apollo.NewExternalWallet(addr))
+builder = apollo.New(ctx).SetMaxFee(1_000_000).SetWallet(apollo.NewExternalWallet(addr))
 ```
 
 `SignTxBody` always errors. Use this for hardware, remote, or "build unsigned"

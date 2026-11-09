@@ -55,7 +55,7 @@ drep := common.Drep{
     Type: 0,
     Credential: drepKeyHash,
 }
-a := apollo.New(cc)
+a := apollo.New(cc).SetMaxFee(1_000_000)
 a.SetWallet(wallet)
 a, err := a.DelegateVote(nil, drep)
 if err != nil {

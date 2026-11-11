@@ -72,7 +72,10 @@ Title: `[docs]`, `[topic]`, or `[feedback]` plus a short summary, with the label
 `documentation`, `enhancement`, or `feedback`. `[docs]` for anything wrong or stale,
 `[topic]` for something missing, `[feedback]` for praise, a prompt that missed, or
 general experience. The title is one line: replace any newline in it with a space
-while drafting, so the title shown is the title sent. One body shape for all three:
+while drafting, so the title shown is the title sent. Neither title nor body may
+contain a NUL byte (U+0000), which the shell drops silently: remove any while
+drafting, never after approval, so the draft shown is the draft sent. One body shape
+for all three:
 
 ```markdown
 ### Where
@@ -129,8 +132,8 @@ the command this way and no other:
   `CDS_FEEDBACK_` followed by 12 or more random hex characters chosen fresh for this
   send. A quoted heredoc performs no expansion, so `$`, backticks and backslashes reach
   `gh` as written; only a line equal to the delimiter can end it early. Before sending,
-  confirm no body line equals the delimiter; if one does, choose another. `gh` receives
-  the body followed by one newline.
+  confirm no line of the NUL-free body that was shown equals the delimiter; if one
+  does, choose another. `gh` receives the body followed by one newline.
 - **Label**: `documentation`, `enhancement` or `feedback`, written as that literal.
   The repository is always `-R cardano-foundation/cardano-dev-skills`.
 

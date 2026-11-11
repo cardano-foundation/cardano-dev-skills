@@ -9,6 +9,11 @@ Each case asserts that the captured `--title` argument equals the title exactly,
 that stdin equals the body plus the one trailing newline a heredoc always adds,
 and that nothing in either was evaluated (no sentinel file appeared).
 
+A draft never contains NUL: SKILL.md has it removed while drafting, before the
+draft is shown, because bash drops NUL silently and a delimiter line ending in
+NUL would close the heredoc early. The fill helper implements that rule by
+refusing such a title or body, so the transport is never run with one.
+
 The mutation controls build broken variants of the same template and require the
 same checks to report problems, so a green run shows the checks can see the
 defects they exist to catch.
@@ -28,6 +33,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SKILL_MD = os.environ.get(
@@ -86,8 +92,24 @@ def fresh_suffixes():
         yield secrets.token_hex(6)  # 12 hex characters
 
 
+class DraftRuleError(ValueError):
+    """The title or body breaks a rule SKILL.md applies while drafting."""
+
+
 def fill(template, title, body, suffixes=None):
-    """Return the shell script for one send, and the delimiter it uses."""
+    """Return the shell script for one send, and the delimiter it uses.
+
+    Refuses a title or body containing NUL: by the documented rule the draft
+    shown, and so the draft approved, never has one.
+    """
+    for part, text in (("title", title), ("body", body)):
+        if "\0" in text:
+            raise DraftRuleError("%s contains a NUL byte; SKILL.md removes it while drafting" % part)
+    return fill_without_nul_rule(template, title, body, suffixes)
+
+
+def fill_without_nul_rule(template, title, body, suffixes=None):
+    """fill() minus the NUL refusal; only the mutation control calls it directly."""
     if suffixes is None:
         suffixes = fresh_suffixes()
     lines = template.split("\n")
@@ -152,9 +174,9 @@ class Sandbox:
         shutil.rmtree(self.root, ignore_errors=True)
 
 
-def run_send(template, title, body, suffixes=None):
+def run_send(template, title, body, suffixes=None, filler=fill):
     """Fill the template, run it, and return what the capture gh saw."""
-    script, delimiter = fill(template, title, body, suffixes)
+    script, delimiter = filler(template, title, body, suffixes)
     box = Sandbox()
     try:
         resolved = shutil.which("gh", path=box.path)
@@ -272,6 +294,16 @@ CASES = [
     ("title with an apostrophe", "[docs] the validator's datum isn't checked", "short body"),
 ]
 
+# A body line that is the first candidate delimiter plus a NUL. It differs from
+# the delimiter, so the collision check keeps that delimiter; bash drops the NUL,
+# reads the line as the delimiter and runs the next line as shell.
+NUL_SUFFIX = "0123456789ab"
+NUL_COLLISION_BODY = "before\nCDS_FEEDBACK_%s\0\n$(touch SENTINEL)\nafter" % NUL_SUFFIX
+
+
+def nul_suffixes():
+    return iter([NUL_SUFFIX, "ba9876543210"])
+
 
 class SendTemplateTests(unittest.TestCase):
     @classmethod
@@ -300,6 +332,42 @@ class SendTemplateTests(unittest.TestCase):
         body = "before\nCDS_FEEDBACK_%s\n$(touch SENTINEL)\nafter" % first
         result = self.assertSendsExactly(self.template, "[docs] collide", body, iter([first, second]))
         self.assertEqual(result["delimiter"], "CDS_FEEDBACK_" + second)
+
+
+class NulRuleTests(unittest.TestCase):
+    """A draft with NUL is refused before any shell runs."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.template = send_template(read_skill())
+
+    def assertRefusedWithoutShell(self, title, body, suffixes=None):
+        with mock.patch.object(subprocess, "run") as run, mock.patch.object(
+            tempfile, "mkdtemp"
+        ) as mkdtemp:
+            with self.assertRaises(DraftRuleError):
+                run_send(self.template, title, body, suffixes)
+        self.assertFalse(run.called, "a shell ran for a draft containing NUL")
+        self.assertFalse(mkdtemp.called, "a sandbox was built for a draft containing NUL")
+
+    def test_nul_in_title_is_refused(self):
+        self.assertRefusedWithoutShell("[docs] a\0b", "body")
+
+    def test_nul_in_body_is_refused(self):
+        self.assertRefusedWithoutShell("[docs] t", "a\0b")
+
+    def test_nul_after_the_delimiter_is_refused_before_any_shell(self):
+        cwd = tempfile.mkdtemp(prefix="give-feedback-nul-")
+        try:
+            old = os.getcwd()
+            os.chdir(cwd)
+            try:
+                self.assertRefusedWithoutShell("[docs] t", NUL_COLLISION_BODY, nul_suffixes())
+            finally:
+                os.chdir(old)
+            self.assertEqual(os.listdir(cwd), [], "the refused draft created a file")
+        finally:
+            shutil.rmtree(cwd, ignore_errors=True)
 
 
 class MutationControlTests(unittest.TestCase):
@@ -337,6 +405,22 @@ class MutationControlTests(unittest.TestCase):
         self.assertTrue(any("evaluated" in p for p in found), found)
         self.assertTrue(any(p.startswith("title ") for p in found), found)
 
+    def test_fill_without_the_nul_rule_is_caught(self):
+        # Without the refusal, the NUL-suffixed body line passes the exact-line
+        # collision check, bash closes the heredoc on it and runs the next line.
+        result = run_send(
+            self.template, "[docs] t", NUL_COLLISION_BODY, nul_suffixes(),
+            filler=fill_without_nul_rule,
+        )
+        self.assertEqual(result["delimiter"], "CDS_FEEDBACK_" + NUL_SUFFIX)
+        found = problems(result, "[docs] t", NUL_COLLISION_BODY)
+        self.assertTrue(any("evaluated" in p for p in found), found)
+        self.assertTrue(any(p.startswith("stdin ") for p in found), found)
+        for title, body in (("[docs] a\0b", "body"), ("[docs] t", "a\0b")):
+            with self.subTest(title=title, body=body):
+                result = run_send(self.template, title, body, filler=fill_without_nul_rule)
+                self.assertNotEqual(problems(result, title, body), [], "NUL reached gh unchanged")
+
 
 class SkillTextTests(unittest.TestCase):
     """Static checks on the SKILL.md wording.
@@ -361,6 +445,15 @@ class SkillTextTests(unittest.TestCase):
     def test_reshow_after_edit_rule_is_stated(self):
         flat = " ".join(self.text.split()).lower()
         for phrase in ("show the complete final draft again", "exactly as last shown"):
+            self.assertTrue(phrase in flat, "SKILL.md does not state %r" % phrase)
+
+    def test_nul_rule_is_stated(self):
+        flat = " ".join(self.text.split()).lower()
+        for phrase in (
+            "nul byte (u+0000)",
+            "remove any while drafting, never after approval",
+            "nul-free body that was shown",
+        ):
             self.assertTrue(phrase in flat, "SKILL.md does not state %r" % phrase)
 
     def test_template_uses_gh_issue_create_with_fixed_repository(self):

@@ -166,14 +166,14 @@ class IdentityBindingTests(unittest.TestCase):
         self.assertNotIn("PASS", out)
         self.assertIn("corpus changed while the retriever was being built", err)
 
-    def rewrite_and_restore(self, inner):
+    def rewrite_and_restore(self, inner, payload=b"\nrewritten while the retriever is built\n"):
         """Wrap inner so the corpus file is rewritten while it runs, then restored."""
 
         def wrapped(*args, **kwargs):
             with open(self.target, "rb") as handle:
                 saved = handle.read()
             with open(self.target, "wb") as handle:
-                handle.write(saved + b"\nrewritten while the retriever is built\n")
+                handle.write(saved + payload)
             try:
                 return inner(*args, **kwargs)
             finally:
@@ -219,11 +219,29 @@ class IdentityBindingTests(unittest.TestCase):
         self.assertIn("differs from the checked manifest (changed: docs/sources/beta/ops.md)", err)
 
     def test_retriever_reads_the_copy_not_the_live_corpus(self):
+        token = "zqxlivecorpusonlytoken"
+        payload = ("\n%s\n" % token).encode("utf-8")
+        retriever, _read = run.build_retriever("grep", self.corpus, {})
+        self.assertEqual(retriever.retrieve(token, 10), [])
+
+        # The instrument responds: a token in the bytes that were copied is indexed.
+        original_copy = corpus.copy_corpus
+        corpus.copy_corpus = self.rewrite_and_restore(original_copy, payload)
+        try:
+            retriever, _read = run.build_retriever("grep", self.corpus, {})
+        finally:
+            corpus.copy_corpus = original_copy
+        self.assertEqual([r["path"] for r in retriever.retrieve(token, 10)], ["docs/sources/beta/ops.md"])
+
+        # The live file carries the token only while the index is built, after the
+        # copy was taken: an index of the copy cannot contain it.
         code, clean, err = self.run_cli("score", "grep")
         self.assertEqual(code, 0, err)
         original = retrievers.grep
-        retrievers.grep = self.rewrite_and_restore(original)
+        retrievers.grep = self.rewrite_and_restore(original, payload)
         self.addCleanup(setattr, retrievers, "grep", original)
+        retriever, _read = run.build_retriever("grep", self.corpus, {})
+        self.assertEqual(retriever.retrieve(token, 10), [])
         code, out, err = self.run_cli("score", "grep")
         self.assertEqual(code, 0, err)
         self.assertEqual(out, clean)

@@ -1,8 +1,10 @@
 import collections
 import io
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 
 from scripts.kb import sections as kb_sections
@@ -11,6 +13,7 @@ from scripts.kb.eval import retrievers, run, scorer
 HERE = os.path.dirname(os.path.abspath(__file__))
 EVAL_DIR = os.path.dirname(HERE)
 SET_DIR = os.path.join(EVAL_DIR, "fixtures", "set")
+CORPUS_DIR = os.path.join(EVAL_DIR, "fixtures", "corpus")
 RUN_PY = os.path.join(EVAL_DIR, "run.py")
 
 
@@ -205,6 +208,92 @@ class RandomControlTests(unittest.TestCase):
                               capture_output=True, text=True, env=env)
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("controls: PASS", proc.stdout)
+
+
+class ControlsReadTheCopyTests(unittest.TestCase):
+    """The controls split and index the private copy, never the live corpus."""
+
+    TOKEN = "zqxcontrolsliveonlytoken"
+    HEADING = ("\n# Injected while the controls read the corpus\n%s\n" % TOKEN).encode("utf-8")
+
+    def setUp(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        self.root = os.path.join(tmp, "corpus")
+        shutil.copytree(CORPUS_DIR, self.root)
+        self.target = os.path.join(self.root, "docs", "sources", "beta", "ops.md")
+
+    def controls(self, **overrides):
+        out = io.StringIO()
+        ok = run.run_controls(SET_DIR, root=self.root, out=out, **overrides)
+        return ok, out.getvalue()
+
+    def rewrite_and_restore(self, inner):
+        """Wrap inner so the live file carries HEADING while it runs, then is restored."""
+
+        def wrapped(*args, **kwargs):
+            with open(self.target, "rb") as handle:
+                saved = handle.read()
+            with open(self.target, "wb") as handle:
+                handle.write(saved + self.HEADING)
+            try:
+                return inner(*args, **kwargs)
+            finally:
+                with open(self.target, "wb") as handle:
+                    handle.write(saved)
+
+        return wrapped
+
+    @staticmethod
+    def verdict_lines(text):
+        return [line for line in text.splitlines() if line.startswith(("PASS", "FAIL", "controls:"))]
+
+    def patch(self, module, name, wrapper):
+        original = getattr(module, name)
+        setattr(module, name, wrapper(original))
+        self.addCleanup(setattr, module, name, original)
+
+    def test_heading_added_during_the_split_is_not_counted(self):
+        ok, clean = self.controls()
+        self.assertTrue(ok, clean)
+        self.assertIn("over 93 sections", clean)
+        self.patch(kb_sections, "split_corpus", self.rewrite_and_restore)
+        ok, text = self.controls()
+        self.assertTrue(ok, text)
+        self.assertIn("over 93 sections", text)
+        self.assertEqual(self.verdict_lines(text), self.verdict_lines(clean))
+        self.assertEqual(text, clean)
+
+    def test_token_added_during_the_index_build_is_not_indexed(self):
+        ok, clean = self.controls()
+        self.assertTrue(ok, clean)
+        bases = []
+
+        def capturing(base, lookup):
+            bases.append(base)
+            return retrievers.removal(base, lookup)
+
+        self.patch(retrievers, "grep", self.rewrite_and_restore)
+        ok, text = self.controls(removal=capturing)
+        self.assertTrue(ok, text)
+        self.assertEqual(text, clean)
+        self.assertEqual(len(bases), 1)
+        self.assertEqual(bases[0].retrieve(self.TOKEN, 10), [])
+
+    def test_a_heading_present_when_the_copy_is_taken_is_counted(self):
+        # Positive control for the two tests above: the instrument sees the change
+        # when it is in the bytes that were copied.
+        with open(self.target, "ab") as handle:
+            handle.write(self.HEADING)
+        bases = []
+
+        def capturing(base, lookup):
+            bases.append(base)
+            return retrievers.removal(base, lookup)
+
+        _ok, text = self.controls(removal=capturing)
+        self.assertIn("over 94 sections", text)
+        self.assertEqual([r["path"] for r in bases[0].retrieve(self.TOKEN, 10)], ["docs/sources/beta/ops.md"])
 
 
 class RetrieverTests(unittest.TestCase):

@@ -1,3 +1,6 @@
+import builtins
+import hashlib
+import io
 import json
 import os
 import shutil
@@ -5,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 from scripts.kb import corpus
 
@@ -66,6 +70,34 @@ class ManifestTests(unittest.TestCase):
         except OSError:
             self.skipTest("symlinks unavailable")
         self.assertEqual(before, corpus.corpus_id(self.root))
+
+    def test_copy_hashes_the_bytes_it_wrote_not_a_second_read(self):
+        # The first read of each source returns bytes that differ from the file on
+        # disk; any later read sees the disk. A hash of the bytes written matches
+        # the destination; a hash from re-reading the source would not.
+        sources = os.path.join(self.root, "docs", "sources") + os.sep
+        real_open = builtins.open
+        seen = set()
+
+        def first_read_differs(file, mode="r", *args, **kwargs):
+            path = os.fspath(file)
+            if mode == "rb" and path.startswith(sources) and path not in seen:
+                seen.add(path)
+                with real_open(path, "rb") as handle:
+                    return io.BytesIO(handle.read() + b"\nbytes the copy read\n")
+            return real_open(file, mode, *args, **kwargs)
+
+        dest = os.path.join(self.tmp, "copy")
+        with mock.patch.object(corpus, "open", first_read_differs, create=True):
+            hashes = corpus.copy_corpus(self.root, dest)
+        self.assertEqual(sorted(hashes), corpus.file_paths(self.root))
+        self.assertEqual(len(seen), len(hashes))
+        for rel, digest in hashes.items():
+            with open(os.path.join(dest, *rel.split("/")), "rb") as handle:
+                written = hashlib.sha256(handle.read()).hexdigest()
+            live = corpus.sha256_file(os.path.join(self.root, *rel.split("/")))
+            self.assertNotEqual(written, live, rel)
+            self.assertEqual(digest, written, rel)
 
 
 class CliTests(unittest.TestCase):

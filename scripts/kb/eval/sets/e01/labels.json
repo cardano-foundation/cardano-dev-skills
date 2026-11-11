@@ -134,6 +134,13 @@
       "heading": "Specification",
       "path": "docs/sources/cips/CIP-0032/README.md",
       "start_line": 38
+     },
+     {
+      "end_line": 907,
+      "found_by": "codex-delta-review",
+      "heading": "Minimum UTXO Value (min-ada)",
+      "path": "docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md",
+      "start_line": 894
      }
     ],
     [
@@ -143,6 +150,13 @@
       "heading": "Specification",
       "path": "docs/sources/cips/CIP-0033/README.md",
       "start_line": 34
+     },
+     {
+      "end_line": 907,
+      "found_by": "codex-delta-review",
+      "heading": "Minimum UTXO Value (min-ada)",
+      "path": "docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md",
+      "start_line": 894
      }
     ]
    ]
@@ -425,13 +439,6 @@
       "heading": "spendingPlutusScriptV1() / V2() / V3()",
       "path": "docs/sources/mesh-sdk/apis/txbuilder/smart-contracts.mdx",
       "start_line": 115
-     },
-     {
-      "end_line": 264,
-      "found_by": "grep:ExtraneousScript",
-      "heading": "",
-      "path": "docs/sources/cardano-use-case-templates/upgradable-proxy/offchain/meshjs/proxy.ts",
-      "start_line": 256
      }
     ]
    ]
@@ -1030,7 +1037,7 @@
   },
   "e37": {
    "grade": "full",
-   "notes": "Conway reg_cert (tag 7) needs the script witness and carries an explicit deposit coin field the ledger checks and refunds instantly; legacy stake_registration (tag 0) needs no witness and is deprecated after Conway (Plinth, Sanchonet FAQ). Evolution legacy-registration page removed: its 'no deposit' claim is inaccurate.",
+   "notes": "Conway reg_cert (tag 7) needs the script witness and carries an explicit deposit coin field the ledger checks and refunds instantly; legacy stake_registration (tag 0) needs no witness and is deprecated after Conway (Plinth, Sanchonet FAQ). Evolution legacy-registration page removed: its 'no deposit' claim is inaccurate. Refunds are a property of deregistration / the new certificate handling, not of registration refunding itself.",
    "targets": [
     [
      {
@@ -1039,13 +1046,6 @@
       "heading": "Certifying",
       "path": "docs/sources/plinth/docs/working-with-scripts/script-purposes.md",
       "start_line": 47
-     },
-     {
-      "end_line": 190,
-      "found_by": "grep:registration certificate",
-      "heading": "",
-      "path": "docs/sources/cips/CIP-0188/README.md",
-      "start_line": 190
      }
     ],
     [

@@ -1,0 +1,1652 @@
+{
+ "labels": {
+  "e01": {
+   "grade": "partial",
+   "notes": "ChainSync streams headers, BlockFetch downloads the bodies (N2N only); dev-portal, Oura N2N and gOuroboros BlockFetch pages each contrast the two. Dolos relay doc lists what a from-origin N2N sync needs (genesis, magic, peer). Nothing says a node can serve old blocks over BlockFetch but not ChainSync. ChainSync README and protocol-ID table dropped: neither contrasts the two protocols alone.",
+   "targets": [
+    [
+     {
+      "end_line": 31,
+      "found_by": "grep:Block-fetch",
+      "heading": "Mini-protocols over one connection",
+      "path": "docs/sources/developer-portal/developers/curriculum/production/network-protocol.md",
+      "start_line": 22
+     },
+     {
+      "end_line": 11,
+      "found_by": "grep:BlockFetch",
+      "heading": "Node-to-Node",
+      "path": "docs/sources/oura/v2/sources/n2n.mdx",
+      "start_line": 8
+     },
+     {
+      "end_line": 11,
+      "found_by": "grep:blockfetch",
+      "heading": "BlockFetch Protocol",
+      "path": "docs/sources/gouroboros/protocol/blockfetch/README.md",
+      "start_line": 1
+     }
+    ],
+    [
+     {
+      "end_line": 42,
+      "found_by": "grep:origin",
+      "heading": "Public Relay",
+      "path": "docs/sources/dolos/content/bootstrap/relay.mdx",
+      "start_line": 9
+     }
+    ]
+   ]
+  },
+  "e02": {
+   "grade": "full",
+   "notes": "Node validates restored files then syncs with peers; only immutable files are certified, ledger state snapshot + last immutable file come as Ed25519-signed ancillary files (--include-ancillary). Certification 'Message computation' page dropped: supplementary, does not describe the ancillary download.",
+   "targets": [
+    [
+     {
+      "end_line": 570,
+      "found_by": "nav:bootstrap-cardano-node.md",
+      "heading": "Step 6: Launch a Cardano node from the restored Cardano DB snapshot",
+      "path": "docs/sources/mithril/website/root/manual/getting-started/bootstrap-cardano-node.md",
+      "start_line": 553
+     }
+    ],
+    [
+     {
+      "end_line": 494,
+      "found_by": "grep:ledger state",
+      "heading": "Step 4: Download the selected Cardano DB snapshot",
+      "path": "docs/sources/mithril/website/root/manual/getting-started/bootstrap-cardano-node.md",
+      "start_line": 484
+     }
+    ]
+   ]
+  },
+  "e03": {
+   "grade": "partial",
+   "notes": "Pallas-based tools explain local-socket connect failures (wrong socket path, node not up, socket permissions, unix vs tcp bearer); the literal 'error connecting bearer' string is not documented.",
+   "targets": [
+    [
+     {
+      "end_line": 34,
+      "found_by": "grep:bearer",
+      "heading": "Can't connect to the node socket / \"connection refused\"",
+      "path": "docs/sources/oura/v2/troubleshooting.mdx",
+      "start_line": 25
+     },
+     {
+      "end_line": 40,
+      "found_by": "grep:socket",
+      "heading": "1. Connection Issues",
+      "path": "docs/sources/adder/docs/troubleshooting.md",
+      "start_line": 7
+     }
+    ]
+   ]
+  },
+  "e04": {
+   "grade": "full",
+   "notes": "Ledger min-UTxO (= min ADA) is (160 + |serialized_output|) * coinsPerUTxOByte (CIP-55, x402); groups: formula, native assets, datums, reference scripts. CIP-32/CIP-33 state datum/script size growth in the historical coinsPerUTxOWord wording; Scalus gives the current byte formula with inline datum vs datum hash.",
+   "targets": [
+    [
+     {
+      "end_line": 82,
+      "found_by": "grep:coinsPerUTxOByte",
+      "heading": "The new minimum lovelace calculation",
+      "path": "docs/sources/cips/CIP-0055/README.md",
+      "start_line": 73
+     },
+     {
+      "end_line": 907,
+      "found_by": "grep:160 +",
+      "heading": "Minimum UTXO Value (min-ada)",
+      "path": "docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md",
+      "start_line": 894
+     }
+    ],
+    [
+     {
+      "end_line": 193,
+      "found_by": "grep:coinsPerUTxOByte",
+      "heading": "Minimum ada Requirement for Native Assets",
+      "path": "docs/sources/developer-portal/developers/exchange-integrations.md",
+      "start_line": 167
+     },
+     {
+      "end_line": 71,
+      "found_by": "grep:minimum ada",
+      "heading": "The minimum ADA requirement",
+      "path": "docs/sources/developer-portal/developers/curriculum/native-tokens/overview.md",
+      "start_line": 60
+     }
+    ],
+    [
+     {
+      "end_line": 117,
+      "found_by": "grep:160 +",
+      "heading": "The economics, and where they fail",
+      "path": "docs/sources/scalus/docs/design/Design-Decisions.md",
+      "start_line": 103
+     },
+     {
+      "end_line": 42,
+      "found_by": "grep:min UTXO",
+      "heading": "Specification",
+      "path": "docs/sources/cips/CIP-0032/README.md",
+      "start_line": 38
+     }
+    ],
+    [
+     {
+      "end_line": 40,
+      "found_by": "grep:min UTXO",
+      "heading": "Specification",
+      "path": "docs/sources/cips/CIP-0033/README.md",
+      "start_line": 34
+     }
+    ]
+   ]
+  },
+  "e05": {
+   "grade": "full",
+   "notes": "Scripts see only the tx validity range (checked in phase 1); use lower/upper bound as time; lending example shows which bound to use for loan start/end.",
+   "targets": [
+    [
+     {
+      "end_line": 117,
+      "found_by": "grep:current time",
+      "heading": "Validity Intervals",
+      "path": "docs/sources/aiken/fundamentals/what-i-wish-i-knew.mdx",
+      "start_line": 80
+     },
+     {
+      "end_line": 101,
+      "found_by": "grep:current time",
+      "heading": "Valid Bid Time Condition",
+      "path": "docs/sources/plinth/docs/auction-smart-contract/on-chain-code.md",
+      "start_line": 87
+     },
+     {
+      "end_line": 46,
+      "found_by": "grep:validity interval",
+      "heading": "Time intervals",
+      "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/security/vulnerabilities/time-handling.md",
+      "start_line": 26
+     },
+     {
+      "end_line": 82,
+      "found_by": "grep:current time",
+      "heading": "Example vulnerabilities",
+      "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/security/vulnerabilities/time-handling.md",
+      "start_line": 57
+     }
+    ]
+   ]
+  },
+  "e06": {
+   "grade": "full",
+   "notes": "Withdraw-zero forwards validation to a staking script run once; spend/mint validators check the script credential is present in tx.withdrawals.",
+   "targets": [
+    [
+     {
+      "end_line": 469,
+      "found_by": "grep:withdraw",
+      "heading": "Forwarding Validation & Other Withdrawal Tricks",
+      "path": "docs/sources/aiken/fundamentals/common-design-patterns.mdx",
+      "start_line": 447
+     },
+     {
+      "end_line": 103,
+      "found_by": "grep:withdraw zero",
+      "heading": "Stake Validator",
+      "path": "docs/sources/aiken-design-patterns/README.md",
+      "start_line": 79
+     },
+     {
+      "end_line": 241,
+      "found_by": "grep:withdraw 0",
+      "heading": "How It Works / Step 5: The Withdraw 0 Trick",
+      "path": "docs/sources/mesh-sdk/resources/cardano-course/05-avoid-redundant-validation.mdx",
+      "start_line": 169
+     }
+    ]
+   ]
+  },
+  "e07": {
+   "grade": "partial",
+   "notes": "getBalance = sum of getUtxos; getRewardAddresses returns the wallet's reward addresses (hex). Nothing on a reward-address-only permission, and nothing explicit on rewards/locked funds being excluded.",
+   "targets": [
+    [
+     {
+      "end_line": 342,
+      "found_by": "grep:getRewardAddresses",
+      "heading": "api.getBalance(): Promise<cbor<value>>",
+      "path": "docs/sources/cips/CIP-0030/README.md",
+      "start_line": 314
+     }
+    ]
+   ]
+  },
+  "e08": {
+   "grade": "partial",
+   "notes": "CIP-8 hashed header = sign Blake2b-224 of payload, MUST hash when payload too big for HW memory or undisplayable; CIP-30 signData says payload not hashed. No Ledger-specific requirement documented.",
+   "targets": [
+    [
+     {
+      "end_line": 262,
+      "found_by": "grep:hashed",
+      "heading": "Payload encoding",
+      "path": "docs/sources/cips/CIP-0008/README.md",
+      "start_line": 253
+     }
+    ],
+    [
+     {
+      "end_line": 360,
+      "found_by": "grep:signData",
+      "heading": "`api.signData(addr: Address, payload: Bytes): Promise<DataSignature>`",
+      "path": "docs/sources/cips/CIP-0030/README.md",
+      "start_line": 350
+     }
+    ]
+   ]
+  },
+  "e09": {
+   "grade": "partial",
+   "notes": "Covers N2N handshake (version + magic), chain-sync and the pull-based tx-submission direction; nothing states whether a peer without full chain history can serve these.",
+   "targets": [
+    [
+     {
+      "end_line": 31,
+      "found_by": "grep:tx-submission",
+      "heading": "Mini-protocols over one connection",
+      "path": "docs/sources/developer-portal/developers/curriculum/production/network-protocol.md",
+      "start_line": 22
+     },
+     {
+      "end_line": 60,
+      "found_by": "grep:txsubmission",
+      "heading": "TxSubmission Protocol",
+      "path": "docs/sources/gouroboros/protocol/txsubmission/README.md",
+      "start_line": 1
+     },
+     {
+      "end_line": 9,
+      "found_by": "grep:txsubmission",
+      "heading": "TxSubmission",
+      "path": "docs/sources/pallas/pallas-network/src/miniprotocols/txsubmission/README.md",
+      "start_line": 1
+     }
+    ]
+   ]
+  },
+  "e10": {
+   "grade": "partial",
+   "notes": "Node 11.0.1 checks cost-model length, so DevKit no longer patches genesis; protocol parameter changes go through a governance action (Yano bootstrap); genesis/node settings apply only on devnet re-create. No documented knob for maxTxExMem. node-configuration.mdx locates node.properties and says it applies at devnet node creation.",
+   "targets": [
+    [
+     {
+      "end_line": 39,
+      "found_by": "grep:protocol param",
+      "heading": "Why Yano Is Needed",
+      "path": "docs/sources/yaci-devkit/yano-node-modes.mdx",
+      "start_line": 23
+     },
+     {
+      "end_line": 55,
+      "found_by": "grep:genesis",
+      "heading": "Things to know",
+      "path": "docs/sources/yaci-devkit/user-settings.mdx",
+      "start_line": 53
+     },
+     {
+      "end_line": 13,
+      "found_by": "nav:yaci-devkit/node-configuration.mdx",
+      "heading": "Node Configuration",
+      "path": "docs/sources/yaci-devkit/node-configuration.mdx",
+      "start_line": 3
+     }
+    ]
+   ]
+  },
+  "e11": {
+   "grade": "full",
+   "notes": "Missing-blocks checklist: relay propagation, producer in sync, KES/opcert counter, slot battle with another pool, CannotForge; chain selection when multiple leaders. consensus-staking.md fork paragraph dropped: explains one outcome, not the checklist.",
+   "targets": [
+    [
+     {
+      "end_line": 116,
+      "found_by": "grep:slot battle",
+      "heading": "What to look for:",
+      "path": "docs/sources/cardano-node-wiki/Troubleshooting.md",
+      "start_line": 94
+     }
+    ]
+   ]
+  },
+  "e12": {
+   "grade": "partial",
+   "notes": "Legacy-to-new-tracing metric renames for KES/opcert metrics (remainingKESPeriods, operationalCertificateExpiryKESPeriod, currentKESPeriod) under the nosuffix switch; no 10.4->10.5 specific note. Bare generated tracer entry and generic migration intro dropped as non-answering.",
+   "targets": [
+    [
+     {
+      "end_line": 240,
+      "found_by": "grep:remainingKESPeriods",
+      "heading": "No suffix variant",
+      "path": "docs/sources/developer-portal/operators/monitoring/new-tracing-system/metrics-migration.md",
+      "start_line": 178
+     }
+    ]
+   ]
+  },
+  "e13": {
+   "grade": "full",
+   "notes": "Hash with cardano-cli stake-pool metadata-hash and check the hosted copy matches; whitespace/encoding differences change the hash. Wiki command-only passage dropped: no whitespace evidence.",
+   "targets": [
+    [
+     {
+      "end_line": 55,
+      "found_by": "grep:metadata-hash",
+      "heading": "Create pool metadata",
+      "path": "docs/sources/developer-portal/operators/block-producer/register-stake-pool.md",
+      "start_line": 21
+     }
+    ]
+   ]
+  },
+  "e14": {
+   "grade": "partial",
+   "notes": "Verify Ed25519 signature over reconstructed COSE Sig_structure with the public key (CCL/Evolution); nothing on Ledger signMessage output or CSL verification.",
+   "targets": [
+    [
+     {
+      "end_line": 91,
+      "found_by": "grep:verify",
+      "heading": "Signature Verification",
+      "path": "docs/sources/cardano-client-lib/apis/standards/cip8-api.mdx",
+      "start_line": 77
+     },
+     {
+      "end_line": 80,
+      "found_by": "grep:verify",
+      "heading": "Verify a Signature",
+      "path": "docs/sources/evolution-sdk/wallets/message-signing.mdx",
+      "start_line": 46
+     },
+     {
+      "end_line": 118,
+      "found_by": "grep:Sig_structure",
+      "heading": "Signing and Verification target format",
+      "path": "docs/sources/cips/CIP-0008/README.md",
+      "start_line": 106
+     }
+    ]
+   ]
+  },
+  "e15": {
+   "grade": "partial",
+   "notes": "Implicit fee: extra ADA (inputs - outputs + refund - deposit - fee) goes to change, deposits enter the balance, min-UTxO complicates change; the specific burn-into-fee behaviour is not explained.",
+   "targets": [
+    [
+     {
+      "end_line": 12,
+      "found_by": "grep:add_change_if_needed",
+      "heading": "TransactionBuilder API",
+      "path": "docs/sources/cardano-serialization-lib/doc/getting-started/generating-transactions.md",
+      "start_line": 5
+     },
+     {
+      "end_line": 131,
+      "found_by": "link:generating-transactions.md",
+      "heading": "UTxO Selection",
+      "path": "docs/sources/cardano-serialization-lib/doc/getting-started/generating-transactions.md",
+      "start_line": 121
+     }
+    ]
+   ]
+  },
+  "e16": {
+   "grade": "partial",
+   "notes": "Extraneous = witness-set script with no needed script purpose, or one a reference script already supplies (gOuroboros ledger rules, implementation evidence). Mesh needs spendingPlutusScriptV3 and the template uses the reference script instead of also attaching it. Partial: no Mesh-specific diagnosis of this failure.",
+   "targets": [
+    [
+     {
+      "end_line": 1520,
+      "found_by": "grep:Extraneous",
+      "heading": "ValidateScriptWitnesses",
+      "path": "docs/sources/gouroboros/ledger/common/rules.go",
+      "start_line": 1505
+     }
+    ],
+    [
+     {
+      "end_line": 123,
+      "found_by": "nav:mesh-sdk/apis/txbuilder/smart-contracts.mdx",
+      "heading": "spendingPlutusScriptV1() / V2() / V3()",
+      "path": "docs/sources/mesh-sdk/apis/txbuilder/smart-contracts.mdx",
+      "start_line": 115
+     },
+     {
+      "end_line": 264,
+      "found_by": "grep:ExtraneousScript",
+      "heading": "",
+      "path": "docs/sources/cardano-use-case-templates/upgradable-proxy/offchain/meshjs/proxy.ts",
+      "start_line": 256
+     }
+    ]
+   ]
+  },
+  "e17": {
+   "grade": "full",
+   "notes": "Aiken Int is arbitrary-sized: no overflow/underflow, so no width bounds checks needed.",
+   "targets": [
+    [
+     {
+      "end_line": 75,
+      "found_by": "grep:overflow",
+      "heading": "Int",
+      "path": "docs/sources/aiken/language-tour/primitive-types.mdx",
+      "start_line": 73
+     },
+     {
+      "end_line": 730,
+      "found_by": "grep:overflow",
+      "heading": "Int",
+      "path": "docs/sources/aiken/glossary.md",
+      "start_line": 726
+     },
+     {
+      "end_line": 347,
+      "found_by": "grep:overflow",
+      "heading": "",
+      "path": "docs/sources/aiken/faq.md",
+      "start_line": 347
+     }
+    ]
+   ]
+  },
+  "e18": {
+   "grade": "full",
+   "notes": "Actions are live for govActionLifetime epochs (expiry = submission epoch + lifetime), a governance-group protocol parameter guardrailed to 1-15 epochs; dev-portal mainnet value (6) is snapshot-specific. Lifecycle-only passages (CIP-1694 Lifecycle, Sanchonet actions) dropped.",
+   "targets": [
+    [
+     {
+      "end_line": 71,
+      "found_by": "grep:govActionLifetime",
+      "heading": "Ratification and lifecycle",
+      "path": "docs/sources/developer-portal/developers/curriculum/staking-governance/governance.md",
+      "start_line": 64
+     },
+     {
+      "end_line": 1655,
+      "found_by": "grep:govActionLifetime",
+      "heading": "Governance Action Lifetime (govActionLifetime)",
+      "path": "docs/sources/cardano-constitution/cardano-constitution-2/cardano-constitution-2.txt.md",
+      "start_line": 1635
+     },
+     {
+      "end_line": 543,
+      "found_by": "grep:govActionLifetime",
+      "heading": "F4 \u2014 Is soonestToExpire the same ordering as oldest?",
+      "path": "docs/sources/govtool/api/decisions.md",
+      "start_line": 536
+     },
+     {
+      "end_line": 698,
+      "found_by": "grep:govActionLifetime",
+      "heading": "",
+      "path": "docs/sources/cips/CIP-1694/README.md",
+      "start_line": 691
+     }
+    ]
+   ]
+  },
+  "e19": {
+   "grade": "full",
+   "notes": "Both take Data | object | string plus a type of Mesh | CBOR | JSON (default Mesh); JSON-shaped data (conStr0/byteString/integer) must be passed with type \"JSON\".",
+   "targets": [
+    [
+     {
+      "end_line": 172,
+      "found_by": "grep:txInDatumValue",
+      "heading": "txInDatumValue()",
+      "path": "docs/sources/mesh-sdk/apis/txbuilder/smart-contracts.mdx",
+      "start_line": 148
+     },
+     {
+      "end_line": 36,
+      "found_by": "link:mesh-sdk/apis/data/index.mdx",
+      "heading": "Quick Start",
+      "path": "docs/sources/mesh-sdk/apis/data/json.mdx",
+      "start_line": 19
+     },
+     {
+      "end_line": 45,
+      "found_by": "nav:mesh-sdk/apis/data/index.mdx",
+      "heading": "Overview",
+      "path": "docs/sources/mesh-sdk/apis/data/index.mdx",
+      "start_line": 17
+     }
+    ]
+   ]
+  },
+  "e20": {
+   "grade": "partial",
+   "notes": "Preprod configs use GenesisMode; node pauses/stays in PreSyncing without enough big ledger peers (MinBigLedgerPeersForTrustedState), and how to trace it. Plausible cause only; no 10.5/Byron-stall doc.",
+   "targets": [
+    [
+     {
+      "end_line": 219,
+      "found_by": "grep:PreSyncing",
+      "heading": "Genesis sync targets",
+      "path": "docs/sources/developer-portal/operators/node/topology.md",
+      "start_line": 185
+     },
+     {
+      "end_line": 297,
+      "found_by": "grep:PreSyncing",
+      "heading": "5. Example: tracing Ouroboros Genesis sync",
+      "path": "docs/sources/developer-portal/operators/monitoring/new-tracing-system/quick-start.md",
+      "start_line": 284
+     }
+    ],
+    [
+     {
+      "end_line": 42,
+      "found_by": "grep:GenesisMode",
+      "heading": "2026-10-27",
+      "path": "docs/sources/iohk-nix/changelog.md",
+      "start_line": 33
+     },
+     {
+      "end_line": 130,
+      "found_by": "grep:ConsensusMode",
+      "heading": "Ouroboros Genesis \u2014 trustless sync (experimental)",
+      "path": "docs/sources/developer-portal/operators/node/topology.md",
+      "start_line": 104
+     }
+    ]
+   ]
+  },
+  "e21": {
+   "grade": "partial",
+   "notes": "Script data hash covers redeemers, datums and cost-model params; mismatch is a ScriptIntegrityHashMismatch ledger check separate from phase-2 (collateral only on phase-2); no comparison across node implementations' mempools. Test wallet emulates node refusal before any state change; not evidence about every implementation's mempool.",
+   "targets": [
+    [
+     {
+      "end_line": 223,
+      "found_by": "grep:ScriptIntegrityHash",
+      "heading": "The script data hash / Collaterals",
+      "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/advanced/debug-cbor.md",
+      "start_line": 213
+     },
+     {
+      "end_line": 291,
+      "found_by": "grep:ScriptIntegrityHashMismatch",
+      "heading": "Ledger checks",
+      "path": "docs/sources/cip30-test-wallet/README.md",
+      "start_line": 267
+     },
+     {
+      "end_line": 80,
+      "found_by": "grep:script data hash",
+      "heading": "Current Behavior With Default Configuration",
+      "path": "docs/sources/yaci-devkit/known-issues.mdx",
+      "start_line": 66
+     }
+    ]
+   ]
+  },
+  "e22": {
+   "grade": "full",
+   "notes": "Ogmios speaks the local (node-to-client) protocols on the same host; Kupo connects to a local node socket (N2C) or through a local or remote Ogmios, not N2N itself; Dolos exposes an N2C socket (ChainSync + LocalStateQuery only) that Ogmios can point at instead of a Haskell node. Kupo README Scrolls aside dropped.",
+   "targets": [
+    [
+     {
+      "end_line": 61,
+      "found_by": "grep:local",
+      "heading": "Can I use Ogmios in a remote setup?",
+      "path": "docs/sources/ogmios/content/faq/_index.md",
+      "start_line": 59
+     },
+     {
+      "end_line": 8,
+      "found_by": "nav:ogmios/content/_index.md",
+      "heading": "",
+      "path": "docs/sources/ogmios/content/_index.md",
+      "start_line": 8
+     }
+    ],
+    [
+     {
+      "end_line": 240,
+      "found_by": "grep:ogmios-host",
+      "heading": "--ogmios-host {hostname} / --ogmios-port {port-number}",
+      "path": "docs/sources/kupo/docs/api/nightly.yaml",
+      "start_line": 220
+     }
+    ],
+    [
+     {
+      "end_line": 64,
+      "found_by": "grep:ogmios",
+      "heading": "Ouroboros",
+      "path": "docs/sources/dolos/content/apis/ouroboros.mdx",
+      "start_line": 9
+     },
+     {
+      "end_line": 17,
+      "found_by": "grep:Ogmios",
+      "heading": "",
+      "path": "docs/sources/dolos/content/what.mdx",
+      "start_line": 17
+     }
+    ]
+   ]
+  },
+  "e23": {
+   "grade": "full",
+   "notes": "Kupo can sync via local or remote Ogmios by swapping --node-socket/--node-config for --ogmios-host/--ogmios-port.",
+   "targets": [
+    [
+     {
+      "end_line": 238,
+      "found_by": "grep:ogmios",
+      "heading": "--ogmios-host {hostname} / --ogmios-port {port-number}",
+      "path": "docs/sources/kupo/docs/api/nightly.yaml",
+      "start_line": 219
+     }
+    ]
+   ]
+  },
+  "e24": {
+   "grade": "full",
+   "notes": "Lists cardano-cli, cardano-submit-api, Ogmios and hosted APIs for submission, and compares shapes by ops burden, trust/privacy and cost.",
+   "targets": [
+    [
+     {
+      "end_line": 71,
+      "found_by": "grep:cardano-submit-api",
+      "heading": "Node interfaces",
+      "path": "docs/sources/developer-portal/developers/curriculum/production/connecting-to-the-chain.md",
+      "start_line": 56
+     }
+    ],
+    [
+     {
+      "end_line": 135,
+      "found_by": "link:connecting-to-the-chain.md",
+      "heading": "What is not comparable to what / Choosing: the axes",
+      "path": "docs/sources/developer-portal/developers/curriculum/production/connecting-to-the-chain.md",
+      "start_line": 114
+     }
+    ]
+   ]
+  },
+  "e25": {
+   "grade": "none",
+   "notes": "No blockfrost-platform / Icebreaker docs in the corpus; only the Blockfrost OpenAPI and Dolos's Blockfrost-compatible MiniBF, which do not cover it.",
+   "targets": []
+  },
+  "e26": {
+   "grade": "full",
+   "notes": "/metrics and /metrics/endpoints return the last 30 days of usage; schema: calls = sum for a day, time = interval ending midnight UTC. No explicit remaining-quota field; full because the question asks used OR remaining.",
+   "targets": [
+    [
+     {
+      "end_line": 6618,
+      "found_by": "grep:usage",
+      "heading": "/metrics",
+      "path": "docs/sources/blockfrost-openapi/blockfrost-openapi.yaml",
+      "start_line": 6587
+     },
+     {
+      "end_line": 12,
+      "found_by": "grep:usage",
+      "heading": "",
+      "path": "docs/sources/blockfrost-openapi/src/paths/api/metrics/index.yaml",
+      "start_line": 1
+     }
+    ],
+    [
+     {
+      "end_line": 13,
+      "found_by": "link:src/paths/api/metrics/index.yaml",
+      "heading": "",
+      "path": "docs/sources/blockfrost-openapi/src/schemas/metrics/metrics.yaml",
+      "start_line": 1
+     },
+     {
+      "end_line": 11829,
+      "found_by": "grep:Sum of all calls",
+      "heading": "metrics",
+      "path": "docs/sources/blockfrost-openapi/blockfrost-openapi.yaml",
+      "start_line": 11816
+     }
+    ]
+   ]
+  },
+  "e27": {
+   "grade": "full",
+   "notes": "Endpoint expects Content-Type application/cbor with the tx CBOR as base16/base64 text (or JSON {cbor, additionalUtxoSet} on /utxos); Apollo notes the error from the /utxos path with native-asset UTxOs.",
+   "targets": [
+    [
+     {
+      "end_line": 48,
+      "found_by": "grep:utils/txs/evaluate",
+      "heading": "Submit a transaction for execution units evaluation",
+      "path": "docs/sources/blockfrost-openapi/src/paths/api/utils/txs/evaluate/index.yaml",
+      "start_line": 11
+     },
+     {
+      "end_line": 40,
+      "found_by": "grep:base64 or base16",
+      "heading": "Submit a transaction for execution units evaluation (additional UTXO set)",
+      "path": "docs/sources/blockfrost-openapi/src/paths/api/utils/txs/evaluate/utxos.yaml",
+      "start_line": 26
+     },
+     {
+      "end_line": 368,
+      "found_by": "grep:failed to decode payload",
+      "heading": "",
+      "path": "docs/sources/apollo/backend/blockfrost/blockfrost.go",
+      "start_line": 357
+     }
+    ]
+   ]
+  },
+  "e28": {
+   "grade": "partial",
+   "notes": "Evolution says the builder 'calculates' min ADA yet tells you to add 2 ADA to token outputs; Mesh lists 'automatic minimum ADA' for tokens. Neither page says plainly whether user outputs are topped up or rejected.",
+   "targets": [
+    [
+     {
+      "end_line": 48,
+      "found_by": "grep:min ada",
+      "heading": "Minimum ADA",
+      "path": "docs/sources/evolution-sdk/assets/units.mdx",
+      "start_line": 46
+     },
+     {
+      "end_line": 201,
+      "found_by": "grep:min utxo",
+      "heading": "Common Pitfalls",
+      "path": "docs/sources/evolution-sdk/transactions/airdrop.mdx",
+      "start_line": 189
+     },
+     {
+      "end_line": 87,
+      "found_by": "grep:automatic minimum ADA",
+      "heading": "Features",
+      "path": "docs/sources/mesh-sdk/resources/solutions/transaction-builder.mdx",
+      "start_line": 76
+     },
+     {
+      "end_line": 130,
+      "found_by": "grep:enforces",
+      "heading": "Working with assets in code",
+      "path": "docs/sources/developer-portal/developers/curriculum/native-tokens/overview.md",
+      "start_line": 100
+     }
+    ]
+   ]
+  },
+  "e29": {
+   "grade": "full",
+   "notes": "TxFlow (preview) PIPELINED/BATCH modes build on pending outputs without waiting; dependent steps see pending UTxOs from earlier steps.",
+   "targets": [
+    [
+     {
+      "end_line": 62,
+      "found_by": "grep:PIPELINED",
+      "heading": "Legacy: Chaining Modes",
+      "path": "docs/sources/cardano-client-lib/preview/txflow/chaining-modes.mdx",
+      "start_line": 12
+     },
+     {
+      "end_line": 107,
+      "found_by": "link:chaining-modes.mdx",
+      "heading": "How UTXO Resolution Works",
+      "path": "docs/sources/cardano-client-lib/preview/txflow/building-flows.mdx",
+      "start_line": 99
+     }
+    ]
+   ]
+  },
+  "e30": {
+   "grade": "full",
+   "notes": "Hardened account' level in m/1852'/1815'/account'/role/index separates key spaces; CCL selects it via Account.createFromMnemonic(network, mnemonic, account, index) or Wallet.createFromMnemonic(..., account)/setAccountNo.",
+   "targets": [
+    [
+     {
+      "end_line": 50,
+      "found_by": "grep:account",
+      "heading": "Specification",
+      "path": "docs/sources/cips/CIP-1852/README.md",
+      "start_line": 32
+     },
+     {
+      "end_line": 26,
+      "found_by": "grep:account index",
+      "heading": "Overview",
+      "path": "docs/sources/cardano-wallet/site/src/design/concepts/Notes-about-BIP-44.md",
+      "start_line": 7
+     }
+    ],
+    [
+     {
+      "end_line": 80,
+      "found_by": "grep:createFromMnemonic",
+      "heading": "Account Class / Creating Accounts",
+      "path": "docs/sources/cardano-client-lib/apis/core/account-api.mdx",
+      "start_line": 22
+     },
+     {
+      "end_line": 107,
+      "found_by": "grep:createFromMnemonic",
+      "heading": "Restoring Wallets / Multi-Account Management",
+      "path": "docs/sources/cardano-client-lib/apis/core/hd-wallet-api.mdx",
+      "start_line": 55
+     }
+    ]
+   ]
+  },
+  "e31": {
+   "grade": "full",
+   "notes": "SlotConfig = zeroTime (ms), zeroSlot, slotLength; built-in SLOT_CONFIG_NETWORK values: mainnet 1596059091000/4492800/1000, preprod 1655769600000/0/1000, preview 1666656000000/0/1000; used during evaluation. script-evaluation.mdx definition dropped: no network presets.",
+   "targets": [
+    [
+     {
+      "end_line": 86,
+      "found_by": "grep:zeroTime",
+      "heading": "Slot Configuration",
+      "path": "docs/sources/evolution-sdk/time/slots.mdx",
+      "start_line": 10
+     },
+     {
+      "end_line": 77,
+      "found_by": "grep:SlotConfig",
+      "heading": "SLOT_CONFIG_NETWORK",
+      "path": "docs/sources/evolution-sdk-packages/evolution/docs/modules/SlotConfig.ts.md",
+      "start_line": 22
+     }
+    ]
+   ]
+  },
+  "e32": {
+   "grade": "partial",
+   "notes": "Collateral is consumed only on phase-2 failure and returned untouched otherwise; sharing across pending txs is implied, not stated.",
+   "targets": [
+    [
+     {
+      "end_line": 80,
+      "found_by": "grep:collateral",
+      "heading": "Collateral",
+      "path": "docs/sources/developer-portal/developers/curriculum/fundamentals/core-concepts/fees.md",
+      "start_line": 64
+     },
+     {
+      "end_line": 191,
+      "found_by": "grep:collateral",
+      "heading": "Collateral",
+      "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/lock-and-spend.md",
+      "start_line": 187
+     }
+    ]
+   ]
+  },
+  "e33": {
+   "grade": "full",
+   "notes": "Groups: conflict selection (CIP-183: current mempool keeps first arrival, rejects later conflicts); revalidation on tip change drops txs with spent inputs; loser gets BadInputsUTxO (phase 1, no fee/collateral).",
+   "targets": [
+    [
+     {
+      "end_line": 49,
+      "found_by": "grep:conflict",
+      "heading": "FIFO is not fair",
+      "path": "docs/sources/cips/CIP-0183/README.md",
+      "start_line": 30
+     }
+    ],
+    [
+     {
+      "end_line": 48,
+      "found_by": "grep:mempool",
+      "heading": "Congestion and the mempool",
+      "path": "docs/sources/developer-portal/developers/curriculum/start-building/transaction-failures.md",
+      "start_line": 39
+     }
+    ],
+    [
+     {
+      "end_line": 37,
+      "found_by": "grep:BadInputsUTxO",
+      "heading": "Submit-time failures",
+      "path": "docs/sources/developer-portal/developers/curriculum/start-building/transaction-failures.md",
+      "start_line": 30
+     }
+    ]
+   ]
+  },
+  "e34": {
+   "grade": "full",
+   "notes": "CIP-31: read an output (datum/value) without spending it; CIP-33: put a script in an output and satisfy the script witness by referencing it, which shrinks transactions.",
+   "targets": [
+    [
+     {
+      "end_line": 60,
+      "found_by": "nav:cips/CIP-0031/README.md",
+      "heading": "Abstract",
+      "path": "docs/sources/cips/CIP-0031/README.md",
+      "start_line": 17
+     }
+    ],
+    [
+     {
+      "end_line": 40,
+      "found_by": "nav:cips/CIP-0033/README.md",
+      "heading": "Abstract",
+      "path": "docs/sources/cips/CIP-0033/README.md",
+      "start_line": 18
+     }
+    ]
+   ]
+  },
+  "e35": {
+   "grade": "full",
+   "notes": "Blueprint validators[].hash is blake2b-224 of compiledCode; parameters are embedded in the code so applying them changes hash/address; apply via aiken blueprint or applyParamsToScript.",
+   "targets": [
+    [
+     {
+      "end_line": 102,
+      "found_by": "grep:hash",
+      "heading": "validators",
+      "path": "docs/sources/cips/CIP-0057/README.md",
+      "start_line": 90
+     },
+     {
+      "end_line": 125,
+      "found_by": "grep:\"hash\"",
+      "heading": "Setup",
+      "path": "docs/sources/aiken/example--hello-world/end-to-end/pycardano.mdx",
+      "start_line": 110
+     },
+     {
+      "end_line": 903,
+      "found_by": "grep:aiken blueprint",
+      "heading": "Q31: What is the Plutus blueprint (`plutus.json`)?",
+      "path": "docs/sources/aiken/faq.md",
+      "start_line": 893
+     }
+    ],
+    [
+     {
+      "end_line": 318,
+      "found_by": "grep:parameters",
+      "heading": "Q13: How do validator parameters work?",
+      "path": "docs/sources/aiken/faq.md",
+      "start_line": 309
+     },
+     {
+      "end_line": 806,
+      "found_by": "grep:applyParamsToScript",
+      "heading": "Apply params",
+      "path": "docs/sources/aiken/example--gift-card.mdx",
+      "start_line": 751
+     }
+    ]
+   ]
+  },
+  "e36": {
+   "grade": "full",
+   "notes": "Opaque types (or types holding one) cannot be a datum or redeemer since Data cannot be downcast into them; parameters must also be non-opaque.",
+   "targets": [
+    [
+     {
+      "end_line": 158,
+      "found_by": "grep:opaque",
+      "heading": "Opaque types",
+      "path": "docs/sources/aiken/language-tour/modules.mdx",
+      "start_line": 144
+     }
+    ],
+    [
+     {
+      "end_line": 196,
+      "found_by": "grep:non-opaque",
+      "heading": "",
+      "path": "docs/sources/aiken/language-tour/validators.mdx",
+      "start_line": 188
+     },
+     {
+      "end_line": 317,
+      "found_by": "grep:non-opaque",
+      "heading": "",
+      "path": "docs/sources/aiken/faq.md",
+      "start_line": 310
+     }
+    ]
+   ]
+  },
+  "e37": {
+   "grade": "full",
+   "notes": "Conway reg_cert (tag 7) needs the script witness and carries an explicit deposit coin field the ledger checks and refunds instantly; legacy stake_registration (tag 0) needs no witness and is deprecated after Conway (Plinth, Sanchonet FAQ). Evolution legacy-registration page removed: its 'no deposit' claim is inaccurate.",
+   "targets": [
+    [
+     {
+      "end_line": 56,
+      "found_by": "grep:registration witness",
+      "heading": "Certifying",
+      "path": "docs/sources/plinth/docs/working-with-scripts/script-purposes.md",
+      "start_line": 47
+     },
+     {
+      "end_line": 190,
+      "found_by": "grep:registration certificate",
+      "heading": "",
+      "path": "docs/sources/cips/CIP-0188/README.md",
+      "start_line": 190
+     }
+    ],
+    [
+     {
+      "end_line": 39,
+      "found_by": "grep:reg_cert",
+      "heading": "2. Why are there two ways to register/unregister stake credentials now?",
+      "path": "docs/sources/sanchonet/tools-resources/faq.mdx",
+      "start_line": 31
+     }
+    ]
+   ]
+  },
+  "e38": {
+   "grade": "full",
+   "notes": "HW wallets only return witnesses over a rolling body hash, so client must reproduce canonical CBOR; mint field must be canonically sorted with no duplicate policy/asset names.",
+   "targets": [
+    [
+     {
+      "end_line": 46,
+      "found_by": "nav:CIP-0021/README.md",
+      "heading": "Motivation: Why is this CIP necessary?",
+      "path": "docs/sources/cips/CIP-0021/README.md",
+      "start_line": 21
+     },
+     {
+      "end_line": 155,
+      "found_by": "nav:CIP-0021/README.md",
+      "heading": "Canonical CBOR serialization format",
+      "path": "docs/sources/cips/CIP-0021/README.md",
+      "start_line": 151
+     }
+    ],
+    [
+     {
+      "end_line": 103,
+      "found_by": "grep:mint",
+      "heading": "Multiassets",
+      "path": "docs/sources/cips/CIP-0021/README.md",
+      "start_line": 101
+     },
+     {
+      "end_line": 71,
+      "found_by": "grep:mint",
+      "heading": "Numbers of transaction elements",
+      "path": "docs/sources/cips/CIP-0021/README.md",
+      "start_line": 64
+     }
+    ]
+   ]
+  },
+  "e39": {
+   "grade": "full",
+   "notes": "db-sync gov_action_proposal and Blockfrost proposal expose ratified/enacted/dropped/expired epochs per proposal. LedgerEvents EpochBoundaryRatifyState dropped as a standalone answer: ratification only, not enactment.",
+   "targets": [
+    [
+     {
+      "end_line": 911,
+      "found_by": "grep:enacted_epoch",
+      "heading": "gov_action_proposal",
+      "path": "docs/sources/db-sync/schema.md",
+      "start_line": 890
+     },
+     {
+      "end_line": 44,
+      "found_by": "grep:enacted_epoch",
+      "heading": "",
+      "path": "docs/sources/blockfrost-openapi/src/schemas/governance/proposal.yaml",
+      "start_line": 36
+     }
+    ]
+   ]
+  },
+  "e40": {
+   "grade": "full",
+   "notes": "About 20 s to land in a block, 10-20 confirmations for strong finality; poll by hash with Evolution awaitTx(hash, interval) or Mesh BlockfrostProvider.onTxConfirmed.",
+   "targets": [
+    [
+     {
+      "end_line": 147,
+      "found_by": "grep:confirmation",
+      "heading": "Latency vs finality",
+      "path": "docs/sources/developer-portal/developers/curriculum/fundamentals/core-concepts/transactions.md",
+      "start_line": 144
+     },
+     {
+      "end_line": 17,
+      "found_by": "grep:20 seconds",
+      "heading": "",
+      "path": "docs/sources/developer-portal/developers/curriculum/start-building/networks-and-test-ada.md",
+      "start_line": 17
+     }
+    ],
+    [
+     {
+      "end_line": 283,
+      "found_by": "grep:awaitTx",
+      "heading": "Delegation and confirmation",
+      "path": "docs/sources/developer-portal/developers/curriculum/start-building/query-the-chain.md",
+      "start_line": 256
+     },
+     {
+      "end_line": 332,
+      "found_by": "grep:onTxConfirmed",
+      "heading": "onTxConfirmed",
+      "path": "docs/sources/mesh-sdk/providers/blockfrost.mdx",
+      "start_line": 315
+     }
+    ]
+   ]
+  },
+  "e41": {
+   "grade": "full",
+   "notes": "Blockfrost GET /scripts/{script_hash}/utxos; Koios POST /reference_script_utxos with script hashes.",
+   "targets": [
+    [
+     {
+      "end_line": 5767,
+      "found_by": "grep:/scripts",
+      "heading": "/scripts/{script_hash}/utxos",
+      "path": "docs/sources/blockfrost-openapi/blockfrost-openapi.yaml",
+      "start_line": 5749
+     },
+     {
+      "end_line": 2777,
+      "found_by": "grep:reference_script",
+      "heading": "/reference_script_utxos",
+      "path": "docs/sources/koios/specs/results/koiosapi-mainnet.yaml",
+      "start_line": 2752
+     }
+    ]
+   ]
+  },
+  "e42": {
+   "grade": "full",
+   "notes": "Yes since 0.11.0-beta1: create-node --block-time (and --slot-length) accept sub-second values, e.g. 0.2; slot length must be <= block time.",
+   "targets": [
+    [
+     {
+      "end_line": 24,
+      "found_by": "grep:block-time",
+      "heading": "create-node options",
+      "path": "docs/sources/yaci-devkit/commands.mdx",
+      "start_line": 16
+     },
+     {
+      "end_line": 168,
+      "found_by": "grep:block-time",
+      "heading": "Customize Block Time (Optional)",
+      "path": "docs/sources/yaci-devkit/getting-started/zip.mdx",
+      "start_line": 145
+     }
+    ]
+   ]
+  },
+  "e43": {
+   "grade": "full",
+   "notes": "Multi-node devnet with create-forks / join-forks gives a real consensus rollback that N2N/Ogmios clients see; take-db-snapshot / rollback-to-db-snapshot is the non-consensus alternative.",
+   "targets": [
+    [
+     {
+      "end_line": 47,
+      "found_by": "nav:yaci-devkit/rollback-testing.mdx",
+      "heading": "Rollback Testing Guide (0.11.0-beta1+)",
+      "path": "docs/sources/yaci-devkit/rollback-testing.mdx",
+      "start_line": 1
+     },
+     {
+      "end_line": 156,
+      "found_by": "grep:rollback",
+      "heading": "Step 6: Rejoin Network (Trigger Rollback)",
+      "path": "docs/sources/yaci-devkit/rollback-testing.mdx",
+      "start_line": 125
+     }
+    ]
+   ]
+  },
+  "e44": {
+   "grade": "partial",
+   "notes": "Node of major version x only supports protocol major x, obsolete after HF to x+1; Chang HF 2024/09 (epoch 507) moved to protocol 9 (Conway). Exact required node release not stated.",
+   "targets": [
+    [
+     {
+      "end_line": 152,
+      "found_by": "grep:hard fork",
+      "heading": "Protocol Version",
+      "path": "docs/sources/plinth/docs/glossary.md",
+      "start_line": 144
+     }
+    ],
+    [
+     {
+      "end_line": 16,
+      "found_by": "grep:Chang HF",
+      "heading": "Cardano Features",
+      "path": "docs/sources/cips/CIP-0059/feature-table.md",
+      "start_line": 1
+     }
+    ]
+   ]
+  },
+  "e45": {
+   "grade": "none",
+   "notes": "Negative: the 'expected word16' epoch-state decode failure of leadership-schedule is not documented; only generic cardano-cli/node version-compatibility guidance exists, which does not establish the cause.",
+   "targets": []
+  },
+  "e46": {
+   "grade": "partial",
+   "notes": "Rewards for a credential that is deregistered when they are paid are not delivered (RestrainedRewards unregistered), and snapshots record registration status; timing is snapshot N+1, rewards paid N+4. No explicit epoch-n deregistration walkthrough.",
+   "targets": [
+    [
+     {
+      "end_line": 75,
+      "found_by": "grep:de-registered",
+      "heading": "RestrainedRewards e eraIgnored unregistered",
+      "path": "docs/sources/cardano-ledger/LedgerEvents.md",
+      "start_line": 66
+     },
+     {
+      "end_line": 71,
+      "found_by": "grep:deregist",
+      "heading": "Deregister and reclaim the deposit",
+      "path": "docs/sources/developer-portal/developers/curriculum/staking-governance/manage-stake.md",
+      "start_line": 69
+     }
+    ],
+    [
+     {
+      "end_line": 36,
+      "found_by": "nav:developer-portal staking-governance",
+      "heading": "How rewards and timing work",
+      "path": "docs/sources/developer-portal/developers/curriculum/staking-governance/staking.md",
+      "start_line": 25
+     },
+     {
+      "end_line": 145,
+      "found_by": "grep:snapshot",
+      "heading": "How Reward Calculation Works in the implementation",
+      "path": "docs/sources/cardano-ledger/reward-calculation/HowRewardCalculationWorks.md",
+      "start_line": 124
+     }
+    ]
+   ]
+  },
+  "e47": {
+   "grade": "partial",
+   "notes": "QuickTx from(Wallet) sender for HD wallet with address scanning; coin selection across several addresses. No explicit statement that one transfer spends from many addresses.",
+   "targets": [
+    [
+     {
+      "end_line": 141,
+      "found_by": "grep:Wallet wallet",
+      "heading": "Tx (native transactions)",
+      "path": "docs/sources/cardano-client-lib/apis/transaction/quicktx-api.mdx",
+      "start_line": 134
+     },
+     {
+      "end_line": 175,
+      "found_by": "nav:hd-wallet-api.mdx",
+      "heading": "Wallet Recovery and Scanning",
+      "path": "docs/sources/cardano-client-lib/apis/core/hd-wallet-api.mdx",
+      "start_line": 139
+     },
+     {
+      "end_line": 132,
+      "found_by": "grep:multiple addresses",
+      "heading": "Multi-Address Selection",
+      "path": "docs/sources/cardano-client-lib/apis/utility/coin-selection-api.mdx",
+      "start_line": 117
+     }
+    ]
+   ]
+  },
+  "e48": {
+   "grade": "partial",
+   "notes": "CCL QuickTx delegateVotingPowerTo(account, drep) with stake+payment signers; shows a DRep id, not the always-abstain DRep constructor.",
+   "targets": [
+    [
+     {
+      "end_line": 292,
+      "found_by": "grep:delegateVotingPowerTo",
+      "heading": "Vote Delegation",
+      "path": "docs/sources/cardano-client-lib/apis/governance/governance-api.mdx",
+      "start_line": 277
+     }
+    ]
+   ]
+  },
+  "e49": {
+   "grade": "partial",
+   "notes": "CIP-30 returns hex address bytes; db-sync tx_out.address is Bech32/Base58 text with payment_cred (hash28), and the optional address table keeps raw bytes (indexed). No Postgres-side bech32 conversion is documented.",
+   "targets": [
+    [
+     {
+      "end_line": 52,
+      "found_by": "grep:hex-encoded bytes",
+      "heading": "Address",
+      "path": "docs/sources/cips/CIP-0030/README.md",
+      "start_line": 48
+     }
+    ],
+    [
+     {
+      "end_line": 1215,
+      "found_by": "grep:Bech32",
+      "heading": "tx_out",
+      "path": "docs/sources/db-sync/schema.md",
+      "start_line": 1195
+     },
+     {
+      "end_line": 1306,
+      "found_by": "grep:raw",
+      "heading": "address",
+      "path": "docs/sources/db-sync/schema.md",
+      "start_line": 1293
+     },
+     {
+      "end_line": 357,
+      "found_by": "grep:address_raw",
+      "heading": "Address Table",
+      "path": "docs/sources/db-sync/configuration.md",
+      "start_line": 326
+     }
+    ]
+   ]
+  },
+  "e50": {
+   "grade": "full",
+   "notes": "spend handler gets own OutputReference; find own input with transaction.find_input; spending validator runs once per script input (hence withdraw-zero forwarding). FAQ purpose list dropped from the find-input group: it names the target type only.",
+   "targets": [
+    [
+     {
+      "end_line": 140,
+      "found_by": "grep:find_input",
+      "heading": "Querying",
+      "path": "docs/sources/aiken-stdlib/cardano/transaction.ak",
+      "start_line": 122
+     }
+    ],
+    [
+     {
+      "end_line": 806,
+      "found_by": "grep:each input",
+      "heading": "Q27: What is the double satisfaction problem?",
+      "path": "docs/sources/aiken/faq.md",
+      "start_line": 801
+     },
+     {
+      "end_line": 848,
+      "found_by": "grep:once per",
+      "heading": "Q29: What is forwarding validation?",
+      "path": "docs/sources/aiken/faq.md",
+      "start_line": 842
+     },
+     {
+      "end_line": 601,
+      "found_by": "grep:once per",
+      "heading": "Forwarding validation",
+      "path": "docs/sources/aiken/glossary.md",
+      "start_line": 599
+     }
+    ]
+   ]
+  },
+  "e51": {
+   "grade": "partial",
+   "notes": "PV11 (van Rossem) cost models have 332/332/350 entries while Lucid's defaults carry 166/175/297, and node 11.0.1 validates cost-model length; third-party design notes, not an authoritative explanation. Yaci: Lucid Evolution hardcoded cost models mismatch protocol params (Conway-at-epoch-0 devnet) - mechanism example, not a diagnosis of this error.",
+   "targets": [
+    [
+     {
+      "end_line": 65,
+      "found_by": "grep:cost model entries",
+      "heading": "",
+      "path": "docs/sources/scalus/docs/superpowers/specs/2026-10-07-scalus-emulator-provider-design.md",
+      "start_line": 65
+     },
+     {
+      "end_line": 523,
+      "found_by": "grep:cost model entries",
+      "heading": "13.7 Verified, no change / 14. Separate Lucid change",
+      "path": "docs/sources/scalus/docs/superpowers/specs/2026-10-07-scalus-emulator-provider-design.md",
+      "start_line": 517
+     },
+     {
+      "end_line": 27,
+      "found_by": "grep:cost model",
+      "heading": "Why Yano Is Needed",
+      "path": "docs/sources/yaci-devkit/yano-node-modes.mdx",
+      "start_line": 23
+     },
+     {
+      "end_line": 79,
+      "found_by": "grep:hardcoded cost models",
+      "heading": "Root Cause",
+      "path": "docs/sources/yaci-devkit/known-issues.mdx",
+      "start_line": 75
+     }
+    ]
+   ]
+  },
+  "e52": {
+   "grade": "full",
+   "notes": "Kupo keeps marked data and catches up after a rollback; clients compare created_at slot + header hash between requests, plus X-Most-Recent-Checkpoint and ETag (tip header hash) with If-None-Match, to notice changes.",
+   "targets": [
+    [
+     {
+      "end_line": 553,
+      "found_by": "grep:ETag",
+      "heading": "Rollbacks & chain forks",
+      "path": "docs/sources/kupo/docs/api/nightly.yaml",
+      "start_line": 487
+     }
+    ]
+   ]
+  },
+  "e53": {
+   "grade": "full",
+   "notes": "Blueprint tx with explicit outputs + changeAddress deposits only part of a UTxO and returns change on L1; no separate split tx needed (min-ADA caveat for tokens).",
+   "targets": [
+    [
+     {
+      "end_line": 37,
+      "found_by": "nav:how-to/incremental-commit.md",
+      "heading": "Deposit request forms",
+      "path": "docs/sources/hydra/docs/how-to/incremental-commit.md",
+      "start_line": 11
+     },
+     {
+      "end_line": 24,
+      "found_by": "grep:blueprint",
+      "heading": "Request forms",
+      "path": "docs/sources/hydra/docs/dev/commit.md",
+      "start_line": 8
+     },
+     {
+      "end_line": 9,
+      "found_by": "link:how-to/incremental-commit.md",
+      "heading": "Deposit using a blueprint",
+      "path": "docs/sources/hydra/docs/how-to/commit-blueprint.md",
+      "start_line": 5
+     }
+    ]
+   ]
+  },
+  "e54": {
+   "grade": "full",
+   "notes": "CIP-25 'files' array (name, mediaType, src URI) for attached resources; image may be an inline data:<mime>;base64 URI, split into a string array if >64 chars.",
+   "targets": [
+    [
+     {
+      "end_line": 78,
+      "found_by": "grep:files",
+      "heading": "General structure",
+      "path": "docs/sources/cips/CIP-0025/README.md",
+      "start_line": 53
+     },
+     {
+      "end_line": 106,
+      "found_by": "grep:files",
+      "heading": "",
+      "path": "docs/sources/cips/CIP-0025/README.md",
+      "start_line": 104
+     }
+    ],
+    [
+     {
+      "end_line": 101,
+      "found_by": "grep:base64",
+      "heading": "",
+      "path": "docs/sources/cips/CIP-0025/README.md",
+      "start_line": 90
+     }
+    ]
+   ]
+  },
+  "e55": {
+   "grade": "partial",
+   "notes": "Points stored in Data are compressed bytestrings, and uncompress costs about 16.5M (G1) / 33M (G2) CPU, 23-30x deserialisation. The Aiken-specific link (tuples/custom types are Data-encoded, so points round-trip through compress/uncompress) is not written down.",
+   "targets": [
+    [
+     {
+      "end_line": 240,
+      "found_by": "grep:uncompress",
+      "heading": "Compressed vs Decompressed",
+      "path": "docs/sources/cips/CIP-0381/README.md",
+      "start_line": 204
+     },
+     {
+      "end_line": 55,
+      "found_by": "grep:decompression",
+      "heading": "",
+      "path": "docs/sources/cips/CIP-0133/README.md",
+      "start_line": 55
+     }
+    ]
+   ]
+  },
+  "e56": {
+   "grade": "full",
+   "notes": "Inventory: Pallas (Rust), gOuroboros (Go), yaci (Java) protocol libraries; Amaru (Rust) and Dingo (Go) nodes; Dolos data node; Acropolis (Leios impact list). Single-project pages (Amaru, Dingo, Dolos) are not inventories and are excluded.",
+   "targets": [
+    [
+     {
+      "end_line": 117,
+      "found_by": "grep:Amaru",
+      "heading": "Where this sits in your stack",
+      "path": "docs/sources/developer-portal/developers/curriculum/production/network-protocol.md",
+      "start_line": 115
+     },
+     {
+      "end_line": 129,
+      "found_by": "grep:Amaru",
+      "heading": "Network and consensus libraries",
+      "path": "docs/sources/ouroboros-leios/ImpactAnalysis.md",
+      "start_line": 123
+     }
+    ]
+   ]
+  },
+  "e57": {
+   "grade": "partial",
+   "notes": "States the V3 TxId is a plain bytestring, not wrapped in Constr 0 as in earlier Plutus versions, so serialiseData of a TxOutRef (and its hash) differs; no rationale for the change.",
+   "targets": [
+    [
+     {
+      "end_line": 356,
+      "found_by": "grep:constr 0",
+      "heading": "",
+      "path": "docs/sources/cips/CIP-0113/deprecated/v2.md",
+      "start_line": 336
+     }
+    ]
+   ]
+  },
+  "e58": {
+   "grade": "partial",
+   "notes": "Aiken Playground (play.aiken-lang.org) is the Remix-equivalent browser tool and Helios has an online playground; nothing on the maintenance status of the Plutus or Marlowe Playground.",
+   "targets": [
+    [
+     {
+      "end_line": 422,
+      "found_by": "grep:playground",
+      "heading": "Tools",
+      "path": "docs/sources/developer-portal/developers/cardano-for-ethereum-developers.md",
+      "start_line": 416
+     },
+     {
+      "end_line": 48,
+      "found_by": "grep:playground",
+      "heading": "Online playground",
+      "path": "docs/sources/helios/README.md",
+      "start_line": 46
+     }
+    ]
+   ]
+  },
+  "e59": {
+   "grade": "partial",
+   "notes": "cardano-wallet POST /byron-wallets/{walletId}/transactions selects inputs, signs and submits from a restored Byron wallet: conditional route if the keys restore. The Exodus 'Digest not supported' error and paper-wallet recovery are unexplained.",
+   "targets": [
+    [
+     {
+      "end_line": 16,
+      "found_by": "nav:cardano-wallet user/common-use-cases",
+      "heading": "Old transaction workflow",
+      "path": "docs/sources/cardano-wallet/site/src/user/common-use-cases/how-to-make-a-transaction.md",
+      "start_line": 9
+     }
+    ]
+   ]
+  },
+  "e60": {
+   "grade": "partial",
+   "notes": "6.14 targets cardano-node 10.5.1 while 7.0.0 targets 11.0.1; Ogmios upgrades Babbage-format txs to Conway for evaluation; the exact unsupported-era error with this pairing is inferred, not stated.",
+   "targets": [
+    [
+     {
+      "end_line": 21,
+      "found_by": "nav:changelog",
+      "heading": "[7.0.0] - 2026-06-20",
+      "path": "docs/sources/ogmios/content/changelog/_index.md",
+      "start_line": 10
+     },
+     {
+      "end_line": 54,
+      "found_by": "grep:6.14",
+      "heading": "[6.14.0] - 2025-10-16",
+      "path": "docs/sources/ogmios/content/changelog/_index.md",
+      "start_line": 41
+     }
+    ],
+    [
+     {
+      "end_line": 266,
+      "found_by": "grep:babbage",
+      "heading": "[6.13.0] Changed",
+      "path": "docs/sources/ogmios/content/changelog/_index.md",
+      "start_line": 266
+     }
+    ]
+   ]
+  }
+ }
+}

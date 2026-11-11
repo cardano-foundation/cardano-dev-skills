@@ -1,0 +1,787 @@
+{
+ "description": "E01 retrieval evaluation set: 60 English developer questions (20 calibration, 40 held-out) over docs/sources. Questions are rewritten from maintainer questions and public Q&A (source URL recorded); never copied verbatim.",
+ "questions": [
+  {
+   "area": "node-ops",
+   "group": "g02",
+   "id": "e01",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "conceptual",
+   "split": "calibration",
+   "text": "What's the difference between the ChainSync and BlockFetch mini-protocols? Can a node serve old blocks over BlockFetch but not over ChainSync, and what does a client need in order to sync from genesis over node-to-node?"
+  },
+  {
+   "area": "node-ops",
+   "group": "g02",
+   "id": "e02",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "infra",
+   "split": "calibration",
+   "text": "Can a node bootstrapped from a Mithril snapshot continue syncing over ChainSync from that point? Does a Mithril Cardano DB snapshot contain the ledger state or only the immutable chain files?"
+  },
+  {
+   "area": "node-ops",
+   "group": null,
+   "id": "e03",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "identifier",
+   "split": "calibration",
+   "text": "What does \"error connecting bearer\" mean when a client tries to connect to the cardano-node local socket (for example, for local tx-monitor or mempool access)?"
+  },
+  {
+   "area": "ledger",
+   "group": null,
+   "id": "e04",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "conceptual",
+   "split": "calibration",
+   "text": "How is the minimum ADA for a UTxO calculated (coinsPerUTxOByte), and how does it grow with native assets, datums and reference scripts? Is \"min ADA\" the same as the ledger's min-UTxO value?"
+  },
+  {
+   "area": "aiken",
+   "group": "g06",
+   "id": "e05",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "conceptual",
+   "split": "calibration",
+   "text": "How can a Plutus or Aiken validator know the current time? How is the transaction validity interval used as a time source, for example for time-dependent interest?"
+  },
+  {
+   "area": "aiken",
+   "group": "g06",
+   "id": "e06",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "conceptual",
+   "split": "calibration",
+   "text": "What is the \"withdraw zero\" pattern, and how does a spending or minting validator require a particular staking script to witness the transaction?"
+  },
+  {
+   "area": "cip30-cip8",
+   "group": null,
+   "id": "e07",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "identifier",
+   "split": "calibration",
+   "text": "Does CIP-30 let a dApp ask the wallet for only its reward (stake) address? What do getRewardAddresses and getBalance return, and does the balance include staked or locked funds?"
+  },
+  {
+   "area": "cip30-cip8",
+   "group": "g04",
+   "id": "e08",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "identifier",
+   "split": "calibration",
+   "text": "In CIP-8 / CIP-30 signData, what does the \"hashed\" option do? Do hardware wallets such as Ledger require hashed payloads?"
+  },
+  {
+   "area": "yaci",
+   "group": "g02",
+   "id": "e09",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "infra",
+   "split": "calibration",
+   "text": "Can a node-to-node peer (for example one built with Yaci) serve the mempool or tx-submission protocol without holding the full chain history, and what does it need for the handshake and ChainSync?"
+  },
+  {
+   "area": "yaci",
+   "group": null,
+   "id": "e10",
+   "provenance": {
+    "asked": "2026-05-20",
+    "kind": "public",
+    "url": "https://github.com/bloxbean/yaci-devkit/issues/167"
+   },
+   "review_area": "maintainer",
+   "slice": "howto",
+   "split": "calibration",
+   "text": "I'm trying to raise maxTxExMem on a Yaci DevKit devnet, but editing node.properties or the Alonzo genesis template changes nothing. How are protocol parameters meant to be customised on a devnet?"
+  },
+  {
+   "area": "node-ops",
+   "group": null,
+   "id": "e11",
+   "provenance": {
+    "asked": "2025-03-04",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12732"
+   },
+   "review_area": "maintainer",
+   "slice": "paraphrase",
+   "split": "calibration",
+   "text": "The leadership schedule says my pool should have forged in a slot, and the logs show it forged, but the block never made it on chain. What should I check?"
+  },
+  {
+   "area": "node-ops",
+   "group": null,
+   "id": "e12",
+   "provenance": {
+    "asked": "2025-08-12",
+    "kind": "public",
+    "url": "https://github.com/IntersectMBO/cardano-node/issues/6305"
+   },
+   "review_area": "maintainer",
+   "slice": "identifier",
+   "split": "calibration",
+   "text": "After upgrading cardano-node from 10.4 to 10.5, the KES metrics I used to alert on (remaining KES periods, opcert expiry) are gone from the Prometheus endpoint. Where did they go?"
+  },
+  {
+   "area": "node-ops",
+   "group": null,
+   "id": "e13",
+   "provenance": {
+    "asked": "2023-12-13",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/11460"
+   },
+   "review_area": "maintainer",
+   "slice": "howto",
+   "split": "calibration",
+   "text": "How is the hash of a stake pool metadata JSON file computed for the registration certificate, and does whitespace in the file matter?"
+  },
+  {
+   "area": "cip30-cip8",
+   "group": "g04",
+   "id": "e14",
+   "provenance": {
+    "asked": "2025-06-25",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12774"
+   },
+   "review_area": "maintainer",
+   "slice": "cross_source",
+   "split": "calibration",
+   "text": "I signed a message with the Ledger Cardano app (signMessage, unhashed payload) and got back a signature and public key. How can I verify that signature off-chain, with cardano-serialization-lib or another library?"
+  },
+  {
+   "area": "tx-building",
+   "group": null,
+   "id": "e15",
+   "provenance": {
+    "asked": "2025-01-22",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12705"
+   },
+   "review_area": "other",
+   "slice": "conceptual",
+   "split": "calibration",
+   "text": "I build a delegation transaction with cardano-serialization-lib, and add_change_if_needed sometimes puts the whole leftover of a 7 ADA input into the fee instead of returning change. Why?"
+  },
+  {
+   "area": "tx-building",
+   "group": null,
+   "id": "e16",
+   "provenance": {
+    "asked": "2025-01-30",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12712"
+   },
+   "review_area": "other",
+   "slice": "cross_source",
+   "split": "calibration",
+   "text": "Spending a UTxO locked at a Plutus V3 script with MeshTxBuilder fails at submission with an \"Extraneous scripts\" error. What makes a script extraneous, and how should the spend be built?"
+  },
+  {
+   "area": "aiken",
+   "group": null,
+   "id": "e17",
+   "provenance": {
+    "asked": "2025-11-13",
+    "kind": "public",
+    "url": "https://github.com/aiken-lang/aiken/discussions/1208"
+   },
+   "review_area": "maintainer",
+   "slice": "identifier",
+   "split": "calibration",
+   "text": "Can an Aiken Int ever overflow or underflow, or should I add bounds checks for arithmetic in my validator?"
+  },
+  {
+   "area": "governance",
+   "group": null,
+   "id": "e18",
+   "provenance": {
+    "asked": "2024-09-11",
+    "kind": "public",
+    "url": "https://github.com/IntersectMBO/govtool/issues/2018"
+   },
+   "review_area": "other",
+   "slice": "identifier",
+   "split": "calibration",
+   "text": "Once a governance action is on chain, how long can it be voted on before it expires, and what sets that limit?"
+  },
+  {
+   "area": "mesh-evolution",
+   "group": null,
+   "id": "e19",
+   "provenance": {
+    "asked": "2025-01-29",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12709"
+   },
+   "review_area": "other",
+   "slice": "howto",
+   "split": "calibration",
+   "text": "What format does MeshTxBuilder expect for txInDatumValue and txInRedeemerValue? My unlock transaction fails when I pass the datum as JSON."
+  },
+  {
+   "area": "node-ops",
+   "group": null,
+   "id": "e20",
+   "provenance": {
+    "asked": "2025-10-20",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12789"
+   },
+   "review_area": "other",
+   "slice": "infra",
+   "split": "calibration",
+   "text": "My cardano-node 10.5 on preprod, with the official config files, stalls at an early Byron block with no errors in the log. What could keep it from syncing?"
+  },
+  {
+   "area": "ledger",
+   "group": "g05",
+   "id": "e21",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "conceptual",
+   "split": "held_out",
+   "text": "If a Plutus transaction's script integrity hash (script_data_hash) doesn't match the cost models in the current protocol parameters, is it rejected in phase 1, or does the submitter lose collateral? Does this differ between node implementations' mempools?"
+  },
+  {
+   "area": "ogmios-kupo",
+   "group": "g03",
+   "id": "e22",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "infra",
+   "split": "held_out",
+   "text": "Do Ogmios and Kupo need a node-to-client (local socket) connection to a Haskell cardano-node, or can they work over node-to-node, or against other node implementations?"
+  },
+  {
+   "area": "ogmios-kupo",
+   "group": "g03",
+   "id": "e23",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "howto",
+   "split": "held_out",
+   "text": "Can Kupo be bootstrapped or fed from Ogmios instead of directly from the node socket?"
+  },
+  {
+   "area": "ogmios-kupo",
+   "group": null,
+   "id": "e24",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "cross_source",
+   "split": "held_out",
+   "text": "What are the options for submitting a transaction to Cardano (local tx-submission over N2C, Ogmios, cardano-submit-api, Blockfrost), and what are the trade-offs?"
+  },
+  {
+   "area": "other",
+   "group": null,
+   "id": "e25",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "other",
+   "slice": "negative",
+   "split": "held_out",
+   "text": "What does a self-hosted Blockfrost backend (blockfrost-platform, the former Icebreaker programme) need from the node: only a node-to-node connection, or also node-to-client to a Haskell node? Can it bootstrap from Mithril?"
+  },
+  {
+   "area": "other",
+   "group": null,
+   "id": "e26",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "other",
+   "slice": "howto",
+   "split": "held_out",
+   "text": "Does Blockfrost expose an endpoint to check how many API requests have been used or remain in the current quota?"
+  },
+  {
+   "area": "tx-building",
+   "group": null,
+   "id": "e27",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "identifier",
+   "split": "held_out",
+   "text": "Why does Blockfrost's transaction evaluation endpoint return \"failed to decode payload from base64 or base16\", and what body format does it expect?"
+  },
+  {
+   "area": "tx-building",
+   "group": null,
+   "id": "e28",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "cross_source",
+   "split": "held_out",
+   "text": "Do JavaScript/TypeScript Cardano SDKs automatically top up outputs to the minimum ADA, as cardano-client-lib's transaction builder does?"
+  },
+  {
+   "area": "java-ccl",
+   "group": null,
+   "id": "e29",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "howto",
+   "split": "held_out",
+   "text": "Does cardano-client-lib support chaining transactions, i.e. spending outputs of a transaction that isn't confirmed yet as inputs of the next one, or do you have to wait for each transaction to be on chain?"
+  },
+  {
+   "area": "java-ccl",
+   "group": null,
+   "id": "e30",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "howto",
+   "split": "held_out",
+   "text": "How does the account index in CIP-1852 derivation give independent wallets from one mnemonic, and how do you select it in cardano-client-lib?"
+  },
+  {
+   "area": "tx-building",
+   "group": null,
+   "id": "e31",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "howto",
+   "split": "held_out",
+   "text": "What is the SlotConfig (zero time, zero slot, slot length) needed for off-chain Plutus script evaluation, and how do you get it for mainnet, preprod and preview?"
+  },
+  {
+   "area": "ledger",
+   "group": "g01",
+   "id": "e32",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "conceptual",
+   "split": "held_out",
+   "text": "Can several pending transactions use the same collateral UTxO? What happens to the others when one of them is included in a block?"
+  },
+  {
+   "area": "ledger",
+   "group": "g01",
+   "id": "e33",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "paraphrase",
+   "split": "held_out",
+   "text": "If several transactions spending the same UTxO are submitted at once, how do the mempool and the ledger handle the conflict, and what does the losing submitter see?"
+  },
+  {
+   "area": "ledger",
+   "group": null,
+   "id": "e34",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "conceptual",
+   "split": "held_out",
+   "text": "What's the difference between reference inputs (CIP-31) and reference scripts (CIP-33), and when would a transaction use each?"
+  },
+  {
+   "area": "aiken",
+   "group": null,
+   "id": "e35",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "howto",
+   "split": "held_out",
+   "text": "How do you get an Aiken validator's script hash from plutus.json (the CIP-57 blueprint), and how do parameters change it?"
+  },
+  {
+   "area": "aiken",
+   "group": null,
+   "id": "e36",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "identifier",
+   "split": "held_out",
+   "text": "In Aiken, can an opaque type be used as a datum or redeemer, or only as a parameter?"
+  },
+  {
+   "area": "ledger",
+   "group": null,
+   "id": "e37",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "conceptual",
+   "split": "held_out",
+   "text": "Under Conway, does registering a script stake credential need the script to witness the registration certificate (with a deposit), and how did that differ before Conway?"
+  },
+  {
+   "area": "cip30-cip8",
+   "group": null,
+   "id": "e38",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "cross_source",
+   "split": "held_out",
+   "text": "When a hardware wallet signs a Cardano transaction, can it change the serialized body and so the transaction hash? What does CIP-21 require of transactions meant for hardware wallets, especially minting transactions?"
+  },
+  {
+   "area": "ledger",
+   "group": null,
+   "id": "e39",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "howto",
+   "split": "held_out",
+   "text": "How can an indexer detect when a Conway governance action is enacted? Which ledger events or state changes mark ratification and enactment?"
+  },
+  {
+   "area": "tx-building",
+   "group": null,
+   "id": "e40",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "maintainer",
+   "slice": "paraphrase",
+   "split": "held_out",
+   "text": "How long does a Cardano transaction usually take to appear on chain, and how should a dApp poll for confirmation (for example by transaction hash through Blockfrost)?"
+  },
+  {
+   "area": "other",
+   "group": null,
+   "id": "e41",
+   "provenance": {
+    "kind": "maintainer"
+   },
+   "review_area": "other",
+   "slice": "howto",
+   "split": "held_out",
+   "text": "How do you find which UTxO holds a given reference script (by script hash) through Blockfrost or Koios?"
+  },
+  {
+   "area": "yaci",
+   "group": null,
+   "id": "e42",
+   "provenance": {
+    "asked": "2025-02-19",
+    "kind": "public",
+    "url": "https://github.com/bloxbean/yaci-devkit/issues/105"
+   },
+   "review_area": "maintainer",
+   "slice": "identifier",
+   "split": "held_out",
+   "text": "Can Yaci DevKit produce blocks faster than once per second, for example every 0.5 s, and which option sets the block time?"
+  },
+  {
+   "area": "yaci",
+   "group": null,
+   "id": "e43",
+   "provenance": {
+    "asked": "2025-06-05",
+    "kind": "public",
+    "url": "https://github.com/bloxbean/yaci-devkit/issues/125"
+   },
+   "review_area": "maintainer",
+   "slice": "howto",
+   "split": "held_out",
+   "text": "Is there a way to force a rollback on a Yaci DevKit devnet, from the CLI or through config, so I can test how my indexer handles it?"
+  },
+  {
+   "area": "node-ops",
+   "group": null,
+   "id": "e44",
+   "provenance": {
+    "asked": "2024-09-06",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12648"
+   },
+   "review_area": "maintainer",
+   "slice": "paraphrase",
+   "split": "held_out",
+   "text": "My mainnet relay on cardano-node 8.9 stopped syncing at the start of September 2024 and sits at the last Babbage slot. Do old node versions stop working at a hard fork, and which version do I need?"
+  },
+  {
+   "area": "node-ops",
+   "group": null,
+   "id": "e45",
+   "provenance": {
+    "asked": "2024-09-05",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12646"
+   },
+   "review_area": "maintainer",
+   "slice": "negative",
+   "split": "held_out",
+   "text": "cardano-cli query leadership-schedule used to work every epoch, but now it fails decoding the Conway epoch state with \"expected word16\". What causes that?"
+  },
+  {
+   "area": "ledger",
+   "group": null,
+   "id": "e46",
+   "provenance": {
+    "asked": "2025-03-19",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12749"
+   },
+   "review_area": "maintainer",
+   "slice": "paraphrase",
+   "split": "held_out",
+   "text": "I don't want rewards for the epoch in which I deregister my stake address to be lost. If I deregister in epoch n, do I still get the epoch-n rewards, and does my stake still count in the next snapshot?"
+  },
+  {
+   "area": "java-ccl",
+   "group": null,
+   "id": "e47",
+   "provenance": {
+    "asked": "2024-09-04",
+    "kind": "public",
+    "url": "https://github.com/bloxbean/cardano-client-lib/issues/423"
+   },
+   "review_area": "maintainer",
+   "slice": "howto",
+   "split": "held_out",
+   "text": "With cardano-client-lib, can one transfer spend UTxOs that sit at several different addresses of the same wallet? The examples only show a single sender."
+  },
+  {
+   "area": "java-ccl",
+   "group": null,
+   "id": "e48",
+   "provenance": {
+    "asked": "2024-12-23",
+    "kind": "public",
+    "url": "https://github.com/bloxbean/cardano-client-lib/issues/477"
+   },
+   "review_area": "maintainer",
+   "slice": "cross_source",
+   "split": "held_out",
+   "text": "How do I build and sign a vote-delegation certificate to the always-abstain option with cardano-client-lib?"
+  },
+  {
+   "area": "cip30-cip8",
+   "group": null,
+   "id": "e49",
+   "provenance": {
+    "asked": "2024-09-03",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12643"
+   },
+   "review_area": "maintainer",
+   "slice": "cross_source",
+   "split": "held_out",
+   "text": "CIP-30 getUsedAddresses gives me hex-encoded address bytes. How do I turn those into something I can match against tx_out in cardano-db-sync, ideally inside a Postgres query?"
+  },
+  {
+   "area": "aiken",
+   "group": null,
+   "id": "e50",
+   "provenance": {
+    "asked": "2024-07-30",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12618"
+   },
+   "review_area": "maintainer",
+   "slice": "conceptual",
+   "split": "held_out",
+   "text": "In an Aiken spending validator, how do I find the input that is being validated, and does the validator run once per script input or once per transaction?"
+  },
+  {
+   "area": "ledger",
+   "group": "g05",
+   "id": "e51",
+   "provenance": {
+    "asked": "2026-07-03",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12804"
+   },
+   "review_area": "maintainer",
+   "slice": "cross_source",
+   "split": "held_out",
+   "text": "After years of working Lucid code, every transaction now fails with \"CostModel operation 166 out of bounds. Max is 166\". What changed on the network?"
+  },
+  {
+   "area": "ogmios-kupo",
+   "group": null,
+   "id": "e52",
+   "provenance": {
+    "asked": "2025-04-01",
+    "kind": "public",
+    "url": "https://github.com/CardanoSolutions/kupo/issues/188"
+   },
+   "review_area": "maintainer",
+   "slice": "conceptual",
+   "split": "held_out",
+   "text": "I poll Kupo's /matches with ETag / If-None-Match. After a rollback a UTxO it returned earlier is simply missing. How is a client meant to detect and handle rolled-back matches?"
+  },
+  {
+   "area": "hydra",
+   "group": null,
+   "id": "e53",
+   "provenance": {
+    "asked": "2025-07-21",
+    "kind": "public",
+    "url": "https://github.com/cardano-scaling/hydra/issues/2140"
+   },
+   "review_area": "other",
+   "slice": "paraphrase",
+   "split": "held_out",
+   "text": "Hydra's /commit makes me commit a whole UTxO. If I only want 50 ADA of a 300 ADA UTxO with tokens in the head, do I have to split it first in a separate transaction?"
+  },
+  {
+   "area": "token-metadata",
+   "group": null,
+   "id": "e54",
+   "provenance": {
+    "asked": "2025-08-06",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12780"
+   },
+   "review_area": "other",
+   "slice": "conceptual",
+   "split": "held_out",
+   "text": "Is there a recognised way to embed a file in a CIP-25 NFT's metadata so that generic explorers and wallets offer it for viewing or download, and can a tiny image be stored inline as the NFT image?"
+  },
+  {
+   "area": "zk",
+   "group": null,
+   "id": "e55",
+   "provenance": {
+    "asked": "2025-12-10",
+    "kind": "public",
+    "url": "https://github.com/aiken-lang/aiken/discussions/1238"
+   },
+   "review_area": "other",
+   "slice": "conceptual",
+   "split": "held_out",
+   "text": "Implementing a SNARK verifier in Aiken, carrying G1/G2 BLS points in tuples or custom types costs far more CPU than using them directly. Why, and how should points be passed around?"
+  },
+  {
+   "area": "cross-ecosystem",
+   "group": null,
+   "id": "e56",
+   "provenance": {
+    "asked": "2025-02-17",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12725"
+   },
+   "review_area": "other",
+   "slice": "cross_source",
+   "split": "held_out",
+   "text": "Besides the Haskell cardano-node, what other implementations of the Cardano node and protocol exist or are in development?"
+  },
+  {
+   "area": "plutus-plinth",
+   "group": null,
+   "id": "e57",
+   "provenance": {
+    "asked": "2025-02-26",
+    "kind": "public",
+    "url": "https://github.com/IntersectMBO/plutus/issues/6877"
+   },
+   "review_area": "other",
+   "slice": "cross_source",
+   "split": "held_out",
+   "text": "Why is TxId represented differently in the Plutus V1 and V3 ledger API types, and what does that change for code that hashes or serialises a TxOutRef?"
+  },
+  {
+   "area": "plutus-plinth",
+   "group": null,
+   "id": "e58",
+   "provenance": {
+    "asked": "2024-09-02",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12642"
+   },
+   "review_area": "other",
+   "slice": "identifier",
+   "split": "held_out",
+   "text": "Both the Plutus Playground and the Marlowe Playground seem to be offline. Are they being maintained, and is there a replacement for trying contracts in the browser?"
+  },
+  {
+   "area": "wallets",
+   "group": null,
+   "id": "e59",
+   "provenance": {
+    "asked": "2025-03-10",
+    "kind": "public",
+    "url": "https://cardano.stackexchange.com/questions/12739"
+   },
+   "review_area": "other",
+   "slice": "identifier",
+   "split": "held_out",
+   "text": "Sweeping ADA from an old Byron paper wallet (Ae2... address) with Exodus fails with \"Digest not supported\". What is that error, and how else can I move the funds?"
+  },
+  {
+   "area": "ogmios-kupo",
+   "group": null,
+   "id": "e60",
+   "provenance": {
+    "asked": "2026-06-02",
+    "kind": "public",
+    "url": "https://github.com/CardanoSolutions/ogmios/issues/464"
+   },
+   "review_area": "other",
+   "slice": "identifier",
+   "split": "held_out",
+   "text": "On Ogmios 6.14.0.1 with cardano-node 11.0.1, evaluateTransaction rejects a Babbage-format transaction as being from an unsupported era. Is that expected, and must the transaction be re-encoded as Conway?"
+  }
+ ],
+ "status": "draft: answer locations agent-labelled and cross-reviewed; maintainer expert review pending; not yet a release gate",
+ "version": 1
+}

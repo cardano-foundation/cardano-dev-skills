@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import sys
+import tempfile
 
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
@@ -96,8 +97,8 @@ def ground_labels(questions, labels, root):
         for g, group in enumerate(labels[q["id"]].get("targets") or []):
             for l, loc in enumerate(group):
                 where = "question %s group %d location %d" % (q["id"], g, l)
-                path = loc["path"]
-                if path not in manifest:
+                path = loc.get("path")
+                if not isinstance(path, str) or path not in manifest:
                     problems.append("%s: path %r is not a corpus manifest path" % (where, path))
                     continue
                 if path not in line_counts:
@@ -194,7 +195,19 @@ def labels_by_text(questions, labels):
     return {q["text"]: labels[q["id"]] for q in questions}
 
 
-def build_retriever(name, root, lookup, seed=0):
+def in_corpus_copy(root, build):
+    """Run build(copy_root) on a private copy of the corpus at root.
+
+    Returns (build's result, read_hashes): read_hashes maps every file of the copy
+    to the sha256 of exactly the bytes build could read. The copy is removed once
+    build returns, so build must read everything it needs before then.
+    """
+    with tempfile.TemporaryDirectory(prefix="kb-eval-corpus-") as copy_root:
+        read_hashes = corpus.copy_corpus(root, copy_root)
+        return build(copy_root), read_hashes
+
+
+def make_retriever(name, root, lookup, seed=0):
     if name == "grep":
         return retrievers.grep(root)
     if name == "oracle":
@@ -204,6 +217,13 @@ def build_retriever(name, root, lookup, seed=0):
     if name == "removal":
         return retrievers.removal(retrievers.grep(root), lookup)
     raise ValueError("unknown retriever %r" % name)
+
+
+def build_retriever(name, root, lookup, seed=0):
+    """(retriever, read_hashes) for a retriever built from a private copy of root."""
+    if name not in RETRIEVERS:
+        raise ValueError("unknown retriever %r" % name)
+    return in_corpus_copy(root, lambda copy_root: make_retriever(name, copy_root, lookup, seed))
 
 
 def evaluate(questions, labels, retriever, k, score_fn=None):
@@ -232,12 +252,35 @@ def assert_corpus_unchanged(root, checked_id):
                          "(checked %s, now %s); refusing to score" % (checked_id, now))
 
 
+def assert_read_matches(manifest, read_hashes):
+    """Refuse unless the bytes the retriever read are the files of the checked manifest.
+
+    A file changed and then restored while the retriever was built leaves the
+    manifest unchanged, so only the hashes of what was read can catch it.
+    """
+    expected = {entry["path"]: entry["sha256"] for entry in manifest["files"]}
+    if read_hashes == expected:
+        return
+    problems = []
+    for kind, paths in (
+        ("changed", sorted(p for p in set(expected) & set(read_hashes) if expected[p] != read_hashes[p])),
+        ("missing", sorted(set(expected) - set(read_hashes))),
+        ("extra", sorted(set(read_hashes) - set(expected))),
+    ):
+        if paths:
+            problems.append("%s: %s" % (kind, ", ".join(paths)))
+    raise ValueError("the retriever read a corpus that differs from the checked manifest (%s); "
+                     "refusing to score" % "; ".join(problems))
+
+
 def cmd_score(args):
     questions, labels, doc, root, hashes = load_grounded(args.set, args.root)
-    checked_id = corpus.corpus_id(root)
+    manifest = corpus.build_manifest(root)
+    checked_id = manifest["corpus_id"]
     identity = check_freeze(args.set, checked_id, args.allow_corpus_mismatch, hashes)
-    retriever = build_retriever(args.retriever, root, labels_by_text(questions, labels), args.seed)
+    retriever, read_hashes = build_retriever(args.retriever, root, labels_by_text(questions, labels), args.seed)
     assert_corpus_unchanged(root, checked_id)
+    assert_read_matches(manifest, read_hashes)
     answerable, negatives = evaluate(questions, labels, retriever, args.k)
     by_split, by_split_slice = scorer.aggregate_by_split(
         [(q.get("split"), q.get("slice", ""), m) for q, m, _r in answerable])
@@ -308,16 +351,17 @@ def run_controls(set_dir, root=None, score_fn=None, oracle=None, random_=None,
     """
     out = out or sys.stdout
     questions, labels, _doc, root, _hashes = load_grounded(set_dir, root)
-    checked_id = corpus.corpus_id(root)
+    manifest = corpus.build_manifest(root)
     lookup = labels_by_text(questions, labels)
-    sections, _skipped = kb_sections.split_corpus(root)
     makers = {
         "oracle": oracle or retrievers.oracle,
         "random": random_ or retrievers.random_retriever,
         "removal": removal or retrievers.removal,
     }
-    base = retrievers.grep(root)
-    assert_corpus_unchanged(root, checked_id)
+    (sections, base), read_hashes = in_corpus_copy(
+        root, lambda copy_root: (kb_sections.split_corpus(copy_root)[0], retrievers.grep(copy_root)))
+    assert_corpus_unchanged(root, manifest["corpus_id"])
+    assert_read_matches(manifest, read_hashes)
 
     def sec5_of(retriever):
         answerable, _neg = evaluate(questions, labels, retriever, 100, score_fn)

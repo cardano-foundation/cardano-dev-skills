@@ -317,10 +317,16 @@ Labels must point into the corpus: at `freeze`, `score` and `controls` every loc
 be a path exactly as `python3 scripts/kb/corpus.py --json` lists it (`docs/sources/...`, no
 shortened prefix), the file has to be readable text, and `end_line` cannot exceed its line
 count; otherwise the command refuses and names the question, group and location. Questions
-and labels are hashed from the same bytes that are parsed, and the corpus manifest is
-recomputed after the retriever is built: a change during indexing makes `score` refuse. A
-change landing during that last check itself is not caught, so do not edit `docs/sources/`
-while a score runs.
+and labels are hashed from the same bytes that are parsed. `score` and `controls` build
+their retriever from a private temporary copy of the corpus and hash each file from the
+same bytes they write into that copy, so a file cannot change between being hashed and
+being indexed unless something writes into that temporary copy. Those hashes must equal
+the manifest checked against the freeze: a file changed, added or removed between that
+check and the end of the copy makes the command refuse, even one restored afterwards. A
+change after the copy cannot reach the score, and the manifest is recomputed once the
+retriever is built, so a change still in place then refuses too. Label grounding reads the
+corpus directly before that manifest is taken, so a file changed and then restored while
+labels are being grounded is not caught; do not edit `docs/sources/` while a command runs.
 
 ## Documentation governance
 

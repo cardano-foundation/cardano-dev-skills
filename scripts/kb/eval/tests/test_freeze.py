@@ -100,6 +100,36 @@ class FreezeTests(unittest.TestCase):
         with redirect_stdout(io.StringIO()):
             self.assertEqual(run.main(["freeze", "--set", self.set_dir, "--force"]), 0)
 
+    def append_to_labels_after_the_read(self):
+        """Make ground_labels, which runs after the set is read, append to labels.json."""
+        original = run.ground_labels
+
+        def appending(questions, labels, root):
+            with open(os.path.join(self.set_dir, "labels.json"), "a", encoding="utf-8") as handle:
+                handle.write("\n")
+            return original(questions, labels, root)
+
+        run.ground_labels = appending
+        self.addCleanup(setattr, run, "ground_labels", original)
+
+    def test_score_uses_the_label_bytes_it_parsed(self):
+        before = run.set_hashes(self.set_dir)["labels_sha256"]
+        self.append_to_labels_after_the_read()
+        code, out, err = self.score()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(json.loads(out)["identity"]["labels_sha256"], before)
+        self.assertNotEqual(run.set_hashes(self.set_dir)["labels_sha256"], before)
+
+    def test_freeze_records_the_label_bytes_it_parsed(self):
+        before = run.set_hashes(self.set_dir)["labels_sha256"]
+        self.append_to_labels_after_the_read()
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(run.main(["freeze", "--set", self.set_dir, "--force"]), 0)
+        with open(os.path.join(self.set_dir, "freeze.json"), encoding="utf-8") as handle:
+            frozen = json.load(handle)
+        self.assertEqual(frozen["labels_sha256"], before)
+        self.assertNotEqual(run.set_hashes(self.set_dir)["labels_sha256"], before)
+
     def test_cli_score_writes_out_file(self):
         out_file = os.path.join(self.tmp, "result.json")
         proc = subprocess.run(

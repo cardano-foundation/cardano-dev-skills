@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
+from scripts.kb import corpus
 from scripts.kb.eval import retrievers, run
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -83,6 +84,33 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertNotIn("oracle", out)
 
+    def test_file_with_nul_bytes_is_refused_as_not_readable_text(self):
+        with open(os.path.join(self.corpus, "docs", "sources", "beta", "blob.md"), "wb") as handle:
+            handle.write(b"# Blob\nrotate\0signing\n")
+        self.edit_labels(lambda d: self.first_location(d).update(
+            path="docs/sources/beta/blob.md", start_line=1, end_line=1))
+        with self.assertRaises(ValueError) as caught:
+            run.load_grounded(self.set_dir, self.corpus)
+        self.assertIn("'docs/sources/beta/blob.md' is not readable text", str(caught.exception))
+        self.assert_refused_everywhere("is not readable text")
+
+    def test_non_normalised_existing_path_is_refused(self):
+        path = "docs/sources/beta/../beta/ops.md"
+        self.assertTrue(os.path.exists(os.path.join(self.corpus, *path.split("/"))))
+        self.edit_labels(lambda d: self.first_location(d).update(path=path))
+        with self.assertRaises(ValueError) as caught:
+            run.load_grounded(self.set_dir, self.corpus)
+        self.assertIn("%r is not a corpus manifest path" % path, str(caught.exception))
+        self.assert_refused_everywhere("is not a corpus manifest path")
+
+    def test_non_string_path_is_refused_with_the_usual_diagnostic(self):
+        for bad in (["docs/sources/beta/ops.md"], 7, None):
+            self.edit_labels(lambda d: self.first_location(d).update(path=bad))
+            with self.assertRaises(ValueError) as caught:
+                run.load_grounded(self.set_dir, self.corpus)
+            self.assertIn("path %r is not a corpus manifest path" % (bad,), str(caught.exception))
+        self.assert_refused_everywhere("is not a corpus manifest path")
+
     def test_negative_with_no_targets_stays_valid(self):
         _q, labels, _d = run.load_set(self.set_dir)
         self.assertEqual(labels["q4"], {"grade": "none", "targets": []})
@@ -137,6 +165,88 @@ class IdentityBindingTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertNotIn("PASS", out)
         self.assertIn("corpus changed while the retriever was being built", err)
+
+    def rewrite_and_restore(self, inner):
+        """Wrap inner so the corpus file is rewritten while it runs, then restored."""
+
+        def wrapped(*args, **kwargs):
+            with open(self.target, "rb") as handle:
+                saved = handle.read()
+            with open(self.target, "wb") as handle:
+                handle.write(saved + b"\nrewritten while the retriever is built\n")
+            try:
+                return inner(*args, **kwargs)
+            finally:
+                with open(self.target, "wb") as handle:
+                    handle.write(saved)
+
+        return wrapped
+
+    def test_score_refuses_a_corpus_change_after_the_copy_was_read(self):
+        original = retrievers.grep
+
+        def racing(root=None):
+            self.touch_corpus()
+            return original(root)
+
+        retrievers.grep = racing
+        self.addCleanup(setattr, retrievers, "grep", original)
+        code, out, err = self.run_cli("score", "grep")
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertIn("corpus changed while the retriever was being built", err)
+
+    def test_score_refuses_a_file_rewritten_and_restored_during_the_build(self):
+        before = corpus.corpus_id(self.corpus)
+        original = run.build_retriever
+        run.build_retriever = self.rewrite_and_restore(original)
+        self.addCleanup(setattr, run, "build_retriever", original)
+        code, out, err = self.run_cli("score", "grep")
+        self.assertEqual(corpus.corpus_id(self.corpus), before)
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertIn("differs from the checked manifest (changed: docs/sources/beta/ops.md)", err)
+
+    def test_controls_refuse_a_file_rewritten_and_restored_during_the_build(self):
+        before = corpus.corpus_id(self.corpus)
+        original = corpus.copy_corpus
+        corpus.copy_corpus = self.rewrite_and_restore(original)
+        self.addCleanup(setattr, corpus, "copy_corpus", original)
+        code, out, err = self.run_cli("controls")
+        self.assertEqual(corpus.corpus_id(self.corpus), before)
+        self.assertEqual(code, 2)
+        self.assertNotIn("PASS", out)
+        self.assertIn("differs from the checked manifest (changed: docs/sources/beta/ops.md)", err)
+
+    def test_retriever_reads_the_copy_not_the_live_corpus(self):
+        code, clean, err = self.run_cli("score", "grep")
+        self.assertEqual(code, 0, err)
+        original = retrievers.grep
+        retrievers.grep = self.rewrite_and_restore(original)
+        self.addCleanup(setattr, retrievers, "grep", original)
+        code, out, err = self.run_cli("score", "grep")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out, clean)
+
+    def test_read_hashes_must_equal_the_manifest(self):
+        manifest = corpus.build_manifest(self.corpus)
+        read = {e["path"]: e["sha256"] for e in manifest["files"]}
+        run.assert_read_matches(manifest, dict(read))
+        cases = (
+            ("missing: docs/sources/beta/ops.md",
+             {p: h for p, h in read.items() if p != "docs/sources/beta/ops.md"}),
+            ("extra: docs/sources/beta/new.md", dict(read, **{"docs/sources/beta/new.md": "0" * 64})),
+            ("changed: docs/sources/alpha/api.md", dict(read, **{"docs/sources/alpha/api.md": "0" * 64})),
+        )
+        for fragment, bad in cases:
+            with self.assertRaises(ValueError) as caught:
+                run.assert_read_matches(manifest, bad)
+            self.assertIn(fragment, str(caught.exception))
+
+    def test_build_retriever_reports_the_bytes_it_read(self):
+        manifest = corpus.build_manifest(self.corpus)
+        _retriever, read = run.build_retriever("grep", self.corpus, {})
+        self.assertEqual(read, {e["path"]: e["sha256"] for e in manifest["files"]})
 
     def test_unchanged_corpus_still_scores(self):
         code, _out, err = self.run_cli("score", "grep")

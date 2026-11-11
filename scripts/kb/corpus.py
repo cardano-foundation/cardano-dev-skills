@@ -71,6 +71,24 @@ def corpus_id(root=None):
     return build_manifest(root)["corpus_id"]
 
 
+def copy_corpus(root, dest):
+    """Copy every manifest file of root to the same relative path under dest.
+
+    Each file is read once; the sha256 is taken of the bytes written, so anything
+    reading dest reads exactly the bytes that were hashed. Returns {path: sha256}.
+    """
+    hashes = {}
+    for rel in file_paths(root):
+        with open(os.path.join(root, *rel.split("/")), "rb") as handle:
+            data = handle.read()
+        target = os.path.join(dest, *rel.split("/"))
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(target, "wb") as handle:
+            handle.write(data)
+        hashes[rel] = hashlib.sha256(data).hexdigest()
+    return hashes
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Print the docs/sources corpus_id.")
     parser.add_argument("--root", help="directory containing docs/sources (default: repo root)")

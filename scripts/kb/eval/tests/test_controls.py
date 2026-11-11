@@ -46,7 +46,7 @@ class ControlsOnFixtureTests(unittest.TestCase):
         root = run.resolve_root(SET_DIR, doc)
         lookup = run.labels_by_text(questions, labels)
         for name, expected in (("oracle", 1.0), ("removal", 0.0)):
-            retriever = run.build_retriever(name, root, lookup)
+            retriever, _read = run.build_retriever(name, root, lookup)
             answerable, negatives = run.evaluate(questions, labels, retriever, 100)
             self.assertEqual(scorer.aggregate([m for _q, m, _r in answerable])["sec@5"], expected)
             self.assertEqual(len(negatives), 1)
@@ -68,7 +68,7 @@ class ControlsOnFixtureTests(unittest.TestCase):
 
     def test_negative_questions_have_no_hit_metrics(self):
         questions, labels, doc = run.load_set(SET_DIR)
-        retriever = run.build_retriever("grep", run.resolve_root(SET_DIR, doc), {})
+        retriever, _read = run.build_retriever("grep", run.resolve_root(SET_DIR, doc), {})
         answerable, negatives = run.evaluate(questions, labels, retriever, 100)
         self.assertEqual({q["id"] for q, _m, _r in answerable}, {"q1", "q2", "q3", "q5"})
         self.assertEqual([q["id"] for q, _r in negatives], ["q4"])

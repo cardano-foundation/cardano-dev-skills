@@ -76,6 +76,11 @@ jobs:
       - name: Validate skills, sources, and Claude/Codex compatibility
         run: python scripts/validate.py
 
+      # Runs the give-feedback send command from its SKILL.md against a capture
+      # gh on PATH; it never reaches the real gh or the network.
+      - name: Test give-feedback send command against a capture gh
+        run: python -m unittest discover -s scripts/tests -t .
+
       # The JSON wire-output tests use the Python already set up above.
       - name: Test SessionStart hook
         run: ./hooks/test-check-docs.sh

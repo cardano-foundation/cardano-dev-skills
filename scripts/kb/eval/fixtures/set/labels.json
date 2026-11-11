@@ -1,0 +1,74 @@
+{
+  "labels": {
+    "q1": {
+      "grade": "full",
+      "targets": [
+        [
+          {
+            "end_line": 32,
+            "path": "docs/sources/beta/ops.md",
+            "start_line": 29
+          }
+        ]
+      ]
+    },
+    "q2": {
+      "grade": "full",
+      "targets": [
+        [
+          {
+            "end_line": 20,
+            "path": "docs/sources/alpha/api.md",
+            "start_line": 17
+          }
+        ],
+        [
+          {
+            "end_line": 16,
+            "path": "docs/sources/alpha/api.md",
+            "start_line": 13
+          }
+        ]
+      ]
+    },
+    "q3": {
+      "grade": "full",
+      "targets": [
+        [
+          {
+            "end_line": 16,
+            "path": "docs/sources/alpha/guide.md",
+            "start_line": 13
+          },
+          {
+            "end_line": 12,
+            "path": "docs/sources/beta/notes.md",
+            "start_line": 9
+          }
+        ]
+      ]
+    },
+    "q4": {
+      "grade": "none",
+      "targets": []
+    },
+    "q5": {
+      "grade": "partial",
+      "targets": [
+        [
+          {
+            "end_line": 42,
+            "path": "docs/sources/alpha/guide.md",
+            "start_line": 35
+          },
+          {
+            "end_line": 46,
+            "path": "docs/sources/alpha/guide.md",
+            "start_line": 39
+          }
+        ]
+      ]
+    }
+  },
+  "version": 1
+}

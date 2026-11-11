@@ -276,6 +276,30 @@ verify it by running it, not just by cross-referencing docs. Note the bundled `d
 mirror each project's upstream default branch, so check version-sensitive claims against
 released packages (npm dist-tags, Maven metadata, GitHub releases), not the mirrored docs.
 
+## Retrieval evaluation
+
+`scripts/kb/` measures how well a retriever finds the right passage in `docs/sources/`.
+It is offline, stdlib-only Python 3.9+, and needs no install beyond a clone. A question set
+is a directory with `questions.json`, `labels.json` and, once frozen, `freeze.json`. Labels
+point at line ranges: each question lists AND groups of OR locations, and a retrieved record
+hits a location when the path matches and the line ranges overlap. The corpus is
+identified by `python3 scripts/kb/corpus.py` (a sha256 over every file under `docs/sources/`).
+
+```bash
+python3 scripts/kb/eval/run.py freeze --set DIR            # pin question, label and corpus hashes
+python3 scripts/kb/eval/run.py score grep --set DIR        # score a retriever (grep, oracle, random, removal)
+python3 scripts/kb/eval/run.py controls --set DIR          # prove the instrument responds
+python3 -m unittest discover -s scripts/kb/eval/tests -t .  # the harness's own tests
+```
+
+Freeze a question set before scoring anything against it, and never tune a retriever on
+questions held out for testing: `score` refuses when the questions, labels or corpus differ
+from the freeze (`--allow-corpus-mismatch` overrides only the corpus check and records it
+in the output). `controls` must pass before a score is trusted: the oracle must reach
+sec@5 = 1.0, a retriever with every label hit removed must reach 0.0, and random must stay
+at or below 0.02. On a corpus as small as the test fixture the random bound holds for the
+default seed rather than by a wide margin; the command reports the analytic upper bound.
+
 ## Documentation governance
 
 Docs (`AGENTS.md`, `CLAUDE.md`, `README.md`, `docs/DESIGN.md`,

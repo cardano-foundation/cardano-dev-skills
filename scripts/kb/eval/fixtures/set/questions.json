@@ -1,0 +1,31 @@
+{
+  "corpus_root": "../corpus",
+  "questions": [
+    {
+      "id": "q1",
+      "slice": "how-to",
+      "text": "How do I rotate the signing key?"
+    },
+    {
+      "id": "q2",
+      "slice": "reference",
+      "text": "What are the retry limit and the timeout defaults for the client?"
+    },
+    {
+      "id": "q3",
+      "slice": "how-to",
+      "text": "How do I install Harbor?"
+    },
+    {
+      "id": "q4",
+      "slice": "negative",
+      "text": "What is the airspeed velocity of an unladen swallow?"
+    },
+    {
+      "id": "q5",
+      "slice": "how-to",
+      "text": "How do receipt handles and the visibility window work together?"
+    }
+  ],
+  "version": 1
+}

@@ -4,10 +4,11 @@
   run.py score <retriever> --set DIR [--k 100] [--out FILE]
   run.py controls --set DIR
   run.py freeze --set DIR [--force]
+  run.py compare A.json B.json [--split all|calibration|held_out] [--metric sec@5] [--seed 0]
 
 DIR holds questions.json, labels.json and (once frozen) freeze.json. The corpus
 root is --root, else the "corpus_root" of questions.json (relative to DIR), else
-the repository root.
+the repository root. A question may carry "split": "calibration" or "held_out".
 """
 import argparse
 import datetime
@@ -39,12 +40,19 @@ def sha256_path(path):
     return corpus.sha256_file(path)
 
 
-def load_set(set_dir):
-    """(questions, labels_by_id, questions_doc) from questions.json and labels.json."""
-    with open(os.path.join(set_dir, "questions.json"), encoding="utf-8") as handle:
-        doc = json.load(handle)
-    with open(os.path.join(set_dir, "labels.json"), encoding="utf-8") as handle:
-        labels = json.load(handle)["labels"]
+def read_set_files(set_dir):
+    """Raw bytes of questions.json and labels.json, each read exactly once."""
+    out = []
+    for name in ("questions.json", "labels.json"):
+        with open(os.path.join(set_dir, name), "rb") as handle:
+            out.append(handle.read())
+    return out
+
+
+def parse_set(questions_bytes, labels_bytes):
+    """(questions, labels_by_id, questions_doc) parsed from the bytes that were hashed."""
+    doc = json.loads(questions_bytes.decode("utf-8"))
+    labels = json.loads(labels_bytes.decode("utf-8"))["labels"]
     questions = doc["questions"]
     ids = [q["id"] for q in questions]
     if len(set(ids)) != len(ids):
@@ -54,9 +62,68 @@ def load_set(set_dir):
     texts = [q["text"] for q in questions]
     if len(set(texts)) != len(texts):
         raise ValueError("duplicate question texts")
+    for q in questions:
+        if "split" in q and q["split"] not in scorer.SPLITS:
+            raise ValueError("question %s: split must be one of %s, got %r"
+                             % (q["id"], scorer.SPLITS, q["split"]))
     for label in labels.values():
         scorer.validate_label(label)
     return questions, labels, doc
+
+
+def hashes_of(questions_bytes, labels_bytes):
+    return {
+        "questions_sha256": hashlib.sha256(questions_bytes).hexdigest(),
+        "labels_sha256": hashlib.sha256(labels_bytes).hexdigest(),
+    }
+
+
+def load_set(set_dir):
+    """(questions, labels_by_id, questions_doc) from questions.json and labels.json."""
+    return parse_set(*read_set_files(set_dir))
+
+
+def ground_labels(questions, labels, root):
+    """Refuse a label location that does not point into the corpus.
+
+    Every location must name a canonical manifest path exactly as corpus.py lists it,
+    the file must be readable text, and end_line must not exceed its line count.
+    """
+    manifest = set(corpus.file_paths(root))
+    line_counts = {}
+    problems = []
+    for q in questions:
+        for g, group in enumerate(labels[q["id"]].get("targets") or []):
+            for l, loc in enumerate(group):
+                where = "question %s group %d location %d" % (q["id"], g, l)
+                path = loc["path"]
+                if path not in manifest:
+                    problems.append("%s: path %r is not a corpus manifest path" % (where, path))
+                    continue
+                if path not in line_counts:
+                    text = kb_sections.read_text(os.path.join(root, *path.split("/")))
+                    line_counts[path] = None if text is None else len(kb_sections.text_lines(text))
+                count = line_counts[path]
+                if count is None:
+                    problems.append("%s: %r is not readable text" % (where, path))
+                elif loc["end_line"] > count:
+                    problems.append("%s: end_line %d is beyond the %d lines of %r"
+                                    % (where, loc["end_line"], count, path))
+    if problems:
+        raise ValueError("labels are not grounded in the corpus:\n  " + "\n  ".join(problems))
+
+
+def load_grounded(set_dir, root_override=None):
+    """Load a set, resolve its corpus root and ground its labels.
+
+    Returns (questions, labels, doc, root, hashes); the hashes come from the same
+    bytes that were parsed.
+    """
+    questions_bytes, labels_bytes = read_set_files(set_dir)
+    questions, labels, doc = parse_set(questions_bytes, labels_bytes)
+    root = resolve_root(set_dir, doc, root_override)
+    ground_labels(questions, labels, root)
+    return questions, labels, doc, root, hashes_of(questions_bytes, labels_bytes)
 
 
 def resolve_root(set_dir, doc, override=None):
@@ -68,17 +135,14 @@ def resolve_root(set_dir, doc, override=None):
 
 
 def set_hashes(set_dir):
-    return {
-        "questions_sha256": sha256_path(os.path.join(set_dir, "questions.json")),
-        "labels_sha256": sha256_path(os.path.join(set_dir, "labels.json")),
-    }
+    return hashes_of(*read_set_files(set_dir))
 
 
-def write_freeze(set_dir, root, force=False):
+def write_freeze(set_dir, root, force=False, hashes=None):
     target = os.path.join(set_dir, "freeze.json")
     if os.path.exists(target) and not force:
         raise FreezeError("freeze.json already exists; pass --force to replace it")
-    record = dict(set_hashes(set_dir))
+    record = dict(hashes or set_hashes(set_dir))
     record["corpus_id"] = corpus.corpus_id(root)
     record["frozen_utc"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     record["version"] = 1
@@ -87,14 +151,18 @@ def write_freeze(set_dir, root, force=False):
     return record
 
 
-def check_freeze(set_dir, current_corpus_id, allow_corpus_mismatch=False):
-    """Return the identity dict, or raise FreezeError."""
+def check_freeze(set_dir, current_corpus_id, allow_corpus_mismatch=False, hashes=None):
+    """Return the identity dict, or raise FreezeError.
+
+    hashes are the question and label hashes of the bytes already parsed; without
+    them the files are read again.
+    """
     target = os.path.join(set_dir, "freeze.json")
     if not os.path.exists(target):
         raise FreezeError("freeze.json missing: run `run.py freeze --set %s` first" % set_dir)
     with open(target, encoding="utf-8") as handle:
         frozen = json.load(handle)
-    now = set_hashes(set_dir)
+    now = hashes or set_hashes(set_dir)
     for key in ("questions_sha256", "labels_sha256"):
         if frozen.get(key) != now[key]:
             raise FreezeError("%s changed since the freeze; refusing to score" % key.split("_")[0])
@@ -152,12 +220,27 @@ def evaluate(questions, labels, retriever, k, score_fn=None):
     return answerable, negatives
 
 
+def assert_corpus_unchanged(root, checked_id):
+    """Refuse when the corpus changed between the identity check and now.
+
+    Called after the retriever is built, so a file edited while the index was being
+    built cannot slip into a score that claims the checked identity.
+    """
+    now = corpus.corpus_id(root)
+    if now != checked_id:
+        raise ValueError("corpus changed while the retriever was being built "
+                         "(checked %s, now %s); refusing to score" % (checked_id, now))
+
+
 def cmd_score(args):
-    questions, labels, doc = load_set(args.set)
-    root = resolve_root(args.set, doc, args.root)
-    identity = check_freeze(args.set, corpus.corpus_id(root), args.allow_corpus_mismatch)
+    questions, labels, doc, root, hashes = load_grounded(args.set, args.root)
+    checked_id = corpus.corpus_id(root)
+    identity = check_freeze(args.set, checked_id, args.allow_corpus_mismatch, hashes)
     retriever = build_retriever(args.retriever, root, labels_by_text(questions, labels), args.seed)
+    assert_corpus_unchanged(root, checked_id)
     answerable, negatives = evaluate(questions, labels, retriever, args.k)
+    by_split, by_split_slice = scorer.aggregate_by_split(
+        [(q.get("split"), q.get("slice", ""), m) for q, m, _r in answerable])
     result = {
         "identity": identity,
         "retriever": args.retriever,
@@ -167,6 +250,7 @@ def cmd_score(args):
             {
                 "id": q["id"],
                 "slice": q.get("slice", ""),
+                "split": q.get("split"),
                 "grade": labels[q["id"]]["grade"],
                 "metrics": metrics,
                 "top10": ranking[:10],
@@ -175,6 +259,8 @@ def cmd_score(args):
         ],
         "aggregate": scorer.aggregate([m for _q, m, _r in answerable]),
         "by_slice": scorer.aggregate_by_slice([(q.get("slice", ""), m) for q, m, _r in answerable]),
+        "by_split": by_split,
+        "by_split_slice": by_split_slice,
         "negatives": scorer.negatives_report([(q["id"], r) for q, r in negatives]),
     }
     text = json.dumps(result, indent=2, sort_keys=True) + "\n"
@@ -221,8 +307,8 @@ def run_controls(set_dir, root=None, score_fn=None, oracle=None, random_=None,
     when the instrument is broken.
     """
     out = out or sys.stdout
-    questions, labels, doc = load_set(set_dir)
-    root = resolve_root(set_dir, doc, root)
+    questions, labels, _doc, root, _hashes = load_grounded(set_dir, root)
+    checked_id = corpus.corpus_id(root)
     lookup = labels_by_text(questions, labels)
     sections, _skipped = kb_sections.split_corpus(root)
     makers = {
@@ -231,6 +317,7 @@ def run_controls(set_dir, root=None, score_fn=None, oracle=None, random_=None,
         "removal": removal or retrievers.removal,
     }
     base = retrievers.grep(root)
+    assert_corpus_unchanged(root, checked_id)
 
     def sec5_of(retriever):
         answerable, _neg = evaluate(questions, labels, retriever, 100, score_fn)
@@ -270,9 +357,63 @@ def cmd_controls(args):
 
 
 def cmd_freeze(args):
-    questions, labels, doc = load_set(args.set)
-    record = write_freeze(args.set, resolve_root(args.set, doc, args.root), args.force)
+    _q, _l, _doc, root, hashes = load_grounded(args.set, args.root)
+    record = write_freeze(args.set, root, args.force, hashes)
     print("froze %s (corpus_id %s)" % (args.set, record["corpus_id"]))
+    return 0
+
+
+IDENTITY_KEYS = ("questions_sha256", "labels_sha256", "corpus_id", "scorer_version")
+COMPARE_SPLITS = ("all",) + scorer.SPLITS
+
+
+def compare_results(result_a, result_b, split="all", metric="sec@5", seed=0):
+    """Paired bootstrap of B - A over the answerable questions of a split.
+
+    Refuses unless both results were scored on the same evaluation identity and
+    neither overrode the corpus mismatch check.
+    """
+    if metric not in scorer.METRICS:
+        raise ValueError("unknown metric %r; choose one of %s" % (metric, ", ".join(scorer.METRICS)))
+    ids = {}
+    for name, result in (("A", result_a), ("B", result_b)):
+        identity = result.get("identity") or {}
+        if identity.get("corpus_mismatch_allowed"):
+            raise ValueError("%s recorded a corpus mismatch override; refusing to compare" % name)
+        ids[name] = identity
+    for key in IDENTITY_KEYS:
+        if ids["A"].get(key) is None or ids["A"].get(key) != ids["B"].get(key):
+            raise ValueError("evaluation identity differs on %s (A %s, B %s); refusing to compare"
+                             % (key, ids["A"].get(key), ids["B"].get(key)))
+    if result_a.get("k") != result_b.get("k"):
+        raise ValueError("k differs (A %s, B %s); refusing to compare" % (result_a.get("k"), result_b.get("k")))
+
+    def values(result):
+        return {r["id"]: r["metrics"][metric] for r in result["per_question"]
+                if split == "all" or r.get("split") == split}
+
+    a, b = values(result_a), values(result_b)
+    if set(a) != set(b):
+        raise ValueError("A and B scored different questions in split %s" % split)
+    if not a:
+        raise ValueError("no answerable questions in split %s" % split)
+    order = sorted(a)
+    out = scorer.paired_bootstrap([b[i] for i in order], [a[i] for i in order], seed=seed)
+    out.update({"metric": metric, "split": split, "retriever_a": result_a.get("retriever"),
+                "retriever_b": result_b.get("retriever"), "identity": ids["A"], "direction": "B - A"})
+    return out
+
+
+def cmd_compare(args):
+    results = []
+    for path in (args.a, args.b):
+        with open(path, encoding="utf-8") as handle:
+            results.append(json.load(handle))
+    out = compare_results(results[0], results[1], args.split, args.metric, args.seed)
+    print("%s %s on %s (n=%d): B - A mean %+.4f, 95%% CI [%+.4f, %+.4f], wins %d losses %d ties %d"
+          % (out["retriever_b"], out["metric"], out["split"], out["n"], out["mean_diff"],
+             out["ci_low"], out["ci_high"], out["wins"], out["losses"], out["ties"]), file=sys.stderr)
+    sys.stdout.write(json.dumps(out, indent=2, sort_keys=True) + "\n")
     return 0
 
 
@@ -302,6 +443,14 @@ def build_parser():
     common(freeze)
     freeze.add_argument("--force", action="store_true", help="replace an existing freeze.json")
     freeze.set_defaults(func=cmd_freeze)
+
+    compare = sub.add_parser("compare", help="paired bootstrap of B - A from two score outputs")
+    compare.add_argument("a", help="score output of the baseline retriever")
+    compare.add_argument("b", help="score output of the retriever under test")
+    compare.add_argument("--split", choices=COMPARE_SPLITS, default="all")
+    compare.add_argument("--metric", default="sec@5")
+    compare.add_argument("--seed", type=int, default=0, help="bootstrap seed")
+    compare.set_defaults(func=cmd_compare)
     return parser
 
 

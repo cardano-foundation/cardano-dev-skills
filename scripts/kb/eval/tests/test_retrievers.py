@@ -43,6 +43,14 @@ class GrepRankingTests(unittest.TestCase):
                          [("docs/sources/p/a.md", 1), ("docs/sources/p/a.md", 3),
                           ("docs/sources/p/z.md", 1)])
 
+    def test_tie_break_by_start_line_beats_term_order(self):
+        # Both sections hold one distinct term once. Terms are visited alphabetically,
+        # so insertion order would put the later section (alpha) first; the start_line
+        # key must put the earlier section first.
+        write(self.root, "docs/sources/p/a.md", "# One\nbeta\n# Two\nalpha\n")
+        self.assertEqual(self.ranking("alpha beta"),
+                         [("docs/sources/p/a.md", 1), ("docs/sources/p/a.md", 3)])
+
 
 if __name__ == "__main__":
     unittest.main()

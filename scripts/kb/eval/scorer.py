@@ -12,6 +12,7 @@ import random
 SCORER_VERSION = "kb-eval-scorer/1"
 ANSWERABLE_GRADES = ("full", "partial")
 ALL_GRADES = ANSWERABLE_GRADES + ("none",)
+SPLITS = ("calibration", "held_out")
 METRICS = ("sec@5", "sec@10", "cov@5", "cov@10", "mrr", "file@5", "file@10")
 BOOTSTRAP_RESAMPLES = 10000
 _EPS = 1e-12
@@ -94,6 +95,22 @@ def aggregate_by_slice(items):
     for name, metrics in items:
         grouped.setdefault(name, []).append(metrics)
     return {name: aggregate(grouped[name]) for name in sorted(grouped)}
+
+
+def aggregate_by_split(items):
+    """items: list of (split_or_None, slice_name, metrics).
+
+    Returns (by_split, by_split_slice): {split: aggregate} and {split: {slice: aggregate}}
+    for the splits present. Questions without a split appear in neither; they count
+    only in the overall aggregate.
+    """
+    grouped = {}
+    for split, name, metrics in items:
+        if split is not None:
+            grouped.setdefault(split, []).append((name, metrics))
+    by_split = {split: aggregate([m for _n, m in grouped[split]]) for split in sorted(grouped)}
+    by_split_slice = {split: aggregate_by_slice(grouped[split]) for split in sorted(grouped)}
+    return by_split, by_split_slice
 
 
 def negatives_report(items):

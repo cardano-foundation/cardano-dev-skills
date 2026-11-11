@@ -289,6 +289,7 @@ identified by `python3 scripts/kb/corpus.py` (a sha256 over every file under `do
 python3 scripts/kb/eval/run.py freeze --set DIR            # pin question, label and corpus hashes
 python3 scripts/kb/eval/run.py score grep --set DIR        # score a retriever (grep, oracle, random, removal)
 python3 scripts/kb/eval/run.py controls --set DIR          # prove the instrument responds
+python3 scripts/kb/eval/run.py compare A.json B.json --split held_out  # paired bootstrap of B - A
 python3 -m unittest discover -s scripts/kb/eval/tests -t .  # the harness's own tests
 ```
 
@@ -300,6 +301,26 @@ sec@5 = 1.0, a retriever with every label hit removed must reach 0.0, and the ra
 retriever, averaged over seeds 0 to 99, must score at most 1.5 times the analytic expected
 chance plus 0.005. The command prints the measured mean, the expected chance and the
 resulting threshold; `--seed` does not affect this control.
+
+A question may carry `"split": "calibration"` or `"split": "held_out"`. Tune a retriever
+only against calibration questions and gate on held-out ones: `score` reports every
+aggregate per split and per split and slice next to the overall and per-slice figures, and
+a question without a split counts only in the overall figures. To compare two retrievers,
+score each with `--out` on the same frozen set, then run `compare A.json B.json --split
+held_out [--metric sec@5] [--seed 7]`. It refuses unless both results share the questions
+hash, labels hash, corpus id and scorer version and neither used `--allow-corpus-mismatch`,
+then prints the paired bootstrap of B minus A over the answerable questions of that split:
+mean difference, 95% confidence interval, wins, losses, ties and n. The same seed gives the
+same interval.
+
+Labels must point into the corpus: at `freeze`, `score` and `controls` every location has to
+be a path exactly as `python3 scripts/kb/corpus.py --json` lists it (`docs/sources/...`, no
+shortened prefix), the file has to be readable text, and `end_line` cannot exceed its line
+count; otherwise the command refuses and names the question, group and location. Questions
+and labels are hashed from the same bytes that are parsed, and the corpus manifest is
+recomputed after the retriever is built: a change during indexing makes `score` refuse. A
+change landing during that last check itself is not caught, so do not edit `docs/sources/`
+while a score runs.
 
 ## Documentation governance
 

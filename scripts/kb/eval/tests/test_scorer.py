@@ -131,6 +131,24 @@ class AggregationTests(unittest.TestCase):
         self.assertEqual(out["x"]["sec@5"], 0.5)
         self.assertEqual(out["y"]["n"], 1)
 
+    def test_by_split_and_split_by_slice(self):
+        one = {name: 1.0 for name in scorer.METRICS}
+        zero = {name: 0.0 for name in scorer.METRICS}
+        by_split, by_split_slice = scorer.aggregate_by_split([
+            ("calibration", "x", one), ("held_out", "x", zero), ("held_out", "y", one),
+            ("held_out", "x", one), (None, "x", zero)])
+        self.assertEqual(sorted(by_split), ["calibration", "held_out"])
+        self.assertEqual(by_split["calibration"]["n"], 1)
+        self.assertEqual(by_split["held_out"]["n"], 3)
+        self.assertAlmostEqual(by_split["held_out"]["sec@5"], 0.666667)
+        self.assertEqual(by_split_slice["held_out"]["x"]["sec@5"], 0.5)
+        self.assertEqual(by_split_slice["held_out"]["y"]["n"], 1)
+        self.assertEqual(by_split_slice["calibration"]["x"]["n"], 1)
+
+    def test_no_split_gives_empty_split_reports(self):
+        zero = {name: 0.0 for name in scorer.METRICS}
+        self.assertEqual(scorer.aggregate_by_split([(None, "x", zero)]), ({}, {}))
+
     def test_negatives_report_top_score_only(self):
         report = scorer.negatives_report(
             [("n1", [rec("a.md", 1, 1, score=0.5), rec("b.md", 1, 1, score=0.2)]), ("n2", [])]

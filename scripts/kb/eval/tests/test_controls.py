@@ -133,6 +133,37 @@ class RandomControlTests(unittest.TestCase):
         labels = {"q": label, "n": {"grade": "none", "targets": []}}
         self.assertAlmostEqual(run.expected_chance(questions, labels, sections, 2), 0.5)
 
+    def test_expected_chance_takes_the_least_likely_group_not_the_last(self):
+        # 4 sections, k = 2. Group one hits 1 section: chance 1 - (3/4)(2/3) = 0.5.
+        # Group two hits 2 sections: chance 1 - (2/4)(1/3) = 5/6. The question's chance
+        # is the minimum, 0.5; the last group alone would give 5/6.
+        Sec = collections.namedtuple("Sec", "path start_line end_line")
+        sections = [Sec("a.md", i * 10 + 1, i * 10 + 10) for i in range(4)]
+        label = {"grade": "full", "targets": [
+            [{"path": "a.md", "start_line": 1, "end_line": 10}],
+            [{"path": "a.md", "start_line": 11, "end_line": 30}]]}
+        self.assertAlmostEqual(
+            run.expected_chance([{"id": "q", "text": "t"}], {"q": label}, sections, 2), 0.5)
+
+    def test_random_control_reports_the_measured_mean_and_threshold_on_the_fixture(self):
+        ok, text = controls()
+        self.assertTrue(ok, text)
+        self.assertIn("measured mean 0.0825", text)
+        self.assertIn("threshold 0.1427", text)
+        self.assertIn("<= 0.1427 (got 0.0825)", text)
+
+    def test_random_verdict_depends_on_averaging_over_seeds(self):
+        # Hits every target at seed 0 only. Averaged over seeds 0..99 the mean is
+        # 0.0100, under the threshold, so the control passes; a single-seed check
+        # would see 1.0 and fail.
+        questions, labels, _doc = run.load_set(SET_DIR)
+        leak = retrievers.oracle(run.labels_by_text(questions, labels))
+        nothing = ConstantRetriever([])
+        ok, text = controls(random_=lambda secs, seed: leak if seed == 0 else nothing)
+        self.assertTrue(ok, text)
+        self.assertIn("(got 0.0100)", text)
+        self.assertEqual(run.RANDOM_SEEDS, 100)
+
     def test_random_control_is_reported_and_passes_on_the_fixture(self):
         ok, text = controls()
         self.assertTrue(ok, text)

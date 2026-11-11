@@ -782,6 +782,6 @@
    "text": "On Ogmios 6.14.0.1 with cardano-node 11.0.1, evaluateTransaction rejects a Babbage-format transaction as being from an unsupported era. Is that expected, and must the transaction be re-encoded as Conway?"
   }
  ],
- "status": "draft: answer locations agent-labelled and cross-reviewed; maintainer expert review pending; not yet a release gate",
+ "status": "final: answer locations agent-labelled, cross-reviewed, and expert-reviewed for the maintainer-area questions",
  "version": 1
 }

@@ -25,7 +25,9 @@ from scripts.kb.eval import retrievers, scorer  # noqa: E402
 RETRIEVERS = ("grep", "oracle", "random", "removal")
 ORACLE_REQUIRED = 1.0
 REMOVAL_REQUIRED = 0.0
-RANDOM_MAX = 0.02
+RANDOM_SEEDS = 100
+RANDOM_SLACK_FACTOR = 1.5
+RANDOM_SLACK_ABS = 0.005
 _TOL = 1e-9
 
 
@@ -206,9 +208,13 @@ def expected_chance(questions, labels, sections, k):
     return sum(values) / len(values) if values else 0.0
 
 
-def run_controls(set_dir, root=None, seed=0, score_fn=None, oracle=None, random_=None,
+def run_controls(set_dir, root=None, score_fn=None, oracle=None, random_=None,
                  removal=None, out=None):
     """Run the oracle, random and removal controls. Returns True when all pass.
+
+    The random control is the mean sec@5 over seeds 0..RANDOM_SEEDS-1, so it is
+    meaningful however few answerable questions the set has. It passes when the mean
+    is at most RANDOM_SLACK_FACTOR * expected_chance + RANDOM_SLACK_ABS.
 
     score_fn, oracle(lookup), random_(sections, seed) and removal(base, lookup)
     replace the real parts; the mutation tests use them to prove the controls fail
@@ -225,38 +231,42 @@ def run_controls(set_dir, root=None, seed=0, score_fn=None, oracle=None, random_
         "removal": removal or retrievers.removal,
     }
     base = retrievers.grep(root)
-    sec5 = {}
-    for name, retriever in (
-        ("oracle", makers["oracle"](lookup)),
-        ("random", makers["random"](sections, seed)),
-        ("removal", makers["removal"](base, lookup)),
-    ):
+
+    def sec5_of(retriever):
         answerable, _neg = evaluate(questions, labels, retriever, 100, score_fn)
-        sec5[name] = (
-            scorer.aggregate([m for _q, m, _r in answerable])["sec@5"] if answerable else None
-        )
+        return scorer.aggregate([m for _q, m, _r in answerable])["sec@5"] if answerable else None
+
+    sec5 = {
+        "oracle": sec5_of(makers["oracle"](lookup)),
+        "removal": sec5_of(makers["removal"](base, lookup)),
+    }
+    seeded = [sec5_of(makers["random"](sections, seed)) for seed in range(RANDOM_SEEDS)]
+    mean = None if any(v is None for v in seeded) else sum(seeded) / len(seeded)
+    chance = expected_chance(questions, labels, sections, 5)
+    threshold = RANDOM_SLACK_FACTOR * chance + RANDOM_SLACK_ABS
     checks = [
         ("oracle sec@5 == %.1f" % ORACLE_REQUIRED, sec5["oracle"],
          sec5["oracle"] is not None and abs(sec5["oracle"] - ORACLE_REQUIRED) <= _TOL),
         ("removal sec@5 == %.1f" % REMOVAL_REQUIRED, sec5["removal"],
          sec5["removal"] is not None and abs(sec5["removal"] - REMOVAL_REQUIRED) <= _TOL),
-        ("random sec@5 <= %.2f" % RANDOM_MAX, sec5["random"],
-         sec5["random"] is not None and sec5["random"] <= RANDOM_MAX + _TOL),
+        ("random mean sec@5 over seeds 0..%d <= %.4f" % (RANDOM_SEEDS - 1, threshold), mean,
+         mean is not None and mean <= threshold + _TOL),
     ]
     ok = True
     for label, value, passed in checks:
         ok = ok and passed
         shown = "n/a" if value is None else "%.4f" % value
         print("%s %s (got %s)" % ("PASS" if passed else "FAIL", label, shown), file=out)
-    chance = expected_chance(questions, labels, sections, 5)
-    print("info random expected sec@5 upper bound %.4f over %d sections (seed %s)"
-          % (chance, len(sections), seed), file=out)
+    print("info random: measured mean %s, analytic expected chance %.4f, threshold %.4f "
+          "(%.1f * chance + %.3f) over %d sections"
+          % ("n/a" if mean is None else "%.4f" % mean, chance, threshold,
+             RANDOM_SLACK_FACTOR, RANDOM_SLACK_ABS, len(sections)), file=out)
     print("controls: %s" % ("PASS" if ok else "FAIL"), file=out)
     return ok
 
 
 def cmd_controls(args):
-    return 0 if run_controls(args.set, args.root, args.seed) else 1
+    return 0 if run_controls(args.set, args.root) else 1
 
 
 def cmd_freeze(args):
@@ -273,7 +283,7 @@ def build_parser():
     def common(p):
         p.add_argument("--set", required=True, help="directory with questions.json and labels.json")
         p.add_argument("--root", help="directory containing docs/sources")
-        p.add_argument("--seed", type=int, default=0, help="seed for the random retriever")
+        p.add_argument("--seed", type=int, default=0, help="seed for the random retriever (score only; controls average seeds 0..99)")
 
     score = sub.add_parser("score", help="score a retriever on a frozen set")
     score.add_argument("retriever", choices=RETRIEVERS)

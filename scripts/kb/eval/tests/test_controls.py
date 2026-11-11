@@ -1,3 +1,4 @@
+import collections
 import io
 import os
 import subprocess
@@ -119,6 +120,60 @@ class MutationTests(unittest.TestCase):
         ok, text = controls(random_=lambda secs, seed: everything)
         self.assertFalse(ok)
         self.assertIn("FAIL random", text)
+
+
+class RandomControlTests(unittest.TestCase):
+    def test_expected_chance_matches_a_hand_computed_value(self):
+        # 4 sections, one of which hits the single group, k = 2:
+        # P(miss) = (3/4) * (2/3) = 1/2, so the chance of a hit is 0.5.
+        Sec = collections.namedtuple("Sec", "path start_line end_line")
+        sections = [Sec("a.md", i * 10 + 1, i * 10 + 10) for i in range(4)]
+        label = {"grade": "full", "targets": [[{"path": "a.md", "start_line": 1, "end_line": 10}]]}
+        questions = [{"id": "q", "text": "t"}, {"id": "n", "text": "u"}]
+        labels = {"q": label, "n": {"grade": "none", "targets": []}}
+        self.assertAlmostEqual(run.expected_chance(questions, labels, sections, 2), 0.5)
+
+    def test_random_control_is_reported_and_passes_on_the_fixture(self):
+        ok, text = controls()
+        self.assertTrue(ok, text)
+        self.assertIn("random mean sec@5 over seeds 0..99", text)
+        self.assertIn("measured mean", text)
+        self.assertIn("threshold", text)
+
+    def test_random_that_leaks_one_target_per_question_fails(self):
+        questions, labels, _doc = run.load_set(SET_DIR)
+        leak = retrievers.oracle(run.labels_by_text(questions, labels))
+
+        class OneTarget:
+            def retrieve(self, question_text, k):
+                return leak.retrieve(question_text, 1)
+
+        ok, text = controls(random_=lambda secs, seed: OneTarget())
+        self.assertFalse(ok)
+        self.assertIn("FAIL random", text)
+
+    def test_seed_flag_does_not_change_the_random_verdict(self):
+        outputs = []
+        for seed in ("0", "7"):
+            proc = subprocess.run(
+                [sys.executable, RUN_PY, "controls", "--set", SET_DIR, "--seed", seed],
+                capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            outputs.append(proc.stdout)
+        self.assertEqual(outputs[0], outputs[1])
+
+    def test_decoy_scripts_package_on_pythonpath_cannot_shadow_the_harness(self):
+        import shutil
+        import tempfile
+        decoy = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, decoy, True)
+        os.makedirs(os.path.join(decoy, "scripts"))
+        open(os.path.join(decoy, "scripts", "__init__.py"), "w").close()
+        env = dict(os.environ, PYTHONPATH=decoy)
+        proc = subprocess.run([sys.executable, RUN_PY, "controls", "--set", SET_DIR],
+                              capture_output=True, text=True, env=env)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("controls: PASS", proc.stdout)
 
 
 class RetrieverTests(unittest.TestCase):

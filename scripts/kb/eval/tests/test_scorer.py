@@ -13,6 +13,9 @@ def rec(path, a, b, **extra):
     return out
 
 
+PINNED_SEED_1 = (-0.1875, 0.625)
+
+
 def full(groups):
     return {"grade": "full", "targets": groups}
 
@@ -83,6 +86,13 @@ class QuestionMetricTests(unittest.TestCase):
         self.assertEqual(m["file@5"], 1.0)
         self.assertEqual(m["sec@5"], 0.0)
 
+    def test_file_at_k_and_semantics_needs_every_group_file(self):
+        label = full([[loc("a.md", 1, 1)], [loc("b.md", 1, 1)]])
+        ranking = [rec("a.md", 50, 51), rec("a.md", 1, 1)]
+        m = scorer.score_question(ranking, label)
+        self.assertEqual(m["file@5"], 0.0)
+        self.assertEqual(m["file@10"], 0.0)
+
     def test_empty_ranking_scores_zero(self):
         m = scorer.score_question([], full([[loc("a.md", 1, 1)]]))
         self.assertEqual(set(m), set(scorer.METRICS))
@@ -138,6 +148,15 @@ class BootstrapTests(unittest.TestCase):
         second = scorer.paired_bootstrap(a, b, seed=7, resamples=2000)
         self.assertEqual(first, second)
         self.assertEqual((first["wins"], first["losses"], first["ties"]), (3, 0, 3))
+
+    def test_seed_changes_the_interval_and_is_pinned(self):
+        a = [1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.5]
+        b = [0.0, 0.0, 1.0, 1.0, 0.0, 0.5, 0.0, 0.0]
+        one = scorer.paired_bootstrap(a, b, seed=1, resamples=1000)
+        two = scorer.paired_bootstrap(a, b, seed=2, resamples=1000)
+        self.assertEqual((one["ci_low"], one["ci_high"]), PINNED_SEED_1)
+        self.assertNotEqual((one["ci_low"], one["ci_high"]), (two["ci_low"], two["ci_high"]))
+        self.assertEqual(one["mean_diff"], two["mean_diff"])
 
     def test_default_resamples_and_ci_brackets_mean(self):
         a = [1.0] * 8 + [0.0] * 2

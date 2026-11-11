@@ -296,9 +296,10 @@ Freeze a question set before scoring anything against it, and never tune a retri
 questions held out for testing: `score` refuses when the questions, labels or corpus differ
 from the freeze (`--allow-corpus-mismatch` overrides only the corpus check and records it
 in the output). `controls` must pass before a score is trusted: the oracle must reach
-sec@5 = 1.0, a retriever with every label hit removed must reach 0.0, and random must stay
-at or below 0.02. On a corpus as small as the test fixture the random bound holds for the
-default seed rather than by a wide margin; the command reports the analytic upper bound.
+sec@5 = 1.0, a retriever with every label hit removed must reach 0.0, and the random
+retriever, averaged over seeds 0 to 99, must score at most 1.5 times the analytic expected
+chance plus 0.005. The command prints the measured mean, the expected chance and the
+resulting threshold; `--seed` does not affect this control.
 
 ## Documentation governance
 

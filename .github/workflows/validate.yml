@@ -14,6 +14,8 @@ on:
       # at all until its tests landed: PRs touching only hooks/ reported zero
       # checks.
       - "hooks/**"
+      # A change to this gate must run it.
+      - ".github/workflows/validate.yml"
       - ".claude-plugin/**"
       - ".codex-plugin/**"
       - ".claude/skills"
@@ -36,6 +38,8 @@ on:
       # at all until its tests landed: PRs touching only hooks/ reported zero
       # checks.
       - "hooks/**"
+      # A change to this gate must run it.
+      - ".github/workflows/validate.yml"
       - ".claude-plugin/**"
       - ".codex-plugin/**"
       - ".claude/skills"
@@ -50,7 +54,9 @@ on:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    # Pinned rather than ubuntu-latest: the 3.9 floor check below needs a runner
+    # image that actions/setup-python still ships a Python 3.9 build for.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 

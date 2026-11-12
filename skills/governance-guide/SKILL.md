@@ -169,7 +169,7 @@ vote** with its own threshold (`Q5`, 0.51 by default per the developer portal, s
 # Register as a DRep
 cardano-cli latest governance drep registration-certificate \
   --drep-verification-key-file drep.vkey \
-  --key-reg-deposit-amt "$(cardano-cli latest query gov-state | jq -r .currentPParams.dRepDeposit)" \
+  --key-reg-deposit-amt "$(cardano-cli latest query gov-state --testnet-magic 1 | jq -r .currentPParams.dRepDeposit)" \
   --out-file drep-reg.cert
 
 # Create a vote

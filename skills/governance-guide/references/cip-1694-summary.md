@@ -27,7 +27,7 @@ CIP-1694 defines Cardano's on-chain governance mechanism, enacted in the Conway 
 
 ### Delegation
 
-A stake credential can delegate its voting power to exactly one DRep (or auto-DRep) at a time. Since the end of the bootstrap phase, a reward account whose stake credential is not delegated to a DRep or auto-DRep cannot withdraw its rewards. They are not lost, and become withdrawable as soon as the credential delegates:
+A stake credential can delegate its voting power to exactly one DRep (or auto-DRep) at a time. Since the end of the bootstrap phase (protocol versions 10 and 11), every key-hash stake credential in a transaction's withdrawals, including a zero-amount withdrawal, must be delegated to a DRep or an auto-DRep, or the transaction is rejected (`ConwayWdrlNotDelegatedToDRep`). Script-hash reward credentials are exempt. Undelegated rewards are not lost, and become withdrawable as soon as the credential delegates. [CIP-0181](../../../docs/sources/cips/CIP-0181/README.md) (Proposed) would remove this requirement. A credential delegates to one of:
 
 - **Specific DRep**: Your stake counts toward that DRep's voting power
 - **Abstain**: Your stake is excluded from the active voting stake used for DRep thresholds (it still counts as registered stake for incentives)
@@ -82,7 +82,7 @@ Seven types of governance actions can be proposed and voted on:
 - **Purpose**: Non-binding poll or sentiment check
 - **Votes**: CC, DReps and SPOs can all vote
 - **Thresholds**: DRep and SPO thresholds are both 100%. CIP-1694 sets them that
-  high so that support can be polled across the whole range, below the threshold
+  high because any lower threshold would make it impossible to poll support above it
 - **Effect**: Never ratified or enacted, it only records sentiment on-chain
 
 ## Voting Thresholds

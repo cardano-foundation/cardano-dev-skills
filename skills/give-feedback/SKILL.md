@@ -50,11 +50,18 @@ never filed; weak signals are cheap to close, missing ones cannot be recovered.
 
 ## Key principles
 
-1. **Scrub before showing.** Remove mnemonics, signing keys, API keys and project ids,
-   mainnet addresses, names, emails, home-directory paths, and private repo names.
-   Replace them with `<redacted>`.
-2. **Show the draft and ask once, in the same message.** After a yes, send. Do not
-   re-confirm. If the user edits ("drop that line", "wrong skill"), apply and send.
+1. **Scrub before showing.** Remove mnemonics; signing keys and any other private key
+   material in any encoding (`xprv...`, `ed25519_sk...`, the `cborHex` of a `.skey`
+   file); access tokens of any kind (GitHub tokens, provider and API keys, bearer and
+   JWT strings) and project ids; wallet passwords; mainnet addresses; names and emails;
+   internal hostnames, IP addresses and private URLs; home-directory paths and any
+   absolute path outside this repository; and private repo names. Replace them with
+   `<redacted>`.
+2. **Show the draft and ask, in the same message.** After a yes to the draft as shown,
+   send; do not re-confirm. After any change by the user, however minor it seems
+   ("drop that line", "wrong skill"), show the complete final draft again — title,
+   label and body — and ask again. Send only after a yes to the draft exactly as last
+   shown: approval of an earlier version does not cover an edited one.
 3. **The user's identity, the user's words.** The issue goes out under their `gh`
    login. Quote what actually happened; never invent evidence.
 4. **Send once.** One finding per issue; never retry after a success.
@@ -64,7 +71,11 @@ never filed; weak signals are cheap to close, missing ones cannot be recovered.
 Title: `[docs]`, `[topic]`, or `[feedback]` plus a short summary, with the label
 `documentation`, `enhancement`, or `feedback`. `[docs]` for anything wrong or stale,
 `[topic]` for something missing, `[feedback]` for praise, a prompt that missed, or
-general experience. One body shape for all three:
+general experience. The title is one line: replace any newline in it with a space
+while drafting, so the title shown is the title sent. Neither title nor body may
+contain a NUL byte (U+0000), which the shell drops silently: remove any while
+drafting, never after approval, so the draft shown is the draft sent. One body shape
+for all three:
 
 ```markdown
 ### Where
@@ -92,11 +103,16 @@ doc said, what happened, and what would have helped.
 
 Apply principle 1 to the title and the body.
 
-### Step 3: Draft and ask once
+### Step 3: Draft and ask
 
 In one message: the title, the label, and the body in a fenced block, then "Ready to
 file this as a **public** issue on cardano-foundation/cardano-dev-skills, under your
 GitHub account. OK, or want to tweak it?"
+
+If the user asks for any change, make it, then show the complete final draft again —
+title, label and body — with the same question. Send only after a yes to the draft
+exactly as last shown. What the user approves is what gets filed, so they must have
+seen it.
 
 Say public every time. The repository is public, the draft is built from a working
 session that may not be, and visibility — not authorship — is what makes an accidental
@@ -104,25 +120,39 @@ disclosure irreversible.
 
 ### Step 4: Send
 
-The body goes through stdin in a quoted heredoc, so it needs no shell quoting. The title
-is substituted into a double-quoted string, so it is one line of plain text with `` ` ``,
-`$`, `"` and `\` removed before substitution:
+The issue must be exactly the approved draft, title and body byte for byte, and no
+part of either may ever be evaluated by the shell, whatever the conversation put in
+them. The draft can carry `$(...)`, backticks or quotes copied from a log, so build
+the command this way and no other:
+
+- **Title**: one single-quoted shell word. Inside single quotes the shell expands
+  nothing, so the only change is writing each `'` as `'\''` (close the quote, an
+  escaped quote, reopen): `it's` becomes `'it'\''s'`. Remove nothing else.
+- **Body**: through stdin with `--body-file -`, in a quoted heredoc whose delimiter is
+  `CDS_FEEDBACK_` followed by 12 or more random hex characters chosen fresh for this
+  send. A quoted heredoc performs no expansion, so `$`, backticks and backslashes reach
+  `gh` as written; only a line equal to the delimiter can end it early. Before sending,
+  confirm no line of the NUL-free body that was shown equals the delimiter; if one
+  does, choose another. `gh` receives the body followed by one newline.
+- **Label**: `documentation`, `enhancement` or `feedback`, written as that literal.
+  The repository is always `-R cardano-foundation/cardano-dev-skills`.
 
 ```bash
 gh issue create -R cardano-foundation/cardano-dev-skills \
-  --title "[docs] skills/<name>/SKILL.md: <short summary>" \
+  --title '[docs] skills/<name>/SKILL.md: <short summary>' \
   --label documentation \
-  --body-file - <<'ISSUE_BODY'
+  --body-file - <<'CDS_FEEDBACK_<suffix>'
 ### Where
 ...
-ISSUE_BODY
+CDS_FEEDBACK_<suffix>
 ```
 
 If the host asks permission for the command, that prompt shows exactly what is being
-sent; proceed once it is approved, without re-asking in chat. If the command fails for
-any reason (no `gh`, not logged in, label rejected), say so in one line and give
+sent; proceed once it is approved, without re-asking in chat. If the command fails or
+cannot run (no `gh`, not logged in, network or sandbox denied, label rejected), say so
+in one line and give
 `https://github.com/cardano-foundation/cardano-dev-skills/issues/new/choose`; the draft
-above is what to paste.
+above is what to paste. Never retry a failed send in another form.
 
 ### Step 5: Report
 

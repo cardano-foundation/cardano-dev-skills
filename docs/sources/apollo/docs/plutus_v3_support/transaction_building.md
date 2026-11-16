@@ -27,7 +27,7 @@ func main() {
     }
     v3Script := common.PlutusV3Script(scriptBytes)
 
-    a := apollo.New(cc)
+    a := apollo.New(cc).SetMaxFee(2_000_000)
     a.AttachScript(v3Script) // auto-detected as V3
 }
 ```

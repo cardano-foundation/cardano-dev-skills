@@ -11,9 +11,12 @@ It also:
   `NetworkId()`).
 - Rejects a context network ID outside `{0, 1}`.
 - Returns the first error stored by fluent methods (`setErrOnce`).
+- Requires `SetMaxFee(lovelace)` to approve the final fee before building the
+  transaction. Use `SetMaxPaymentIncrease(lovelace)` if minimum-UTxO adjustment
+  may raise payment amounts.
 - May be called **once**. After success, `a.tx` is set.
 
-v1 `CompleteExact(fee)` is `SetFee(fee)` then `Complete()`.
+v1 `CompleteExact(fee)` is `SetFee(fee)`, `SetMaxFee(fee)`, then `Complete()`.
 `SetEstimateRequired()` is automatic when `CollectFrom` or `Mint` carries a
 redeemer.
 
@@ -29,6 +32,7 @@ txId, err := builder.Submit()         // chainContext.SubmitTx
 `Sign()` hashes the freshly encoded body (it does not trust a cached
 `Body.Id()` after `SetCbor`). Extra witnesses:
 `AddVerificationKeyWitness`, `SignWithSkey`.
+Both signing methods recheck the fee ceiling, including for loaded transactions.
 
 ## `LoadTxCbor`
 

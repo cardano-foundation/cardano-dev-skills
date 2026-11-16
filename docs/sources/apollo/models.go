@@ -114,8 +114,8 @@ type PaymentI interface {
 }
 
 // PaymentCloner is implemented by custom PaymentI implementations that can
-// produce an independent copy for Apollo.Clone. Apollo's built-in Payment
-// implementation is cloned directly.
+// produce an independent copy for Apollo.Clone and Complete. Apollo's built-in
+// Payment implementation is cloned directly.
 type PaymentCloner interface {
 	ClonePayment() (PaymentI, error)
 }

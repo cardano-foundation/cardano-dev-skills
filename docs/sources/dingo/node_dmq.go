@@ -237,13 +237,22 @@ func (n *Node) startDMQ() error {
 	if err != nil {
 		return fmt.Errorf("creating dmq authenticator: %w", err)
 	}
+	socketMode, err := internalconfig.ParseUnixSocketMode(cfg.SocketMode)
+	if err != nil {
+		return fmt.Errorf("invalid dmq socket mode: %w", err)
+	}
 	stack, err := dmq.NewStack(dmq.StackConfig{
-		Logger:       n.config.logger,
-		PromRegistry: n.retainedComponentPromRegistry(),
-		NetworkMagic: cfg.NetworkMagic,
-		SocketPath:   cfg.SocketPath,
+		Logger:        n.config.logger,
+		PromRegistry:  n.retainedComponentPromRegistry(),
+		NetworkMagic:  cfg.NetworkMagic,
+		SocketPath:    cfg.SocketPath,
+		SocketMode:    socketMode,
+		SocketModeSet: true,
 		// #nosec G115 -- validation bounds both to fit int64 once scaled
 		MessageTTL: time.Duration(cfg.MessageTTL) * time.Second,
+		MinPoolMessageInterval: dmqMinPoolMessageInterval(
+			cfg.MinPoolMessageInterval,
+		),
 		// #nosec G115 -- validation bounds both to fit int64 once scaled
 		MaxMempoolBytes:  int64(cfg.MaxMempoolSize) << 20,
 		Authenticator:    authenticator,
@@ -327,4 +336,15 @@ func clampToInt(v uint) int {
 		return math.MaxInt32
 	}
 	return int(v) // #nosec G115 -- bounded just above
+}
+
+// dmqMinPoolMessageInterval converts the configured seconds into the stack's
+// setting, where zero would mean the default and a negative value turns the
+// spacing off.
+func dmqMinPoolMessageInterval(seconds uint) time.Duration {
+	if seconds == 0 {
+		return -1
+	}
+	// #nosec G115 -- validation bounds it to fit int64 once scaled
+	return time.Duration(seconds) * time.Second
 }

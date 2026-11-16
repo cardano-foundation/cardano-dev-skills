@@ -108,9 +108,10 @@ type KoiosParityConfig struct {
 	APIKey string
 	// Strict stops/cancels the node on the first Koios/tool error or
 	// non-pass parity result, rather than logging it and continuing normal
-	// operation. The one exception is an epoch whose only significant
-	// mismatches are reference_lag (Koios's data has not caught up yet),
-	// which is logged and recorded but never stops the node.
+	// operation. The exceptions are an epoch whose only significant
+	// mismatches are reference_lag (Koios's data has not caught up yet) and
+	// a fetch that fails on Koios's daily quota; both are logged and
+	// recorded, and the epoch is retried, but neither stops the node.
 	Strict bool
 	// GraceHours is the window after an epoch closes during which a missing
 	// Dingo-side row is treated as reference/sync lag rather than a
@@ -214,11 +215,14 @@ type Config struct {
 	listeners         []ListenerConfig
 
 	// Programmatic API-only fields (not in YAML/env):
-	tracing             bool
-	tracingStdout       bool
-	tracingEndpoint     string
-	tracingServiceName  string
-	tracingSampleRatio  float64
+	tracing            bool
+	tracingStdout      bool
+	tracingEndpoint    string
+	tracingServiceName string
+	tracingSampleRatio float64
+
+	tracingAlwaysSamplePools []string
+
 	ledgerPeerTarget    int
 	leiosPipelineTiming *leios.PipelineTiming
 	// Runtime-only, programmatic offchain metadata config (preserves HTTPClient)
@@ -279,13 +283,23 @@ type Config struct {
 	inboundDuplexOnlyForHot                                                             bool
 	maxConnectionsPerIP, maxInboundConns, maxNtCConns, maxNtCConnectionsPerIP           int
 	maxTrustedLocalNtCConns                                                             int
+	trustedNtCIdleTimeout                                                               time.Duration
 	genesisBootstrap                                                                    bool
 	genesisWindowSlots                                                                  uint64
+	onGenesisSelectionResolved                                                          func(genesisSelectionMode bool)
 	genesisCorroborationPeers                                                           int
+	genesisChainSyncJumping                                                             bool
 	blockProducer                                                                       bool
 	shelleyVRFKey, shelleyKESKey, shelleyOperationalCertificate                         string
 	shelleyKESAgentSocket, shelleyKESAgentMode                                          string
 	shelleyKESAgentSignTimeout                                                          time.Duration
+	shelleyKeyWatchInterval                                                             time.Duration
+	shelleyKESAgentAddress, shelleyKESAgentClientCertFile, shelleyKESAgentClientKeyFile string
+	shelleyKESAgentServerSPKISHA256                                                     string
+	blockProducerPools                                                                  []BlockProducerPool
+	shelleyKESAgentPlaintext                                                            bool
+	shelleyKESAgentProfile                                                              string
+	shelleyKESAgentAddresses                                                            []string
 	forgeSyncToleranceSlots, forgeStaleGapThresholdSlots                                uint64
 	forgeUpstreamStalenessSlots, forgeAppliedTipStalenessSlots                          uint64
 	forgeEndorserBlockStalenessSlots                                                    uint64
@@ -299,6 +313,7 @@ type Config struct {
 	ledgerApplyRowBatchingEnabled                                                       bool
 	blockfetchLowWatermarkEnabled                                                       bool
 	minPoolMargin                                                                       uint
+	cip0203Enabled                                                                      bool
 	pledgeLeverageEnabled                                                               bool
 	pledgeLeverage                                                                      uint
 	fullPotRewardsEnabled, unsafeFullPotRewardsOnStandardNetworks                       bool
@@ -339,6 +354,9 @@ func (n *Node) configPopulateNetworkMagic() error {
 func (n *Node) configWrapPromRegistry() {
 	if n.config.promRegistry == nil {
 		return
+	}
+	if g, ok := n.config.promRegistry.(prometheus.Gatherer); ok {
+		n.promGatherer = g
 	}
 	// Determine the network name: prefer the configured name, fall back to
 	// reverse-lookup by network magic.
@@ -544,12 +562,35 @@ func (c *Config) experimentalLeiosNetworkingEnabled() bool {
 		c.cfg.StartEra.IsDijkstra()
 }
 
+// leiosForgingEnabled reports whether the forger emits the ouroboros-leios
+// prototype header extension (the 12-field Dijkstra header body) on every
+// ranking block and produces endorser blocks. Only a network that runs the
+// Leios prototype expects that header: Musashi, or an explicit leios run
+// mode. A Dijkstra start era is not a Leios opt-in here, because it is also
+// how a plain Dijkstra devnet starts, and cardano-node peers on such a chain
+// decode only the 10-field Praos header body.
+func (c *Config) leiosForgingEnabled() bool {
+	if c.cfg == nil {
+		return false
+	}
+	return c.isMusashiNetwork() ||
+		c.cfg.RunMode == internalconfig.RunModeLeios
+}
+
 // experimentalDijkstraEnabled reports whether the Dijkstra ledger era is
-// active. Beyond the explicit opt-ins, the Musashi and Dijkstra testnets
-// hard-fork into Dijkstra, so syncing either requires the Dijkstra era table.
-// DijkstraNet keeps the base Ouroboros protocols unless Leios is explicitly
-// enabled.
-func (c *Config) experimentalDijkstraEnabled() bool {
+// active. It is active on every network: a node that serves a chain carrying
+// Dijkstra's hard fork, or a private network that schedules it, must know the
+// era, and without a Dijkstra block or an enacted hard fork the era is never
+// entered. Leios runtime components stay gated by leiosRuntimeEnabled.
+func (*Config) experimentalDijkstraEnabled() bool {
+	return true
+}
+
+// leiosRuntimeEnabled reports whether the Leios vote and pipeline managers
+// run. Beyond the explicit opt-ins, the Musashi and Dijkstra testnets
+// hard-fork into Dijkstra and run them. DijkstraNet keeps the base Ouroboros
+// protocols unless Leios is explicitly enabled.
+func (c *Config) leiosRuntimeEnabled() bool {
 	if c.cfg == nil {
 		return false
 	}
@@ -559,6 +600,9 @@ func (c *Config) experimentalDijkstraEnabled() bool {
 }
 
 func (n *Node) configValidate() error {
+	if _, err := version.HeaderProtocolMinor(n.config.cfg.CIP0203Enabled); err != nil {
+		return err
+	}
 	// Default storageMode to "core" when unset, and validate.
 	storageMode := StorageMode(n.config.cfg.StorageMode)
 	if storageMode == "" {
@@ -578,6 +622,16 @@ func (n *Node) configValidate() error {
 			"invalid start era %q: must be empty or %q",
 			n.config.cfg.StartEra,
 			internalconfig.StartEraDijkstra,
+		)
+	}
+	if len(n.config.cfg.BlockProducerPools) > 0 &&
+		n.config.cfg.HasSinglePoolKeys() {
+		return errors.New(
+			"WithBlockProducerPools replaces WithShelleyVRFKey, " +
+				"WithShelleyKESKey, WithShelleyOperationalCertificate, " +
+				"WithShelleyKESAgentSocket, WithShelleyKESAgentMode, " +
+				"WithShelleyKESAgentRemote, WithShelleyKESAgentPlaintext and " +
+				"WithShelleyKESAgentProfile; set them in each pool",
 		)
 	}
 	if n.config.cfg.MinPoolMargin > 10_000 {
@@ -824,7 +878,6 @@ func NewConfig(opts ...ConfigOptionFunc) Config {
 		// Default logger will throw away logs
 		// We do this so we don't have to add guards around every log operation
 		logger:             slog.New(slog.NewJSONHandler(io.Discard, nil)),
-		tracingServiceName: "dingo",
 		tracingSampleRatio: 1,
 	}
 	// Apply options
@@ -968,9 +1021,18 @@ func (c *Config) syncCompatFields() {
 	c.maxConnectionsPerIP, c.maxInboundConns = c.cfg.MaxConnectionsPerIP, c.cfg.MaxInboundConns
 	c.maxNtCConns, c.maxNtCConnectionsPerIP = c.cfg.MaxNtCConns, c.cfg.MaxNtCConnectionsPerIP
 	c.maxTrustedLocalNtCConns = c.cfg.MaxTrustedLocalNtCConns
+	c.trustedNtCIdleTimeout = c.cfg.TrustedNtCIdleTimeout
 	c.genesisBootstrap, c.genesisWindowSlots, c.genesisCorroborationPeers = c.cfg.GenesisBootstrap.Enabled, c.cfg.GenesisBootstrap.WindowSlots, c.cfg.GenesisBootstrap.CorroborationPeers
+	c.genesisChainSyncJumping = c.cfg.GenesisBootstrap.ChainSyncJumping
 	c.blockProducer, c.shelleyVRFKey, c.shelleyKESKey, c.shelleyOperationalCertificate = c.cfg.BlockProducer, c.cfg.ShelleyVRFKey, c.cfg.ShelleyKESKey, c.cfg.ShelleyOperationalCertificate
 	c.shelleyKESAgentSocket, c.shelleyKESAgentMode, c.shelleyKESAgentSignTimeout = c.cfg.ShelleyKESAgentSocket, c.cfg.ShelleyKESAgentMode, c.cfg.ShelleyKESAgentSignTimeout
+	c.shelleyKESAgentAddress, c.shelleyKESAgentClientCertFile, c.shelleyKESAgentClientKeyFile = c.cfg.ShelleyKESAgentAddress, c.cfg.ShelleyKESAgentClientCertFile, c.cfg.ShelleyKESAgentClientKeyFile
+	c.shelleyKESAgentServerSPKISHA256 = c.cfg.ShelleyKESAgentServerSPKISHA256
+	c.shelleyKeyWatchInterval = c.cfg.ShelleyKeyWatchInterval
+	c.blockProducerPools = slices.Clone(c.cfg.BlockProducerPools)
+	c.shelleyKESAgentPlaintext = c.cfg.ShelleyKESAgentPlaintext
+	c.shelleyKESAgentProfile = c.cfg.ShelleyKESAgentProfile
+	c.shelleyKESAgentAddresses = slices.Clone(c.cfg.ShelleyKESAgentAddresses)
 	c.forgeSyncToleranceSlots, c.forgeStaleGapThresholdSlots, c.validateForgedBlock = c.cfg.ForgeSyncToleranceSlots, c.cfg.ForgeStaleGapThresholdSlots, c.cfg.ValidateForgedBlock
 	c.forgeUpstreamStalenessSlots, c.forgeAppliedTipStalenessSlots = c.cfg.ForgeUpstreamStalenessSlots, c.cfg.ForgeAppliedTipStalenessSlots
 	c.forgeEndorserBlockStalenessSlots = c.cfg.ForgeEndorserBlockStalenessSlots
@@ -982,6 +1044,7 @@ func (c *Config) syncCompatFields() {
 	c.ledgerValidateAheadEnabled = c.cfg.LedgerValidateAheadEnabled
 	c.ledgerApplyRowBatchingEnabled = c.cfg.LedgerApplyRowBatchingEnabled
 	c.blockfetchLowWatermarkEnabled = c.cfg.BlockfetchLowWatermarkEnabled
+	c.cip0203Enabled = c.cfg.CIP0203Enabled
 	c.minPoolMargin, c.pledgeLeverageEnabled, c.pledgeLeverage = c.cfg.MinPoolMargin, c.cfg.PledgeLeverageEnabled, c.cfg.PledgeLeverage
 	c.fullPotRewardsEnabled, c.unsafeFullPotRewardsOnStandardNetworks = c.cfg.FullPotRewardsEnabled, c.cfg.UnsafeFullPotRewardsOnStandardNetworks
 	c.delegatorInactivityEnabled, c.delegatorInactivity = c.cfg.DelegatorInactivityEnabled, c.cfg.DelegatorInactivity
@@ -1062,17 +1125,29 @@ func clonePluginConfig(in map[string]any) map[string]any {
 	return out
 }
 
-// WithGenesisControlGroups replaces network relay control defaults. An empty
-// non-nil slice disables defaults; nil selects the network defaults.
-func WithGenesisControlGroups(groups []topology.PeerControlGroup) ConfigOptionFunc {
+// WithGenesisControlGroups sets the trusted relay operator groups that form the
+// exclusive Genesis witness set. Dingo supplies no network defaults, so nil and
+// an empty slice both leave witness identities to the ledger, a peer snapshot,
+// or the connection address. The option copies its input.
+func WithGenesisControlGroups(
+	groups []topology.PeerControlGroup,
+) ConfigOptionFunc {
 	owned := topology.ClonePeerControlGroups(groups)
 	return func(c *Config) {
-		c.cfg.GenesisBootstrap.ControlGroups = topology.ClonePeerControlGroups(owned)
+		c.cfg.GenesisBootstrap.ControlGroups = topology.ClonePeerControlGroups(
+			owned,
+		)
 	}
 }
 
 func WithGenesisCorroborationPeers(peers int) ConfigOptionFunc {
 	return func(c *Config) { c.cfg.GenesisBootstrap.CorroborationPeers = peers }
+}
+
+// WithGenesisChainSyncJumping turns ChainSync Jumping on or off for Genesis
+// selection.
+func WithGenesisChainSyncJumping(enabled bool) ConfigOptionFunc {
+	return func(c *Config) { c.cfg.GenesisBootstrap.ChainSyncJumping = enabled }
 }
 
 // WithGenesisLimitOnPatience configures the Genesis Limit on Patience for
@@ -1087,6 +1162,17 @@ func WithGenesisLimitOnPatience(
 		c.cfg.GenesisBootstrap.LimitOnPatienceEnabled = enabled
 		c.cfg.GenesisBootstrap.LimitOnPatienceCapacity = capacity
 		c.cfg.GenesisBootstrap.LimitOnPatienceRate = rate
+	}
+}
+
+// WithCIP0203 enables build-version signalling in forged block headers.
+func WithCIP0203(enabled bool) ConfigOptionFunc {
+	return func(c *Config) {
+		if c.cfg == nil {
+			*c = NewConfig()
+		}
+		c.cfg.CIP0203Enabled = enabled
+		c.cip0203Enabled = enabled
 	}
 }
 
@@ -1176,6 +1262,9 @@ func NewConfigFromInternal(
 		tracingEndpoint:       cfg.TracingEndpoint,
 		tracingServiceName:    cfg.TracingServiceName,
 		tracingSampleRatio:    cfg.TracingSampleRatio,
+
+		tracingAlwaysSamplePools: cfg.TracingAlwaysSamplePools,
+
 		// The loaded config already resolved the capacity default from its
 		// run mode and network.
 		mempoolCapacitySet: true,
@@ -1354,6 +1443,14 @@ func WithTracingServiceName(name string) ConfigOptionFunc {
 func WithTracingSampleRatio(ratio float64) ConfigOptionFunc {
 	return func(c *Config) {
 		c.tracingSampleRatio = ratio
+	}
+}
+
+// WithTracingAlwaysSamplePools sets the stake pool IDs, bech32 or hex key
+// hash, whose blocks are traced regardless of the sample ratio.
+func WithTracingAlwaysSamplePools(pools []string) ConfigOptionFunc {
+	return func(c *Config) {
+		c.tracingAlwaysSamplePools = pools
 	}
 }
 
@@ -1623,6 +1720,17 @@ func WithMaxTrustedLocalNtCConns(n int) ConfigOptionFunc {
 	}
 }
 
+// WithTrustedNtCIdleTimeout specifies how long a trusted local
+// node-to-client connection may stay idle before it is closed. Zero means no
+// limit and negative values are ignored. Default: 0.
+func WithTrustedNtCIdleTimeout(d time.Duration) ConfigOptionFunc {
+	return func(c *Config) {
+		if d >= 0 {
+			c.cfg.TrustedNtCIdleTimeout = d
+		}
+	}
+}
+
 // WithSkipRewardLiveStakeBackfillCheck skips the startup scan that verifies
 // reward live-stake rows against the full UTxO table.
 func WithSkipRewardLiveStakeBackfillCheck(skip bool) ConfigOptionFunc {
@@ -1714,6 +1822,90 @@ func WithShelleyKESAgentSignTimeout(timeout time.Duration) ConfigOptionFunc {
 	}
 }
 
+// WithShelleyKeyWatchInterval makes a block producer poll its credential
+// files (CARDANO_SHELLEY_KEY_WATCH_INTERVAL) and reload them in place, as on
+// SIGHUP, once a change has held for two polls. It lets a mounted Secret be
+// rotated without a restart. 0, the default, disables the watch; the dingo
+// command's config validation refuses a non-zero value below 1s, which this
+// option does not check. The watch runs with local key files and with a
+// KES agent in sign mode. In KES agent serve-key mode, where the agent pushes
+// key rotations, it is ignored and a warning is logged.
+func WithShelleyKeyWatchInterval(interval time.Duration) ConfigOptionFunc {
+	return func(c *Config) {
+		c.cfg.ShelleyKeyWatchInterval = interval
+	}
+}
+
+// WithShelleyKESAgentRemote signs block headers through a bursa KES agent's
+// remote sign listener at address (host:port)
+// (CARDANO_SHELLEY_KES_AGENT_ADDRESS) over TLS 1.3. serverSPKISHA256 is the
+// optional hex SHA-256 of the agent's server SubjectPublicKeyInfo, which pins
+// the agent; without it the agent's certificate is verified with standard
+// x509. certFile and keyFile are this node's optional PEM client certificate
+// and key, set as a pair. It replaces WithShelleyKESAgentSocket and implies
+// sign mode; WithShelleyKESAgentPlaintext selects plain TCP instead of TLS.
+func WithShelleyKESAgentRemote(
+	address, certFile, keyFile, serverSPKISHA256 string,
+) ConfigOptionFunc {
+	return func(c *Config) {
+		c.cfg.ShelleyKESAgentAddress = address
+		c.cfg.ShelleyKESAgentClientCertFile = certFile
+		c.cfg.ShelleyKESAgentClientKeyFile = keyFile
+		c.cfg.ShelleyKESAgentServerSPKISHA256 = serverSPKISHA256
+	}
+}
+
+// BlockProducerPool is one pool a block producer forges for: its VRF key and
+// operational certificate files and one KES source.
+type BlockProducerPool = internalconfig.BlockProducerPool
+
+// WithBlockProducerPools lists every pool this block producer forges for, each
+// with its own VRF key, operational certificate and KES source. It replaces
+// the single-pool WithShelleyVRFKey, WithShelleyKESKey,
+// WithShelleyOperationalCertificate, WithShelleyKESAgentSocket,
+// WithShelleyKESAgentMode, WithShelleyKESAgentRemote,
+// WithShelleyKESAgentPlaintext and WithShelleyKESAgentProfile options; New
+// refuses a config that sets any of them beside the pools.
+// WithShelleyKESAgentSignTimeout and WithShelleyKeyWatchInterval apply to
+// every pool.
+func WithBlockProducerPools(pools ...BlockProducerPool) ConfigOptionFunc {
+	return func(c *Config) {
+		c.cfg.BlockProducerPools = slices.Clone(pools)
+	}
+}
+
+// WithShelleyKESAgentPlaintext runs the remote KES agent link over plain TCP
+// (CARDANO_SHELLEY_KES_AGENT_PLAINTEXT), for setups where something else
+// secures it, such as a service mesh sidecar. A server pin and a client
+// certificate need TLS, so it takes neither.
+func WithShelleyKESAgentPlaintext(plaintext bool) ConfigOptionFunc {
+	return func(c *Config) {
+		c.cfg.ShelleyKESAgentPlaintext = plaintext
+	}
+}
+
+// WithShelleyKESAgentAddresses lists the remote KES agents in order
+// (CARDANO_SHELLEY_KES_AGENT_ADDRESSES). The node signs through the first one
+// that admits it and moves to the next when a sign fails on the link,
+// keeping that next one admitted ahead of each leader slot. It replaces the
+// address of WithShelleyKESAgentRemote, which is the same as a one-entry
+// list; the transport settings apply to every address.
+func WithShelleyKESAgentAddresses(addresses ...string) ConfigOptionFunc {
+	return func(c *Config) {
+		c.cfg.ShelleyKESAgentAddresses = slices.Clone(addresses)
+	}
+}
+
+// WithShelleyKESAgentProfile names the remote KES agent profile to sign for
+// (CARDANO_SHELLEY_KES_AGENT_PROFILE), sent when the agent admits a session.
+// An agent that serves several pools on one listener binds each session to
+// the profile it names; one with a single profile needs none.
+func WithShelleyKESAgentProfile(profile string) ConfigOptionFunc {
+	return func(c *Config) {
+		c.cfg.ShelleyKESAgentProfile = profile
+	}
+}
+
 // WithLeiosVoteSigningKeyFile specifies the path to a hex-encoded BLS12-381
 // Leios vote signing key (DINGO_LEIOS_VOTE_SIGNING_KEY_FILE). When set on a
 // block producer whose pool is a Leios committee member, the node emits
@@ -1724,9 +1916,10 @@ func WithLeiosVoteSigningKeyFile(path string) ConfigOptionFunc {
 	}
 }
 
-// WithLeiosPersistenceRetentionSlots sets the number of slots of persisted
-// Leios endorser-block history retained for historical serving. Zero keeps all
-// persisted history.
+// WithLeiosPersistenceRetentionSlots sets the number of slots of uncertified
+// Leios endorser-block history retained for historical serving. Zero prunes an
+// uncertified endorser block once the immutable point passes its slot.
+// Certified endorser blocks are always retained.
 func WithLeiosPersistenceRetentionSlots(slots uint64) ConfigOptionFunc {
 	return func(c *Config) {
 		c.cfg.LeiosPersistenceRetentionSlots = slots
@@ -1736,8 +1929,9 @@ func WithLeiosPersistenceRetentionSlots(slots uint64) ConfigOptionFunc {
 // WithLeiosPipelineTiming overrides the provisional Leios pipeline stage
 // timing windows. CIP-0164 has not finalized these parameters, so they are
 // kept off-chain and overridable here rather than as protocol parameters.
-// When unset, leios.DefaultPipelineTiming applies. Experimental, leios
-// runMode only.
+// When unset, the one-second reference defaults are converted to the Shelley
+// slot duration, rounding up to whole slots. Explicit overrides remain slot
+// counts. Experimental, leios runMode only.
 func WithLeiosPipelineTiming(timing leios.PipelineTiming) ConfigOptionFunc {
 	return func(c *Config) {
 		t := timing
@@ -1967,9 +2161,8 @@ func WithBarkHost(host string) ConfigOptionFunc {
 	}
 }
 
-// WithBarkClientCAFilePath sets the PEM CA bundle Bark uses to authenticate
-// every DatabaseService and LifecycleService caller. Destructive methods
-// additionally require their service's operator allowlist.
+// WithBarkClientCAFilePath retains the legacy input.
+// It does not enable authentication or authorization.
 func WithBarkClientCAFilePath(path string) ConfigOptionFunc {
 	return func(c *Config) {
 		c.cfg.BarkClientCAFilePath = path
@@ -2006,8 +2199,8 @@ func WithBarkArchiveCallerLookupsPerSecond(rate int) ConfigOptionFunc {
 	}
 }
 
-// WithBarkOperatorCertificateFingerprints sets the SHA-256 client certificate
-// fingerprints authorized to invoke destructive DatabaseService RPCs.
+// WithBarkOperatorCertificateFingerprints retains the legacy input.
+// It does not enable authentication or authorization.
 func WithBarkOperatorCertificateFingerprints(
 	fingerprints []string,
 ) ConfigOptionFunc {
@@ -2026,8 +2219,8 @@ func WithBarkLifecycleEnabled(enabled bool) ConfigOptionFunc {
 	}
 }
 
-// WithBarkLifecycleOperatorCertificateFingerprints sets the SHA-256 client
-// certificate fingerprints authorized to invoke Bark Stop and Restart RPCs.
+// WithBarkLifecycleOperatorCertificateFingerprints retains the legacy input.
+// It does not enable authentication or authorization.
 func WithBarkLifecycleOperatorCertificateFingerprints(
 	fingerprints []string,
 ) ConfigOptionFunc {
@@ -2400,8 +2593,8 @@ func (c *Config) BarkBlockDownloadAllowPrivateAddresses() bool {
 	return c.cfg.BarkBlockDownloadAllowPrivateAddresses
 }
 
-// BarkOperatorCertificateFingerprints returns the SHA-256 client certificate
-// fingerprints authorized to invoke destructive Bark DatabaseService RPCs.
+// BarkOperatorCertificateFingerprints retains the legacy input.
+// It does not enable authentication or authorization.
 func (c *Config) BarkOperatorCertificateFingerprints() []string {
 	return slices.Clone(c.cfg.BarkOperatorCertificateFingerprints)
 }
@@ -2424,8 +2617,8 @@ func (c *Config) BarkLifecycleEnabled() bool {
 	return c.cfg.BarkLifecycleEnabled
 }
 
-// BarkLifecycleOperatorCertificateFingerprints returns the distinct operator
-// allowlist for Bark Stop and Restart RPCs.
+// BarkLifecycleOperatorCertificateFingerprints retains the legacy input.
+// It does not enable authentication or authorization.
 func (c *Config) BarkLifecycleOperatorCertificateFingerprints() []string {
 	return slices.Clone(c.cfg.BarkLifecycleOperatorCertificateFingerprints)
 }
@@ -2816,6 +3009,15 @@ func (c *Config) ShelleyOperationalCertificate() string {
 	return c.cfg.ShelleyOperationalCertificate
 }
 
+// BlockProducerPools returns a copy of the pools listed with
+// WithBlockProducerPools, or nil when the single-pool settings are used.
+func (c *Config) BlockProducerPools() []BlockProducerPool {
+	if len(c.cfg.BlockProducerPools) == 0 {
+		return nil
+	}
+	return slices.Clone(c.cfg.BlockProducerPools)
+}
+
 // ForgeSyncToleranceSlots returns the sync tolerance for block forging.
 func (c *Config) ForgeSyncToleranceSlots() uint64 {
 	return c.cfg.ForgeSyncToleranceSlots
@@ -2938,14 +3140,24 @@ func (c *Config) CardanoNodeConfig() *cardano.CardanoNodeConfig {
 	return c.cardanoNodeConfig
 }
 
-// genesisSelectionMode reports whether the chain selector starts in Genesis
-// mode: Genesis bootstrap is enabled, the sync starts from origin, and the
-// Cardano node configuration does not name PraosMode.
-func (c *Config) genesisSelectionMode() bool {
+// genesisSelectionEligible reports whether the Genesis state machine runs at
+// all: Genesis bootstrap is enabled, no explicit intersection is configured,
+// and the Cardano node configuration does not name PraosMode. Whether the
+// selector starts in Genesis mode additionally depends on the caught-up marker
+// (see initialGenesisSelectionMode).
+func (c *Config) genesisSelectionEligible() bool {
 	return c.genesisBootstrap &&
 		!c.intersectTip &&
 		len(c.intersectPoints) == 0 &&
 		!c.cardanoNodeConfig.PraosConsensusMode()
+}
+
+// WithGenesisSelectionResolved registers fn to receive the mode the chain
+// selector actually starts in, once the node has resolved it from the
+// configuration and the caught-up marker. It is called once per node start,
+// before the selector is built.
+func WithGenesisSelectionResolved(fn func(genesisSelectionMode bool)) ConfigOptionFunc {
+	return func(c *Config) { c.onGenesisSelectionResolved = fn }
 }
 
 // TopologyConfig returns the loaded topology configuration.

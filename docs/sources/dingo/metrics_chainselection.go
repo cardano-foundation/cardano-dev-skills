@@ -20,6 +20,7 @@ import (
 	"github.com/blinklabs-io/dingo/chainselection"
 	"github.com/blinklabs-io/dingo/internal/chainsyncrecycler"
 	"github.com/blinklabs-io/dingo/internal/promutil"
+	"github.com/blinklabs-io/dingo/peergov"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -146,12 +147,23 @@ func (n *Node) registerChainSelectionMetrics(r *promutil.Registration) {
 // It reads chainSelectorForGauges rather than chainSelector because the gauges
 // are registered in New, before Run creates the selector, and a scrape may
 // race that assignment.
+//
+// A scrape must not wait for the ledger to finish a block batch, which can
+// take tens of seconds, so while one is applying it reports the last limit
+// read while the ledger was stable.
 func (n *Node) eagernessLimitGauge(slot bool) float64 {
 	selector := n.chainSelectorForGauges.Load()
 	if selector == nil {
 		return 0
 	}
-	limit := selector.EagernessLimit()
+	limit, ok := selector.TryEagernessLimit()
+	if ok {
+		n.lastEagernessLimit.Store(&limit)
+	} else if last := n.lastEagernessLimit.Load(); last != nil {
+		limit = *last
+	} else {
+		return 0
+	}
 	if !limit.Active {
 		return 0
 	}
@@ -259,9 +271,18 @@ func (n *Node) onGenesisDensityDisconnect(
 	if n.connManager == nil {
 		return
 	}
-	if conn := n.connManager.GetConnectionById(d.ConnectionId); conn != nil {
-		conn.Close()
+	conn := n.connManager.GetConnectionById(d.ConnectionId)
+	if conn == nil {
+		return
 	}
+	if d.EagernessStandoff {
+		_ = n.connManager.CloseConnectionWithReason(
+			conn,
+			peergov.CloseReasonEagernessStandoffLost,
+		)
+		return
+	}
+	conn.Close()
 }
 
 // denyPeer applies a denial to the current peer governor. Live database

@@ -143,6 +143,14 @@ func (n *Node) quiesceComponentStops() []namedStop {
 			stop: func() error { n.dmqStake.setLedgerState(nil); return nil },
 		})
 	}
+	// The other pools first: each stops its own forger, agent client,
+	// election and keys, in the order the first pool's stops below use.
+	if n.multiPool.arbiter != nil {
+		stops = append(stops, namedStop{
+			name: "other block producer pools",
+			stop: n.stopPoolProducers,
+		})
+	}
 	if n.blockForger != nil {
 		stops = append(stops, namedStop{
 			name: "block forger",
@@ -570,8 +578,13 @@ func (n *Node) closeStorageForLiveLifecycleOp(ctx context.Context) error {
 		select {
 		case <-n.deferredIndexMaintenanceDone:
 		case <-ctx.Done():
+			// The maintenance goroutine may still be writing the metadata
+			// store. Durable providers below close to completion whatever
+			// ctx says, so nothing later in this function reports the
+			// drain as unconfirmed on this goroutine's behalf.
 			err = errors.Join(
 				err,
+				errStorageDrainUnconfirmed,
 				fmt.Errorf(
 					"deferred-index maintenance shutdown: %w",
 					ctx.Err(),
@@ -874,7 +887,7 @@ func (n *Node) reinitializeBackgroundManagers(ctx context.Context) error {
 		)
 	}
 
-	if n.config.experimentalDijkstraEnabled() {
+	if n.config.leiosRuntimeEnabled() {
 		if err := n.initLeiosVoteManager(n.ctx); err != nil { //nolint:contextcheck
 			return fmt.Errorf(
 				"failed to reinitialize leios vote manager: %w",
@@ -1004,7 +1017,7 @@ func (n *Node) reinitializeNetworkingCore(ctx context.Context) error {
 	// disabled. This matches Run's own long-lived subscription.
 	n.ouroboros().SubscribeChainsyncResync(n.ctx) //nolint:contextcheck
 
-	genesisSelectionMode := n.config.genesisSelectionMode()
+	genesisSelectionMode := n.config.genesisSelectionEligible()
 	if n.config.topologyConfig != nil {
 		topologyConfig := n.config.topologyConfig
 		usePeerSnapshot := genesisSelectionMode &&
@@ -1253,6 +1266,10 @@ func (n *Node) reinitializeBlockProducer() (retErr error) {
 	if !n.config.blockProducer {
 		return nil
 	}
+	if err := n.prepareMultiPool(); err != nil {
+		return fmt.Errorf("block producer pools: %w", err)
+	}
+	watchBaseline := n.credentialWatchBaseline()
 	creds, err := n.validateBlockProducerStartup()
 	if err != nil {
 		return fmt.Errorf("block producer startup validation failed: %w", err)
@@ -1285,11 +1302,15 @@ func (n *Node) reinitializeBlockProducer() (retErr error) {
 	if err := n.enableLeiosVoting(creds); err != nil {
 		return fmt.Errorf("failed to enable leios voting: %w", err)
 	}
-	if n.blockForger != nil {
-		n.ledgerState.SetForgedBlockChecker(n.blockForger.SlotTracker())
-		n.ledgerState.SetForgingEnabled(true)
-		n.ledgerState.SetSlotBattleRecorder(n.blockForger)
+	//nolint:contextcheck // n.ctx is the node's lifecycle context, the forgers' parent
+	if err := n.startPoolProducers(n.ctx); err != nil {
+		return fmt.Errorf("failed to restart block producer pools: %w", err)
 	}
+	n.wireForgedBlockTracking()
+	// The rebuild replaced every pool producer, so the reload loops started
+	// at Run still hold the old ones and their offer channels. Restarting
+	// them replaces those loops; it runs after the last step that can fail.
+	n.startKeyReloadLoops(watchBaseline)
 	return nil
 }
 
@@ -1335,6 +1356,11 @@ func (n *Node) storageDependencies(
 // from — so it brings the whole node down (n.cancel()) for a supervised
 // restart, the same way LedgerStateConfig.FatalErrorFunc does elsewhere.
 func (n *Node) reinitializeAndResume(ctx context.Context) error {
+	// Restore and Truncate removed the marker when they began, but the
+	// selector keeps running, and a Genesis exit taken on the old chain can
+	// have written it again. It goes before any fallible rebuild step, so a
+	// rebuild that fails cannot leave it behind for the next start.
+	n.removeCaughtUpMarker()
 	steps := []struct {
 		name string
 		fn   func() error
@@ -1509,6 +1535,10 @@ func (n *Node) Restore(
 		)
 	}
 	defer restoreHost.Stop(context.WithoutCancel(ctx)) //nolint:errcheck
+
+	// The operation is about to change the chain the caught-up marker vouched
+	// for, and some of its failure paths stop the node without a rebuild.
+	n.removeCaughtUpMarker()
 
 	// Quiesce and close this node's own storage BEFORE any restore work
 	// touches either the staging directory or (for a client/server
@@ -1738,8 +1768,9 @@ var errRestoreSwapActivated = errors.New(
 // not be confirmed to have exited before its bounded wait timed out —
 // currently n.ledgerState.Close()'s rollback-event/dbWorkerPool waits, the
 // Leios persistence/GC worker drain
-// (PauseLeiosPersistWriterForLiveLifecycleOp), or a storage provider whose
-// context-bounded Stop returned before its cleanup completed. Unlike every
+// (PauseLeiosPersistWriterForLiveLifecycleOp), the deferred-index maintenance
+// goroutine, or a non-durable storage provider whose context-bounded Stop
+// returned before its cleanup completed. Unlike every
 // other error these functions can return, this one means a goroutine may
 // still be reading/writing n.db; other errors may only report cleanup failure
 // after a resource is already unused. Restore/Truncate must not treat
@@ -2135,6 +2166,10 @@ func (n *Node) Truncate(
 	// liveLifecycleMu.
 	n.snapshotMu.Lock()
 	defer n.snapshotMu.Unlock()
+
+	// The operation is about to change the chain the caught-up marker vouched
+	// for, and some of its failure paths stop the node without a rebuild.
+	n.removeCaughtUpMarker()
 
 	// See Restore's identical handling for why a quiesce/close-storage
 	// failure must still attempt reinitializeAndResume rather than just

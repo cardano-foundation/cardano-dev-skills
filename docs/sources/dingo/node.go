@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
 	"math/big"
@@ -57,6 +58,7 @@ import (
 	"github.com/blinklabs-io/dingo/internal/plannerstats"
 	internalplugins "github.com/blinklabs-io/dingo/internal/plugins"
 	"github.com/blinklabs-io/dingo/internal/promutil"
+	"github.com/blinklabs-io/dingo/internal/tracing"
 	"github.com/blinklabs-io/dingo/kesagent"
 	"github.com/blinklabs-io/dingo/ledger"
 	"github.com/blinklabs-io/dingo/ledger/forging"
@@ -97,6 +99,7 @@ type Node struct {
 	chainSelector           *chainselection.ChainSelector
 	chainSelectionMetrics   *chainSelectionMetrics
 	chainSelectorForGauges  atomic.Pointer[chainselection.ChainSelector]
+	lastEagernessLimit      atomic.Pointer[chainselection.EagernessLimit]
 	equivocation            *equivocationDetector
 	eventBus                *event.EventBus
 	pluginHost              *plugin.Host
@@ -144,20 +147,39 @@ type Node struct {
 	// path stops. An atomic pointer because the reload trigger runs on its
 	// own goroutine, concurrently with a live lifecycle teardown.
 	blockProducerCreds atomic.Pointer[forging.PoolCredentials]
-	// kesAgentClient is set when shelleyKESAgentSocket is configured, in
-	// either serve-key or sign mode. validateBlockProducerStartup owns
-	// dialing/closing it (closing the prior one before replacing it, so a
-	// live-lifecycle rebuild via reinitializeBlockProducer cannot leak a
-	// connection); node_shutdown.go closes it during graceful shutdown.
-	kesAgentClient  *kesagent.Client
+	// kesAgentClient is set when a KES agent is configured: a local socket
+	// client (shelleyKESAgentSocket) in either serve-key or sign mode, or a
+	// remote sign client (shelleyKESAgentAddress).
+	// validateBlockProducerStartup owns dialing/closing it (closing the prior
+	// one before replacing it, so a live-lifecycle rebuild via
+	// reinitializeBlockProducer cannot leak a connection); node_shutdown.go
+	// closes it during graceful shutdown.
+	kesAgentClient  io.Closer
 	kesAgentCancel  context.CancelFunc
 	kesAgentMetrics *kesagent.Metrics
-	leaderElection  nodeconsensus.LeaderScheduler
+	// kesAgentMetricsMu guards kesAgentMetrics' lazy creation: a sign-mode
+	// reload builds its client outside the lifecycle gates.
+	kesAgentMetricsMu sync.Mutex
+	// keyReload is the in-place credential reload's state: the agent's
+	// newer-certificate offers, the file watch and the reload metrics.
+	keyReload      keyReloadState
+	leaderElection nodeconsensus.LeaderScheduler
+	// multiPool holds what forging for more than one pool adds: the other
+	// pools' producers, the slot arbiter and the shared tracking of this
+	// node's own blocks. Its zero value serves a single-pool node.
+	multiPool multiPoolState
+	// scheduleComputeGate bounds how many pools compute a leader schedule
+	// at once; nil for a single pool.
+	scheduleComputeGate chan struct{}
 	// leaderSchedulerRef mirrors leaderElection for readers outside the
 	// node lifecycle goroutine, such as the ledger rollback callback.
-	leaderSchedulerRef           atomic.Pointer[leaderSchedulerRef]
-	rtsMetrics                   *rtsMetrics
-	shutdownFuncs                []func(context.Context) error
+	leaderSchedulerRef atomic.Pointer[leaderSchedulerRef]
+	rtsMetrics         *rtsMetrics
+	shutdownFuncs      []func(context.Context) error
+	// promGatherer reads the registry the node's metrics live in. The
+	// configured registerer is wrapped before use, and the wrappers hide
+	// the Gatherer, so it is kept from before the wrap.
+	promGatherer                 prometheus.Gatherer
 	deferredIndexMaintenanceDone chan struct{}
 	config                       Config
 	ctx                          context.Context
@@ -245,6 +267,10 @@ type Node struct {
 	// so a ledger is published only after it (publishStartedLedgerState) and
 	// withdrawn before it is replaced or closed (setLedgerState).
 	wallClockLedger atomic.Pointer[ledger.LedgerState]
+	// selectorChainsyncState mirrors n.chainsyncState for chain selector
+	// hooks, which run under the selector lock across live rebuilds and so
+	// cannot read the plain field. publishChainsyncState keeps them in step.
+	selectorChainsyncState atomic.Pointer[chainsync.State]
 
 	// A selected-to-none transition cannot be dropped while a live database
 	// lifecycle operation holds liveLifecycleMu. One node-owned worker retains
@@ -581,10 +607,9 @@ func (n *Node) apiPluginSelection(
 // ("0.0.0.0") expose them on every interface; with no lifecycle service
 // mounted, "" is returned unchanged so bark's own existing default behavior
 // (all interfaces) is preserved for deployments only using it for the read-only
-// Archive service. Bind address is a network control, independent of the mTLS
-// client-certificate authentication and operator-fingerprint authorization
-// checks Bark.Start enforces whenever lifecycleEnabled -- this default narrows
-// exposure as defense in depth, it is not what makes those RPCs safe to reach.
+// Archive service. Bark serves every RPC to anonymous callers, so the bind
+// address is the only exposure control: a caller that can reach the listener
+// can invoke the lifecycle RPCs, which is why they default to loopback.
 func effectiveBarkHost(configuredHost string, lifecycleEnabled bool) string {
 	if configuredHost != "" {
 		return configuredHost
@@ -626,6 +651,7 @@ func (n *Node) newOuroborosConfig(
 		ChainsyncBlockTimeout:          n.config.chainsyncStallTimeout,
 		EnableLeios:                    enableLeiosNetworking,
 		LeiosPersistenceRetentionSlots: n.config.leiosPersistenceRetentionSlots,
+		LeiosMinOfferLead:              n.config.cardanoNodeConfig.LeiosMinOfferLeadSlots(),
 		// Bounds how long a LocalStateQuery session holds one ledger snapshot.
 		LocalStateQueryViewMaxLifetime: n.config.LocalStateQueryViewMaxLifetimeDuration(),
 		// Current prototype votes sign their announcing ranking-block hash and
@@ -647,17 +673,21 @@ func (n *Node) newOuroborosConfig(
 		ChainsyncHasBestPeer:                 n.chainsyncHasBestPeer,
 		ChainsyncApplyEligible:               n.chainsyncApplyEligible,
 		ChainsyncAwaitEagerness:              n.chainsyncAwaitEagerness,
+		ChainsyncJumping:                     n.chainsyncJumpingConfig(),
 		ChainsyncAwaitCatchUpBand:            n.chainsyncAwaitCatchUpBand,
 		ChainsyncHeaderVerificationSettled:   n.chainsyncHeaderVerificationSettled,
 		ChainsyncAwaitCorroboration:          n.chainsyncAwaitCorroboration,
+		ChainsyncObserverDeliveriesUnused:    n.chainsyncObserverDeliveriesUnused,
 		ChainsyncIntersectAtLedgerTip:        n.chainsyncIntersectAtLedgerTip,
 		ChainsyncObservePeerTip:              n.chainsyncObservePeerTip,
 		ChainsyncRecordDeliveredPeerTip:      n.chainsyncRecordDeliveredPeerTip,
+		ChainsyncRecoverDeliveredPeerTip:     n.chainsyncRecoverDeliveredPeerTip,
 		ChainsyncRecordDeliveredPeerRollback: n.chainsyncRecordDeliveredPeerRollback,
 		ChainsyncPrepareForecastWitness:      n.chainsyncPrepareForecastWitness,
 		ChainsyncRemoveForecastWitness:       n.chainsyncRemoveForecastWitness,
 		ChainsyncResolvePeerTip:              n.chainsyncResolvePeerTip,
 		ChainsyncObserveAwaitReply:           n.chainsyncObserveAwaitReply,
+		ChainsyncObserveRollForward:          n.chainsyncObserveRollForward,
 		ChainsyncSyncTarget:                  n.chainsyncSyncTarget,
 		ChainsyncObservePeerRollback:         n.chainsyncObservePeerRollback,
 		// On the Musashi prototype network every mini-protocol shares one muxer
@@ -670,6 +700,79 @@ func (n *Node) newOuroborosConfig(
 		// Production bound on peer TxSubmission work. The ouroboros package
 		// leaves the limiter off at zero, so the node must set it.
 		MaxTxSubmissionsPerSecond: defaultMaxTxSubmissionsPerSecond,
+	}
+}
+
+// chainsyncJumpingConfig connects ChainSync Jumping to the chain selector.
+// It is off when the operator disables it.
+func (n *Node) chainsyncJumpingConfig() ouroborosPkg.ChainsyncJumpingConfig {
+	if !n.config.genesisChainSyncJumping {
+		return ouroborosPkg.ChainsyncJumpingConfig{}
+	}
+	return ouroborosPkg.ChainsyncJumpingConfig{
+		Enabled: true,
+		Active: func() bool {
+			if n.chainSelector == nil {
+				return false
+			}
+			active, _ := n.chainSelector.GenesisSelectionState()
+			return active
+		},
+		PeerIdentity: n.peerCorroborationIdentityByConnId,
+		BestPeer: func() *ouroboros.ConnectionId {
+			if n.chainSelector == nil {
+				return nil
+			}
+			return n.chainSelector.GetBestPeer()
+		},
+		DynamoFragment: func(
+			connId ouroboros.ConnectionId,
+		) ([]ocommon.Point, uint64, bool) {
+			if n.chainSelector == nil {
+				return nil, 0, false
+			}
+			return n.chainSelector.JumpFragment(connId)
+		},
+		RecordAgreement: func(
+			jumper ouroboros.ConnectionId,
+			dynamo ouroboros.ConnectionId,
+			point ocommon.Point,
+			jumperTip ochainsync.Tip,
+		) bool {
+			if n.chainSelector == nil {
+				return false
+			}
+			return n.chainSelector.RecordJumpAgreement(
+				jumper,
+				dynamo,
+				point,
+				jumperTip,
+			)
+		},
+		RecordRejection: func(jumper ouroboros.ConnectionId) bool {
+			if n.chainSelector == nil {
+				return false
+			}
+			return n.chainSelector.RecordJumpRejection(jumper)
+		},
+		// Half of k: the selector holds the dynamo k blocks past the
+		// common point, which the jumpers' last agreement bounds.
+		JumpBlocks: func() uint64 {
+			return max(n.shelleySecurityParam()/2, 1)
+		},
+		// Either moves whenever the local chain does: the applied tip, or
+		// the downloaded primary chain ahead of it.
+		LocalProgress: func() uint64 {
+			ls := n.wallClockLedger.Load()
+			if ls == nil {
+				return 0
+			}
+			return ls.Tip().Point.Slot + ls.PrimaryChainTipSlot()
+		},
+		Held: func(connId ouroboros.ConnectionId) bool {
+			return n.chainSelector != nil &&
+				n.chainSelector.EagernessPaused(connId)
+		},
 	}
 }
 
@@ -738,6 +841,9 @@ func (n *Node) Run(ctx context.Context) (runErr error) {
 		if err := n.setupTracing(ctx); err != nil {
 			return fmt.Errorf("failed to set up tracing: %w", err)
 		}
+	}
+	if err := n.setupMetricExport(ctx); err != nil {
+		return fmt.Errorf("failed to set up metric export: %w", err)
 	}
 	n.ctx, n.cancel = context.WithCancel(ctx)
 	defer func() {
@@ -948,9 +1054,9 @@ func (n *Node) Run(ctx context.Context) (runErr error) {
 	// protocols dingo offers beyond what the prototype relays serve — the
 	// standalone leios-votes protocol and leios-fetch BlockTxsRequest — are
 	// gated off for the prototype network below, since initiating them resets
-	// the connection. See Config.experimentalDijkstraEnabled /
+	// the connection. See Config.leiosRuntimeEnabled /
 	// experimentalLeiosNetworkingEnabled.
-	enableDijkstra := n.config.experimentalDijkstraEnabled()
+	enableLeiosRuntime := n.config.leiosRuntimeEnabled()
 	enableLeiosNetworking := n.config.experimentalLeiosNetworkingEnabled()
 	// Initialize Ouroboros
 	// The endorser-block tx fetch keeps re-requesting an EB's still-diffusing
@@ -1221,7 +1327,7 @@ func (n *Node) Run(ctx context.Context) (runErr error) {
 	}
 	started = append(started, func() { _ = n.plannerStatsMgr.Stop() })
 	// Initialize Leios vote manager (experimental)
-	if enableDijkstra {
+	if enableLeiosRuntime {
 		//nolint:contextcheck // n.ctx is the node's lifecycle context
 		if err := n.initLeiosVoteManager(n.ctx); err != nil {
 			return fmt.Errorf(
@@ -1311,7 +1417,10 @@ func (n *Node) Run(ctx context.Context) (runErr error) {
 		chainSelectorSecurityParam,
 		n.ledgerState.ActiveSlotCoeffRat(),
 	)
-	genesisSelectionMode := n.config.genesisSelectionMode()
+	genesisSelectionMode := n.initialGenesisSelectionMode()
+	if n.config.onGenesisSelectionResolved != nil {
+		n.config.onGenesisSelectionResolved(genesisSelectionMode)
+	}
 	chainSelectorConfig := n.buildChainSelectorConfig(
 		chainSelectorSecurityParam,
 		genesisSelectionMode,
@@ -1342,6 +1451,7 @@ func (n *Node) Run(ctx context.Context) (runErr error) {
 	n.startChainSelectedNoneWorker(n.ctx)
 	started = append(started, n.waitChainSelectedNoneWorker)
 	n.subscribeChainSelectorEvents()
+	n.subscribeCaughtUpMarkerEvents()
 	n.subscribeEquivocationDetector()
 	// Start the chain selector
 	if err := n.chainSelector.Start(n.ctx); err != nil { //nolint:contextcheck
@@ -1543,13 +1653,6 @@ func (n *Node) Run(ctx context.Context) (runErr error) {
 			n.config.barkHost,
 			lifecycleEnabled || remoteLifecycleEnabled,
 		)
-		if barkHost != n.config.barkHost {
-			n.config.logger.Warn(
-				"bark database lifecycle and remote Stop/Restart services default to a loopback-only bind since no --bark-host was set; every DatabaseService RPC requires a verified mTLS client certificate (--bark-client-ca-file-path), and destructive RPCs require an allowlisted certificate fingerprint (--bark-operator-certificate-fingerprints), independent of bind address; widen this bind only behind your own trusted network controls",
-				"component",
-				"bark",
-			)
-		}
 		barkConfig := bark.BarkConfig{
 			Logger:                                   n.config.logger,
 			DB:                                       db,
@@ -1832,7 +1935,11 @@ func (n *Node) Run(ctx context.Context) (runErr error) {
 
 	// Node-managed Mithril starts last, once Ouroboros and the ledger it
 	// holds off and hands back to are running.
-	started = append(started, n.startMithrilCoordinator(n.ctx)) //nolint:contextcheck
+	started = append(
+		started,
+		//nolint:contextcheck // n.ctx owns the node lifecycle.
+		n.startMithrilCoordinator(n.ctx),
+	)
 
 	// All components started successfully
 	n.startupLifecycleMu.Unlock()
@@ -1876,6 +1983,25 @@ func (n *Node) cleanupFailedStartup(started []func()) {
 	for _, stop := range slices.Backward(started) {
 		stop()
 	}
+	n.shutdownTelemetry()
+}
+
+// shutdownTelemetry flushes and stops the tracer and meter providers that
+// Run set up, so a failed startup does not leave their exporters running.
+func (n *Node) shutdownTelemetry() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for _, fn := range n.shutdownFuncs {
+		if err := fn(ctx); err != nil {
+			n.config.logger.Warn(
+				"telemetry shutdown failed after startup error",
+				"component", "node",
+				"error", err,
+			)
+		}
+	}
+	n.shutdownFuncs = nil
+	tracing.Disable()
 }
 
 // cancelForFatal records the first component failure before cancelling the
@@ -2192,9 +2318,25 @@ func (n *Node) buildChainSelectorConfig(
 		GenesisMode:           genesisMode,
 		GenesisWindowSlots:    genesisWindowSlots,
 		MinCorroboratingPeers: n.config.genesisCorroborationPeers,
+		ChainSyncJumping:      n.config.genesisChainSyncJumping,
+		GenesisStateMachine:   n.config.genesisSelectionEligible(),
+		SlotTime:              n.selectorSlotTime,
+		LocalTipPraosView:     n.selectorLocalTipPraosView,
+		HistoricityCutoff:     n.genesisHistoricityCutoff(),
+		ChainSyncConnections: func() []ouroboros.ConnectionId {
+			state := n.selectorChainsyncState.Load()
+			if state == nil {
+				return nil
+			}
+			return state.GetClientConnIds()
+		},
+		OnHistoricityDisconnect: n.onHistoricityDisconnect,
 		ConnectionLive: func(connId ouroboros.ConnectionId) bool {
 			return n.connManager != nil &&
 				n.connManager.GetConnectionById(connId) != nil
+		},
+		ConnectionEligible: func(connId ouroboros.ConnectionId) bool {
+			return n.chainsyncIngressAdmitted(connId)
 		},
 		PeerIdentity: func(connId ouroboros.ConnectionId) string {
 			return n.peerCorroborationIdentityByConnId(connId)
@@ -2303,6 +2445,39 @@ func (n *Node) isConfiguredRootConnection(
 	n.peerGovMu.RLock()
 	defer n.peerGovMu.RUnlock()
 	return n.peerGov != nil && n.peerGov.IsConfiguredRootConnection(connId)
+}
+
+// chainsyncObserverDeliveriesUnused reports whether the headers observer
+// connections deliver are counted by nothing. Observer headers are never
+// ingested; Genesis corroboration counts them as witness evidence, so they are
+// unused while Genesis selection runs without a corroboration threshold.
+// Outside Genesis selection the node is at the tip, where observers follow new
+// blocks and their tips keep chain selection informed. The Genesis exit rule
+// also needs every observer to have sent MsgAwaitReply; the ouroboros package
+// therefore stops holding an observer once its peer is within the security
+// parameter of the local tip.
+func (n *Node) chainsyncObserverDeliveriesUnused() bool {
+	if n.chainSelector == nil || n.config.genesisCorroborationPeers > 0 {
+		return false
+	}
+	active, _ := n.chainSelector.GenesisSelectionState()
+	return active
+}
+
+// corroborationIdentityForIngress returns connId's Genesis corroboration
+// identity while corroboration is in effect, and "" otherwise or when the peer
+// has none. It is called with the chainsync client lock held, so it reads the
+// selector's lock-free Genesis state rather than taking the selector mutex.
+func (n *Node) corroborationIdentityForIngress(
+	connId ouroboros.ConnectionId,
+) string {
+	if n.config.genesisCorroborationPeers <= 0 || n.chainSelector == nil {
+		return ""
+	}
+	if active, _ := n.chainSelector.GenesisSelectionState(); !active {
+		return ""
+	}
+	return n.peerCorroborationIdentityByConnId(connId)
 }
 
 func (n *Node) touchPeerByConnId(connId ouroboros.ConnectionId) {
@@ -2841,6 +3016,8 @@ func (n *Node) chainsyncConfig() chainsync.Config {
 		return active
 	}
 	chainsyncCfg.IsRoot = n.isConfiguredRootConnection
+	chainsyncCfg.CorroborationIdentity = n.corroborationIdentityForIngress
+	chainsyncCfg.AdvertisedTipStale = n.chainsyncAdvertisedTipStale
 	chainsyncCfg.ObservedHeaderLimitFunc = func() int {
 		if n.chainSelector == nil {
 			return 0

@@ -8,13 +8,13 @@ sidebar:
 
 There are three very different sync profiles in Dolos:
 
-- **Dolos snapshot bootstrap** is the fastest way to initialize a node. If you already have access to a recent snapshot, startup can complete in minutes.
+- **Stelae bootstrap** (`dolos bootstrap stelae`) is the fastest way to initialize a node. Restoring a recent stele can complete in minutes.
 - **Mithril bootstrap** is the fastest trust-minimized cold start currently documented for mainnet. Under normal conditions, it can initialize a mainnet node in under 20 hours.
-- **Relay or local-node sync from origin** is the slowest path because Dolos must pull and process the full chain history block by block. Depending on network, hardware, and peer quality, this can take from several hours to several days.
+- **Sync from origin** (`dolos daemon` or `dolos sync catchup` with empty stores, from a relay or a local node) is the slowest path because Dolos must pull and process the full chain history block by block. Depending on network, hardware, and peer quality, this can take from several hours to several days.
 
 Initial bootstrap and steady-state syncing are different workloads. Catching up from origin is dominated by chain download and historical processing, while a node that is already near tip usually only needs to ingest new blocks as they arrive.
 
-For bootstrap options and tradeoffs, see [Snapshot](../bootstrap/snapshot), [Mithril](../bootstrap/mithril), [Public Relay](../bootstrap/relay), and [Local Full Node](../bootstrap/local).
+For bootstrap options and tradeoffs, see the [bootstrap overview](../bootstrap), [Mithril](../bootstrap/mithril), and [Local ImmutableDB](../bootstrap/local).
 
 ## Resource usage
 
@@ -28,6 +28,16 @@ The main drivers of resource usage are:
 - **Query mix**. A node serving mostly current-state lookups behaves differently from one serving heavy historical scans or broad asset and address searches.
 
 If your goal is to minimize operational cost, start with the smallest storage mode and API surface that satisfies your workload, then increase capacity only where measurements show a bottleneck.
+
+### Fjall compaction backlog
+
+Each Fjall store, state and archive, reports its compaction backlog as an OpenTelemetry gauge under the `dolos-fjall` meter:
+
+| metric              | kind  | attributes          |
+| ------------------- | ----- | ------------------- |
+| `fjall_l0_runs_max` | gauge | `store`, `keyspace` |
+
+The value is the largest number of L0 runs in any of the store's keyspaces, and `keyspace` names that keyspace. `store` is `state` or `archive`. Fjall halts a keyspace's writes at 30 L0 runs until compaction catches up, so a value climbing toward 30 means compaction is falling behind the writes. The gauge is read when the meter collects, never on a write, and a store opened read-only does not report it. Like the [cache metrics](./cache#metrics), it reaches a collector through the process's OpenTelemetry meter provider, which `dolos daemon` does not export yet.
 
 ## Query latency
 
@@ -67,7 +77,7 @@ Dolos includes a write-ahead log and bounded rollback history to support restart
 
 - **Process restart or host reboot** usually requires replaying local pending work and catching up from the last persisted position.
 - **Normal chain rollback** is handled within the configured rollback window.
-- **Corruption, missing data, or deliberate rebootstrap** may require importing from snapshot, Mithril, or syncing again from a peer.
+- **Corruption, missing data, or deliberate rebootstrap** may require restoring a stele, bootstrapping from Mithril, or syncing again from a peer.
 
 The rollback window is not configurable: the WAL always keeps the protocol's mutable window (on Cardano, `3k/f` slots), and a normal chain rollback is handled within it. How much archive history remains before pruning is set in the [`[history]`](../configuration/schema#history) section:
 
@@ -90,8 +100,8 @@ Epoch boundaries are a useful stress case because they concentrate heavier ledge
 
 ## Practical guidance
 
-- Use snapshot bootstrap when fast recovery or rapid deployment matters most.
-- Use Mithril when you want a fast cold start without depending on a pre-exported Dolos snapshot.
+- Use a Stelae bootstrap when fast recovery or rapid deployment matters most.
+- Use Mithril when you want a fast cold start without depending on a published stele.
 - Choose the smallest storage mode that satisfies your product requirements.
 - Keep storage caches conservative at first, then tune with real measurements.
 - Monitor sync position, API latency, disk growth, and restart behavior under realistic traffic.

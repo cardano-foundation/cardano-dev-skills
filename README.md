@@ -255,7 +255,10 @@ The quickest path is from inside a session. Tell the agent "send feedback",
 run `/cardano-dev-skills:give-feedback` in Claude Code, or run `$give-feedback`
 in Codex. It drafts a GitHub issue from the context it already has, shows it to
 you, and files it under your GitHub account once you say yes (with `gh` if you
-have it, otherwise it gives you the text to paste).
+have it, otherwise it gives you the text to paste). What is sent is exactly the
+title, label and body you approved, filed on the public
+`cardano-foundation/cardano-dev-skills` repository under your account, and nothing
+else: no transcript, files or environment.
 
 Or [open an issue](https://github.com/cardano-foundation/cardano-dev-skills/issues/new/choose) directly. The templates cover stale docs, missing topics, new sources, and general feedback.
 

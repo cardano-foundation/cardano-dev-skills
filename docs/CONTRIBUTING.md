@@ -86,8 +86,9 @@ The same bar applies to the candidate entries at the bottom of `registry/sources
 PRs that touch `skills/`, `registry/`, or `docs/sources/` run
 `.github/workflows/pr-policy.yml`, which has two layers. The existing
 `.github/workflows/validate.yml` is the separate shared correctness gate and
-checks skill portability plus both Claude and Codex adapters; these concerns
-belong in one job because a shared skill is the shipped unit.
+checks skill portability plus both Claude and Codex adapters, and runs the
+give-feedback send-command test (`scripts/tests/`) against a capture `gh`;
+these concerns belong in one job because a shared skill is the shipped unit.
 
 1. **Mechanical checks** (`scripts/check-pr-policy.py`, hard-fails CI): new sources are vetted live against the GitHub API (archived flag, last-push age, fork warning); new skills fail if named after a project/brand (they must be task-oriented) or if they reference a `docs/sources/<x>/` directory the PR doesn't provide; new bundled doc files that look like marketing pages or duplicate generic Cardano-101 content produce warnings.
 2. **AI scope review** (advisory, never fails CI): when a PR adds a source or skill, a model judges it against the scope policy above — the two-part source test and the skill bar — and posts a review comment with a verdict and concrete requested changes. The rubric lives in `.github/scope-review-prompt.md`; the model call is a single non-agentic Gemini request (`.github/scripts/scope-review.py`) authenticated by a `GEMINI_API_KEY` repository secret (Google AI Studio keys have a free tier). When the secret is not configured the job skips cleanly and only the mechanical layer runs. The comment is advisory: a maintainer always makes the final call.

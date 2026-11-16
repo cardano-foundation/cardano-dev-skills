@@ -42,6 +42,17 @@ func ConsumedReferenceScriptSize(
 	tx TransactionBody,
 	utxoState UtxoState,
 ) (uint64, error) {
+	return consumedReferenceScriptSize(tx, utxoState, false)
+}
+
+// consumedReferenceScriptSize implements ConsumedReferenceScriptSize. When
+// ignoreAbsent is set, a reference input the state reports as absent with
+// ErrUtxoNotFound contributes zero instead of an error.
+func consumedReferenceScriptSize(
+	tx TransactionBody,
+	utxoState UtxoState,
+	ignoreAbsent bool,
+) (uint64, error) {
 	if tx == nil {
 		return 0, errors.New("transaction body is nil")
 	}
@@ -76,7 +87,8 @@ func ConsumedReferenceScriptSize(
 	for _, consumedInput := range inputs {
 		utxo, err := utxoState.UtxoById(consumedInput.input)
 		if err != nil {
-			if !consumedInput.isReference {
+			if !consumedInput.isReference ||
+				(ignoreAbsent && errors.Is(err, ErrUtxoNotFound)) {
 				continue
 			}
 			return 0, fmt.Errorf(
@@ -98,17 +110,25 @@ func ConsumedReferenceScriptSize(
 }
 
 // TransactionReferenceScriptSizeFunc measures the consumed reference scripts
-// of one top-level transaction. Dijkstra supplies a function that also counts
-// each sub-transaction body.
+// of one top-level transaction for ConsumedReferenceScriptSizePerBlock. A nil
+// function counts only the transaction's own inputs and reference inputs; it
+// counts an unresolved regular input, and a reference input reported absent
+// with ErrUtxoNotFound, as zero.
 type TransactionReferenceScriptSizeFunc func(
 	Transaction,
 	UtxoState,
 ) (uint64, error)
 
+// blockUtxoState is the starting UTxO unioned with the outputs of earlier
+// transactions. Spent inputs are never removed: the reference rule only adds.
 type blockUtxoState struct {
 	base     UtxoState
 	produced map[transactionInputKey]Utxo
-	consumed map[transactionInputKey]struct{}
+	// unmeasured holds outputs created in the block that the reference rule
+	// leaves out of its accumulated UTxO, such as Dijkstra sub-transaction
+	// outputs. They resolve without a script so that they contribute zero
+	// instead of falling through to a base state that predates them.
+	unmeasured map[transactionInputKey]struct{}
 }
 
 func (s *blockUtxoState) UtxoById(input TransactionInput) (Utxo, error) {
@@ -116,8 +136,8 @@ func (s *blockUtxoState) UtxoById(input TransactionInput) (Utxo, error) {
 	if utxo, ok := s.produced[key]; ok {
 		return utxo, nil
 	}
-	if _, ok := s.consumed[key]; ok {
-		return Utxo{}, fmt.Errorf("utxo not found: %s", input)
+	if _, ok := s.unmeasured[key]; ok {
+		return Utxo{Id: input}, nil
 	}
 	if s.base == nil {
 		return Utxo{}, errors.New(
@@ -128,24 +148,40 @@ func (s *blockUtxoState) UtxoById(input TransactionInput) (Utxo, error) {
 }
 
 func (s *blockUtxoState) apply(tx Transaction) {
-	for _, input := range tx.Consumed() {
-		key := newTransactionInputKey(input)
-		delete(s.produced, key)
-		s.consumed[key] = struct{}{}
-	}
+	// The reference rule adds only the outputs of the top-level body, or its
+	// collateral return when phase-2 invalid; both are keyed by the
+	// transaction's own ID. An output already recorded is kept, as the
+	// reference's left-biased union keeps the accumulated entry.
+	txId := tx.Hash()
 	for _, utxo := range tx.Produced() {
 		if utxo.Id == nil {
 			continue
 		}
 		key := newTransactionInputKey(utxo.Id)
-		delete(s.consumed, key)
-		s.produced[key] = utxo
+		if key.id == txId {
+			if _, ok := s.produced[key]; !ok {
+				s.produced[key] = utxo
+			}
+		} else {
+			s.unmeasured[key] = struct{}{}
+		}
 	}
 }
 
 // ConsumedReferenceScriptSizePerBlock measures transactions in block order.
-// When includeProduced is true, each transaction sees the UTxO changes made by
-// preceding transactions, matching the PV11+ Conway block rule.
+// When includeProduced is true, each transaction also sees the top-level
+// outputs (or, for a phase-2-invalid transaction, the collateral return) of
+// preceding transactions, matching the PV11+ Conway block rule; spent inputs
+// stay resolvable. Otherwise every transaction is measured against the
+// starting state. Outputs of sub-transactions are not added and contribute
+// nothing when referenced.
+//
+// With a nil sizeTx, a regular input that fails to resolve contributes zero
+// whatever the error, because through protocol version 10 an input created
+// earlier in the block is absent from the starting state. A reference input
+// contributes zero only when the lookup error wraps ErrUtxoNotFound; any other
+// error, including the not-found error of a UtxoState that does not wrap
+// ErrUtxoNotFound, is returned.
 func ConsumedReferenceScriptSizePerBlock(
 	block Block,
 	utxoState UtxoState,
@@ -157,13 +193,13 @@ func ConsumedReferenceScriptSizePerBlock(
 	}
 	if sizeTx == nil {
 		sizeTx = func(tx Transaction, state UtxoState) (uint64, error) {
-			return ConsumedReferenceScriptSize(tx, state)
+			return consumedReferenceScriptSize(tx, state, true)
 		}
 	}
 	state := &blockUtxoState{
-		base:     utxoState,
-		produced: make(map[transactionInputKey]Utxo),
-		consumed: make(map[transactionInputKey]struct{}),
+		base:       utxoState,
+		produced:   make(map[transactionInputKey]Utxo),
+		unmeasured: make(map[transactionInputKey]struct{}),
 	}
 	var total uint64
 	for _, tx := range block.Transactions() {
@@ -176,7 +212,9 @@ func ConsumedReferenceScriptSizePerBlock(
 			return 0, err
 		}
 		if total > math.MaxUint64-txSize {
-			return 0, errors.New("block consumed reference-script size overflow")
+			return 0, errors.New(
+				"block consumed reference-script size overflow",
+			)
 		}
 		total += txSize
 		if includeProduced {

@@ -83,7 +83,7 @@ if err != nil {
 }
 script := common.PlutusV2Script(scriptBytes)
 
-a := apollo.New(cc)
+a := apollo.New(cc).SetMaxFee(1_000_000)
 a, err = a.PayToAddressWithV2ReferenceScript(addr, 5_000_000, script)
 if err != nil {
     log.Fatal(err)

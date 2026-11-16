@@ -49,6 +49,8 @@ Wording is deliberately careful. "No access observed during the executed scenari
 
 Human readable by default: the page, its content security policy (one directive per line), the deep run measurements when `--deep` ran, the findings sorted from error to info, run errors, and a closing result line with the exit code. `--json` prints the full report. Exit 0 means no finding above info, 1 means at least one warning or error, 2 means the run itself failed (URL unreachable, timed out, browser missing or unable to start, deep run skipped inside an agent sandbox).
 
+The JSON report starts with `schemaVersion`, currently `1`. New fields never change the version, so readers should ignore fields they do not know. Removing or reinterpreting a field raises the version and ships as a major release of the package.
+
 ## What doctor cannot see
 
 A policy that JavaScript inserts as a `<meta>` tag after the parser already ran scripts above it is invisible to doctor: a meta policy only governs what the parser processes after that tag, and doctor reads whatever meta tags are in the response body, not ones added later. A service worker that answers the page's own requests with a different response than the server sent is invisible too, doctor only sees what the network handed back. The static fetch carries no cookies, so a session-aware app can send it somewhere other than where a real signed-in browser would end up, when the deep run's browser ends up on another URL, `deep-url-differs` says so. The injected wallet is the project's default test wallet with its synthetic UTxOs, built from a published test mnemonic. Its keys are public anyway, so it is safe to see in a trace.

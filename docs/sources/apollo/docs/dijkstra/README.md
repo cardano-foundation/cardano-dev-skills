@@ -7,6 +7,7 @@ transaction operations:
 builder, err := apollo.New(chainContext).
     SetTargetEra(apollo.EraDijkstra).
     AddPayment(payment).
+    SetMaxFee(1_000_000).
     Complete()
 if err != nil {
     return err
@@ -28,14 +29,15 @@ scripts.
 
 ## Plutus V4
 
-The Dijkstra ledger accepts Plutus V4 scripts only as reference scripts.
-Apply parameters with `ApplyParamsToScript` and publish the script with
-`PayToAddressWithReferenceScript` or `PayToContractWithReferenceScript`
-(including `PayToContractWithV4ReferenceScript`). Both payment methods return
-`ErrPlutusV4RequiresDijkstra` unless `SetTargetEra(EraDijkstra)` was called.
-Consume the script with `AddReferenceInput`. `AttachScript` rejects a V4 script with
-`ErrPlutusV4WitnessScript` in a Dijkstra build and `ErrPlutusV4RequiresDijkstra`
-in a Conway build. A V4 script can lock spent UTxOs (`CollectFrom`) and guard
+A Dijkstra transaction can supply a Plutus V4 script in either of two ways.
+Attach it to the witness set (key 8) with `AttachScript`, or publish it as a
+reference script with `PayToAddressWithReferenceScript` or
+`PayToContractWithReferenceScript` (including
+`PayToContractWithV4ReferenceScript`) and consume it with
+`AddReferenceInput`. Apply parameters first with `ApplyParamsToScript`. Every
+V4 method returns or records `ErrPlutusV4RequiresDijkstra` unless
+`SetTargetEra(EraDijkstra)` was called first.
+A V4 script can lock spent UTxOs (`CollectFrom`) and guard
 the transaction (`AddGuard`). The script integrity hash uses the provider's
 `PlutusV4` cost model (Ogmios `plutus:v4`, Blockfrost `PlutusV4`, UTxO RPC
 `plutus_v4`). When loading a V4 validator from a CIP-57 `plutus.json`, see

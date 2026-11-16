@@ -99,7 +99,7 @@ import (
     apollo "github.com/Salvionied/apollo/v2"
 )
 
-a := apollo.New(cc)
+a := apollo.New(cc).SetMaxFee(1_000_000)
 a.SetWallet(wallet)
 a, err := a.RegisterStake(nil) // nil => use wallet credential
 if err != nil {

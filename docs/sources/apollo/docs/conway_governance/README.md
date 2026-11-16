@@ -94,6 +94,7 @@ proposal := conway.ConwayProposalProcedure{
 }
 
 builder := apollo.New(chainContext).
+    SetMaxFee(2_000_000).
     RegisterDRep(drepCred, 500_000_000, &common.GovAnchor{
         Url:      "https://example.com/drep.json",
         DataHash: drepDocHash,

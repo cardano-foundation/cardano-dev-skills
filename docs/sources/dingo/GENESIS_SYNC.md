@@ -1,23 +1,38 @@
-# Ouroboros Genesis from-origin sync (operator guide)
+# Ouroboros Genesis sync (operator guide)
 
-This guide covers configuring Dingo for **from-origin** (from-genesis) sync using
-Ouroboros Genesis density selection with a biased fast-sync source — for example
-a local shallow peer or the Genesis Sync Accelerator (GSA) — corroborated by
-independent ledger peers.
+This guide covers Dingo's sync using Genesis density selection,
+Limit on Eagerness, density disconnection, patience and authenticated headers.
+The default uses the network's published topology without adding operator roots
+or requiring a corroboration quorum. A configured peer snapshot can supply
+additional relays. Deployments with a
+biased fast-sync source can opt into additional peer corroboration.
 
 For the internal design, see `ARCHITECTURE.md` → **Chain Selection → Ouroboros
 Genesis trust model**.
 
 ## When this applies
 
-Genesis mode is used only when **all** of these hold:
+The Genesis state machine runs only when **all** of these hold:
 
 - `genesisBootstrap.enabled: true` (the default), and
-- the node is starting **from origin** (no `intersectTip`, no explicit
-  intersect points), i.e. an empty database syncing from slot 0.
+- no `intersectTip` or explicit intersect points are configured, and
+- the network configuration does not select Praos consensus mode.
 
-A node bootstrapped from a Mithril snapshot, or resuming an existing database,
-does not enter Genesis mode — it syncs with normal Praos chain selection.
+Explicit intersection options select normal Praos chain selection.
+
+The node starts in Genesis mode unless a `CaughtUpMarker` file in the data
+directory records that the previous run left Genesis and the database tip is
+younger than 20 minutes (the reference's `maxCaughtUpAge`). The marker is
+written when Genesis selection ends and removed when it is re-entered, and on a
+live restore or truncate. A marker whose tip is older than 20 minutes, or whose
+tip time cannot be determined, is removed and the node starts in Genesis. A
+failed marker write is logged and costs only a start in Genesis. A failed
+removal is logged too, but it is not harmless: if the tip becomes younger than
+20 minutes again before the next start, for example by syncing in Genesis, the
+surviving marker starts the node in Praos without an exit decision. Each node
+therefore starts once in Genesis mode after upgrading, until it first reaches
+the exit condition below. Peer-snapshot loading follows the same startup
+decision, so a node that starts in Praos does not load the snapshot peers.
 
 ## Trust model at a glance
 
@@ -25,36 +40,28 @@ does not enter Genesis mode — it syncs with normal Praos chain selection.
 |------|----------------|
 | **Praos** (normal) | The longest valid chain from any peer. |
 | **Mithril bootstrap** | A signed snapshot at a trust boundary, then Praos above it. |
-| **Genesis** (from origin) | Header **density** within a `3k/f`-slot window, **corroborated by independent peers**. |
+| **Genesis** (from origin) | Authenticated chains, eagerness bounded by candidate intersections, and density within a `3k/f`-slot window. |
 
-The security goal for from-origin sync is that a fast source which serves blocks
-quickly but is not itself trustworthy (a shallow local peer, GSA) **cannot steer
-the node onto a chain no independent peer shares**. Dingo enforces this with a
-**corroboration gate**: the densest fast source is only followed while other
-peers confirm its recent chain — every block a witness has seen within the
-candidate's window must match the candidate's, so agreeing on one old ancestor
-and then forking is not enough. A divergent or uncorroborated source is **denied
-selection** and the node **stalls** rather than following it.
+Genesis assumes at least one honest, caught-up, available upstream peer. Peer
+discovery must make that peer reachable; endpoint or operator labels cannot
+prove this assumption. Limit on Eagerness constrains progress past competing
+candidates' intersection, while density disconnection and patience remove
+unsuitable peers. The fully fetched local and peer fork paths are compared from
+their exact common intersection. See the [reference Genesis
+design](https://ouroboros-consensus.cardano.intersectmbo.org/docs/references/miscellaneous/genesis_design/).
 
-Assumptions (the security property holds only under these):
-
-- At least `corroborationPeers` **honest, independent** peers are reachable and
-  within the Genesis window of the fast source (e.g. seeded from a ledger peer
-  snapshot). If the fast source races far beyond every corroborator's window,
-  corroboration fails closed and the node stalls until the corroborators catch
-  up — this is safe but means corroborators must not be left far behind.
-- Those peers really are independent. The node can only enforce **distinct remote
-  hosts** (several connections from one IP cannot self-corroborate); it cannot
-  tell whether two hosts are the same operator, ASN, or chain view. Establishing
-  genuine independence is the operator's responsibility (see below).
-
-Under these assumptions a bad or divergent fast source can at worst stall the
-node. A fork that diverges only in blocks no honest peer has yet observed is not
-independently contradicted until a corroborator advances past it. If that fork
-conflicts with the local chain, the authoritative resolver still compares the
-fully fetched peer and local paths by density from their exact common
-intersection. That comparison does not provide independent witness confirmation
-of the unseen suffix.
+A positive `corroborationPeers` adds a separate policy: peers in distinct
+independence groups must confirm a source's recent chain before it can drive
+selection. Every overlapping block must agree; one shared old ancestor does not
+confirm a divergent suffix. Configured `controlGroups` assert common operator
+control and form an exclusive witness set. Otherwise trusted ledger/snapshot
+pool groups are used where available, with address groups as a fallback for
+unidentified topology or ledger peers. Address groups do not prove different
+operators. Missing witnesses stall the configured policy rather than silently
+disabling it. Its security assumption requires reachable, honest, independently
+controlled witnesses within the Genesis window; raising the count cannot
+establish their independence. The default zero retains the ordinary Genesis
+mechanisms without requiring a second independence group.
 
 ## Configuration
 
@@ -65,12 +72,10 @@ genesisBootstrap:
   enabled: true
   # 0 auto-derives the density window from Shelley genesis params (3k/f).
   windowSlots: 0
-  # Independent peers that must report the same recent blocks before a fast
-  # source may drive Genesis selection. The default is 1. Setting 0 explicitly
-  # disables corroboration (density-only).
-  # Set this to the number of independent snapshot/ledger peers you expect to
-  # corroborate the fast source.
-  corroborationPeers: 2
+  # Optional peer corroboration quorum. Default 0 retains all Genesis checks
+  # without requiring operator labels. A positive value requires that many
+  # reachable witnesses in distinct groups and stalls if they are absent.
+  corroborationPeers: 0
   # Genesis Limit on Patience: disconnect a ChainSync peer that delivers its
   # advertised progress more slowly than limitOnPatienceRate headers per
   # second beyond a limitOnPatienceCapacity token allowance. 0 selects the
@@ -78,18 +83,28 @@ genesisBootstrap:
   limitOnPatienceEnabled: true
   limitOnPatienceCapacity: 0
   limitOnPatienceRate: 0
+  # ChainSync Jumping: one identified outbound hot peer streams headers; the
+  # other outbound hot peers answer a MsgFindIntersect for its chain every k/2
+  # blocks instead of streaming it, and an identified peer's answer vouches
+  # for it. Inbound peers take no CSJ role. On by default.
+  chainSyncJumping: true
 ```
 
 Equivalent CLI flags / environment variables:
 
 - `--genesis-bootstrap-enabled` / `DINGO_GENESIS_BOOTSTRAP_ENABLED`
 - `--genesis-bootstrap-window-slots` / `DINGO_GENESIS_BOOTSTRAP_WINDOW_SLOTS`
-- `--genesis-bootstrap-corroboration-peers` / `DINGO_GENESIS_BOOTSTRAP_CORROBORATION_PEERS`
-- `--genesis-bootstrap-limit-on-patience-enabled` / `DINGO_GENESIS_BOOTSTRAP_LIMIT_ON_PATIENCE_ENABLED`
-- `--genesis-bootstrap-limit-on-patience-capacity` / `DINGO_GENESIS_BOOTSTRAP_LIMIT_ON_PATIENCE_CAPACITY`
-- `--genesis-bootstrap-limit-on-patience-rate` / `DINGO_GENESIS_BOOTSTRAP_LIMIT_ON_PATIENCE_RATE`
+- `--genesis-bootstrap-corroboration-peers` /
+  `DINGO_GENESIS_BOOTSTRAP_CORROBORATION_PEERS`
+- `--genesis-bootstrap-limit-on-patience-enabled` /
+  `DINGO_GENESIS_BOOTSTRAP_LIMIT_ON_PATIENCE_ENABLED`
+- `--genesis-bootstrap-limit-on-patience-capacity` /
+  `DINGO_GENESIS_BOOTSTRAP_LIMIT_ON_PATIENCE_CAPACITY`
+- `--genesis-bootstrap-limit-on-patience-rate` /
+  `DINGO_GENESIS_BOOTSTRAP_LIMIT_ON_PATIENCE_RATE`
+- `--genesis-csj` / `DINGO_GENESIS_CSJ`
 
-## Topology: fast source + corroborating snapshot
+## Optional topology: fast source + corroborating snapshot
 
 Put the fast source in `localRoots` (mark it `trustable` so peer governance
 keeps it as a preferred ingress source) and point `peerSnapshotFile` at a
@@ -97,14 +112,14 @@ cardano-node ledger peer snapshot. When Genesis selection is active and the
 snapshot has relays, Dingo seeds the snapshot relays as ledger peers before
 outbound startup — these are the corroborators.
 
-**Validate corroborator independence.** The gate only enforces that
-corroborators are on *distinct remote hosts* from each other and from the fast
-source; it cannot tell whether two hosts belong to the same operator, ASN, or
-share a chain view. The security property assumes the corroborators are
-genuinely independent, so populate the snapshot with large ledger peers run by
-distinct operators on distinct infrastructure, and avoid pointing several
-snapshot entries at relays that ultimately share an upstream. A snapshot full of
-related relays satisfies the count but not the trust assumption.
+**Validate corroborator independence.** Optional `controlGroups` declare common
+operator control and add roots; without them, trusted ledger/snapshot pool
+identities supply grouping where available and unidentified topology/ledger
+peers fall back to address groups. Remote IPs, DNS aliases, valency groups
+and multiple stake entries sharing one endpoint do not prove independence.
+Configured groups form the exclusive witness set, with aliases counted once and
+conflicts rejected. Choose independently controlled witnesses and a satisfiable
+positive quorum before enabling this extra policy.
 
 `topology.json`:
 
@@ -153,14 +168,14 @@ Snapshot relays must have a host/IP address and an explicit TCP port from 1 to
 
 ## What you should observe
 
-- **Log at startup**: `Genesis chain selection enabled` with `genesis_window_slots`,
-  `security_param`, and `min_corroborating_peers`.
+- **Log at startup**: `Genesis chain selection enabled` with
+  `genesis_window_slots`, `security_param`, and `min_corroborating_peers`.
 - **Uncorroborated fast source**: a throttled warning
   `genesis fast source lacks corroboration; denying chain selection` and a
   `chainselection.genesis_corroboration_failed` event carrying the source
   connection, its observed density, the corroborator count, and the required
-  count. While this persists the source's **blocks are withheld from the ledger**
-  (its tips are still observed so corroboration can form, but its
+  count. While this persists the source's **blocks are withheld from the
+  ledger** (its tips are still observed so corroboration can form, but its
   `ledger.ChainsyncEvent`/blockfetch is gated off), so the node makes no forward
   progress on that source — this is expected and safe. A best-peer → none
   transition also logs `chain selection stalled: no selectable peer` and emits
@@ -174,37 +189,97 @@ Snapshot relays must have a host/IP address and an explicit TCP port from 1 to
   `genesis_patience_exhausted`. A peer that goes silent is instead reported as
   `chainsync.client_stalled` by the two-minute stall watchdog. A caught-up peer
   waiting for new blocks is not charged.
-- **Exit to Praos**: once the local tip catches up to within the Genesis window
-  of the best corroborated peer's *advertised* tip (the network tip — not the
-  headers delivered so far), the node logs `exiting Genesis selection mode` and
-  emits `chainselection.genesis_mode_exited` (local slot, best known slot,
-  window). Normal Praos selection takes over from there.
+- **Exit to Praos**: when at least one ChainSync connection exists, every
+  ChainSync connection (ingress peers and observers) has sent MsgAwaitReply at
+  its delivered position, and no peer's delivered chain is better than the local
+  chain, the node logs `exiting Genesis selection mode` and emits
+  `chainselection.genesis_mode_exited` (local slot, idle peer count, window).
+  Advertised tips are not consulted. A peer whose chain does not intersect the
+  local chain, or that wins the equal-height tiebreak, keeps Genesis active.
+  An observer is therefore not paused once its peer's tip is within the security
+  parameter of the local tip; it pauses only while farther behind, where the exit
+  rule cannot be met anyway.
+- **Idle at a historic tip**: an idle peer whose delivered tip is older than the
+  network's stability window `3k/f` slots, converted at the Shelley slot length,
+  plus one hour blocks the exit (on mainnet and preprod this is the reference's
+  `3k/f + 3600` seconds; a configured `windowSlots` does not change it). It
+  is logged as `disconnecting peer idle at a historic tip`, denied for
+  ten minutes and disconnected. The age uses the era-aware slot time, so it also
+  applies while the ledger is in Byron.
+- **Return to Genesis**: Praos lasts at least 20 minutes after an exit. After
+  that, when the selection tip is older than 20 minutes plus a random 0 to 300
+  second delay drawn once per Praos period (recomputed when the tip changes), or
+  its time cannot be determined, the node logs `entering Genesis selection mode`
+  and emits `chainselection.genesis_mode_entered`. Limit on Eagerness, density
+  disconnection, density comparison and the Limit on Patience apply again from
+  that point; per-peer recent points kept through Praos give them data at once.
 
 `GenesisStatus()` on the chain selector exposes the live mode, window, selected
 fast source, and per-peer density/corroboration for metrics or debugging.
 
+Authenticated delivered headers can maintain the Limit on Eagerness frontier
+without promoting a peer's ledger-admission tip. If local verification omitted
+an intermediate delivery, Dingo attempts a bounded reconstruction from the exact
+admission point, or a lower applied anchor needed to recover a witness gap,
+through applied canonical blocks and fully verified peer ancestry. Missing,
+withdrawn or unverified links keep the original limit. This recovery preserves
+the independent-peer checks and requires no configuration. A parked callback can
+reverify its last authenticated delivery when a ledger publication expires that
+evidence, including while its next raw header waits at the observer forecast
+gate. This never advances the cursor or authorizes the pending raw header. The
+retry ends with the callback. An authenticated header whose verdict expires
+before candidate staging is reverified on that callback. Local publication races
+do not count as peer rejections; invalid claims and failed renewed
+authentication remain excluded. A clean restart caused by the local forecast
+horizon also avoids peer-instability backoff. Actual connection and protocol
+failures retain normal retry penalties. A fully authenticated path can also
+supply a missing exact corroboration point when independent peers' delivered
+histories no longer overlap. Only the strict proof range counts, with current
+generation and original-session/withdrawal fences; ordinary linked delivery
+cannot refresh that certificate. Identity, exact-point and suffix checks remain
+unchanged, and no density or admission credit is added by reconstruction.
+
 ## Tuning `corroborationPeers`
 
-- **0** — corroboration off. The densest source wins on density alone. Set this
-  explicitly only when every configured peer is already trusted for fork
-  choice.
-- **1 (default)** — a single independent peer must confirm the fast source.
-  Minimal protection; a lone honest snapshot peer is enough to keep going.
-- **2+** — require a quorum of distinct-host peers. More robust against a small
-  set of colluding/divergent sources, but the node stalls until that many
-  reachable peers agree, so size it to how many independent snapshot peers you
-  actually connect. Raising this raises the required *count*, not the
-  independence of the peers you supply — that is fixed by your snapshot contents
-  (see "Validate corroborator independence").
+- **0 (default)** — no additional corroboration quorum. Genesis eagerness,
+  density, patience, ancestry and header verification remain active.
+- **1** — require a witness in another independence group before selection.
+- **2+** — require that many witnesses in distinct groups. Missing or
+  disagreeing witnesses stall selection. Raising the count does not establish
+  operator independence; choose the peer sources accordingly.
 
 ## Limitations (deferred)
 
 Dingo implements intersection-anchored density for authoritative local fork
 choice, but not every optimization in the reference implementation.
+Known differences from the reference's Genesis State Machine:
+
+- **No PreSyncing state.** The reference waits in PreSyncing for the Honest
+  Availability Assumption before Syncing. Dingo has Syncing and CaughtUp only.
+- **No peer-governance switch on re-entry.** The reference returns to
+  bootstrap or ledger peers when it re-enters Syncing. Dingo keeps its current
+  peers.
+- **Historicity cutoff per network.** The reference uses mainnet's
+  `3 * 2160 * 20 + 3600` seconds on every network; Dingo computes `3k/f` from
+  each network's Shelley genesis, so the cutoff is shorter where k is smaller,
+  such as preview.
+- **Rollback historicity is not checked.** The reference also judges the oldest
+  rolled-back header on MsgRollBackward; Dingo checks the delivered tip at idle
+  only.
+- **ChainSync Jumping's idle disengagement.** A jumper sends no RequestNext, so
+  it never receives MsgAwaitReply and never reports idle. As in the reference's
+  `onAwaitReply`, a dynamo that receives MsgAwaitReply is disengaged and the
+  next dynamo is elected, so every jumper streams to its tip in turn and
+  reports idle itself; the exit needs the dynamo and every jumper each to have
+  awaited. A disengaged peer yields its ingress slot to the next dynamo when
+  every slot is taken. The reference's earlier trigger, a header equal to the
+  peer's tip (`onTipIsHeader`), is not implemented; the exit is unaffected.
+
 Specifically **not** implemented:
 
-- **ChainSync Jumping** and **Devoted BlockFetch** (a
-  performance/robustness optimization for downloading across many peers).
+- **Devoted BlockFetch** (a performance/robustness optimization for
+  downloading across many peers), and ChainSync Jumping's objector bisection
+  and its limit of one objector at a time: every objector streams.
 - **Independent testimony beyond every witness frontier.** The corroboration
   gate confirms a witness's chain within their overlap, but cannot testify about
   a not-yet-witnessed suffix. A fast source that forks only after every honest

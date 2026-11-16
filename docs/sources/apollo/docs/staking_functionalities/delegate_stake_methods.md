@@ -59,7 +59,7 @@ import (
 )
 
 var poolHash common.Blake2b224
-a := apollo.New(cc)
+a := apollo.New(cc).SetMaxFee(1_000_000)
 a.SetWallet(wallet)
 a, err := a.DelegateStake(nil, poolHash)
 if err != nil {

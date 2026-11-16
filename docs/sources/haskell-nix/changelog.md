@@ -1,6 +1,40 @@
 This file contains a summary of changes to Haskell.nix and `nix-tools`
 that will impact users.
 
+## November 8, 2026
+
+  * A v2 slice's pkg-config table now holds only the names declared by the
+    packages its solver can meet (its own, its staged build-tool and
+    metadata sources, and its dep slices'), instead of the whole nixpkgs
+    mapping.  A change to a mapping entry, such as an overlay adding to
+    `haskell-nix.extraPkgconfigMappings`, now rebuilds only the slices
+    whose closure declares that name.  Previously every slice changed
+    with any mapping, so no v2 slice Hydra built (CI adds a `libsodium`
+    mapping) matched a user's evaluation, and none could be substituted.
+    Now only slices that use a remapped name differ, and those really are
+    different builds (under CI's overlay, slices that use `libsodium` are
+    built against `libsodium-18`).
+  * v1 components and setups no longer carry the mapping's metadata in
+    their pkg-config wrapper (`cabalPkgConfigWrapperReal`).
+    `cabalPkgConfigWrapper` keeps the whole map and is now used only by
+    the v2 shell; overriding it no longer affects component builds.
+  * Every v2 slice, and every v1 component or setup with
+    `pkgconfig-depends`, rebuilds once.
+
+## November 5, 2026
+
+`builderVersion = 2` and the stable-haskell GHCs:
+
+  * The v2 builder's cabal-install (`haskell-nix.v2-cabal-install`) and
+    the fork nix-tools that make v2 plans (`nix-tools-unchecked-sh`) now
+    come from stable-haskell's `merge` branch, cabal-install 3.19.0.0.
+    UnitIds change, so every slice rebuilds once.
+  * That cabal uses the normal cabal store rather than a project-local
+    `dist-newstyle/store`, so the v2 shell now seeds the store `cabal path
+    --store-dir` reports (usually `~/.cabal/store`).
+    `haskell-nix-cabal-store-sync` takes that store dir, not a build dir,
+    as its optional argument.
+
 ## October 25, 2026
 
   * Removed the `haskell-nix` knobs `emulatorNativeBuilderPackages` and
@@ -12,6 +46,26 @@ that will impact users.
     32-bit x86 Linux, whose exes cannot run under Rosetta.
     `usesTemplateHaskell` stays: it still selects `-fexternal-interpreter`
     for dynamically linked musl hosts.
+
+## October 22, 2026
+
+haskell.nix, hackage.nix and stackage.nix have moved from
+`github:input-output-hk` to `github:ican-group`.  The old URLs keep
+working through GitHub's redirect, but projects whose `flake.lock`,
+`nix/sources.json` (niv) or `npins/sources.json` still name the old owner
+for `haskell.nix`, `hackage.nix` or `stackage.nix` now get an evaluation
+warning listing those pins and how to fix each one.  Set
+`silenceOrgMoveWarning = true;` in the project to hide it.
+
+To move a project, change `input-output-hk` to `ican-group` in its pins
+(eg. `inputs.haskellNix.url = "github:ican-group/haskell.nix";`) and
+update the lock.
+
+haskell.nix's own references use the new owner too, including the ones
+it hands to users: the `hix init` and `haskell-nix` flake templates, the
+`hix` project boilerplate, the `fetchTarball` default in nix-tools'
+generated `default.nix` (from the next nix-tools release), and the
+documentation, now at <https://ican-group.github.io/haskell.nix/>.
 
 ## October 16, 2026
 
@@ -611,7 +665,7 @@ As a result, there will be some drawbacks:
 * Removed `./nixpkgs` directory, use  `(import ./. {}).sources`
   or `./nix/sources.nix` instead.
 * Removes V1 interface for details on how to fix old code see:
-    https://github.com/input-output-hk/haskell.nix/issues/709
+    https://github.com/ican-group/haskell.nix/issues/709
 * Removed defaultCompilerNixName.
 * cabalProject, cabalProject', hackage-project and hackage-package
   now require a `compiler-nix-name` argument.
@@ -644,23 +698,23 @@ As a result, there will be some drawbacks:
     cached. Usage of `cleanSourceHaskell` will need to be updated.
 
 ## October 12, 2019
- * [`shellFor`](https://input-output-hk.github.io/haskell.nix/reference/library/#shellfor) no longer sets `CABAL_CONFIG` by default.
+ * [`shellFor`](https://ican-group.github.io/haskell.nix/reference/library.html#shellfor) no longer sets `CABAL_CONFIG` by default.
    This avoids surprising users, but means that Cabal may select a plan which is different to your Haskell.nix package set.
    If you would like the old behaviour, use `shellFor { exactDeps = true; }`.
 
 ## August 9, 2019
- * Add the [`haskellLib.collectComponents`](https://input-output-hk.github.io/haskell.nix/reference/library/#haskellLib) function.
+ * Add the [`haskellLib.collectComponents`](https://ican-group.github.io/haskell.nix/reference/library.html#haskelllib) function.
 
 ## June 21, 2019
- * Add `ghcWithPackages` and `ghcWithHoogle` to hsPkgs ([documentation](https://input-output-hk.github.io/haskell.nix/reference/library/#package-set-functions).
+ * Add `ghcWithPackages` and `ghcWithHoogle` to hsPkgs ([documentation](https://ican-group.github.io/haskell.nix/reference/library.html#ghcwithpackages).
  * Benchmark components can now build successfully.
  * Reduced the closure bloat of nix-tools, and added closure size limit to CI.
  * Added more reference documentation and set up auto-generated
-   documentation for [Module Options](https://input-output-hk.github.io/haskell.nix/reference/modules/).
+   documentation for [Module Options](https://ican-group.github.io/haskell.nix/reference/modules.html).
  * Miscellaneous bug fixes.
 
 ## June 7, 2019
-  * Several additions to the [documentation](https://input-output-hk.github.io/haskell.nix/).
+  * Several additions to the [documentation](https://ican-group.github.io/haskell.nix/).
     * More information about getting nix-tools, Haskell.nix, pinning.
     * Updates the stack-to-nix and cabal-to-nix guides.
     * Adds a section on development environments.
@@ -696,7 +750,7 @@ As a result, there will be some drawbacks:
 
 ## Mar 15, 2019
   * `overlays` was renamed to `extras` in
-    [#79](https://github.com/input-output-hk/haskell.nix/pull/79)
+    [#79](https://github.com/ican-group/haskell.nix/pull/79)
     to prevent confusion between the notion of Nix overlays.
 
     Therefore `plan-pkgs` and `stack-pkgs` as generated by `plan-to-nix` and `stack-to-nix` will

@@ -111,6 +111,22 @@ ALLOWED_TOOLS_EXCEPTIONS = {
 # repository and a draft the user has read and approved (DESIGN Decision 14).
 REQUIRED_DISALLOWED_TOOLS = {"WebFetch", "WebSearch"}
 
+# Every skill carries one grounding block whose text is fixed by the fenced
+# blocks in docs/SOURCE_GROUNDING.md; a skill named by a variant carries that
+# variant instead. cardano-context writes no block of its own into its body:
+# the general text lives inside the context block it installs. give-feedback
+# answers no Cardano question.
+GROUNDING_DOC = REPO_ROOT / "docs" / "SOURCE_GROUNDING.md"
+GROUNDING_EXEMPT = {"cardano-context", "give-feedback"}
+GROUNDING_BEGIN_RE = re.compile(
+    r"<!-- cds:grounding begin(?: variant=([a-z0-9-]+))? -->")
+GROUNDING_END = "<!-- cds:grounding end -->"
+GROUNDING_REGION_RE = re.compile(
+    GROUNDING_BEGIN_RE.pattern + r"(.*?)" + re.escape(GROUNDING_END), re.S)
+CONTEXT_BLOCK_RE = re.compile(
+    r"<!-- BEGIN cardano-dev-skills v\d+ -->(.*?)"
+    r"<!-- END cardano-dev-skills v\d+ -->", re.S)
+
 errors: list[str] = []
 warnings: list[str] = []
 
@@ -271,6 +287,101 @@ def validate_skill(skill_dir: Path) -> None:
                             f"variable {variable}; resolve paths relative to "
                             "the active SKILL.md instead"
                         )
+
+
+def normalize_grounding(text: str) -> str:
+    """Collapse whitespace runs so re-wrapping or list indentation is not a diff."""
+    return " ".join(text.split())
+
+
+def load_grounding_texts() -> dict[str | None, str] | None:
+    """Read the canonical grounding texts, keyed by variant (None = general).
+
+    Only fenced blocks count, so prose in the doc that names the markers can
+    never become a canonical text.
+    """
+    if not GROUNDING_DOC.exists():
+        error(f"Missing {GROUNDING_DOC} (canonical grounding texts)")
+        return None
+    fenced: list[str] = []
+    current: list[str] | None = None
+    for line in GROUNDING_DOC.read_text(encoding="utf-8").splitlines():
+        if line.lstrip().startswith("```"):
+            if current is None:
+                current = []
+            else:
+                fenced.append("\n".join(current))
+                current = None
+        elif current is not None:
+            current.append(line)
+    texts: dict[str | None, str] = {}
+    for block in fenced:
+        for match in GROUNDING_REGION_RE.finditer(block):
+            variant = match.group(1)
+            if variant in texts:
+                error(f"{GROUNDING_DOC}: grounding text "
+                      f"{variant or 'general'!r} defined more than once")
+            texts[variant] = normalize_grounding(match.group(2))
+    if None not in texts:
+        error(f"{GROUNDING_DOC}: no general grounding text found")
+        return None
+    for variant in texts:
+        if variant is not None and not (SKILLS_DIR / variant / "SKILL.md").exists():
+            error(f"{GROUNDING_DOC}: grounding variant {variant!r} names no skill")
+    return texts
+
+
+def check_grounding_region(label: str, text: str, expected_variant: str | None,
+                           canonical: dict[str | None, str]) -> None:
+    """Require exactly one grounding region in `text` matching the canonical text."""
+    begins = GROUNDING_BEGIN_RE.findall(text)
+    regions = list(GROUNDING_REGION_RE.finditer(text))
+    wanted = expected_variant or "general"
+    if not begins:
+        error(f"{label}: grounding block missing (expected the {wanted} text "
+              f"from docs/SOURCE_GROUNDING.md)")
+        return
+    if len(begins) > 1:
+        error(f"{label}: grounding block duplicated ({len(begins)} begin markers; "
+              "exactly one is allowed)")
+        return
+    if len(regions) != 1 or text.count(GROUNDING_END) != 1:
+        error(f"{label}: grounding block malformed (begin marker without "
+              f"exactly one matching end marker)")
+        return
+    found = regions[0].group(1)
+    if found != expected_variant:
+        error(f"{label}: grounding block is the {found or 'general'} text, "
+              f"expected the {wanted} text")
+        return
+    if normalize_grounding(regions[0].group(2)) != canonical[expected_variant]:
+        error(f"{label}: grounding block text differs from the {wanted} text "
+              "in docs/SOURCE_GROUNDING.md")
+
+
+def validate_grounding(skill_dirs: list[Path]) -> None:
+    """Check every skill's grounding block and the one in the context block."""
+    canonical = load_grounding_texts()
+    if canonical is None:
+        return
+    for skill_dir in skill_dirs:
+        name = skill_dir.name
+        if name in GROUNDING_EXEMPT:
+            continue
+        text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+        check_grounding_region(f"skill {name}", text,
+                               name if name in canonical else None, canonical)
+
+    context_md = SKILLS_DIR / "cardano-context" / "SKILL.md"
+    if not context_md.exists():
+        return
+    blocks = CONTEXT_BLOCK_RE.findall(context_md.read_text(encoding="utf-8"))
+    if len(blocks) != 1:
+        error(f"skill cardano-context: expected exactly one canonical context "
+              f"block, found {len(blocks)}")
+        return
+    check_grounding_region("skill cardano-context (context block)", blocks[0],
+                           None, canonical)
 
 
 def load_json(path: Path) -> dict | None:
@@ -541,6 +652,7 @@ def main() -> int:
             return 1
 
         # Validate skills (flat structure: skills/<skill-name>/SKILL.md)
+        skill_dirs: list[Path] = []
         for skill_dir in sorted(SKILLS_DIR.iterdir()):
             if not skill_dir.is_dir():
                 continue
@@ -551,7 +663,11 @@ def main() -> int:
                 )
                 continue
             validate_skill(skill_dir)
+            skill_dirs.append(skill_dir)
             skill_count += 1
+
+        # Validate the grounding block in every skill and the context block.
+        validate_grounding(skill_dirs)
 
         # Validate the shared authoring contract and both host adapters.
         validate_agent_compatibility()

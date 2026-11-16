@@ -94,6 +94,8 @@ disallowed-tools: WebFetch WebSearch
 ```
 
 Required sections: When to use, When NOT to use, Key principles, Workflow.
+Required body element: the grounding block from `docs/SOURCE_GROUNDING.md`, which
+`validate.py` checks.
 
 ## Quality Standards
 

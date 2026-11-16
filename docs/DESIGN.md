@@ -48,7 +48,7 @@ findings and marks only unavailable evidence Not-yet-verifiable.
 **Why:**
 - Skills should produce useful guidance regardless of what other tools the user has connected.
 - Skills that depend on a specific MCP server, API, or service break for any user who hasn't installed that specific thing.
-- The bundled corpus under `docs/sources/` is the authoritative reference and
+- The bundled corpus under `docs/sources/` is the preferred bundled baseline and
   can be found and consumed with ordinary local file access.
 
 **How it works:** Shared Markdown describes capabilities rather than host tool
@@ -212,7 +212,9 @@ is harder to inspect, and it would solve only one host. Checked-in
    must state required safety behavior in portable prose. Separately,
    `allowed-tools` is a one-turn pre-approval in Claude Code, not a restriction,
    so the Claude base grant is `Read Grep Glob`, anything wider needs a reviewed
-   exception, and every skill must disallow `WebFetch`/`WebSearch`. Decision 15 deliberately keeps
+   exception, and every skill must disallow `WebFetch`/`WebSearch`. That block is turn-scoped in
+   Claude Code, so skills offer a web search the user can accept on the next turn instead of
+   running one (the grounding rule, `docs/SOURCE_GROUNDING.md`). Decision 15 deliberately keeps
    that metadata unchanged: its narrow retrieval runs only through capabilities the host exposes
    under normal permissions, while the portable body states the egress boundary and fallback.
    Advisory-only skills additionally disallow `Bash`/`Edit`/`Write`. Codex does

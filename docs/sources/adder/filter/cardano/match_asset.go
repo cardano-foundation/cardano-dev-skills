@@ -20,9 +20,13 @@ import (
 )
 
 // matchPolicyFilter checks if transaction matches policy ID filters
-func (c *Cardano) matchPolicyFilter(te event.TransactionEvent) bool {
+func (c *filterSet) matchPolicyFilter(te event.TransactionEvent) bool {
 	// Include resolved inputs as outputs for matching
-	allOutputs := make([]ledger.TransactionOutput, 0, len(te.Outputs)+len(te.ResolvedInputs))
+	allOutputs := make(
+		[]ledger.TransactionOutput,
+		0,
+		len(te.Outputs)+len(te.ResolvedInputs),
+	)
 	allOutputs = append(allOutputs, te.Outputs...)
 	allOutputs = append(allOutputs, te.ResolvedInputs...)
 
@@ -30,7 +34,7 @@ func (c *Cardano) matchPolicyFilter(te event.TransactionEvent) bool {
 		if output.Assets() != nil {
 			for _, policyId := range output.Assets().Policies() {
 				// O(1) lookup in policy IDs
-				if _, exists := c.filterSet.policies.policyIds[policyId.String()]; exists {
+				if _, exists := c.policies.policyIds[policyId.String()]; exists {
 					return true
 				}
 			}
@@ -40,9 +44,13 @@ func (c *Cardano) matchPolicyFilter(te event.TransactionEvent) bool {
 }
 
 // matchAssetFilter checks if transaction matches asset fingerprint filters
-func (c *Cardano) matchAssetFilter(te event.TransactionEvent) bool {
+func (c *filterSet) matchAssetFilter(te event.TransactionEvent) bool {
 	// Include resolved inputs as outputs for matching
-	allOutputs := make([]ledger.TransactionOutput, 0, len(te.Outputs)+len(te.ResolvedInputs))
+	allOutputs := make(
+		[]ledger.TransactionOutput,
+		0,
+		len(te.Outputs)+len(te.ResolvedInputs),
+	)
 	allOutputs = append(allOutputs, te.Outputs...)
 	allOutputs = append(allOutputs, te.ResolvedInputs...)
 
@@ -50,9 +58,12 @@ func (c *Cardano) matchAssetFilter(te event.TransactionEvent) bool {
 		if output.Assets() != nil {
 			for _, policyId := range output.Assets().Policies() {
 				for _, assetName := range output.Assets().Assets(policyId) {
-					assetFp := ledger.NewAssetFingerprint(policyId.Bytes(), assetName)
+					assetFp := ledger.NewAssetFingerprint(
+						policyId.Bytes(),
+						assetName,
+					)
 					// O(1) lookup in asset fingerprints
-					if _, exists := c.filterSet.assets.fingerprints[assetFp.String()]; exists {
+					if _, exists := c.assets.fingerprints[assetFp.String()]; exists {
 						return true
 					}
 				}

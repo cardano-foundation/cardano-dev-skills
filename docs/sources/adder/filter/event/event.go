@@ -16,7 +16,6 @@ package event
 
 import (
 	"context"
-	"slices"
 
 	"github.com/blinklabs-io/adder/plugin"
 )
@@ -33,7 +32,11 @@ func (e *Event) SetDropObserver(observer func()) { e.onDrop = observer }
 
 // SetPipelineDropObserver records rejected events for the owning pipeline.
 // Configure before Start; replacing the callback keeps restarts idempotent.
-func (e *Event) SetPipelineDropObserver(observer func()) { e.pipelineOnDrop = observer }
+func (e *Event) SetPipelineDropObserver(
+	observer func(),
+) {
+	e.pipelineOnDrop = observer
+}
 
 // New returns a new Event object with the specified options applied
 func New(options ...EventOptionFunc) *Event {
@@ -64,6 +67,7 @@ func (e *Event) StartContext(ctx context.Context) error {
 
 func (e *Event) start(ctx context.Context) error {
 	done, in := e.Done(), e.Input()
+	matcher := newMatcher(e.filterTypes)
 	e.Go(func() {
 		for {
 			select {
@@ -78,8 +82,7 @@ func (e *Event) start(ctx context.Context) error {
 				}
 				// Drop events if we have a type filter configured and
 				// the event doesn't match
-				if len(e.filterTypes) > 0 &&
-					!slices.Contains(e.filterTypes, evt.Type) {
+				if !matcher.Match(evt) {
 					if e.onDrop != nil {
 						e.onDrop()
 					}

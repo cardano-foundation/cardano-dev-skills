@@ -77,9 +77,11 @@ type LeiosVote struct {
 	VoteSignature     []byte
 }
 
-// LeiosPrototypeVote is the current prototype vote wire shape. Its signed
-// message is AnnouncingRbHash. Slot and endorser-block identity are resolved
-// from the announcing ranking block by the consumer.
+// LeiosPrototypeVote is the current prototype vote wire shape. Its signature
+// covers AnnouncingRbHash: the reference node signs the hash's raw 32 bytes,
+// while the rc-2026w41 prototype signs the hash's CBOR encoding (see
+// DijkstraLeiosCertificateMessage). Slot and endorser-block identity are
+// resolved from the announcing ranking block by the consumer.
 type LeiosPrototypeVote struct {
 	cbor.StructAsArray
 	AnnouncingRbHash Blake2b256
@@ -236,6 +238,11 @@ func LeiosSignerBitfieldSize(committeeSize uint64) uint64 {
 	return (committeeSize + 7) / 8
 }
 
+// ValidateLeiosSignerBitfield checks that signers is exactly
+// LeiosSignerBitfieldSize(committeeSize) bytes. Bits at or beyond the committee
+// size are padding and are deliberately not inspected: the reference collects
+// the signer set with only the bit indices below the committee size
+// (Cardano.Crypto.Leios), so a certificate that sets them still verifies.
 func ValidateLeiosSignerBitfield(signers []byte, committeeSize uint64) error {
 	expectedLen := LeiosSignerBitfieldSize(committeeSize)
 	if uint64(len(signers)) != expectedLen {
@@ -244,17 +251,6 @@ func ValidateLeiosSignerBitfield(signers []byte, committeeSize uint64) error {
 			expectedLen,
 			committeeSize,
 			len(signers),
-		)
-	}
-	if committeeSize == 0 || committeeSize%8 == 0 {
-		return nil
-	}
-	unusedBits := uint(8 - committeeSize%8)
-	unusedMask := byte((1 << unusedBits) - 1)
-	if signers[len(signers)-1]&unusedMask != 0 {
-		return fmt.Errorf(
-			"leios signer bitfield has non-zero unused bits for committee size %d",
-			committeeSize,
 		)
 	}
 	return nil

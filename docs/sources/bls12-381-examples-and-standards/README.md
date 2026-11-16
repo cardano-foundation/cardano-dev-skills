@@ -173,11 +173,11 @@ Everything above ends in the same place: a proof that has to be checked *on-chai
 ### Spotlight: selective disclosure
 
 <details>
-<summary><b>Proving a predicate without revealing the credential — the nine-step pipeline (click to expand)</b></summary>
+<summary><b>Proving a predicate without revealing the credential — the eleven-step pipeline (click to expand)</b></summary>
 
 The application this repository ultimately builds toward is **selective disclosure**: proving a predicate over a credential — *I am over 21*, *I am a doctor*, *I live in an approved jurisdiction* — **without revealing the credential's fields, the holder's identity, or the transaction address**. Authorization comes from a zero-knowledge proof checked by an Aiken gate script, not from a signature by a known address.
 
-The implementation is a nine-step pipeline ([`aiken/selective-disclosure`](./aiken/selective-disclosure/README.md)), and every step is runnable end-to-end from the repo root:
+The implementation is an eleven-step pipeline ([`aiken/selective-disclosure`](./aiken/selective-disclosure/README.md)), and every step is runnable end-to-end from the repo root:
 
 ```bash
 ./aiken/selective-disclosure/step1/groth16_e2e.sh   # predicate proof — the simplest flow
@@ -196,6 +196,8 @@ The implementation is a nine-step pipeline ([`aiken/selective-disclosure`](./aik
 | 7 — Revocable credential | not expired, not revoked (SMT non-membership) | 192 B | ~758 B |
 | 8 — Delegation | a proxy may generate proofs, bound and expiring | 192 B | ~758 B |
 | 9 — Recursive aggregation | epoch batches folded into one transparent proof | — | ~795 B (scaffold) |
+| 10 — Dynamic auditors | spend encrypted to any active auditor (Merkle membership) | 192 B | ~820 B |
+| 11 — Token lifecycle | Pedersen token commitments conserve value inside the pool | 192 B | — |
 
 Two proof paths run side by side: **Groth16** (192-byte proofs, per-circuit trusted setup, cheapest on-chain) and **Nova IVC** (~0.45–0.8 KiB across the steps above, no trusted setup, step circuits composable across predicates). Both are checked on-chain by the Aiken validators above — the Groth16 path by a pairing check, the Nova path by a sumcheck. The Nova prover that drives these scripts is upstream in [`paweljakubas/nova-slim`](https://github.com/paweljakubas/nova-slim) — see [Nova IVC](#nova-ivc) above.
 

@@ -346,25 +346,29 @@ def load_grounding_texts() -> dict[str | None, str] | None:
 def fence_segments(text: str) -> list[tuple[bool, str]]:
     """Split `text` into consecutive (inside_fence, text) segments.
 
-    The fence lines belong to their fenced segment. A fence closes only on a
-    line opening with at least as many of the same character, so a ~~~ line
-    inside a ``` block stays code.
+    The fence lines belong to their fenced segment. A fence opens on FENCE_RE
+    (an info string may follow). It closes only on a line holding optional
+    indent, then a run of the opening character at least as long as the
+    opening run, then nothing but spaces or tabs. Any other line stays code,
+    including a fence line with an info string or of the other character.
     """
     segments: list[tuple[bool, str]] = []
     current: list[str] = []
     fence: str | None = None
     for line in text.splitlines():
-        match = FENCE_RE.match(line)
-        if fence is None and match:
-            segments.append((False, "\n".join(current)))
-            current, fence = [line], match.group(1)
-        elif fence is not None:
-            current.append(line)
-            if match and match.group(1).startswith(fence):
-                segments.append((True, "\n".join(current)))
-                current, fence = [], None
+        if fence is None:
+            match = FENCE_RE.match(line)
+            if match:
+                segments.append((False, "\n".join(current)))
+                current, fence = [line], match.group(1)
+            else:
+                current.append(line)
         else:
             current.append(line)
+            closer = line.lstrip().rstrip(" \t")
+            if len(closer) >= len(fence) and closer == fence[0] * len(closer):
+                segments.append((True, "\n".join(current)))
+                current, fence = [], None
     segments.append((fence is not None, "\n".join(current)))
     return segments
 

@@ -42,11 +42,13 @@ if [ -d "$SKILL_DIR" ]; then
   exit 1
 fi
 
-# Create directories
-mkdir -p "$SKILL_DIR/references"
+# Render into a temp directory first so a failure never leaves a half-created skill behind
+STAGE_DIR="$(mktemp -d)"
+trap 'rm -rf "$STAGE_DIR"' EXIT
+mkdir -p "$STAGE_DIR/references"
 
 # Create SKILL.md
-cat > "$SKILL_DIR/SKILL.md" << 'TEMPLATE'
+cat > "$STAGE_DIR/SKILL.md" << 'TEMPLATE'
 ---
 name: SKILL_NAME_PLACEHOLDER
 description: >-
@@ -105,8 +107,14 @@ TODO: Describe what to produce.
 - See [shared principles](../../docs/SKILL_PRINCIPLES.md) for safety guidelines
 TEMPLATE
 
-# Replace placeholder with actual name
-sed -i '' "s/SKILL_NAME_PLACEHOLDER/$SKILL_NAME/g" "$SKILL_DIR/SKILL.md"
+# Replace placeholder with actual name (no sed -i: its syntax differs between GNU and BSD)
+sed "s/SKILL_NAME_PLACEHOLDER/$SKILL_NAME/g" "$STAGE_DIR/SKILL.md" > "$STAGE_DIR/SKILL.md.new"
+mv "$STAGE_DIR/SKILL.md.new" "$STAGE_DIR/SKILL.md"
+
+# Publish the finished scaffold
+mkdir -p "$SKILLS_DIR"
+mv "$STAGE_DIR" "$SKILL_DIR"
+chmod 755 "$SKILL_DIR"
 
 echo "Created skill scaffold at: $SKILL_DIR"
 echo ""

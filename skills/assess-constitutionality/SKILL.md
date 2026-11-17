@@ -17,6 +17,14 @@ disallowed-tools: Edit Write WebFetch WebSearch
 
 # Assess Constitutionality of a Governance Action
 
+<!-- cds:grounding begin variant=assess-constitutionality -->
+**Grounding.** Base every finding on the mirrored constitutional text and the bundled `docs/sources/` corpus, citing
+the exact file. If bundled sources disagree, look out of date, or are silent, say so plainly. Public evidence is
+retrieved only as this skill's Workflow describes; that is not a general web-research permission.
+<!-- cds:grounding end -->
+
+Longer guidance: [SOURCE_GROUNDING](../../docs/SOURCE_GROUNDING.md).
+
 Work through a Cardano governance action provision by provision against the Constitution and
 produce a findings report. Works on a live on-chain action, on a transaction that has not
 been submitted yet, or on a draft.

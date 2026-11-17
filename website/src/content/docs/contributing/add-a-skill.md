@@ -73,6 +73,8 @@ Instructions...
 - [ ] Description includes trigger phrases
 - [ ] Has "When to use", "When NOT to use", "Key principles", "Workflow"
       sections
+- [ ] Carries the grounding block from `docs/SOURCE_GROUNDING.md`
+      (validator-checked)
 - [ ] No MCP dependency (no `search_docs` references)
 - [ ] Remains useful with local access. Any public read-only evidence exception
       has a recorded DESIGN decision, unchanged least-privilege frontmatter,

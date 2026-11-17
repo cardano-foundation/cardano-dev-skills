@@ -43,14 +43,18 @@ npm install @meshsdk/core
 ```typescript
 import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";
 
-const provider = new BlockfrostProvider("YOUR_KEY");
+const provider = new BlockfrostProvider("<BLOCKFROST_KEY>");
 const txBuilder = new MeshTxBuilder({ fetcher: provider, submitter: provider });
 
+// Build, sign, submit pattern
 const unsignedTx = await txBuilder
-  .txOut(recipient, [{ unit: "lovelace", quantity: "5000000" }])
-  .changeAddress(sender)
+  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(senderAddress)
   .selectUtxosFrom(utxos)
   .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
 ```
 
 ---

@@ -111,6 +111,31 @@ ALLOWED_TOOLS_EXCEPTIONS = {
 # repository and a draft the user has read and approved (DESIGN Decision 14).
 REQUIRED_DISALLOWED_TOOLS = {"WebFetch", "WebSearch"}
 
+# Every skill carries one grounding block whose text is fixed by the fenced
+# blocks in docs/SOURCE_GROUNDING.md; a skill listed in GROUNDING_VARIANTS
+# carries its variant instead. The mapping is fixed here, not read from the
+# doc, so adding a variant there cannot silently move a skill off the general
+# text. cardano-context writes no block of its own into its body: the general
+# text lives inside the context block it installs. give-feedback answers no
+# Cardano question. A block inside a code fence is an example, not live text,
+# so markers there are rejected.
+GROUNDING_DOC = REPO_ROOT / "docs" / "SOURCE_GROUNDING.md"
+GROUNDING_EXEMPT = {"cardano-context", "give-feedback"}
+GROUNDING_VARIANTS: dict[str, str] = {
+    "review-contract": "review-contract",
+    "assess-constitutionality": "assess-constitutionality",
+}
+GROUNDING_BEGIN_RE = re.compile(
+    r"<!-- cds:grounding begin(?: variant=([a-z0-9-]+))? -->")
+GROUNDING_END = "<!-- cds:grounding end -->"
+GROUNDING_REGION_RE = re.compile(
+    GROUNDING_BEGIN_RE.pattern + r"(.*?)" + re.escape(GROUNDING_END), re.S)
+GROUNDING_MARKER_RE = re.compile(r"<!--\s*cds:grounding\b")
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
+CONTEXT_BLOCK_RE = re.compile(
+    r"<!-- BEGIN cardano-dev-skills v\d+ -->(.*?)"
+    r"<!-- END cardano-dev-skills v\d+ -->", re.S)
+
 errors: list[str] = []
 warnings: list[str] = []
 
@@ -271,6 +296,146 @@ def validate_skill(skill_dir: Path) -> None:
                             f"variable {variable}; resolve paths relative to "
                             "the active SKILL.md instead"
                         )
+
+
+def normalize_grounding(text: str) -> str:
+    """Collapse whitespace runs so re-wrapping or list indentation is not a diff."""
+    return " ".join(text.split())
+
+
+def load_grounding_texts() -> dict[str | None, str] | None:
+    """Read the canonical grounding texts, keyed by variant (None = general).
+
+    Only fenced blocks count, so prose in the doc that names the markers can
+    never become a canonical text. The doc must define exactly the general
+    text and one text per GROUNDING_VARIANTS entry.
+    """
+    if not GROUNDING_DOC.exists():
+        error(f"Missing {GROUNDING_DOC} (canonical grounding texts)")
+        return None
+    fenced: list[str] = []
+    current: list[str] | None = None
+    for line in GROUNDING_DOC.read_text(encoding="utf-8").splitlines():
+        if line.lstrip().startswith("```"):
+            if current is None:
+                current = []
+            else:
+                fenced.append("\n".join(current))
+                current = None
+        elif current is not None:
+            current.append(line)
+    texts: dict[str | None, str] = {}
+    for block in fenced:
+        for match in GROUNDING_REGION_RE.finditer(block):
+            variant = match.group(1)
+            if variant in texts:
+                error(f"{GROUNDING_DOC}: grounding text "
+                      f"{variant or 'general'!r} defined more than once")
+            texts[variant] = normalize_grounding(match.group(2))
+    expected = {None} | set(GROUNDING_VARIANTS.values())
+    for variant in sorted(expected - texts.keys(), key=str):
+        error(f"{GROUNDING_DOC}: missing the {variant or 'general'} grounding text")
+    for variant in sorted(texts.keys() - expected, key=str):
+        error(f"{GROUNDING_DOC}: unexpected grounding variant {variant!r} "
+              "(variants are fixed by GROUNDING_VARIANTS in validate.py)")
+    if texts.keys() != expected:
+        return None
+    return texts
+
+
+def fence_segments(text: str) -> list[tuple[bool, str]]:
+    """Split `text` into consecutive (inside_fence, text) segments.
+
+    The fence lines belong to their fenced segment. A fence opens on FENCE_RE
+    (an info string may follow). It closes only on a line holding optional
+    indent, then a run of the opening character at least as long as the
+    opening run, then nothing but spaces or tabs. Any other line stays code,
+    including a fence line with an info string or of the other character.
+    """
+    segments: list[tuple[bool, str]] = []
+    current: list[str] = []
+    fence: str | None = None
+    for line in text.splitlines():
+        if fence is None:
+            match = FENCE_RE.match(line)
+            if match:
+                segments.append((False, "\n".join(current)))
+                current, fence = [line], match.group(1)
+            else:
+                current.append(line)
+        else:
+            current.append(line)
+            closer = line.lstrip().rstrip(" \t")
+            if len(closer) >= len(fence) and closer == fence[0] * len(closer):
+                segments.append((True, "\n".join(current)))
+                current, fence = [], None
+    segments.append((fence is not None, "\n".join(current)))
+    return segments
+
+
+def check_grounding_region(label: str, parts: list[str],
+                           expected_variant: str | None,
+                           canonical: dict[str | None, str]) -> None:
+    """Require exactly one grounding region across `parts` matching the
+    canonical text. A region must sit wholly inside one part."""
+    begins = sum(len(GROUNDING_BEGIN_RE.findall(part)) for part in parts)
+    ends = sum(part.count(GROUNDING_END) for part in parts)
+    regions = [m for part in parts for m in GROUNDING_REGION_RE.finditer(part)]
+    wanted = expected_variant or "general"
+    if not begins:
+        error(f"{label}: grounding block missing (expected the {wanted} text "
+              f"from docs/SOURCE_GROUNDING.md)")
+        return
+    if begins > 1:
+        error(f"{label}: grounding block duplicated ({begins} begin markers; "
+              "exactly one is allowed)")
+        return
+    if len(regions) != 1 or ends != 1:
+        error(f"{label}: grounding block malformed (begin marker without "
+              f"exactly one matching end marker)")
+        return
+    found = regions[0].group(1)
+    if found != expected_variant:
+        error(f"{label}: grounding block is the {found or 'general'} text, "
+              f"expected the {wanted} text")
+        return
+    if normalize_grounding(regions[0].group(2)) != canonical[expected_variant]:
+        error(f"{label}: grounding block text differs from the {wanted} text "
+              "in docs/SOURCE_GROUNDING.md")
+
+
+def validate_grounding(skill_dirs: list[Path]) -> None:
+    """Check every skill's grounding block and the one in the context block."""
+    for skill in GROUNDING_VARIANTS:
+        if not (SKILLS_DIR / skill / "SKILL.md").exists():
+            error(f"GROUNDING_VARIANTS names skill {skill!r}, which does not exist")
+    canonical = load_grounding_texts()
+    if canonical is None:
+        return
+    for skill_dir in skill_dirs:
+        name = skill_dir.name
+        if name in GROUNDING_EXEMPT:
+            continue
+        segments = fence_segments(
+            (skill_dir / "SKILL.md").read_text(encoding="utf-8"))
+        if any(inside and GROUNDING_MARKER_RE.search(part)
+               for inside, part in segments):
+            error(f"skill {name}: grounding marker inside a code fence; "
+                  "the block must be live text")
+        check_grounding_region(
+            f"skill {name}", [part for inside, part in segments if not inside],
+            GROUNDING_VARIANTS.get(name), canonical)
+
+    context_md = SKILLS_DIR / "cardano-context" / "SKILL.md"
+    if not context_md.exists():
+        return
+    blocks = CONTEXT_BLOCK_RE.findall(context_md.read_text(encoding="utf-8"))
+    if len(blocks) != 1:
+        error(f"skill cardano-context: expected exactly one canonical context "
+              f"block, found {len(blocks)}")
+        return
+    check_grounding_region("skill cardano-context (context block)", [blocks[0]],
+                           None, canonical)
 
 
 def load_json(path: Path) -> dict | None:
@@ -541,6 +706,7 @@ def main() -> int:
             return 1
 
         # Validate skills (flat structure: skills/<skill-name>/SKILL.md)
+        skill_dirs: list[Path] = []
         for skill_dir in sorted(SKILLS_DIR.iterdir()):
             if not skill_dir.is_dir():
                 continue
@@ -551,7 +717,11 @@ def main() -> int:
                 )
                 continue
             validate_skill(skill_dir)
+            skill_dirs.append(skill_dir)
             skill_count += 1
+
+        # Validate the grounding block in every skill and the context block.
+        validate_grounding(skill_dirs)
 
         # Validate the shared authoring contract and both host adapters.
         validate_agent_compatibility()

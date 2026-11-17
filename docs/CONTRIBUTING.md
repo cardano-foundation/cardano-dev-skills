@@ -238,6 +238,7 @@ Instructions...
 - [ ] `name:` matches directory name
 - [ ] Description includes trigger phrases
 - [ ] Has "When to use", "When NOT to use", "Key principles", "Workflow" sections
+- [ ] Carries the grounding block from `docs/SOURCE_GROUNDING.md` (validator-checked)
 - [ ] No external service dependency — remains useful with local file read and
       search access; any public read-only evidence exception is recorded in
       DESIGN.md and has a per-item fallback

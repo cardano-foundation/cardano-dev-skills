@@ -166,10 +166,12 @@ vote** with its own threshold (`Q5`, 0.51 by default per the developer portal, s
 #### cardano-cli governance commands
 
 ```bash
+# Queries need a network flag: --mainnet, or --testnet-magic 1 (preprod) / 2 (preview)
+
 # Register as a DRep
 cardano-cli latest governance drep registration-certificate \
   --drep-verification-key-file drep.vkey \
-  --key-reg-deposit-amt "$(cardano-cli latest query gov-state --testnet-magic 1 | jq -r .currentPParams.dRepDeposit)" \
+  --key-reg-deposit-amt "$(cardano-cli latest query gov-state --testnet-magic <magic> | jq -r .currentPParams.dRepDeposit)" \
   --out-file drep-reg.cert
 
 # Create a vote
@@ -181,9 +183,9 @@ cardano-cli latest governance vote create \
   --out-file vote.json
 
 # Query governance state
-cardano-cli latest query gov-state
-cardano-cli latest query drep-state --all-dreps
-cardano-cli latest query drep-state --drep-key-hash <hex>   # one DRep, 28-byte key hash without the CIP-129 header
+cardano-cli latest query gov-state --testnet-magic <magic>
+cardano-cli latest query drep-state --all-dreps --testnet-magic <magic>
+cardano-cli latest query drep-state --drep-key-hash <hex> --testnet-magic <magic>   # one DRep, 28-byte key hash without the CIP-129 header
 ```
 
 #### DRep ID formats and status

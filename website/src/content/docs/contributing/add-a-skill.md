@@ -89,6 +89,9 @@ Instructions...
       domain controls, or changes an allowlist automatically
 - [ ] Deep content in `references/`, one level only — no nested
       subdirectories
+- [ ] "Official" is used only for a project's own product, SDK, docs or
+      examples. For open, permissionless functions such as governance, name
+      who builds a tool instead: no interface is the official one
 - [ ] No mention of specific deployed dApps; teach categories generically
 - [ ] No mention of grants, treasuries, or governance proposals — the skill
       must read as a neutral community contribution

@@ -194,3 +194,5 @@ The 7 providers above are infrastructure. A TypeScript project usually reaches t
 **Evolution SDK** wraps Blockfrost, Kupmios, and Koios behind one interface — `Client.make(network).withBlockfrost(...)` (or `.withKupmios` / `.withKoios`). The provider is a config choice; query code (`getUtxos`, `getUtxosWithUnit`, `getUtxoByUnit`, `getUtxosByOutRef`, `getDatum`, `getDelegation`, `getProtocolParameters`, `awaitTx`) is identical across all three. A **provider-only client** (no wallet) covers pure read/query and pre-signed submission.
 
 The practical effect: the provider decision is reversible — start on hosted Blockfrost, move to self-hosted Kupmios later, with no change to query code. Docs: `../../docs/sources/evolution-sdk/providers/` and `querying/`.
+
+Maestro is not an option any more: its Cardano API shut down in 2026, so bundled Evolution SDK and Mesh docs that show `withMaestro` / `MaestroProvider` are out of date. Use Blockfrost, Koios or Kupmios instead.

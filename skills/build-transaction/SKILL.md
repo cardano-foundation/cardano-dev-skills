@@ -286,8 +286,8 @@ Warn about these frequent issues:
   handles this, but manual outputs can fail.
 - **Forgetting collateral:** Plutus transactions require a collateral input.
   Use a UTxO with only ADA (no tokens).
-- **Wrong network:** Addresses are network-specific. A Preview address will
-  not work on Preprod or Mainnet.
+- **Wrong network:** Addresses are network-specific. A Preview address will not work on Preprod or Mainnet.
+- **Retired provider (Maestro):** Maestro's Cardano API has shut down. If code, the user or a bundled SDK doc uses `withMaestro` or `MaestroProvider`, stop and ask whether they meant another provider (Blockfrost, Koios or Kupmios); bundled Evolution SDK and Mesh pages that list it are out of date.
 - **Stale UTxO set:** If another transaction consumed your inputs between
   query and submit, you get `BadInputsUTxO`. Re-query and rebuild.
 - **Token name encoding:** Asset names are hex-encoded bytes. Ensure proper

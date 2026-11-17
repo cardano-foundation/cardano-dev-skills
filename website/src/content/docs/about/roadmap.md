@@ -20,8 +20,6 @@ for) and **governance** (the lifecycle that keeps that content current).
   context.
 - Documentation sources mirrored locally — SDKs, languages, infra, CIPs,
   ledger specs — under `docs/sources/`.
-- A `SessionStart` hook (`hooks/check-docs.sh`) that reports doc freshness
-  and surfaces the per-project directive nudge.
 
 ### Planned
 

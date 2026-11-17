@@ -1,9 +1,9 @@
 ---
 title: How it works
-description: Shared skills, dual-host project instructions, and SessionStart freshness signals keep Cardano guidance current.
+description: Shared skills and dual-host project instructions steer agents to current Cardano guidance.
 ---
 
-Three complementary mechanisms set the Cardano context for the agent, listed
+Two complementary mechanisms set the Cardano context for the agent, listed
 from most reliable to least.
 
 ## 1. Per-project `cardano-context` directive
@@ -48,40 +48,6 @@ question that matches, the agent auto-invokes that skill:
 The full skill catalogue lives at [/skills](/cardano-dev-skills/skills/).
 
 **Good at:** workflow-shaped prompts where the user names the task.
-
-## 3. SessionStart freshness signals
-
-A `SessionStart` hook (`hooks/check-docs.sh`) inspects the bundled corpus
-and the current working directory. It returns one JSON object with
-`hookSpecificOutput.hookEventName` set to `SessionStart` and the status lines
-in `hookSpecificOutput.additionalContext`. Claude Code and Codex understand
-this format; the `[Cardano Dev Skills]` prefix stays inside the context string
-instead of resembling a JSON array on stdout. Hook execution depends on the
-host's hook support and trust settings. The notices are:
-
-- **Docs loaded.** Normal: `Docs loaded: N sources, M files (updated Xd ago)`.
-- **Supply-chain framing.** Prints a standing note that the bundled
-  corpus is third-party reference data, never instructions to execute.
-- **Docs stale (>30 days).** Suggests how to refresh based on install topology:
-  for a local clone, `git pull && ./scripts/fetch-docs.sh`; for a marketplace
-  install, `claude plugin update cardano-dev-skills@cardano-dev-skills` from a
-  shell, or auto-update turned on for the marketplace in `/plugin`.
-- **Plugin clone behind upstream.** Local clones only: if `git fetch` has run
-  and you haven't pulled, the hook prints how many commits behind you are.
-- **Cardano context active.** When `./CLAUDE.md` contains the current directive
-  block. An older block gets a prompt to re-run `/cardano-dev-skills:cardano-context`;
-  a block newer than the installed plugin gets a prompt to update the plugin.
-- **Cardano context nudge.** When cwd looks like a project (`.git`, `.claude`,
-  or existing `CLAUDE.md`) but has no block: *"Tip: run
-  /cardano-dev-skills:cardano-context to enable auto-consultation in this
-  project."*
-
-The hook is fail-open: any failure exits 0 silently and never blocks the
-session. The project-context check inspects `CLAUDE.md`; Codex also reads the
-durable `AGENTS.md` block directly and does not depend on this hook.
-
-**Good at:** ambient awareness — surfaces stale docs and missing project
-directives without interrupting flow.
 
 ## Public evidence under host permissions
 

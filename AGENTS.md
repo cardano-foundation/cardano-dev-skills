@@ -11,7 +11,6 @@ the canonical source for skills consumed by both Claude Code and Codex.
 - `registry/` — canonical source registry and vetted commit pins
 - `scripts/` — validation, policy, fetch, sync, and scaffolding tooling
 - `.claude-plugin/` — Claude-specific packaging
-- `hooks/` — shared optional SessionStart context
 - `.codex-plugin/` and `.agents/skills` — Codex packaging and discovery
 - `docs/AGENT_COMPATIBILITY.md` — canonical cross-agent authoring contract
 - `docs/CONTRIBUTING.md` — contribution, governance, and source-vetting policy
@@ -66,9 +65,8 @@ Run the checks relevant to the change:
 ```bash
 python3 scripts/validate.py
 python3 scripts/check-pr-policy.py
-./hooks/test-check-docs.sh
 ```
 
 The first command is the shared compatibility gate: it validates the skill
 contract, Claude and Codex manifests/discovery, source registry, and portable
-paths. CI runs the hook test alongside it.
+paths.

@@ -16,7 +16,6 @@ The important boundary is:
 - shared behavior and Cardano knowledge remain agent-neutral in `skills/`;
 - `.claude-plugin/` and `CLAUDE.md` adapt that content to Claude;
 - `.codex-plugin/`, `.agents/skills`, and `AGENTS.md` adapt it to Codex;
-- `hooks/` supplies optional SessionStart context in a shared output format;
 - `scripts/validate.py` checks the shared contract and both adapters together.
 
 Claude's `allowed-tools` and `disallowed-tools` frontmatter fields remain
@@ -345,7 +344,6 @@ related docs in the same PR.
 | New source | CONTRIBUTING.md only if introducing a new category or format. Pages site sources catalog auto-regenerates on build. |
 | New schema field | `registry/sources.yaml` header comment; CONTRIBUTING.md valid-values lists; DESIGN.md if architectural |
 | New script in `scripts/` | README.md if user-facing |
-| New hook | README.md "How to set the Cardano context" section; CLAUDE.md repo structure; `website/src/content/docs/how-it-works.md` |
 | Agent adapter, manifest, discovery, or portability rule | AGENTS.md; CLAUDE.md; `docs/AGENT_COMPATIBILITY.md`; README/website install docs when user-visible |
 | Scope / vetting / governance policy change | CLAUDE.md; CONTRIBUTING.md; `website/src/content/docs/contributing/` pages |
 | Vision / "why" change | README.md; `website/src/content/docs/about/why.md` |

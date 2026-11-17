@@ -10,7 +10,6 @@ the canonical source for skills consumed by both Claude Code and Codex.
 - `skills/` — developer skills (flat layout — each skill is `skills/<name>/SKILL.md`)
 - `scripts/` — validation, fetch, sync, and scaffolding tooling
 - `.claude-plugin/` — Claude-specific packaging
-- `hooks/` — shared optional SessionStart context
 - `.codex-plugin/`, `.agents/skills` — Codex packaging and discovery
 - `docs/AGENT_COMPATIBILITY.md` — canonical cross-agent authoring contract
 - `docs/DESIGN.md` — architectural decisions
@@ -22,7 +21,6 @@ the canonical source for skills consumed by both Claude Code and Codex.
 |---|---|---|
 | Validate skills + sources (the CI gate) | `python3 scripts/validate.py` | `pyyaml` |
 | Path-portability check alone | `python3 scripts/validate.py --paths-only` | nothing |
-| Test the SessionStart hook | `./hooks/test-check-docs.sh` | `python3` |
 | Fetch one source after editing its registry entry | `./scripts/fetch-docs.sh --source "Project Name" --update-pins` | `python3`, git |
 | Build the site | `cd website && npm ci && npm run build` | Node ≥18.17 |
 | PR policy gate (source vetting, skill naming) | `GITHUB_TOKEN=$(gh auth token) python3 scripts/check-pr-policy.py --base origin/main --head HEAD` | `pyyaml` |
@@ -34,7 +32,7 @@ prerequisite anywhere, and `validate.py` says so when the module is missing. The
 on the policy row is optional — it only raises the GitHub API rate limit.
 
 There is no linter. `validate.py` is the gate CI runs on every PR touching
-`skills/`, `registry/`, `scripts/`, `docs/` or `hooks/`.
+`skills/`, `registry/`, `scripts/` or `docs/`.
 
 `scripts/fetch-docs.sh` with no `--source` and `scripts/sync-sources.sh` hit the
 network and rewrite the whole vendored corpus. Never run them as a side effect of

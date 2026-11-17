@@ -154,13 +154,13 @@ Keep the plugin updated: in Claude Code, turn on marketplace auto-update as
 described above; for a Codex repository link or a standalone clone, run
 `git pull` in the `cardano-dev-skills` checkout.
 
-After an update, run `cardano-context` again in each project that uses it. An
-update can ship a new version of the project directive; re-running replaces an
-older block and is a no-op when the block is already current.
+After an update that ships a new version of the project directive block, run
+`cardano-context` again in each project that uses it: it replaces the older
+block, and on a current block it changes nothing.
 
 ## How to set the Cardano context
 
-Three complementary mechanisms, listed from most reliable to least:
+Two complementary mechanisms, listed from most reliable to least:
 
 ### Per-project directive (recommended) — `cardano-context`
 

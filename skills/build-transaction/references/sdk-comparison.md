@@ -184,31 +184,7 @@ directory carries worked examples for staking, governance, and Plutus V3.
   API surface does not advertise
 - Worked script-spending examples live in the examples repo, not the docs site
 
-**Installation (Maven):**
-```xml
-<dependency>
-  <groupId>com.bloxbean.cardano</groupId>
-  <artifactId>cardano-client-lib</artifactId>
-  <version>0.7.2</version>
-</dependency>
-```
-
-**Basic send-ADA pattern (QuickTx -- the recommended API):**
-```java
-BackendService backendService = new BFBackendService(
-        "https://cardano-preprod.blockfrost.io/api/v0/", "<PROJECT_ID>");
-QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
-
-Tx tx = new Tx()
-        .payToAddress(receiver, Amount.ada(5))
-        .from(sender.baseAddress());
-
-TxResult result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.signerFrom(sender))
-        .completeAndWait();
-```
-
-For Plutus spending, minting, datum encoding and signer semantics, see
+Send-ADA pattern, Plutus spending, minting, datum encoding and signer semantics:
 `cclib-quicktx.md` in this directory.
 
 ---

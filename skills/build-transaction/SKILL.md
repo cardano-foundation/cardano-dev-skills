@@ -440,7 +440,8 @@ Example: the Apollo section of `references/sdk-comparison.md`.
 
 ## References
 
-- `references/sdk-comparison.md` -- detailed SDK comparison table, plus the cardano-client-lib and Apollo examples
+- `references/sdk-comparison.md` -- detailed SDK comparison table, plus the Apollo example
+- `references/cclib-quicktx.md` -- cardano-client-lib QuickTx guide and examples
 - `references/haskell-ledger.md` -- Aiken + cardano-ledger + CHaP + haskell.nix
 - Search `../../docs/sources/` for CIP-25, CIP-68 metadata standards
 - Cardano Developer Portal: https://developers.cardano.org

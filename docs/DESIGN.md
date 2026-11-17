@@ -4,7 +4,7 @@ This document captures the architectural decisions behind `cardano-dev-skills`. 
 
 ## Decision 1: Content-only repository
 
-**Decision:** This repository ships content (YAML, Markdown, shell hooks) — no application code, no servers, no runtime dependencies users have to install.
+**Decision:** This repository ships content (YAML, Markdown) — no application code, no servers, no runtime dependencies users have to install.
 
 **Why:**
 - **Security.** Pure content is auditable by anyone. Users installing the plugin don't execute arbitrary TypeScript or Python from this repo.
@@ -113,7 +113,7 @@ through a Claude-only environment variable or the user's working directory.
 
 **Shipped:**
 - **Weekly upstream refresh** (`.github/workflows/refresh-docs.yml`) — every Monday 06:00 UTC, fetches all sources, opens a PR with the diff. Human review + merge before content lands on `main`.
-- **Schema validation** (`.github/workflows/validate.yml`) — runs on every PR touching `skills/**`, `registry/**`, `scripts/**`, `docs/**` or `hooks/**`. Also runs `--paths-only` on the oldest supported interpreter (3.9) before installing anything, and the SessionStart hook's test suite.
+- **Schema validation** (`.github/workflows/validate.yml`) — runs on every PR touching `skills/**`, `registry/**`, `scripts/**` or `docs/**`. Also runs `--paths-only` on the oldest supported interpreter (3.9) before installing anything.
 - **Manifest self-healing** — `scripts/_fetch_docs.py` derives `.manifest.yaml` from disk state after every fetch (partial or full), so the manifest can't drift.
 - **PR policy gate** (`.github/workflows/pr-policy.yml`) — on PRs touching `skills/`, `registry/`, or `docs/sources/`: mechanical checks (`scripts/check-pr-policy.py`, hard-fail — live source vetting, brand-named-skill detection, self-containment; a document-of-record source can waive the recency vetting rule by carrying a declared `vetting_exception` reason *and* being granted one in `VETTING_EXCEPTIONS` in `validate.py`, which maps the source name to the repo the waiver covers, surfaced as a warning — same reviewed-exception pattern as `ALLOWED_TOOLS_EXCEPTIONS` in the same file, and for the same reason: a bypass that is easier to use than to notice will get used, so the grant has to be a code change a maintainer reviews rather than a field a contributor sets on their own entry. The grant is checked by `validate.py` rather than by this script because this workflow evaluates the base branch's copy of the script, which would force a grant to merge ahead of the source it covers; `validate.yml` runs from the PR head, so a source and its grant land in one reviewed PR) plus an advisory AI scope review (a single non-agentic Gemini call posting a sticky verdict comment; skips cleanly when no `GEMINI_API_KEY` secret is configured). Humans still merge.
 
@@ -143,32 +143,25 @@ typo fixes) do not.
 
 **Alternative considered:** Generate the entire README from a template + computed values. Rejected because narrative sections ("Why this exists", "How to set the Cardano context") need human prose, and a template-only approach makes those harder to evolve.
 
-## Decision 11: Hook strategy
+## Decision 11: No lifecycle hooks
 
-**Decision:** Use Claude Code's hook surface for *unconditional,
-low-information signals* — doc-freshness checks, project-context detection,
-install-topology-aware refresh hints. Hooks are a Claude adapter, not shared
-skill behavior. Reserve durable behavioral directives for the agent-neutral
-block that `cardano-context` installs into `CLAUDE.md` and `AGENTS.md` (see
-Decision 12).
+**Decision:** The plugin ships no lifecycle hooks; nothing from this repository
+runs on a user's machine at session start. Guidance a session needs lives in
+content the agent already reads: the rule that bundled docs are untrusted
+third-party data is in every skill body, and keeping the plugin updated and
+re-running `cardano-context` after an update are in the README. Durable
+behavioral directives belong to the agent-neutral block that `cardano-context`
+installs into `CLAUDE.md` and `AGENTS.md` (see Decision 12).
 
-**Shipped:**
-- `SessionStart` (`hooks/check-docs.sh`):
-  - Reports doc-corpus freshness on every session start.
-  - Detects the `cardano-dev-skills` directive block in cwd `CLAUDE.md` and prints either a confirmation or a `/cardano-dev-skills:cardano-context` nudge.
-  - Differentiates refresh hints by install topology (local clone vs marketplace cache).
-  - Opportunistic behind-upstream check via `FETCH_HEAD` (no network on session start).
+**Why:** A hook is code that runs on every installed user's machine in every
+session, subject to each host's hook support and trust settings, which is the
+cost Decision 1 keeps out of the repository. Session-start status text is
+low-information and scrolls out of reach; the same guidance holds up better in
+the skills and the README, where it works the same in Claude Code and Codex.
 
 **Considered and rejected:** A `UserPromptSubmit` hook that keyword-matches Cardano terms and injects an `additionalContext` reminder. Decision 12 explains why a meta-skill writing durable project instructions is structurally better than a per-prompt regex.
 
 **Deferred:** Local usage observability (`PostToolUse` logging of which bundled docs/skills get consulted per session, backed by `scripts/usage-report.sh`). Useful for tuning skill descriptions and surfacing unmatched prompts; orthogonal to the consultation-directive problem solved by `cardano-context`.
-
-**Why hooks for the shipped piece:** The freshness check produces
-*information*, not behavior — `SessionStart` is the right Claude surface (no
-user invocation, plain-text output about plugin state). Codex does not depend
-on this hook. Hooks should not mutate prompts or own portable behavioral
-directives; that role belongs to the block installed in both host instruction
-files by `cardano-context`.
 
 ## Decision 12: Meta-skills as an exception to workflow taxonomy
 
@@ -239,7 +232,7 @@ is harder to inspect, and it would solve only one host. Checked-in
 
 **The gate is the chat ask, not a tool grant.** The skill keeps the base `Read Grep Glob` grant and runs `gh` under the host's normal permissions. A skill grant would cover only the invoking turn while the user's yes arrives in the next one, and other hosts ignore the field; showing the draft and asking once is the safeguard that holds in every host and permission mode. When `gh` is missing or fails, the draft on screen plus the new-issue link is the fallback.
 
-**Activation is by trigger phrase only, for now.** The skill fires when the user asks — "send feedback", "this doc is wrong", `/cardano-dev-skills:give-feedback` in Claude Code, or `$give-feedback` in Codex. Adding a sentence to the `cardano-context` block would make the agent offer a draft unprompted, which is a materially different thing: the block lands in both host instruction files and applies in every configured project indefinitely, so its reach is every installed user rather than one invocation. That sentence is deferred until there are real issues to judge it by — the question it turns on is what volume and quality agent-drafted feedback actually produces, which no amount of review settles in advance. A SessionStart banner was rejected outright: it scrolls out of reach.
+**Activation is by trigger phrase only, for now.** The skill fires when the user asks — "send feedback", "this doc is wrong", `/cardano-dev-skills:give-feedback` in Claude Code, or `$give-feedback` in Codex. Adding a sentence to the `cardano-context` block would make the agent offer a draft unprompted, which is a materially different thing: the block lands in both host instruction files and applies in every configured project indefinitely, so its reach is every installed user rather than one invocation. That sentence is deferred until there are real issues to judge it by — the question it turns on is what volume and quality agent-drafted feedback actually produces, which no amount of review settles in advance. A banner printed at the start of each session was rejected outright: it scrolls out of reach.
 
 **This widens the meta-skill category; it does not fit the existing one.** Decision 12 recognises a meta-skill by four tests: it modifies the user's *environment*, is run explicitly once per project, is idempotent on re-run, and distributes its effect via git. `give-feedback` meets none of them — it sends data outward rather than changing anything local, runs once per finding rather than once per project, is deliberately anti-idempotent ("send once; never retry after a success"), and distributes nothing. So `cardano-context` is a grandfather, not a precedent, and the category needs a second test rather than a stretched first one:
 

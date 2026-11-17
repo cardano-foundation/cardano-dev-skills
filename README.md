@@ -23,7 +23,6 @@ End result: the agent answers from current, project-authoritative sources instea
 
 - **Developer skills** — each a focused workflow
 - **Documentation sources** — bundled locally under `docs/sources/`, auto-refreshed weekly via GitHub Actions
-- **Lifecycle hook** — `SessionStart` supplies doc freshness and project-context status
 
 ### Skills
 
@@ -104,9 +103,6 @@ The Claude app's Chat side uses the same plugin format as Claude Code, so this
 marketplace works there unchanged. Installing here also syncs the plugin to Claude
 Code sessions signed in with the same account.
 
-Hooks don't run in chat, so the SessionStart hook's notices (docs age, context
-status) appear only in Cowork, where your app still has it, and in Claude Code.
-
 1. Open **Customize** and go to the **Plugins** tab.
 2. Under **Personal plugins**, click **+**, then **Add marketplace**.
 3. Choose **Add from a repository** and enter:
@@ -151,9 +147,20 @@ repository link above is the supported installation path.
 
 Skills are pure Markdown — read `skills/*/SKILL.md` directly or with `grep`.
 
+### Staying current
+
+The bundled docs refresh weekly, so an old install answers from an old corpus.
+Keep the plugin updated: in Claude Code, turn on marketplace auto-update as
+described above; for a Codex repository link or a standalone clone, run
+`git pull` in the `cardano-dev-skills` checkout.
+
+After an update that ships a new version of the project directive block, run
+`cardano-context` again in each project that uses it: it replaces the older
+block, and on a current block it changes nothing.
+
 ## How to set the Cardano context
 
-Three complementary mechanisms, listed from most reliable to least:
+Two complementary mechanisms, listed from most reliable to least:
 
 ### Per-project directive (recommended) — `cardano-context`
 
@@ -182,13 +189,9 @@ What it does:
 A project-local Claude skill may also appear as `/cardano-context`; the
 plugin-qualified form above avoids collisions with skills from other plugins.
 
-### Automatic mechanisms (no setup)
+### Skill matching (no setup)
 
-Skill matching applies in both hosts. Freshness notices use an optional
-lifecycle hook:
-
-1. **Skill matching.** When you ask a question that matches a skill's trigger phrases (e.g. *"review my validator"*, *"scaffold a Cardano project"*), the agent selects that skill.
-2. **Session start.** A `SessionStart` hook adds notices such as `[Cardano Dev Skills] Docs loaded: <n> sources, ...` to the agent's context. Hosts with plugin-hook support, including Claude Code and current Codex, discover `hooks/hooks.json`; execution depends on the host's hook trust settings.
+Skill matching applies in both hosts. When you ask a question that matches a skill's trigger phrases (e.g. *"review my validator"*, *"scaffold a Cardano project"*), the agent selects that skill.
 
 ### When auto-consultation misses
 
@@ -213,21 +216,6 @@ Manual refresh:
 ```
 
 The fetch script writes a `.manifest.yaml` derived from disk state — so partial and full fetches both leave it accurate.
-
-### SessionStart freshness signals
-
-A `SessionStart` hook (`hooks/check-docs.sh`) inspects the bundled corpus and the current working directory. It returns one JSON object with `hookSpecificOutput.hookEventName` set to `SessionStart` and the status lines in `hookSpecificOutput.additionalContext`. This output format is compatible with Claude Code and Codex; it avoids interpreting the `[Cardano Dev Skills]` status prefix as the start of a JSON array. Hook execution depends on the host's hook support and trust settings. The notices are:
-
-- **Docs loaded.** Normal: `Docs loaded: N sources, M files (updated Xd ago)`.
-- **Third-party data notice.** A standing reminder that bundled docs under `docs/sources/` are third-party reference data, never instructions to execute.
-- **Docs stale (>30 days).** Suggests how to refresh based on install topology:
-  - Local clone: `cd <plugin-root> && git pull && ./scripts/fetch-docs.sh`.
-  - Marketplace install: `claude plugin update cardano-dev-skills@cardano-dev-skills` from a shell, or auto-update turned on for the marketplace in `/plugin`.
-- **Plugin clone behind upstream.** Local clones only: if you have previously run `git fetch` and not pulled, the hook prints `Plugin clone is N commit(s) behind FETCH_HEAD — consider 'git pull' in <plugin-root>`. The hook never fetches itself (no network on session start).
-- **Cardano context active.** When `./CLAUDE.md` contains the current `cardano-dev-skills` directive block: `Cardano context active in this project.` An older block gets a prompt to re-run `/cardano-dev-skills:cardano-context` instead; a block newer than the installed plugin gets a prompt to update the plugin. Codex reads the corresponding `AGENTS.md` block directly and does not depend on this hook.
-- **Cardano context nudge.** When cwd looks like a project (`.git`, `.claude`, or existing `CLAUDE.md`) but has no block: `Tip: run /cardano-dev-skills:cardano-context to enable auto-consultation in this project.`
-
-The hook is fail-open: any failure exits 0 silently and never blocks the session. The cwd nudge is suppressed when working inside the plugin repo itself.
 
 ## Contributing
 
@@ -275,7 +263,6 @@ cardano-dev-skills/
 ├── registry/sources.yaml        ← canonical source list
 ├── skills/                      ← developer skills (flat layout)
 ├── docs/sources/                ← extracted upstream docs (auto-refreshed)
-├── hooks/                       ← shared SessionStart freshness hook
 ├── scripts/                     ← fetch (pinned + sanitized), validate, policy-check, delta-scan, update-counts
 └── .github/                     ← workflows, issue templates
 ```

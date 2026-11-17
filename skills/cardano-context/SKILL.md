@@ -142,6 +142,5 @@ the changed files so the dual-agent context distributes with the project.
 
 - The repository's cross-agent contract is
   [docs/AGENT_COMPATIBILITY.md](../../docs/AGENT_COMPATIBILITY.md).
-- Claude's `SessionStart` hook detects the block and reports whether Cardano
-  context is active. Codex reads `AGENTS.md` directly and does not depend on
-  that Claude hook.
+- This skill reports the block's status when it runs; re-run it to check
+  whether Cardano context is active in a project.

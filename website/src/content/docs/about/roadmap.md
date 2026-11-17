@@ -16,8 +16,8 @@ for) and **governance** (the lifecycle that keeps that content current).
   integration, governance, and the conceptual primers (eUTxO, CIPs,
   tooling).
 - The `cardano-context` skill, which writes one durable per-project directive
-  into `CLAUDE.md` and `AGENTS.md` so either agent reliably consults bundled
-  context.
+  into `AGENTS.md`, imported from `CLAUDE.md` where a project has one, so
+  either agent reliably consults bundled context.
 - Documentation sources mirrored locally — SDKs, languages, infra, CIPs,
   ledger specs — under `docs/sources/`.
 

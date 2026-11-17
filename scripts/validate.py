@@ -42,6 +42,9 @@ SEMVER_PATTERN = re.compile(
 # Shared skill bodies must not depend on adapter-only paths or tool names.
 # Host-specific frontmatter remains allowed and is validated separately.
 FORBIDDEN_SHARED_VARIABLES = {"${CLAUDE_SKILL_DIR}", "${CLAUDE_PLUGIN_ROOT}"}
+# Fences here quote shipped history verbatim: comparison data, never instructions.
+HISTORICAL_BLOCKS_FILE = (SKILLS_DIR / "cardano-context" / "references"
+                          / "previous-blocks.md")
 HOST_TOOL_REFERENCE_RE = re.compile(
     r"`(?:Read|Grep|Glob|Edit|Write|WebFetch|WebSearch)`")
 
@@ -100,7 +103,8 @@ BASE_ALLOWED_TOOLS = {"Read", "Grep", "Glob"}
 # they are unioned with BASE_ALLOWED_TOOLS, so a skill never has to re-declare
 # the read-only tools to gain one more.
 ALLOWED_TOOLS_EXCEPTIONS = {
-    # cardano-context writes the context block into the user's CLAUDE.md;
+    # cardano-context writes the context block into the user's AGENTS.md and an
+    # import line into their CLAUDE.md;
     # Bash is scoped to `pwd` (used to resolve the project root).
     "cardano-context": {"Edit", "Write", "Bash(pwd)"},
 }
@@ -289,8 +293,13 @@ def validate_skill(skill_dir: Path) -> None:
             if ref_file.suffix in (".md", ".txt"):
                 ref_text = ref_file.read_text(encoding="utf-8")
                 check_bundled_doc_paths(ref_file, ref_text)
+                checked_text = ref_text
+                if ref_file.resolve() == HISTORICAL_BLOCKS_FILE.resolve():
+                    checked_text = "\n".join(
+                        part for inside, part in fence_segments(ref_text)
+                        if not inside)
                 for variable in FORBIDDEN_SHARED_VARIABLES:
-                    if variable in ref_text:
+                    if variable in checked_text:
                         error(
                             f"{ref_file}: shared reference uses host-specific "
                             f"variable {variable}; resolve paths relative to "

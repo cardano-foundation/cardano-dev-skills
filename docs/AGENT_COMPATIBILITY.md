@@ -63,9 +63,12 @@ aligned. Put detailed contribution policy here or in `docs/CONTRIBUTING.md`
 instead of growing two independent policy documents.
 
 The `cardano-context` skill configures downstream Cardano projects. Its
-canonical directive is agent-neutral and is installed into both `CLAUDE.md`
-and `AGENTS.md` by default. The two copies must contain the same delimited block
-so a project can switch agents without changing its Cardano guidance.
+canonical directive is agent-neutral and lives in one delimited block in the
+project's `AGENTS.md`, which Codex reads. Claude Code reads `AGENTS.md` only
+when the project has no `CLAUDE.md`, so a project that has one also gets a
+small delimited import region in `CLAUDE.md` (`@AGENTS.md`) and Claude loads
+the block through it. One copy means a project can switch agents without its
+Cardano guidance drifting between two files.
 
 ## Packaging and discovery
 

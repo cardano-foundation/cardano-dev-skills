@@ -49,7 +49,7 @@ construction, signing, submission, and verification on a testnet.
 
 ## Key Principles
 
-1. **Choose the right SDK for the job.** Mesh SDK (TypeScript) and Evolution SDK
+1. **Choose the right SDK for the job.** Evolution SDK (TypeScript) and Mesh SDK
    (TypeScript) have the best documentation and highest-level APIs. PyCardano is best
    for Python shops. cardano-client-lib suits JVM projects needing fine control.
    Haskell services that share types with the node use **cardano-ledger** (not
@@ -81,13 +81,15 @@ Ask the user to specify or confirm:
 
 | Parameter | Options | Default |
 |-----------|---------|---------|
-| SDK | `mesh`, `evolution-sdk`, `pycardano`, `cardano-client-lib`, `tx3`, `cardano-ledger`, `apollo` | `mesh` |
+| SDK | `evolution-sdk`, `mesh`, `pycardano`, `cardano-client-lib`, `tx3`, `cardano-ledger`, `apollo` | `evolution-sdk` |
 | Transaction type | `send-ada`, `mint-nft`, `mint-token`, `interact-with-contract`, `delegate-stake`, `register-drep`, `vote` | required |
 | Network | `preview`, `preprod`, `mainnet` | `preview` |
 | Wallet | mnemonic, private key, browser wallet | mnemonic |
 
-If the user does not specify an SDK, recommend **Mesh SDK** for TypeScript
-projects, **cardano-client-lib** for Java/JVM, **Apollo** for Go, or
+If the user does not specify an SDK, recommend **Evolution SDK** for TypeScript
+projects (a type-safe, composable builder; Blockfrost, Koios, or Kupmios is a config
+choice; runs in Node and the browser), with **Mesh SDK** as the alternative (broad
+tutorial coverage, React components and wallet UI), **cardano-client-lib** for Java/JVM, **Apollo** for Go, or
 **cardano-ledger** for Haskell (see `references/haskell-ledger.md`).
 
 **Alternative paradigm with Tx3:** Most SDKs above build transactions imperatively in
@@ -320,9 +322,7 @@ Yaci DevKit devnet (`setup-devnet`) gives the fastest build→submit→confirm l
 
 ## SDK Quick Reference
 
-Mesh SDK (`MeshTxBuilder`): the build, sign and submit example is in `references/sdk-comparison.md`, under Mesh SDK.
-
-### Evolution SDK -- Composable Builder
+### Evolution SDK -- Composable Builder (TypeScript default)
 
 ```typescript
 import { Address, Assets, preprod, Client } from "@evolution-sdk/evolution"
@@ -346,6 +346,25 @@ const signed = await tx.sign()
 const txHash = await signed.submit()
 ```
 
+### Mesh SDK -- MeshTxBuilder
+
+```typescript
+import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<BLOCKFROST_KEY>");
+const txBuilder = new MeshTxBuilder({ fetcher: provider, submitter: provider });
+
+// Build, sign, submit pattern
+const unsignedTx = await txBuilder
+  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(senderAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
 ### PyCardano -- TransactionBuilder
 
 ```python
@@ -358,39 +377,10 @@ signed_tx = builder.build_and_sign([signing_key], change_address=sender_address)
 context.submit_tx(signed_tx)
 ```
 
-### cardano-client-lib -- QuickTx
+### cardano-client-lib -- QuickTx (Java)
 
-```java
-BackendService backendService = new BFBackendService(
-        "https://cardano-preprod.blockfrost.io/api/v0/", "<PROJECT_ID>");
-QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
-
-Tx tx = new Tx()
-        .payToAddress(receiver, Amount.ada(1.5))
-        .from(sender.baseAddress());
-
-TxResult result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.signerFrom(sender))
-        .completeAndWait();
-```
-
-Spending from a Plutus script uses `ScriptTx` and attaches the validator inline --
-no reference script needs to be published first:
-
-```java
-ScriptTx scriptTx = new ScriptTx()
-        .collectFrom(List.of(utxo), redeemer)
-        .payToAddress(receiver, utxo.getAmount())
-        .attachSpendingValidator(plutusScript);
-
-TxResult result = quickTxBuilder.compose(scriptTx)
-        .feePayer(sender.baseAddress())
-        .withSigner(SignerProviders.signerFrom(sender))       // signs the tx
-        .withRequiredSigners(sender.getBaseAddress())         // satisfies must_be_signed_by
-        .completeAndWait();
-```
-
-Full guide -- datum encoding, minting, collateral: `references/cclib-quicktx.md`.
+Examples: `references/cclib-quicktx.md` (strengths, weaknesses and when to
+choose it: `references/sdk-comparison.md`).
 
 ### Tx3 -- Declarative Interface + Typed Client
 
@@ -446,42 +436,12 @@ the `.tx3` file declares intent, not the concrete UTxOs.
 
 ### Apollo -- Fluent Builder (Go)
 
-Verified to compile against `apollo/v2` at `v2.0.1` (2026-08-19). The builder is
-fluent, but the steps that can fail return `(*Apollo, error)` rather than a bare
-`*Apollo` — `AddInputAddressFromBech32` and `PayToAddressBech32` among them — so
-handle the error and re-assign at each of those:
-
-```go
-import (
-    apollo "github.com/Salvionied/apollo/v2"
-    "github.com/Salvionied/apollo/v2/backend/blockfrost"
-)
-
-cc := blockfrost.NewBlockFrostChainContext(
-    "https://cardano-preprod.blockfrost.io/api/v0", 0, projectID)
-
-b, err := apollo.New(cc).AddInputAddressFromBech32(senderBech32)
-if err != nil { return err }
-b, err = b.PayToAddressBech32(recipientBech32, 10_000_000)
-if err != nil { return err }
-b, err = b.Complete()          // coin selection, fee calculation, balancing
-if err != nil { return err }
-```
-
-Methods that only mutate builder state — `AddLoadedUTxOs`, `RegisterDRep`,
-`AddRequiredSigner` — return a bare `*Apollo` and do chain, recording any error
-internally for `Complete` to report. Start from `doc.go` in a mirrored package
-for the overview, then search for a method name in
-`../../docs/sources/apollo/` for its signature and doc
-comment.
-
-Then `SetWalletFromMnemonic` + `Sign` + `Submit` for a signed submission, or
-`GetTxCbor` to hand the CBOR to an external signer. The mirror's `docs/`
-directory carries worked examples for staking, governance, and Plutus V3.
+Example: the Apollo section of `references/sdk-comparison.md`.
 
 ## References
 
-- `references/sdk-comparison.md` -- detailed SDK comparison table
+- `references/sdk-comparison.md` -- detailed SDK comparison table, plus the Apollo example
+- `references/cclib-quicktx.md` -- cardano-client-lib QuickTx guide and examples
 - `references/haskell-ledger.md` -- Aiken + cardano-ledger + CHaP + haskell.nix
 - Search `../../docs/sources/` for CIP-25, CIP-68 metadata standards
 - Cardano Developer Portal: https://developers.cardano.org
@@ -489,5 +449,4 @@ directory carries worked examples for staking, governance, and Plutus V3.
 - Evolution SDK docs: https://evolution-sdk.dev
 - PyCardano docs: https://pycardano.readthedocs.io
 - Tx3 docs: https://docs.txpipe.io/tx3
-
 - Apollo docs: https://pkg.go.dev/github.com/Salvionied/apollo/v2

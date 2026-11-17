@@ -129,7 +129,7 @@ File: skills/suggest-tooling/references/ecosystem-map.md
 | **gOuroboros** | Go | Low-level building blocks: mini-protocol implementations, ledger types, CBOR codecs (Go counterpart to Pallas) | Production |
 
 **Default recommendation by language**:
-- TypeScript/JavaScript: **Mesh SDK** (comprehensive, well-documented, great for beginners) or **Evolution SDK** (type-safe, Effect-based composable builder)
+- TypeScript/JavaScript: **Evolution SDK** (default: type-safe, Effect-based composable builder; Blockfrost, Koios, or Kupmios as a config choice; Node and browser) or **Mesh SDK** (broad tutorial coverage, React components and wallet UI)
 - Python: **PyCardano**
 - Rust: **Pallas**
 - Java/Kotlin: **Cardano Java Client Lib**

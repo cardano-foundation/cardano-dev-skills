@@ -379,8 +379,8 @@ context.submit_tx(signed_tx)
 
 ### cardano-client-lib -- QuickTx (Java)
 
-Examples: `references/cclib-quicktx.md` (the comparison in `references/sdk-comparison.md` covers
-strengths only).
+Examples: `references/cclib-quicktx.md` (strengths, weaknesses and when to
+choose it: `references/sdk-comparison.md`).
 
 ### Tx3 -- Declarative Interface + Typed Client
 

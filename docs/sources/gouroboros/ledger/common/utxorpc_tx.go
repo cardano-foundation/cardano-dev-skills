@@ -223,7 +223,7 @@ func plutusDataToUtxorpc(pd data.PlutusData) (*utxorpc.PlutusData, error) {
 		if err != nil {
 			return nil, err
 		}
-		fields, err := plutusDataListToUtxorpc(v.Fields)
+		fields, err := plutusDataListToUtxorpc(v.Fields())
 		if err != nil {
 			return nil, err
 		}
@@ -237,8 +237,8 @@ func plutusDataToUtxorpc(pd data.PlutusData) (*utxorpc.PlutusData, error) {
 			},
 		}, nil
 	case *data.Map:
-		pairs := make([]*utxorpc.PlutusDataPair, 0, len(v.Pairs))
-		for _, pair := range v.Pairs {
+		pairs := make([]*utxorpc.PlutusDataPair, 0, len(v.Pairs()))
+		for _, pair := range v.Pairs() {
 			key, err := plutusDataToUtxorpc(pair[0])
 			if err != nil {
 				return nil, err
@@ -267,7 +267,7 @@ func plutusDataToUtxorpc(pd data.PlutusData) (*utxorpc.PlutusData, error) {
 			},
 		}, nil
 	case *data.List:
-		items, err := plutusDataListToUtxorpc(v.Items)
+		items, err := plutusDataListToUtxorpc(v.Items())
 		if err != nil {
 			return nil, err
 		}
@@ -552,14 +552,10 @@ func mintToUtxorpc(mint *MultiAsset[MultiAssetTypeMint]) []*utxorpc.Multiasset {
 		return nil
 	}
 	policies := mint.Policies()
-	slices.SortFunc(policies, func(a, b Blake2b224) int {
-		return bytes.Compare(a.Bytes(), b.Bytes())
-	})
 	ret := make([]*utxorpc.Multiasset, 0, len(policies))
 	for _, policy := range policies {
 		ma := &utxorpc.Multiasset{PolicyId: policy.Bytes()}
 		names := mint.Assets(policy)
-		slices.SortFunc(names, bytes.Compare)
 		for _, name := range names {
 			ma.Assets = append(ma.Assets, &utxorpc.Asset{
 				Name: name,
@@ -815,10 +811,13 @@ func ToUtxorpcRationalNumber(r *big.Rat) (*utxorpc.RationalNumber, error) {
 		return nil, errors.New("rational number exceeds Word64 domain")
 	}
 	if r.Num().IsInt64() && r.Num().Int64() >= math.MinInt32 &&
-		r.Num().Int64() <= math.MaxInt32 && r.Denom().Uint64() <= math.MaxUint32 {
+		r.Num().
+			Int64() <=
+			math.MaxInt32 && r.Denom().Uint64() <= math.MaxUint32 {
+		//nolint:gosec // bounded above
 		return &utxorpc.RationalNumber{
-			Numerator:   int32(r.Num().Int64()),     // #nosec G115 -- bounded above
-			Denominator: uint32(r.Denom().Uint64()), // #nosec G115 -- bounded above
+			Numerator:   int32(r.Num().Int64()),
+			Denominator: uint32(r.Denom().Uint64()),
 		}, nil
 	}
 
@@ -871,9 +870,10 @@ func ToUtxorpcRationalNumber(r *big.Rat) (*utxorpc.RationalNumber, error) {
 	if sign < 0 {
 		numerator.Neg(numerator)
 	}
+	//nolint:gosec // bounded above
 	return &utxorpc.RationalNumber{
-		Numerator:   int32(numerator.Int64()),     // #nosec G115 -- bounded above
-		Denominator: uint32(denominator.Uint64()), // #nosec G115 -- bounded above
+		Numerator:   int32(numerator.Int64()),
+		Denominator: uint32(denominator.Uint64()),
 	}, nil
 }
 

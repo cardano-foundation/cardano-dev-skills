@@ -75,6 +75,8 @@ The public API maps to the local mini-protocols of a node:
 
 *Implementation status (M3, replaces the M1 note):* `[NL-2]` the current slot is a field of `EmulatorState`. `setSlot` and `tick` move only that field. Every stored snapshot, of a block, of genesis or of a mempool tx, stays at the slot its ledger state was produced at. The tip view is the stored tip snapshot ticked to the current slot, as the node's ticked ledger state, and it is computed, not stored. The readers (`ledger`, `context`, `binaryDatums`, `treasury`, `donation`, `ChainView.Tip`), submit and revalidation all see it, so `treasury` and `donation` change at once on a boundary, as before. A direct edit (`[DE-1]`) changes the stored tip snapshot, and it commutes with the tick, which changes only the treasury and the donations. Two consequences: a block forged on an older block, or again after a rollback, sees the treasury and the donations of its own slot (`[FG-15]`). In `Instant`, a `setSlot` back before an epoch boundary that no block has crossed undoes the move of the donations, as for a node. Before, the move could not be undone. `ChainView.Stable(1)` reads the stored tip block snapshot, without the tick.
 
+*Implementation status (ledger rules, phase 3):* `tick` runs the epoch transitions of `2026-11-02-emulator-ledger-rules-design.md` `[EB-1]`, one for each boundary the slot change crosses, in order, not only the move of the donations (`[CS-1]` there). The tip view stays computed and is memoized per `EmulatorState` (`[EB-3a]`). A direct edit lands on the stored tip snapshot, before any boundary the current slot has crossed, and the tip view ticks the edited snapshot (`[EB-3b]`). This supersedes the M3 note's sentence that an edit commutes with the tick because the tick changes only the treasury and the donations.
+
 **Why:** `[NL-2]`: `tick` is where the epoch transition plugs in later (section 18). `[NL-3]`: a snapshot shares its `Context` with later snapshots, so one write would leak into every snapshot. Today no rule writes `fee`.
 
 ## 4. Block identity
@@ -88,6 +90,8 @@ The public API maps to the local mini-protocols of a node:
 - The forge MUST set `protocolVersion` from the current protocol parameters. `[BH-7]`
 - The forge MUST fill `issuerVkey`, `vrfVkey`, `vrfResult`, `operationalCert` and `bodySignature` with fixed bytes of the correct size. `[BH-8]`
 - The forge MUST put the index of each tx with `isValid = false` in `invalidTransactions`. `[BH-9]`
+
+*Implementation status (ledger rules, phase 4):* the forge counts each block for the `blockIssuer` of the `ChainConfig` in `blocksMadeCur` of the block snapshot, on the `EpochState` of the ticked base, not of the last mempool entry (`[FG-6]`); see `2026-11-02-emulator-ledger-rules-design.md` `[ES-4a]`, `[CS-5]`. The header keeps the fixed issuer bytes of `[BH-8]`.
 
 *Example, illustrative,* for `[BH-2]`. Two empty blocks at slot 10, one on parent A and one on parent B:
 
@@ -120,6 +124,8 @@ The public API maps to the local mini-protocols of a node:
 *Implementation status (M7):* `ChainConfig`, `BlockProduction`, `AwaitTxPolicy`, `OrphanTxPolicy`, `TxStatus`, `DropReason`, `ChainView`, `ChainViewError`, `ForgeError`, `RollbackError`, `BlockForge` and (JVM) `EmulatorResult` moved from `scalus.cardano.node` to `scalus.cardano.node.emulator`: they exist only for the Emulator, while `scalus.cardano.node` also carries the provider types (`BlockchainProvider`, `BlockfrostProvider`, `UtxoQuery`) and the released `Emulator`, `EmulatorBase`, `EmulatorState`, `EmulatorJavaApi`, `JEmulator`, `AppliedTx` and `TransactionStatus`, which stay. `LedgerSnapshot` moved too and keeps `private[node]`, reachable from `EmulatorState` in `node` since `node.emulator` is nested in `node`. No behaviour change; none of the moved types had shipped in a release, so MiMa needed no filter.
 
 **Why:** `[CF-1]`, `[CF-3]`: the Emulator is an interop package, and Java and JS cannot use Scala default parameters. `[CF-4]`: hundreds of tests in `scalus-examples`, `scalus-utxo-cell` and user projects depend on submit applying at once.
+
+*Implementation status (ledger rules, phase 4):* `ChainConfig` gains `poolPerformance` (`Ideal` in both presets), `activeSlotsCoeff` (`UnitInterval(1, 20)` in both presets, 0 rejected) and `blockIssuer` (`Unattributed` in both presets) as fields 5 to 7, with `withPoolPerformance`, `withActiveSlotsCoeff` and `withBlockIssuer` (`2026-11-02-emulator-ledger-rules-design.md` `[ES-1]` to `[ES-3]`, `[ES-1a]`, `[ES-2a]`, `[CS-5]`). They have no default parameters, so `[CF-1]` holds.
 
 ## 6. State
 
@@ -180,7 +186,7 @@ Checks enforced here:
 
 *Implementation status (M1):* `[MP-5]` is enforced by the ledger rules, with no membership check of its own. By `[MP-1]` a tx is validated on the mempool tail or the tip, where the inputs of a pending or confirmed duplicate are spent, so the ledger rejects it with `UtxoNotAvailable`. A tx whose inputs a direct edit put back is accepted again, as today (`EmulatorParityTest`, "re-applying a transaction").
 
-*Implementation status (M2):* `[MP-4]` measures the mempool as one block of the mempool txs and the new tx, by the measure of `[FG-5]`: the encoded body size, and the declared execution units. The check runs after the ledger rules, so an invalid tx still gets the error of `[MP-3]`.
+*Implementation status (M2):* `[MP-4]` measures the mempool as one block of the mempool txs and the new tx, by the measure of `[FG-5]`: the encoded body size, and the declared execution units. The check runs after the ledger rules, so an invalid tx still gets the error of `[MP-3]`. Since phase 0 of the ledger rules spec, `submit` also holds every tx, `isValid` or not, to the per-tx reference-script limit, as the node's mempool measure does; the capacity has no reference-script dimension yet.
 
 *Example, illustrative,* for `[MP-4]`. Block limit 90 112 bytes, so the mempool capacity is 180 224 bytes. Each tx is 16 000 bytes:
 
@@ -536,8 +542,8 @@ Files that M1 to M5 touch:
 
 Each item gets its own spec. None of them has code in this spec.
 
-1. **Epoch transition.** NEWEPOCH in `tick`: POOLREAP, promotion of `futureStakePoolParams`, deposit refunds, SNAP, rewards, reserves and treasury. Test target: the 13 EPOCH and 24 DELEG vector dirs that `vectors.tar.gz` already ships but no test runs.
-2. **Governance.** The 14 missing GOV checks, proposals, RATIFY, ENACT, protocol parameter updates, committee state. Test target: the GOV (56), RATIFY (46) and ENACT (16) vector dirs.
+1. **Epoch transition.** Superseded by `2026-11-02-emulator-ledger-rules-design.md`, phases 3 and 4. NEWEPOCH in `tick`: POOLREAP, promotion of `futureStakePoolParams`, deposit refunds, SNAP, rewards, reserves and treasury. Test target: the 13 EPOCH and 24 DELEG vector dirs that `vectors.tar.gz` already ships but no test runs.
+2. **Governance.** Superseded by `2026-11-02-emulator-ledger-rules-design.md`, phases 2 and 5. The 14 missing GOV checks, proposals, RATIFY, ENACT, protocol parameter updates, committee state. Test target: the GOV (56), RATIFY (46) and ENACT (16) vector dirs.
 3. **PV11 tx rules.** Dijkstra failures, sub-transactions, Plutus V4 evaluation.
 4. **Network realism.** A seeded random block schedule (f = 0.05), forging on the wall clock for JS dev servers, a tx that never reaches the forging node.
 5. **N2C server.** LocalTxSubmission, LocalStateQuery, LocalTxMonitor and ChainSync over a socket, so cardano-cli, Ogmios and Kupo can connect.

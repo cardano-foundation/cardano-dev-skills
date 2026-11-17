@@ -115,6 +115,7 @@ v3, err := applied.Script.V3()
 
 redeemer, err := bp.EncodeRedeemerValue("token.mint", "mint", int64(1))
 tx, err := apollo.New(cc).
+    SetMaxFee(1_000_000).
     SetWallet(wallet).
     AttachScript(v3).
     Mint(unit, redeemer, nil).
@@ -123,9 +124,10 @@ tx, err := apollo.New(cc).
 
 ### Dijkstra Plutus V4 guard with `PrepareGuard`
 
-`PrepareGuard(redeemer)` bundles the guard `Credential`, `ScriptRef`, optional
-`WitnessScript` (nil for Plutus V4 so it cannot be attached as a witness), and
-encoded `"guard"` redeemer:
+`PrepareGuard(redeemer)` bundles the guard `Credential`, `ScriptRef`,
+`WitnessScript`, and encoded `"guard"` redeemer. Supply the script by
+attaching `WitnessScript` or by adding a published `ScriptRef` as a reference
+input:
 
 ```go
 guardScript, err := bp.Script("guard.observe")

@@ -21,11 +21,20 @@ package common
 //   - ledger/{era}/rules.go: Era-specific validation using these interfaces
 
 import (
+	"errors"
 	"math/big"
 	"time"
 
 	pcommon "github.com/blinklabs-io/gouroboros/protocol/common"
 )
+
+// ErrUtxoNotFound is the error a UtxoState wraps to report that an input is
+// absent, as distinct from a failure to look it up. The per-block
+// reference-script measurement counts a reference input reported this way as
+// zero and returns every other reference-input lookup error. A UtxoState whose
+// not-found error does not wrap ErrUtxoNotFound therefore still makes that
+// measurement fail for a missing reference input.
+var ErrUtxoNotFound = errors.New("utxo not found")
 
 // UtxoState defines the interface for querying the UTxO state
 type UtxoState interface {
@@ -85,7 +94,9 @@ type EpochState interface {
 // voting boundary for a slot. SlotOfNoReturn is the first slot at which
 // proposals target the following epoch rather than the current one.
 type ClassicProtocolParameterUpdateWindowState interface {
-	ProtocolParameterUpdateWindow(slot uint64) (currentEpoch, slotOfNoReturn uint64, err error)
+	ProtocolParameterUpdateWindow(
+		slot uint64,
+	) (currentEpoch, slotOfNoReturn uint64, err error)
 }
 
 // PoolState defines the interface for querying the current pool state
@@ -373,6 +384,31 @@ type GenesisDelegationState interface {
 	GenesisUpdateQuorum() (uint, error)
 }
 
+// GenesisDelegation is one genesis-key delegation: the delegate signing-key
+// hash and VRF key hash a genesis key delegates to.
+type GenesisDelegation struct {
+	GenesisKeyHash  Blake2b224
+	DelegateKeyHash Blake2b224
+	VrfKeyHash      Blake2b256
+}
+
+// GenesisDelegationRegistryState is the optional ledger-state capability that
+// reports the genesis delegations the DELEG rule checks a genesis key
+// delegation certificate against (GenesisKeyNotInMappingDELEG,
+// DuplicateGenesisDelegateDELEG and DuplicateGenesisVRFDELEG). Ledger states
+// used to validate Shelley through Babbage must implement this interface;
+// without it, a transaction carrying such a certificate is rejected as
+// undecidable.
+type GenesisDelegationRegistryState interface {
+	// CurrentGenesisDelegations returns the genesis delegation map in force
+	// at slot, one entry per genesis key.
+	CurrentGenesisDelegations(slot uint64) ([]GenesisDelegation, error)
+	// FutureGenesisDelegations returns the delegations scheduled by earlier
+	// certificates that are not yet in force at slot. A genesis key may have
+	// several.
+	FutureGenesisDelegations(slot uint64) ([]GenesisDelegation, error)
+}
+
 // PendingInstantaneousRewardsState is the optional ledger-state capability that
 // reports the instantaneous rewards accumulated by move instantaneous rewards
 // certificates earlier in the current epoch. The DELEG rule bounds a new
@@ -383,6 +419,41 @@ type PendingInstantaneousRewardsState interface {
 	// PendingInstantaneousRewards returns the delta pending for cred in the
 	// pot named by source (0 reserves, 1 treasury), or nil when none is.
 	PendingInstantaneousRewards(source uint, cred Credential) (*big.Int, error)
+}
+
+// StabilityWindowState is the optional ledger-state capability that locates
+// the epoch boundary and the stability window. The DELEG rule rejects a move
+// instantaneous rewards certificate in the last stability window of an epoch
+// (MIRCertificateTooLateinEpochDELEG). Ledger states used to validate
+// Shelley through Babbage must implement this interface; without it, a
+// transaction carrying such a certificate is rejected as undecidable.
+type StabilityWindowState interface {
+	// NextEpochFirstSlot returns the first slot of the epoch that follows the
+	// epoch containing slot.
+	NextEpochFirstSlot(slot uint64) (uint64, error)
+	// StabilityWindow returns the stability window in slots.
+	StabilityWindow() (uint64, error)
+}
+
+// InstantaneousRewardsTotalsState is the optional ledger-state capability that
+// reports the move instantaneous rewards accumulated earlier in the current
+// epoch, as totals over the whole pot. The DELEG rule bounds a new certificate
+// by the pot net of them (InsufficientForInstantaneousRewardsDELEG and
+// InsufficientForTransferDELEG); the pot itself comes from
+// RewardState.GetAdaPots. Ledger states used to validate Shelley through
+// Babbage must implement this interface; without it, a transaction carrying
+// such a certificate is rejected as undecidable.
+//
+// The pot named by source is 0 for reserves and 1 for treasury.
+type InstantaneousRewardsTotalsState interface {
+	// InstantaneousRewardsTotal returns the sum of the instantaneous rewards
+	// pending for stake credentials in the pot (the sum of iRReserves or
+	// iRTreasury).
+	InstantaneousRewardsTotal(source uint) (*big.Int, error)
+	// InstantaneousPotTransfer returns the net pot-to-pot transfer pending
+	// into the pot (deltaReserves or deltaTreasury): positive for funds moved
+	// in from the opposite pot, negative for funds moved out.
+	InstantaneousPotTransfer(source uint) (*big.Int, error)
 }
 
 type PoolDelegation struct {

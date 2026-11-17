@@ -461,11 +461,11 @@ func (w WithZeroAdaAsset) ToPlutusData() data.PlutusData {
 		}
 		var assetsOutputPairs, assetsMintPairs [][2]data.PlutusData
 		if v.AssetsOutput != nil {
-			assetsOutputPairs = v.AssetsOutput.ToPlutusData().(*data.Map).Pairs
+			assetsOutputPairs = v.AssetsOutput.ToPlutusData().(*data.Map).Pairs()
 			totalCap += len(assetsOutputPairs)
 		}
 		if v.AssetsMint != nil {
-			assetsMintPairs = v.AssetsMint.ToPlutusData().(*data.Map).Pairs
+			assetsMintPairs = v.AssetsMint.ToPlutusData().(*data.Map).Pairs()
 			totalCap += len(assetsMintPairs)
 		}
 
@@ -513,7 +513,7 @@ func (w WithZeroAdaAsset) ToPlutusData() data.PlutusData {
 			// handling in BabbageTransactionOutput.ToPlutusData.
 			datumOption = data.NewConstr(
 				2,
-				data.Normalize(tmp.Data),
+				data.NormalizeShared(tmp.Data),
 			)
 		} else if tmp := v.DatumHash(); tmp != nil {
 			datumOption = data.NewConstr(
@@ -624,6 +624,10 @@ func (w WithPartialCertificates) ToPlutusData() data.PlutusData {
 				toPlutusData(c.PoolKeyHash),
 				data.NewInteger(new(big.Int).SetUint64(c.Epoch)),
 			)
+		case *lcommon.GenesisKeyDelegationCertificate:
+			return data.NewConstr(5)
+		case *lcommon.MoveInstantaneousRewardsCertificate:
+			return data.NewConstr(6)
 		default:
 			panic(fmt.Sprintf("unsupported type: %T", c))
 		}

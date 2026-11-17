@@ -133,6 +133,12 @@ mesh-core-cst/
   TROUBLESHOOTING.md    # Error solutions and debugging
 ```
 
+## Discovery Index
+
+Agents and tools that support <Link href="https://github.com/cloudflare/agent-skills-discovery-rfc">Agent Skills Discovery</Link> can find these skills without being told where to look. meshjs.dev publishes an index at <Link href="https://meshjs.dev/.well-known/agent-skills/index.json">/.well-known/agent-skills/index.json</Link> that lists every skill with its description, a `.tar.gz` download and a SHA-256 digest to verify it against.
+
+The index is built from the MeshJS/skills repository and refreshes every hour, so it always matches the latest skills.
+
 ## Source Code
 
 Browse <span><Link href="https://github.com/MeshJS/skills">MeshJS/skills</Link></span> on GitHub

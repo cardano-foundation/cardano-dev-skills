@@ -145,6 +145,8 @@ test('commit writes the expected metadata', async ({ page, wallet }) => {
 - `npx cip30-test-wallet doctor <url>` checks the deployed site for the content security policy and detection problems that break wallets in mobile in-app browsers, see [doctor](#doctor).
 - Let a coding agent run and extend these tests on its own, see [CI and coding agents](#ci-and-coding-agents).
 
+A dApp that reconnects silently after a reload is testable with `walletOptions: { rememberEnable: true }`: `isEnabled()` then answers `true` for an origin that enabled the wallet before. `wallet.revoke()` disconnects it, the way a user removes the dApp from the wallet's connected sites, every api it holds rejects with `APIError` Refused.
+
 The full option and handle reference is in [docs/fixture-api.md](docs/fixture-api.md).
 
 ## Building and submitting transactions
@@ -201,7 +203,7 @@ npx cip30-test-wallet init-script --network 0 --out wallet.js
 }
 ```
 
-Every page the agent opens then has the wallet in `window.cardano`. The agent reads the journal and controls the wallet with its evaluate tool through `window.__chw`: `journal`, `setQuirk(name, value)`, `release('signTx')` and `reject('signTx')`. Quirks, UTxOs and a mnemonic from an environment variable go in through `--options` and `--mnemonic-env`. Tested with Playwright MCP against the demo dApp under a strict content security policy. Details in [docs/init-script.md](docs/init-script.md).
+Every page the agent opens then has the wallet in `window.cardano`. The agent reads the journal and controls the wallet with its evaluate tool through `window.__chw`: `journal`, `setQuirk(name, value)`, `release('signTx')`, `reject('signTx')` and `revoke()`. Quirks, UTxOs and a mnemonic from an environment variable go in through `--options` and `--mnemonic-env`. Tested with Playwright MCP against the demo dApp under a strict content security policy. Details in [docs/init-script.md](docs/init-script.md).
 
 Inside your own Playwright code, without the test runner, `attachWallet(page, options)` installs the same wallet and returns the `wallet` handle. It keeps the ledger in Node, like the fixture. Call it before the first navigation, once per page, and never on a page the `test` fixture already set up:
 
@@ -248,11 +250,11 @@ What decides whether a login works:
 - **Governance actions are signed.** Votes, vote delegation and DRep updates are signed with the right keys. Without a chain provider `submitTx` never reaches a chain, so a vote is never cast from a test. In [chain mode](#chain-mode) on preprod or preview it is cast for real.
 - **Token-gated pages** that check ownership on chain, through an indexer or their backend, do not see the synthetic UTxOs by default, the address itself has to hold the tokens. In chain mode the UTxOs are real. Pages that read `getBalance` or `getUtxos` in the browser do see them.
 
-The fixture injects into any URL, so this also works against a deployed site, not only a local dev server. The wallet's network has to match the site's. Against a mainnet site only flows that cost nothing make sense, such as a message-signing login, and only with a mnemonic that holds nothing. Remember that a production login creates real accounts and sessions on that site.
+The fixture injects into any URL, so this also works against a deployed site, not only a local dev server. The wallet's network has to match the site's. Against a mainnet site only flows that cost nothing make sense, such as a message-signing login, and only with a mnemonic that holds nothing. With a mnemonic of your own `signTx` is locked there, see **Mainnet** under [Chain mode](#chain-mode). Remember that a production login creates real accounts and sessions on that site.
 
 ## Keys and secrets
 
-The wallet's extended private keys are serialised into the page's init script by design, that is how an injected CIP-30 provider signs without a node process to call back into. So they appear in Playwright traces, HAR files and any dump of the page. The same holds for the file `init-script` writes, keep it out of version control. Use only throwaway mnemonics for tests, never one that holds real funds. The default mnemonic is the public CSL test vector. Its keys are known to everyone, so whatever is sent to its addresses can be spent by anyone.
+The wallet's extended private keys are serialised into the page's init script by design, that is how an injected CIP-30 provider signs without a node process to call back into. So they appear in Playwright traces, HAR files and any dump of the page. The same holds for the file `init-script` writes, keep it out of version control. Use only throwaway mnemonics for tests, never one that holds real funds. Offline, `networkId: 1` with a mnemonic of your own refuses `signTx` with `CHW_MAINNET_LOCKED` unless `walletOptions.allowMainnetSigning` is `true`, see **Mainnet** under [Chain mode](#chain-mode). The default mnemonic is the public CSL test vector. Its keys are known to everyone, so whatever is sent to its addresses can be spent by anyone.
 
 In [chain mode](#chain-mode) on a public network, use a mnemonic of your own and pass it through an environment variable. The default mnemonic is public, and its preprod address holds UTxOs other people sent there, which `getUtxos` then shows. A Koios `token` stays in Node, it never reaches the page, the journal or an error message.
 
@@ -326,7 +328,6 @@ test.use({ walletOptions: { mnemonic: process.env.PREPROD_MNEMONIC, ledger: { ch
 | `provider: 'koios'`, `network` | `'mainnet'`, `'preprod'` or `'preview'`. Mainnet needs `networkId` 1, the other two `networkId` 0 |
 | `url` (Koios) | Defaults to `https://api.koios.rest/api/v1`, `https://preprod.koios.rest/api/v1` or `https://preview.koios.rest/api/v1` |
 | `token` (Koios) | Sent as `Authorization: Bearer <token>`, so it may hold letters, digits and `-._~+/` with `=` at the end, as bearer tokens do. Koios answers without one, a token raises its rate limit |
-| `allowMainnetSigning` | `true` lets `signTx` sign on mainnet, see below |
 
 Chain mode runs in Node, with the fixture and with `attachWallet`. `init-script` refuses it. It cannot be combined with `utxos`, `foreignUtxos`, `stakeRegistered`, `ledger.state: false`, `ledger.checks: true` or the options that only apply with the checks (`protocolParams`, `currentSlot`, `drepRegistered`, `network`), the chain is the only source and the node does the checking. `prepareWallet` throws for each of them with its own message. `ledger.state: true` and `ledger.checks: false` may stay, they describe chain mode. Before the page loads, the fixture and `attachWallet` ask the provider which network it serves. A chain on another network than `networkId` throws with both values. With Koios the network magic has to match `network` as well, so a preview URL under `network: 'preprod'` fails with `CHW_CHAIN_UNAVAILABLE`.
 
@@ -342,7 +343,7 @@ Ogmios, also the one behind Koios, reports one failure per transaction, the one 
 
 **Errors of the harness.** When the provider cannot be reached, times out or answers with anything but a result or a refusal, reads and `submitTx` raise `ChwError` `CHW_CHAIN_UNAVAILABLE` with the provider, the method and the HTTP status, in the page with its `code` as well. An error of Ogmios' own JSON-RPC layer counts as well, for example a transaction it cannot decode in any era, since no ledger rule judged it. The pending overlay stays as it was, a later call works again once the provider is back. A submit that timed out may still have reached the node. The wallet does not count it as pending, the first read after its block shows it. The same holds for the rare answer that names another transaction id than the one the wallet computed: the node took a transaction, the wallet raises `CHW_CHAIN_UNAVAILABLE` and does not count it as pending.
 
-**Mainnet.** On a chain that reports mainnet the wallet does not sign transactions by default. `signTx` throws `ChwError` `CHW_MAINNET_LOCKED` before any signature exists, at both `partialSign` values, after the checks that make a malformed transaction `APIError` InvalidRequest. `signData` stays available, so a message login against a mainnet site works. `submitTx` is not locked either: a transaction signed elsewhere still goes to mainnet. `allowMainnetSigning: true` lifts the lock on `signTx` for a test. The keys sit in the page as always, in traces and HAR files, and a signature on mainnet can move real funds.
+**Mainnet.** With `networkId: 1` the wallet does not sign transactions by default in chain mode, and offline neither once the mnemonic is your own. Offline with the default mnemonic it signs, its keys are public. `signTx` throws `ChwError` `CHW_MAINNET_LOCKED` before any signature exists, at both `partialSign` values, after the checks that make a malformed transaction `APIError` InvalidRequest. `signData` stays available, so a message login against a mainnet site works. `submitTx` is not locked either: a transaction signed elsewhere still goes to mainnet. `walletOptions.allowMainnetSigning: true` lifts the lock on `signTx` for a test, with a mnemonic of your own `prepareWallet` then warns on stderr. The keys sit in the page as always, in traces and HAR files, and a signature on mainnet can move real funds, offline as well, since the dApp under test can submit what the wallet signed.
 
 Where chain mode differs from a wallet on a real network:
 

@@ -75,8 +75,9 @@ type CardanoNodeConfig struct {
 	// PraosConsensusMode.
 	ConsensusMode string `yaml:"ConsensusMode"`
 
-	// TxSubmissionLogicVersion selects the cardano-node inbound transaction
-	// submission strategy.
+	// TxSubmissionLogicVersion records the reference node's inbound strategy.
+	// Both strategies use the same wire protocol; Dingo uses its own bounded
+	// per-peer policy independently of this reference implementation setting.
 	TxSubmissionLogicVersion TxSubmissionLogicVersion `yaml:"TxSubmissionLogicVersion"`
 
 	// Hard fork epoch configuration. Pointer types distinguish
@@ -92,6 +93,11 @@ type CardanoNodeConfig struct {
 	TestBabbageHardForkAtEpoch   *uint64 `yaml:"TestBabbageHardForkAtEpoch"`
 	TestConwayHardForkAtEpoch    *uint64 `yaml:"TestConwayHardForkAtEpoch"`
 	TestDijkstraHardForkAtEpoch  *uint64 `yaml:"TestDijkstraHardForkAtEpoch"`
+
+	// LeiosMinOfferLead is how many slots an endorser block must lie above the
+	// immutable tip for the node to offer it to peers. Nil leaves the reference
+	// default; see LeiosMinOfferLeadSlots.
+	LeiosMinOfferLead *uint64 `yaml:"LeiosMinOfferLead"`
 
 	// P2P peer target configuration from cardano-node config.json.
 	// These are read but only used as fallback defaults when the
@@ -114,23 +120,16 @@ type CardanoNodeConfig struct {
 type TxSubmissionLogicVersion string
 
 const (
-	// TxSubmissionLogicV1 is the legacy per-peer inbound strategy implemented
-	// by Dingo.
+	// TxSubmissionLogicV1 is the reference node's legacy per-peer inbound strategy.
 	TxSubmissionLogicV1 TxSubmissionLogicVersion = "TxSubmissionLogicV1"
-	// TxSubmissionLogicV2 is the coordinated multi-peer inbound strategy.
+	// TxSubmissionLogicV2 is the reference node's coordinated inbound strategy.
 	TxSubmissionLogicV2 TxSubmissionLogicVersion = "TxSubmissionLogicV2"
 )
 
 func (v TxSubmissionLogicVersion) validate() error {
 	switch v {
-	case TxSubmissionLogicV1:
+	case TxSubmissionLogicV1, TxSubmissionLogicV2:
 		return nil
-	case TxSubmissionLogicV2:
-		return fmt.Errorf(
-			"TxSubmissionLogicVersion %q is not supported by Dingo; only %q is implemented",
-			v,
-			TxSubmissionLogicV1,
-		)
 	default:
 		return fmt.Errorf(
 			"invalid TxSubmissionLogicVersion %q: expected %q or %q",
@@ -358,6 +357,19 @@ func setIfPresent(dst *int, src *int) {
 	if src != nil {
 		*dst = *src
 	}
+}
+
+// DefaultLeiosMinOfferLead is the reference node's default for
+// LeiosMinOfferLead: an hour of one-second slots.
+const DefaultLeiosMinOfferLead uint64 = 3600
+
+// LeiosMinOfferLeadSlots returns the configured LeiosMinOfferLead, or
+// DefaultLeiosMinOfferLead when it is unset. A nil receiver is unset.
+func (c *CardanoNodeConfig) LeiosMinOfferLeadSlots() uint64 {
+	if c == nil || c.LeiosMinOfferLead == nil {
+		return DefaultLeiosMinOfferLead
+	}
+	return *c.LeiosMinOfferLead
 }
 
 // PBFTSignatureLimit returns the most blocks one genesis key may sign in a
@@ -905,10 +917,9 @@ func canonicalizeByronGenesisJSON(genesisBytes []byte) ([]byte, error) {
 }
 
 // loadConwayGenesisFromBytes parses a Conway genesis, tolerating members that
-// cardano-node's lenient JSON parser ignores but gouroboros's strict decoder
-// rejects: the top-level genDelegs and the legacy committee.quorum, both
-// present in Vector Testnet's genesis. Dingo consumes neither. quorum is
-// stripped only beside threshold. Any other unknown member is still rejected.
+// cardano-node's JSON parser ignores: the top-level genDelegs and the legacy
+// committee.quorum, both present in Vector Testnet's genesis. Dingo consumes
+// neither. quorum is stripped only beside threshold.
 func loadConwayGenesisFromBytes(
 	genesisBytes []byte,
 ) (conway.ConwayGenesis, error) {

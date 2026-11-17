@@ -35,7 +35,9 @@ type ProtocolParameterUpdate interface {
 // ProtocolParameterUpdateVersionValidator validates fields whose reference
 // domain depends on the active protocol version.
 type ProtocolParameterUpdateVersionValidator interface {
-	ValidateProtocolParameterUpdateVersion(ProtocolParametersProtocolVersion) error
+	ValidateProtocolParameterUpdateVersion(
+		ProtocolParametersProtocolVersion,
+	) error
 }
 
 // ProtocolParameterUpdateCostModelProvider reports cost models requiring
@@ -84,9 +86,16 @@ func ValidateCostModelLanguageIDs(models map[uint][]int64) error {
 }
 
 // ValidateNonNegativeBoundedRatCBOR verifies the raw tag-30 integer pair used
-// by reference NonNegativeInterval and UnitInterval values. It checks the
-// unreduced CBOR numerator and denominator before cbor.Rat normalizes them.
+// by reference NonNegativeInterval and UnitInterval values. The Word64
+// bounds apply to the normalized numerator and denominator.
 func ValidateNonNegativeBoundedRatCBOR(raw []byte) error {
+	return ValidateNonNegativeBoundedRatCBORForVersion(raw, 11)
+}
+
+// ValidateNonNegativeBoundedRatCBORForVersion checks the rational wire domain
+// for a decoder version. Version 12 bounds the raw Word64 components;
+// earlier versions normalize arbitrary integers before checking the bounds.
+func ValidateNonNegativeBoundedRatCBORForVersion(raw []byte, version uint) error {
 	var tagged cbor.RawTag
 	if _, err := cbor.Decode(raw, &tagged); err != nil {
 		return err
@@ -106,6 +115,26 @@ func ValidateNonNegativeBoundedRatCBOR(raw []byte) error {
 	if len(components) != 2 {
 		return errors.New("expected rational numerator and denominator")
 	}
+	if version >= 12 {
+		if len(components[0]) == 0 || components[0][0]>>5 != 0 {
+			return errors.New("rational numerator must be a Word64")
+		}
+		var numerator uint64
+		if _, err := cbor.DecodeExact(components[0], &numerator); err != nil {
+			return fmt.Errorf("decode rational numerator: %w", err)
+		}
+		if len(components[1]) == 0 || components[1][0]>>5 != 0 {
+			return errors.New("rational denominator must be a positive Word64")
+		}
+		var denominator uint64
+		if _, err := cbor.DecodeExact(components[1], &denominator); err != nil {
+			return fmt.Errorf("decode rational denominator: %w", err)
+		}
+		if denominator == 0 {
+			return errors.New("rational denominator must be a positive Word64")
+		}
+		return nil
+	}
 	numerator, err := rawCBORInteger(components[0])
 	if err != nil {
 		return fmt.Errorf("decode rational numerator: %w", err)
@@ -114,27 +143,73 @@ func ValidateNonNegativeBoundedRatCBOR(raw []byte) error {
 	if err != nil {
 		return fmt.Errorf("decode rational denominator: %w", err)
 	}
-	if !numerator.IsUint64() {
-		return errors.New("rational numerator must be in Word64")
-	}
-	if !denominator.IsUint64() || denominator.Sign() == 0 {
-		return errors.New("rational denominator must be positive Word64")
+	if _, _, err := reduceWord64Rational(numerator, denominator); err != nil {
+		return describeRationalReductionError(err, numerator, denominator)
 	}
 	return nil
 }
 
+// describeRationalReductionError reports a reduceWord64Rational failure
+// without printing the components, which are peer controlled and unbounded.
+func describeRationalReductionError(
+	err error,
+	numerator, denominator *big.Int,
+) error {
+	if errors.Is(err, errRationalNotWord64) {
+		return fmt.Errorf(
+			"%w (numerator %d bits, denominator %d bits)",
+			err,
+			numerator.BitLen(),
+			denominator.BitLen(),
+		)
+	}
+	return err
+}
+
+// maxBoundedRatArrayItems is the widest rational record in a protocol
+// parameter update: the ten DRep voting thresholds. Execution prices hold two
+// and pool voting thresholds five; the typed decoders enforce exact lengths.
+const maxBoundedRatArrayItems = 10
+
 // ValidateNonNegativeBoundedRatArrayCBOR validates every raw tag-30 rational
 // in a struct-as-array CBOR value.
 func ValidateNonNegativeBoundedRatArrayCBOR(raw []byte) error {
+	return ValidateNonNegativeBoundedRatArrayCBORForVersion(raw, 11)
+}
+
+// ValidateNonNegativeBoundedRatArrayCBORForVersion validates every raw tag-30
+// rational in a struct-as-array CBOR value for a decoder version.
+func ValidateNonNegativeBoundedRatArrayCBORForVersion(
+	raw []byte,
+	version uint,
+) error {
 	if len(raw) == 0 || raw[0]>>5 != 4 {
 		return errors.New("expected CBOR array")
+	}
+	// Count before decoding: the decode below retains every item, and a
+	// peer can declare or stream far more items than any rational record
+	// holds. ListLength answers a definite array from its header and walks
+	// an indefinite one without retaining items.
+	count, err := cbor.ListLength(raw)
+	if err != nil {
+		return err
+	}
+	if count > maxBoundedRatArrayItems {
+		return fmt.Errorf(
+			"expected at most %d rationals, got %d",
+			maxBoundedRatArrayItems,
+			count,
+		)
 	}
 	var values []cbor.RawMessage
 	if _, err := cbor.Decode(raw, &values); err != nil {
 		return err
 	}
 	for index, value := range values {
-		if err := ValidateNonNegativeBoundedRatCBOR(value); err != nil {
+		if err := ValidateNonNegativeBoundedRatCBORForVersion(
+			value,
+			version,
+		); err != nil {
 			return fmt.Errorf("rational at array index %d: %w", index, err)
 		}
 	}
@@ -142,6 +217,13 @@ func ValidateNonNegativeBoundedRatArrayCBOR(raw []byte) error {
 }
 
 func rawCBORInteger(raw []byte) (*big.Int, error) {
+	// An integer or bignum is a major type 0, 1 or 2 item under any tags.
+	// Anything else is rejected from its header, because decoding a
+	// registered tag such as a nested rational into an interface runs its
+	// unbounded decoder.
+	if item := cbor.SkipTags(raw); len(item) == 0 || item[0]>>5 > 2 {
+		return nil, errors.New("expected integer")
+	}
 	var value any
 	if _, err := cbor.Decode(raw, &value); err != nil {
 		return nil, err

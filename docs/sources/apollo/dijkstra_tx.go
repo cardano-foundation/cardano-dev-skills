@@ -80,6 +80,9 @@ func dijkstraTransactionFromConway(tx *conway.ConwayTransaction, builder *Apollo
 		WsPlutusV2Scripts:  conwayWitnesses.WsPlutusV2Scripts,
 		WsPlutusV3Scripts:  conwayWitnesses.WsPlutusV3Scripts,
 	}
+	if len(builder.v4scripts) > 0 {
+		witnesses.WsPlutusV4Scripts = cbor.NewSetType(builder.v4scripts, true)
+	}
 	if redeemers := conwayWitnesses.WsRedeemers.Redeemers; len(redeemers) > 0 {
 		witnesses.WsRedeemers = dijkstra.DijkstraRedeemers{Redeemers: redeemers}
 	}

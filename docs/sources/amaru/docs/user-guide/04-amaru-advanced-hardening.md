@@ -92,7 +92,7 @@ table inet filter {
         # Allow all to SSH
         tcp dport 2222 accept
 
-        # note: by default Amaru listen on :3000
+        # note: by default Amaru listens on :3001
         tcp dport 3001 accept
 
         # Allow Docker containers to reach the host 
@@ -105,6 +105,10 @@ table inet filter {
 
         # ct state established, related accept
         # ct state invalid drop
+
+        # Allow Docker containers outbound connections
+        # (e.g. Traefik asking for cert renewal)
+        # ip saddr 172.16.0.0/12 accept
         
         # If you need to access your grafana dashboard 
         # Which is published on "80:3000"

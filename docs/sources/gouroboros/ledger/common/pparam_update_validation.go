@@ -52,7 +52,10 @@ func ValidateClassicCostModelUpdate(
 	for language := range models {
 		languages = append(languages, language)
 	}
-	sort.Slice(languages, func(i, j int) bool { return languages[i] < languages[j] })
+	sort.Slice(
+		languages,
+		func(i, j int) bool { return languages[i] < languages[j] },
+	)
 	for _, language := range languages {
 		model := models[language]
 		expected, ok := expectedLengths[language]
@@ -170,6 +173,14 @@ func ValidateProtocolParameterUpdateDomains(
 		if !ok {
 			continue
 		}
+		// The check on the raw components comes first: cbor.Rat reduces
+		// them with big.Rat.SetFrac, whose cost is quadratic in their size.
+		if err := ValidateNonNegativeBoundedRatCBOR(raw); err != nil {
+			return nil, ProtocolParameterUpdateDomainError{
+				Field:  protocolParameterUpdateFieldName(key),
+				Reason: "must be a bounded rational: " + err.Error(),
+			}
+		}
 		var value cbor.Rat
 		if _, err := cbor.Decode(raw, &value); err != nil || value.Rat == nil {
 			return nil, ProtocolParameterUpdateDomainError{
@@ -201,6 +212,13 @@ func ValidateProtocolParameterUpdateDomains(
 	}
 	if era >= ProtocolParameterUpdateEraAlonzo {
 		if raw, ok := fields[19]; ok {
+			if err := ValidateNonNegativeBoundedRatArrayCBOR(raw); err != nil {
+				return nil, ProtocolParameterUpdateDomainError{
+					Field: "execution prices",
+					Reason: "must contain bounded non-negative memory and step prices: " +
+						err.Error(),
+				}
+			}
 			var prices ExUnitPrice
 			if _, err := cbor.Decode(raw, &prices); err != nil {
 				return nil, ProtocolParameterUpdateDomainError{
@@ -223,7 +241,9 @@ func ValidateProtocolParameterUpdateDomains(
 				continue
 			}
 			var units ExUnits
-			if _, err := cbor.Decode(raw, &units); err != nil || units.Memory < 0 || units.Steps < 0 {
+			if _, err := cbor.Decode(raw, &units); err != nil ||
+				units.Memory < 0 ||
+				units.Steps < 0 {
 				return nil, ProtocolParameterUpdateDomainError{
 					Field:  protocolParameterUpdateFieldName(key),
 					Reason: "memory and steps must be non-negative",

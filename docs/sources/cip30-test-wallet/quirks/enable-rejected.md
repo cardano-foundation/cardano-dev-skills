@@ -2,7 +2,7 @@
 
 **Status:** confirmed
 **Observed:** every wallet. The user closes the connect dialog or clicks deny.
-**What the wallet does:** `enable()` rejects with `APIError` `{ code: -3, info }` (Refused). `isEnabled()` stays `false`.
+**What the wallet does:** `enable()` rejects with `APIError` `{ code: -3, info }` (Refused). `isEnabled()` stays `false`, unless `rememberEnable` remembered an earlier grant of this origin: then `isEnabled()` answers `true` and `enable()` still rejects, a combination a test only sets up on purpose.
 **What breaks:** dApps that treat any `enable()` failure as "wallet broken", or that read `err.message` from a plain object and show `undefined`.
 **Seen in:** a production dApp, 2026-09. A refused connection rendered "Failed to connect: undefined" in the wallet box. Fixed by reading `info` from the plain error object and showing a localized refusal message.
 **How to use:** `test.use({ walletOptions: { quirks: { enableRejected: true } } })`.

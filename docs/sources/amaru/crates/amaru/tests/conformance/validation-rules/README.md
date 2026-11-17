@@ -59,16 +59,39 @@ cabal run -v0 exe:conformance -- validate-phase-one \
   --json-report ledger-rules-cardano-node.json
 ```
 
-The JSON report contains only a five-digit fixture id and its observed result:
-`pass` for a successful validation, or the observed predicate failure otherwise.
-Fixture metadata is maintained by the scenario definitions rather than copied
-into each implementation report.
+The JSON report contains the commit that last changed the transaction scenario
+corpus, plus only a five-digit fixture id and its observed result: `pass` for a
+successful validation, or the observed predicate failure otherwise. Fixture
+metadata is maintained by the scenario definitions rather than copied into
+each implementation report. The dataset commit lets consumers identify
+reports produced against an older fixture set.
 
 To run the whole suite of fixtures:
 
 ```console
 make test
 ```
+
+### Maths and leader-threshold vectors
+
+The `validate-maths` command runs the fixed-point and exponential-comparison vectors shared with
+`amaru-kernel`, followed by the VRF leader-threshold boundary vectors shared with
+`amaru-ouroboros`. The Haskell implementation uses the Cardano `non-integral` reference
+implementation and `Data.Fixed` at the same `E34` precision as the vectors. The command only runs
+the computations and serializes their results; comparison with the expected TSV columns belongs
+to the conformance test consuming the report.
+
+Run it from this directory:
+
+```console
+cabal run -v0 exe:conformance -- validate-maths \
+  --json-report maths-cardano-node.json
+```
+
+The default paths point at the two Amaru test-data directories. Use `--primitives`,
+`--comparisons`, or `--leader-thresholds` when consuming a copied vector set. The JSON report is
+versioned as `ouroboros-maths` and contains raw `result` values only; expected values remain in the
+TSV scenario data so another implementation can consume the same setup and perform the comparison.
 
 ## Make targets
 

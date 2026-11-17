@@ -18,13 +18,16 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/blinklabs-io/adder/event"
@@ -32,6 +35,7 @@ import (
 	"github.com/blinklabs-io/adder/internal/logging"
 	"github.com/blinklabs-io/adder/internal/version"
 	"github.com/blinklabs-io/adder/plugin"
+	"github.com/blinklabs-io/adder/state"
 )
 
 const (
@@ -44,15 +48,23 @@ const (
 
 type WebhookOutput struct {
 	plugin.Base
-	format         string
-	url            string
-	username       string
-	password       string
-	skipVerify     bool
-	maxRetries     int
-	initialBackoff time.Duration
-	maxBackoff     time.Duration
-	backoffFactor  float64
+	format          string
+	url             string
+	username        string
+	password        string
+	skipVerify      bool
+	maxRetries      int
+	initialBackoff  time.Duration
+	maxBackoff      time.Duration
+	backoffFactor   float64
+	metricsObserver plugin.DeliveryMetricsObserver
+	httpClient      *http.Client
+	processed       func()
+	statePath       string
+	maxPending      int
+	queue           *state.SqliteStore
+	queueID         string
+	drainErr        error
 }
 
 func New(options ...WebhookOptionFunc) *WebhookOutput {
@@ -64,6 +76,7 @@ func New(options ...WebhookOptionFunc) *WebhookOutput {
 		initialBackoff: defaultInitialBackoff,
 		maxBackoff:     defaultMaxBackoff,
 		backoffFactor:  defaultBackoffFactor,
+		maxPending:     1024,
 	}
 	for _, option := range options {
 		option(w)
@@ -83,15 +96,25 @@ func (w *WebhookOutput) Start() error {
 // Call Stop to wait for workers and release resources, including after cancellation.
 func (w *WebhookOutput) StartContext(ctx context.Context) error {
 	return w.StartRun(ctx,
-		plugin.BaseConfig{HasInput: true},
+		plugin.BaseConfig{HasInput: true, DrainOnStop: w.statePath != ""},
 		w.start,
-		plugin.ShutdownHooks{},
+		plugin.ShutdownHooks{AfterWait: w.closeQueue},
 	)
 }
 
 func (w *WebhookOutput) start(ctx context.Context) error {
 	logger := logging.GetLogger()
 	logger.Info("starting webhook server")
+	if w.statePath != "" {
+		if err := w.openQueue(); err != nil {
+			return err
+		}
+		if err := w.replay(ctx); err != nil {
+			return fmt.Errorf("replay pending webhooks: %w", err)
+		}
+		w.Go(func() { w.runDurable(ctx) })
+		return nil
+	}
 	doneChan, eventChan := w.Done(), w.Input()
 	w.Go(func() {
 		for {
@@ -105,100 +128,108 @@ func (w *WebhookOutput) start(ctx context.Context) error {
 				if !ok {
 					return
 				}
-				payload := evt.Payload
-				if payload == nil {
-					w.reportError(
-						logger,
-						fmt.Errorf(
-							"received event with nil payload (type %q)",
-							evt.Type,
-						),
-					)
-					continue
-				}
-				context := evt.Context
-				switch evt.Type {
-				case event.TypeBlock:
-					if context == nil {
-						w.reportError(
-							logger,
-							fmt.Errorf(
-								"received %q event with nil context",
-								evt.Type,
-							),
-						)
-						continue
-					}
-					if _, ok := payload.(event.BlockEvent); !ok {
-						w.reportError(
-							logger,
-							unexpectedPayloadErr(evt.Type, payload),
-						)
-						continue
-					}
-					if _, ok := context.(event.BlockContext); !ok {
-						w.reportError(
-							logger,
-							unexpectedContextErr(evt.Type, context),
-						)
-						continue
-					}
-				case event.TypeRollback:
-					if _, ok := payload.(event.RollbackEvent); !ok {
-						w.reportError(
-							logger,
-							unexpectedPayloadErr(evt.Type, payload),
-						)
-						continue
-					}
-				case event.TypeTransaction:
-					if _, ok := payload.(event.TransactionEvent); !ok {
-						w.reportError(
-							logger,
-							unexpectedPayloadErr(evt.Type, payload),
-						)
-						continue
-					}
-					if _, ok := context.(event.TransactionContext); !ok {
-						w.reportError(
-							logger,
-							unexpectedContextErr(evt.Type, context),
-						)
-						continue
-					}
-				case event.TypeGovernance:
-					if _, ok := payload.(event.GovernanceEvent); !ok {
-						w.reportError(
-							logger,
-							unexpectedPayloadErr(evt.Type, payload),
-						)
-						continue
-					}
-					if _, ok := context.(event.GovernanceContext); !ok {
-						w.reportError(
-							logger,
-							unexpectedContextErr(evt.Type, context),
-						)
-						continue
-					}
-				default:
-					w.reportError(
-						logger,
-						fmt.Errorf("received unknown event type %q", evt.Type),
-					)
-					continue
-				}
-				// Send webhook with retry logic and exponential backoff
-				w.sendWebhookWithRetry(ctx, doneChan, &evt)
+				w.processEvent(ctx, doneChan, evt, logger)
 			}
 		}
 	})
 	return nil
 }
 
+func (w *WebhookOutput) processEvent(ctx context.Context, doneChan <-chan struct{}, evt event.Event, logger plugin.Logger) {
+	if w.processed != nil {
+		defer w.processed()
+	}
+	payload := evt.Payload
+	if payload == nil {
+		w.reportError(
+			logger,
+			fmt.Errorf(
+				"received event with nil payload (type %q)",
+				evt.Type,
+			),
+		)
+		return
+	}
+	context := evt.Context
+	switch evt.Type {
+	case event.TypeBlock:
+		if context == nil {
+			w.reportError(
+				logger,
+				fmt.Errorf(
+					"received %q event with nil context",
+					evt.Type,
+				),
+			)
+			return
+		}
+		if _, ok := payload.(event.BlockEvent); !ok {
+			w.reportError(
+				logger,
+				unexpectedPayloadErr(evt.Type, payload),
+			)
+			return
+		}
+		if _, ok := context.(event.BlockContext); !ok {
+			w.reportError(
+				logger,
+				unexpectedContextErr(evt.Type, context),
+			)
+			return
+		}
+	case event.TypeRollback:
+		if _, ok := payload.(event.RollbackEvent); !ok {
+			w.reportError(
+				logger,
+				unexpectedPayloadErr(evt.Type, payload),
+			)
+			return
+		}
+	case event.TypeTransaction:
+		if _, ok := payload.(event.TransactionEvent); !ok {
+			w.reportError(
+				logger,
+				unexpectedPayloadErr(evt.Type, payload),
+			)
+			return
+		}
+		if _, ok := context.(event.TransactionContext); !ok {
+			w.reportError(
+				logger,
+				unexpectedContextErr(evt.Type, context),
+			)
+			return
+		}
+	case event.TypeGovernance:
+		if _, ok := payload.(event.GovernanceEvent); !ok {
+			w.reportError(
+				logger,
+				unexpectedPayloadErr(evt.Type, payload),
+			)
+			return
+		}
+		if _, ok := context.(event.GovernanceContext); !ok {
+			w.reportError(
+				logger,
+				unexpectedContextErr(evt.Type, context),
+			)
+			return
+		}
+	default:
+		w.reportError(
+			logger,
+			fmt.Errorf("received unknown event type %q", evt.Type),
+		)
+		return
+	}
+	// Send webhook with retry logic and exponential backoff
+	_ = w.sendWebhookWithRetry(ctx, doneChan, &evt)
+}
+
 // reportError surfaces an error on the plugin error channel without
 // blocking. If no consumer is ready, the error is logged instead.
 func (w *WebhookOutput) reportError(logger plugin.Logger, err error) {
+	w.recordOutcome("terminal")
 	logger.Error(err.Error())
 	if !w.TrySendError(err) {
 		logger.Warn("could not send error to error channel (full)")
@@ -370,6 +401,11 @@ func formatWebhook(e *event.Event, format string) ([]byte, error) {
 	return data, nil
 }
 
+// FormatDiscord formats an event as a Discord message using the existing webhook layout.
+func FormatDiscord(e *event.Event) ([]byte, error) {
+	return formatWebhook(e, "discord")
+}
+
 type DiscordWebhookEvent struct {
 	Content string                 `json:"content,omitempty"`
 	Embeds  []*DiscordMessageEmbed `json:"embeds,omitempty"`
@@ -413,19 +449,63 @@ func (w *WebhookOutput) log() plugin.Logger {
 }
 
 func (w *WebhookOutput) SendWebhook(e *event.Event) error {
-	return w.sendWebhook(context.Background(), e)
+	result := w.sendWebhook(context.Background(), e)
+	if result.err == nil {
+		w.recordOutcome("success")
+	} else {
+		w.recordOutcome("terminal")
+	}
+	return result.err
 }
 
-func (w *WebhookOutput) sendWebhook(ctx context.Context, e *event.Event) error {
-	logger := w.log()
-	logger.Info("sending event", "type", e.Type, "url", sanitizeURL(w.url))
+// SetDeliveryMetrics connects this output to its owning pipeline's aggregate metrics.
+// Call before Start or SendWebhook.
+func (w *WebhookOutput) SetDeliveryMetrics(
+	observer plugin.DeliveryMetricsObserver,
+) {
+	w.metricsObserver = observer
+}
+
+func (w *WebhookOutput) recordOutcome(outcome string) {
+	if w.metricsObserver != nil {
+		w.metricsObserver.RecordWebhookOutcome(outcome)
+	}
+}
+
+type deliveryAttempt struct {
+	err        error
+	retryable  bool
+	retryAfter string
+}
+
+var errRedirectDropsBody = errors.New("webhook redirect discarded POST body")
+
+func (w *WebhookOutput) sendWebhook(
+	ctx context.Context,
+	e *event.Event,
+) deliveryAttempt {
 	data, err := formatWebhook(e, w.format)
 	if err != nil {
-		return err
+		return deliveryAttempt{err: err}
+	}
+	return w.sendWebhookData(ctx, e.Type, data, "")
+}
+
+func (w *WebhookOutput) sendWebhookData(ctx context.Context, eventType string, data []byte, deliveryID string) deliveryAttempt {
+	logger := w.log()
+	logger.Info("sending event", "type", eventType, "url", sanitizeURL(w.url))
+	parsedURL, err := url.Parse(w.url)
+	if err != nil ||
+		(parsedURL.Scheme != "http" && parsedURL.Scheme != "https") ||
+		parsedURL.Host == "" {
+		return deliveryAttempt{err: errors.New("invalid webhook URL")}
 	}
 	// Setup request
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
+	if w.httpClient == nil {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+	}
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
@@ -433,9 +513,12 @@ func (w *WebhookOutput) sendWebhook(ctx context.Context, e *event.Event) error {
 		bytes.NewReader(data),
 	)
 	if err != nil {
-		return fmt.Errorf("%w", err)
+		return deliveryAttempt{err: err}
 	}
 	req.Header.Add("Content-Type", "application/json")
+	if deliveryID != "" {
+		req.Header.Set("X-Adder-Delivery-ID", deliveryID)
+	}
 	req.Header.Add(
 		"User-Agent",
 		"Adder/"+version.GetVersionString(),
@@ -461,25 +544,67 @@ func (w *WebhookOutput) sendWebhook(ctx context.Context, e *event.Event) error {
 		customTransport.ExpectContinueTimeout = defaultTransport.ExpectContinueTimeout
 		customTransport.TLSHandshakeTimeout = defaultTransport.TLSHandshakeTimeout
 	}
+	// Preserve the HTTP client's existing redirect behavior, including its
+	// default limit of 10 redirects and POST-to-GET conversion for 301/302/303.
 	client := &http.Client{Transport: customTransport}
+	if w.statePath != "" {
+		client.CheckRedirect = func(next *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return errors.New("webhook exceeded 10 redirects")
+			}
+			if next.Method != http.MethodPost || next.Body == nil {
+				return errRedirectDropsBody
+			}
+			return nil
+		}
+	}
+	defer customTransport.CloseIdleConnections()
+	if w.httpClient != nil {
+		client = w.httpClient
+	}
 	// Send payload
 	// #nosec G704 -- Webhook URL is user-configured and intentionally allowed.
+	started := time.Now()
 	resp, err := client.Do(req)
+	statusClass := "network"
+	if resp != nil {
+		statusClass = httpStatusClass(resp.StatusCode)
+	}
+	defer func() {
+		elapsed := time.Since(started)
+		if w.metricsObserver != nil {
+			w.metricsObserver.RecordWebhookAttempt(statusClass, elapsed)
+		}
+	}()
 	if err != nil {
-		return fmt.Errorf("%w", err)
+		return deliveryAttempt{
+			err:       err,
+			retryable: !permanentTransportError(err) && !errors.Is(err, errRedirectDropsBody),
+		}
 	}
 	if resp == nil {
-		return fmt.Errorf("failed to send payload to %s", sanitizeURL(w.url))
+		return deliveryAttempt{
+			err: fmt.Errorf(
+				"failed to send payload to %s",
+				sanitizeURL(w.url),
+			),
+			retryable: true,
+		}
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("%w", err)
-	}
+	// Response content is diagnostic only; cap work and avoid retaining it.
+	responseSize, _ := io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("server returned status: %d", resp.StatusCode)
+		status := resp.StatusCode
+		return deliveryAttempt{
+			err: fmt.Errorf("server returned status: %d", status),
+			retryable: status == http.StatusRequestTimeout ||
+				status == http.StatusTooManyRequests ||
+				status >= 500,
+			retryAfter: resp.Header.Get("Retry-After"),
+		}
 	}
 
 	logger.Info(
@@ -488,8 +613,8 @@ func (w *WebhookOutput) sendWebhook(ctx context.Context, e *event.Event) error {
 		sanitizeURL(w.url),
 		"payload_size",
 		len(data),
-		"response_size",
-		len(respBody),
+		"response_bytes_read",
+		responseSize,
 		"status",
 		resp.StatusCode,
 	)
@@ -500,12 +625,53 @@ func (w *WebhookOutput) sendWebhook(ctx context.Context, e *event.Event) error {
 		sanitizeURL(w.url),
 		"payload_size",
 		len(data),
-		"response_size",
-		len(respBody),
+		"response_bytes_read",
+		responseSize,
 		"status",
 		resp.StatusCode,
 	)
-	return nil
+	return deliveryAttempt{}
+}
+
+func permanentTransportError(err error) bool {
+	var authority x509.UnknownAuthorityError
+	var certificate x509.CertificateInvalidError
+	var hostname x509.HostnameError
+	var roots x509.SystemRootsError
+	var recordHeader tls.RecordHeaderError
+	return errors.As(err, &authority) || errors.As(err, &certificate) ||
+		errors.As(
+			err,
+			&hostname,
+		) || errors.As(err, &roots) || errors.As(err, &recordHeader)
+}
+
+func retryAfterDelay(
+	value string,
+	now time.Time,
+	bound time.Duration,
+) (time.Duration, bool, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, false, false
+	}
+	if seconds, err := strconv.ParseInt(value, 10, 64); err == nil &&
+		seconds >= 0 {
+		if seconds > int64(bound/time.Second) {
+			return 0, true, true
+		}
+		return time.Duration(seconds) * time.Second, true, false
+	} else if errors.Is(err, strconv.ErrRange) && strings.Trim(value, "0123456789") == "" {
+		return 0, true, true
+	}
+	if date, err := http.ParseTime(value); err == nil {
+		delay := date.Sub(now)
+		if delay < 0 {
+			return 0, false, false
+		}
+		return delay, true, delay > bound
+	}
+	return 0, false, false
 }
 
 // sendWebhookWithRetry wraps SendWebhook with retry logic and exponential backoff
@@ -513,9 +679,19 @@ func (w *WebhookOutput) sendWebhookWithRetry(
 	ctx context.Context,
 	doneChan <-chan struct{},
 	e *event.Event,
-) {
+) error {
+	return w.sendWithRetry(ctx, doneChan, e.Type, func(ctx context.Context) deliveryAttempt {
+		return w.sendWebhook(ctx, e)
+	})
+}
+
+func (w *WebhookOutput) sendWithRetry(
+	ctx context.Context,
+	doneChan <-chan struct{},
+	eventType string,
+	send func(context.Context) deliveryAttempt,
+) error {
 	logger := w.log()
-	var lastErr error
 	backoff := w.initialBackoff
 
 	logger.Debug(
@@ -527,45 +703,12 @@ func (w *WebhookOutput) sendWebhookWithRetry(
 	)
 
 	for attempt := 0; attempt <= w.maxRetries; attempt++ {
-		if attempt > 0 {
-			logger.Warn(
-				"webhook delivery failed, retrying",
-				"attempt",
-				attempt,
-				"max_retries",
-				w.maxRetries,
-				"delay",
-				backoff,
-				"url",
-				sanitizeURL(w.url),
-				"event_type",
-				e.Type,
-				"error",
-				lastErr,
-			)
-			timer := time.NewTimer(backoff)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				return
-			case <-doneChan:
-				timer.Stop()
-				return
-			case <-timer.C:
-			}
-
-			// Calculate next backoff with exponential increase
-			backoff = min(
-				time.Duration(float64(backoff)*w.backoffFactor),
-				w.maxBackoff,
-			)
-		}
-
-		err := w.sendWebhook(ctx, e)
+		result := send(ctx)
 		if ctx.Err() != nil {
-			return
+			return ctx.Err()
 		}
-		if err == nil {
+		if result.err == nil {
+			w.recordOutcome("success")
 			if attempt > 0 {
 				logger.Info(
 					"webhook delivery succeeded",
@@ -574,41 +717,95 @@ func (w *WebhookOutput) sendWebhookWithRetry(
 					"url",
 					sanitizeURL(w.url),
 					"event_type",
-					e.Type,
+					eventType,
 				)
 			}
-			return
+			return nil
 		}
-		lastErr = err
+		terminalOutcome := !result.retryable
+		delay := min(backoff, w.maxBackoff)
+		if !terminalOutcome && attempt < w.maxRetries {
+			if requested, valid, exceeds := retryAfterDelay(result.retryAfter, time.Now(), w.maxBackoff); exceeds {
+				terminalOutcome = true
+			} else if valid {
+				delay = max(delay, requested)
+			}
+		}
+		if terminalOutcome || attempt == w.maxRetries {
+			outcome := "exhausted"
+			if terminalOutcome {
+				outcome = "terminal"
+			}
+			w.recordOutcome(outcome)
+			logger.Error(
+				"webhook delivery failed, giving up",
+				"attempts",
+				attempt+1,
+				"url",
+				sanitizeURL(w.url),
+				"event_type",
+				eventType,
+				"error",
+				result.err,
+			)
+			deliveryErr := fmt.Errorf(
+				"webhook delivery to %s failed after %d attempts: %w",
+				sanitizeURL(w.url),
+				attempt+1,
+				result.err,
+			)
+			if w.statePath == "" && !w.TrySendError(deliveryErr) {
+				logger.Warn("could not send error to error channel (full)")
+			}
+			return deliveryErr
+		}
+		logger.Warn(
+			"webhook delivery failed, retrying",
+			"attempt",
+			attempt+1,
+			"max_retries",
+			w.maxRetries,
+			"delay",
+			delay,
+			"url",
+			sanitizeURL(w.url),
+			"event_type",
+			eventType,
+			"error",
+			result.err,
+		)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-doneChan:
+			timer.Stop()
+			return context.Canceled
+		case <-timer.C:
+		}
+		backoff = min(
+			time.Duration(float64(backoff)*w.backoffFactor),
+			w.maxBackoff,
+		)
 	}
-
-	// All retries exhausted
-	logger.Error(
-		"webhook delivery failed, giving up",
-		"max_retries",
-		w.maxRetries,
-		"url",
-		sanitizeURL(w.url),
-		"event_type",
-		e.Type,
-		"error",
-		lastErr,
-	)
-
-	// Send error to error channel for monitoring (non-blocking)
-	if !w.TrySendError(fmt.Errorf(
-		"webhook delivery to %s failed after %d retries: %w",
-		sanitizeURL(w.url),
-		w.maxRetries,
-		lastErr,
-	)) {
-		logger.Warn("could not send error to error channel (full)")
-	}
+	return nil
 }
 
 // Stop the webhook output
 func (w *WebhookOutput) Stop() error {
-	return w.Shutdown(plugin.ShutdownHooks{})
+	return w.Shutdown(plugin.ShutdownHooks{AfterWait: w.closeQueue})
 }
 
 var _ plugin.ManagedPlugin = (*WebhookOutput)(nil)
+
+// SetHTTPClient supplies an instance-owned HTTP policy. Call before Start.
+// The client must enforce request deadlines and any required destination and
+// redirect restrictions, including response body reads. An injected transport
+// may wait for a provider quota before starting its request deadline.
+func (w *WebhookOutput) SetHTTPClient(client *http.Client) { w.httpClient = client }
+
+// SetProcessingObserver observes completion of each supported event's processing.
+// It does not acknowledge external delivery. Configure before Start; the callback
+// must not block, mutate the plugin, or call Stop.
+func (w *WebhookOutput) SetProcessingObserver(observer func()) { w.processed = observer }

@@ -7,6 +7,21 @@ serialized size, Plutus execution prices, and the Conway **tiered
 reference-script fee**. A reference script whose per-byte price is missing from
 the parameters is an error, not an underpriced transaction.
 
+Before calling `Complete()`, approve a maximum total fee with
+`SetMaxFee(lovelace)`. Apollo rejects a larger fee, including fee padding and
+ADA change absorbed because it is below the minimum output amount. The limit
+is required because protocol parameters come from the configured chain provider.
+After completion, inspect `GetTx().Body.TxFee` (or
+`GetDijkstraTx().Body.TxFee`) before signing or submitting.
+
+Apollo does not raise a payment's lovelace amount by default. If an output
+needs more lovelace to meet the provider-reported minimum, `Complete()` reports
+the proposed amount and the requested amount. Use
+`SetMaxPaymentIncrease(lovelace)` to approve a total increase across all
+payments. Apollo builds from copies of payments, so a failed attempt leaves
+the caller's payment values intact. Custom `PaymentI` types must implement
+`PaymentCloner` to provide an independent copy for this check.
+
 The reference-script price is preserved as a rational when the provider supplies
 one (`MinFeeRefScriptCostPerByteRational`); it is not round-tripped through a
 lossy float.
@@ -22,6 +37,8 @@ Helpers on the builder:
 | `SetFee(fee)` | Target fee used with `Complete()` (replacement for v1 `CompleteExact`) |
 | `ForceFee(fee)` | Pin the fee |
 | `SetFeePadding(padding)` | Extra lovelace on top of the estimate |
+| `SetMaxFee(max)` | Required ceiling for the final transaction fee |
+| `SetMaxPaymentIncrease(max)` | Approved total minimum-UTxO increase across payments; defaults to zero |
 
 Fee estimation counts witnesses as a **set**: wallet, registered required
 signers, distinct payment credentials on spending and collateral inputs, and

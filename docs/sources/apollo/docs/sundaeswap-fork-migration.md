@@ -31,7 +31,7 @@ go test ./...
 Apollo v2 uses these current signatures:
 
 ```go
-builder := apollo.New(chainContext)
+builder := apollo.New(chainContext).SetMaxFee(1_000_000)
 
 builder, err := builder.Complete()
 txCbor, err := builder.GetTxCbor()

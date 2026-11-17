@@ -1,0 +1,1 @@
+../../../../scripts/kb/mcp_server.py

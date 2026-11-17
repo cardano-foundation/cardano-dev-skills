@@ -1,0 +1,18 @@
+{
+  "name": "cardano-infra-skills",
+  "version": "0.0.1",
+  "description": "Packaging-proof stand-in for the infrastructure plugin. Not for use.",
+  "author": {
+    "name": "Cardano Foundation"
+  },
+  "license": "Apache-2.0",
+  "skills": "./skills/",
+  "mcpServers": "./mcp.json",
+  "interface": {
+    "displayName": "Cardano Infra Skills (packaging proof)",
+    "shortDescription": "Packaging-proof stand-in for the infrastructure plugin. Not for use.",
+    "developerName": "Cardano Foundation",
+    "category": "Developer Tools",
+    "capabilities": ["Read"]
+  }
+}

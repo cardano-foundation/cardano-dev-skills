@@ -1,10 +1,18 @@
 {
   "name": "cardano-dev-skills",
-  "description": "Community-curated Cardano developer knowledge base: skills covering smart contracts, transactions, governance, and tooling for the Cardano ecosystem",
+  "version": "0.0.1",
+  "description": "Community-curated Cardano developer knowledge base: skills covering smart contracts, transactions, governance, and tooling for the Cardano ecosystem. Packaging-proof branch, not for use.",
   "author": {
     "name": "Cardano Foundation"
   },
   "repository": "https://github.com/cardano-foundation/cardano-dev-skills",
   "license": "Apache-2.0",
-  "keywords": ["cardano", "blockchain", "smart-contracts", "aiken", "web3", "eutxo"]
+  "keywords": ["cardano", "blockchain", "smart-contracts", "aiken", "web3", "eutxo"],
+  "mcpServers": {
+    "cardano-dev-docs": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["-I", "-B", "${CLAUDE_PLUGIN_ROOT}/scripts/kb/mcp_server.py"]
+    }
+  }
 }

@@ -8,6 +8,11 @@
       "name": "cardano-dev-skills",
       "description": "Cardano developer knowledge base with skills for smart contracts, transactions, governance, and tooling",
       "source": "./"
+    },
+    {
+      "name": "cardano-infra-skills",
+      "description": "Packaging-proof stand-in for the infrastructure plugin. Not for use.",
+      "source": "./plugins/infra"
     }
   ]
 }

@@ -39,23 +39,7 @@ Quick reference for choosing and using Cardano transaction-building SDKs.
 npm install @meshsdk/core
 ```
 
-**Basic send-ADA pattern:**
-```typescript
-import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";
-
-const provider = new BlockfrostProvider("<BLOCKFROST_KEY>");
-const txBuilder = new MeshTxBuilder({ fetcher: provider, submitter: provider });
-
-// Build, sign, submit pattern
-const unsignedTx = await txBuilder
-  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "5000000" }])
-  .changeAddress(senderAddress)
-  .selectUtxosFrom(utxos)
-  .complete();
-
-const signedTx = await wallet.signTx(unsignedTx);
-const txHash = await wallet.submitTx(signedTx);
-```
+**Basic send-ADA pattern:** inline in `SKILL.md`, under Mesh SDK.
 
 ---
 
@@ -82,28 +66,7 @@ const txHash = await wallet.submitTx(signedTx);
 npm install @evolution-sdk/evolution
 ```
 
-**Basic send-ADA pattern:**
-```typescript
-import { Address, Assets, preprod, Client } from "@evolution-sdk/evolution"
-
-const client = Client.make(preprod)
-  .withBlockfrost({
-    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
-    projectId: process.env.BLOCKFROST_API_KEY!
-  })
-  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
-
-const tx = await client
-  .newTx()
-  .payToAddress({
-    address: Address.fromBech32("addr_test1..."),
-    assets: Assets.fromLovelace(5_000_000n)
-  })
-  .build()
-
-const signed = await tx.sign()
-const txHash = await signed.submit()
-```
+**Basic send-ADA pattern:** inline in `SKILL.md`, under Evolution SDK.
 
 ---
 
@@ -130,24 +93,7 @@ const txHash = await signed.submit()
 pip install pycardano
 ```
 
-**Basic send-ADA pattern:**
-```python
-from pycardano import (
-    BlockFrostChainContext, TransactionBuilder,
-    TransactionOutput, Address
-)
-
-context = BlockFrostChainContext("YOUR_KEY", base_url="https://cardano-preview.blockfrost.io/api")
-builder = TransactionBuilder(context)
-builder.add_input_address(sender_address)
-builder.add_output(TransactionOutput(recipient_address, 5_000_000))
-
-signed_tx = builder.build_and_sign(
-    signing_keys=[payment_skey],
-    change_address=sender_address
-)
-context.submit_tx(signed_tx)
-```
+**Basic send-ADA pattern:** inline in `SKILL.md`, under PyCardano.
 
 ---
 
@@ -183,17 +129,39 @@ feature-complete and no longer receives updates; `docs/v2_migration/MIGRATION.md
 in the mirror covers porting off it.
 
 **Basic send-ADA pattern:**
+
+Verified to compile against `apollo/v2` at `v2.0.1` (2026-08-19). The builder is
+fluent, but the steps that can fail return `(*Apollo, error)` rather than a bare
+`*Apollo` — `AddInputAddressFromBech32` and `PayToAddressBech32` among them — so
+handle the error and re-assign at each of those:
+
 ```go
+import (
+    apollo "github.com/Salvionied/apollo/v2"
+    "github.com/Salvionied/apollo/v2/backend/blockfrost"
+)
+
 cc := blockfrost.NewBlockFrostChainContext(
     "https://cardano-preprod.blockfrost.io/api/v0", 0, projectID)
 
 b, err := apollo.New(cc).AddInputAddressFromBech32(senderBech32)
 if err != nil { return err }
-b, err = b.PayToAddressBech32(recipientBech32, 5_000_000)
+b, err = b.PayToAddressBech32(recipientBech32, 10_000_000)
 if err != nil { return err }
-b, err = b.Complete()
+b, err = b.Complete()          // coin selection, fee calculation, balancing
 if err != nil { return err }
 ```
+
+Methods that only mutate builder state — `AddLoadedUTxOs`, `RegisterDRep`,
+`AddRequiredSigner` — return a bare `*Apollo` and do chain, recording any error
+internally for `Complete` to report. Start from `doc.go` in a mirrored package
+for the overview, then search for a method name in
+`../../docs/sources/apollo/` for its signature and doc
+comment.
+
+Then `SetWalletFromMnemonic` + `Sign` + `Submit` for a signed submission, or
+`GetTxCbor` to hand the CBOR to an external signer. The mirror's `docs/`
+directory carries worked examples for staking, governance, and Plutus V3.
 
 ---
 
@@ -320,36 +288,7 @@ tx3up                      # install the toolchain (trix, compiler, LSP)
 npm install tx3-sdk        # runtime SDK for the generated client (TS shown)
 ```
 
-**Basic send-ADA pattern (two parts):**
-
-Declare the transaction:
-```tx3
-// transfer.tx3 -- the interface
-party Sender;
-party Receiver;
-
-tx transfer(quantity: Int) {
-    input source  { from: Sender, min_amount: Ada(quantity) }
-    output        { to: Receiver, amount: Ada(quantity) }
-    output        { to: Sender,   amount: source - Ada(quantity) - fees }
-}
-```
-
-Consume transaction after generating:
-```typescript
-// after `trix codegen --plugin ts-client`
-import { Client } from "./gen/transfer";
-import { Party, Ed25519Signer } from "tx3-sdk";
-
-const client = new Client({ endpoint: "http://localhost:8164" }, "local")
-  .withSender(Party.signer(Ed25519Signer.fromHex("addr_test1...", "deadbeef...")))
-  .withReceiver(Party.address("addr_test1..."));
-
-const status = await client
-  .transfer({ quantity: 5_000_000n })
-  .resolve().then((r) => r.sign()).then((s) => s.submit())
-  .then((sub) => sub.waitForConfirmed());
-```
+**Basic send-ADA pattern:** inline in `SKILL.md`, under Tx3.
 
 ---
 
@@ -377,17 +316,17 @@ const status = await client
 
 ## Decision Guide
 
+**Choose Evolution SDK when (the TypeScript default):**
+- Want a type-safe, composable TypeScript transaction builder
+- Prefer Effect-TS functional patterns
+- Need built-in multi-provider support (Blockfrost, Koios, Kupmios, Maestro)
+- Building Node.js or browser-based Cardano applications
+
 **Choose Mesh SDK when:**
 - Building a web dApp with browser wallet integration
 - Want the fastest path to a working transaction
 - Team is TypeScript-focused
 - Need React components for wallet UI
-
-**Choose Evolution SDK when:**
-- Want a type-safe, composable TypeScript transaction builder
-- Prefer Effect-TS functional patterns
-- Need built-in multi-provider support (Blockfrost, Koios, Kupmios, Maestro)
-- Building Node.js or browser-based Cardano applications
 
 **Choose PyCardano when:**
 - Building Python backends or automation scripts

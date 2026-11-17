@@ -94,14 +94,20 @@ $cardano-context
 
 What it does:
 
-- Writes the same version-tagged block into the project's `CLAUDE.md` and
-  `AGENTS.md`. Claude reads the former; Codex reads the latter.
+- Writes one version-tagged block into the project's `AGENTS.md`, which Codex
+  reads. Claude reads `AGENTS.md` only when the project has no `CLAUDE.md`; if
+  yours has one, the skill adds a small marked `@AGENTS.md` import line to it,
+  so Claude loads the whole of `AGENTS.md` too. It never creates a `CLAUDE.md`.
 - Tells either agent to treat model knowledge as potentially stale, select the
   relevant skill, resolve bundled `docs/sources/` from that skill's location,
   and cite what it used.
-- Commit both files and teammates inherit the directive on clone.
-- Re-running is safe: same version is a no-op; older versions are atomically
-  replaced.
+- Commit the changed files and teammates inherit the directive on clone.
+  Teammates need a current plugin too: an older one writes an older block.
+- Re-running is safe: a current block is a no-op, and an unedited older block,
+  including one in `CLAUDE.md` from an earlier layout, moves to `AGENTS.md` as
+  the current version. Edits you made inside the block, a newer block, or
+  broken markers are shown to you and asked about first; nothing outside the
+  marked regions changes.
 
 A project-local Claude skill may also appear as `/cardano-context`; the
 plugin-qualified form above avoids collisions with skills from other plugins.

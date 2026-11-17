@@ -28,7 +28,7 @@ End result: the agent answers from current, project-authoritative sources instea
 
 | Skill | What it does |
 |---|---|
-| `cardano-context` | Install one Cardano directive into `CLAUDE.md` and `AGENTS.md` so Claude and Codex consult bundled skills and docs |
+| `cardano-context` | Install one Cardano directive into `AGENTS.md`, imported from `CLAUDE.md` when the project has one, so Claude and Codex consult bundled skills and docs |
 | `give-feedback` | Draft and file a GitHub issue about a skill or doc that was wrong, stale, or notably helpful, with one approval |
 | `scaffold-project` | Bootstrap a new Cardano project across Aiken + 4 off-chain stacks |
 | `write-validator` | Guide writing a validator from spec (default Aiken) |
@@ -155,8 +155,9 @@ described above; for a Codex repository link or a standalone clone, run
 `git pull` in the `cardano-dev-skills` checkout.
 
 After an update that ships a new version of the project directive block, run
-`cardano-context` again in each project that uses it: it replaces the older
-block, and on a current block it changes nothing.
+`cardano-context` again in each project that uses it: it replaces an unedited
+older block, asks before replacing one you edited, and on a current block it
+changes nothing.
 
 ## How to set the Cardano context
 
@@ -178,13 +179,20 @@ $cardano-context
 
 What it does:
 
-- Writes the same version-tagged block into the project's `CLAUDE.md` and
-  `AGENTS.md` by default. Claude reads the former; Codex reads the latter.
+- Writes one version-tagged block into the project's `AGENTS.md`, which Codex
+  reads. Claude reads `AGENTS.md` only when the project has no `CLAUDE.md`; if
+  yours has one, the skill adds a small marked `@AGENTS.md` import line to it,
+  so Claude loads the whole of `AGENTS.md` too. It never creates a `CLAUDE.md`.
 - Tells either agent to treat model knowledge as potentially stale, select the
   relevant Cardano skill, resolve the bundled `docs/sources/` corpus from that
   skill's location, and cite what it used.
-- Commit both files and teammates inherit the directive on clone.
-- Re-running is safe: same version is a no-op; older versions are atomically replaced.
+- Commit the changed files and teammates inherit the directive on clone.
+  Teammates need a current plugin too: an older one writes an older block.
+- Re-running is safe: a current block is a no-op, and an unedited older block,
+  including one in `CLAUDE.md` from an earlier layout, moves to `AGENTS.md` as
+  the current version. Edits you made inside the block, a newer block, or
+  broken markers are shown to you and asked about first; nothing outside the
+  marked regions changes.
 
 A project-local Claude skill may also appear as `/cardano-context`; the
 plugin-qualified form above avoids collisions with skills from other plugins.

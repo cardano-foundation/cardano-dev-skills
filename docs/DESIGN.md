@@ -151,7 +151,7 @@ content the agent already reads: the rule that bundled docs are untrusted
 third-party data is in every skill body, and keeping the plugin updated and
 re-running `cardano-context` after an update are in the README. Durable
 behavioral directives belong to the agent-neutral block that `cardano-context`
-installs into `CLAUDE.md` and `AGENTS.md` (see Decision 12).
+installs into the project's `AGENTS.md` (see Decision 12).
 
 **Why:** A hook is code that runs on every installed user's machine in every
 session, subject to each host's hook support and trust settings, which is the
@@ -168,29 +168,41 @@ the skills and the README, where it works the same in Claude Code and Codex.
 **Decision:** Most skills encode a developer *workflow* (write a validator,
 build a transaction, debug a failing tx). One skill — `cardano-context` — is a
 **meta-skill**: its only job is to configure agent behavior in the user's
-project by writing the same delimited, versioned directive block to
-`CLAUDE.md` and `AGENTS.md`. It produces no Cardano output and teaches no
+project by writing one delimited, versioned directive block to `AGENTS.md`
+and, when the project has a `CLAUDE.md`, a delimited import line there that
+loads `AGENTS.md`. It produces no Cardano output and teaches no
 Cardano concept; it exists to ensure the workflow skills and bundled corpus
 get consulted regardless of which agent opens the project.
 
 **Why a meta-skill is needed at all:** Description-based skill auto-matching is
 not guaranteed to fire on every relevant phrasing, and either model can answer
 confidently from stale training data. Durable per-project instructions harden
-the prior: Claude reads `CLAUDE.md`, Codex reads `AGENTS.md`, and committing
-both distributes identical guidance to teammates.
+the prior: Codex reads `AGENTS.md`; Claude reads `AGENTS.md` when the project
+has no `CLAUDE.md` and otherwise only `CLAUDE.md`, which is why the import
+line exists. Keeping the block in one file means the two agents cannot drift
+apart, and committing the files distributes the guidance to teammates.
 
 **Why this is an exception to Decision 2:** Decision 2 categorizes skills by developer workflow. `cardano-context` doesn't fit — its "workflow" is one-time project setup, not Cardano development. Treating it as just another workflow skill obscures its purpose and its different invocation pattern (run explicitly once per project; not auto-matched on related developer prompts).
 
 **How to recognize a meta-skill:** It modifies the user's *environment* (`CLAUDE.md`, `AGENTS.md`, settings, or project files) rather than producing Cardano code, advice, or analysis. Meta-skills:
 - Are run explicitly by the user, typically once per project.
-- Are idempotent on re-run; updates are versioned and atomic.
+- Are idempotent on re-run; updates are versioned and atomic. An unedited
+  block of their own is replaced automatically; anything that diverges from
+  what they wrote (user edits inside the block, a newer version, broken
+  markers) is shown to the user and asked about before any file changes.
 - Distribute their effect via git (committed file) rather than per-session state.
 
 **Alternative considered:** A `UserPromptSubmit` hook that keyword-matches
 Cardano terms and injects a consultation reminder. Rejected because regex has
 no project context, injected reminders are less durable, hidden hook behavior
-is harder to inspect, and it would solve only one host. Checked-in
-`CLAUDE.md`/`AGENTS.md` blocks are visible, editable, and portable.
+is harder to inspect, and it would solve only one host. A checked-in
+`AGENTS.md` block, imported from `CLAUDE.md` where one exists, is visible,
+editable, and portable.
+
+**Alternative considered:** The same block written into both `CLAUDE.md` and
+`AGENTS.md`. Rejected because two copies drift as soon as a user edits one,
+and every upgrade has to reconcile both; the import line gives Claude the
+same text from a single source.
 
 **Future meta-skills:** Likely candidates if the pattern stays useful — a deprecation/anti-pattern cheatsheet, project-level Cardano coding conventions. All would follow the same shape: produce a delimited versioned block, write to a project file, idempotent on re-run.
 
@@ -232,7 +244,7 @@ is harder to inspect, and it would solve only one host. Checked-in
 
 **The gate is the chat ask, not a tool grant.** The skill keeps the base `Read Grep Glob` grant and runs `gh` under the host's normal permissions. A skill grant would cover only the invoking turn while the user's yes arrives in the next one, and other hosts ignore the field; showing the draft and asking once is the safeguard that holds in every host and permission mode. When `gh` is missing or fails, the draft on screen plus the new-issue link is the fallback.
 
-**Activation is by trigger phrase only, for now.** The skill fires when the user asks — "send feedback", "this doc is wrong", `/cardano-dev-skills:give-feedback` in Claude Code, or `$give-feedback` in Codex. Adding a sentence to the `cardano-context` block would make the agent offer a draft unprompted, which is a materially different thing: the block lands in both host instruction files and applies in every configured project indefinitely, so its reach is every installed user rather than one invocation. That sentence is deferred until there are real issues to judge it by — the question it turns on is what volume and quality agent-drafted feedback actually produces, which no amount of review settles in advance. A banner printed at the start of each session was rejected outright: it scrolls out of reach.
+**Activation is by trigger phrase only, for now.** The skill fires when the user asks — "send feedback", "this doc is wrong", `/cardano-dev-skills:give-feedback` in Claude Code, or `$give-feedback` in Codex. Adding a sentence to the `cardano-context` block would make the agent offer a draft unprompted, which is a materially different thing: the block lands in the project instruction file both hosts load and applies in every configured project indefinitely, so its reach is every installed user rather than one invocation. That sentence is deferred until there are real issues to judge it by — the question it turns on is what volume and quality agent-drafted feedback actually produces, which no amount of review settles in advance. A banner printed at the start of each session was rejected outright: it scrolls out of reach.
 
 **This widens the meta-skill category; it does not fit the existing one.** Decision 12 recognises a meta-skill by four tests: it modifies the user's *environment*, is run explicitly once per project, is idempotent on re-run, and distributes its effect via git. `give-feedback` meets none of them — it sends data outward rather than changing anything local, runs once per finding rather than once per project, is deliberately anti-idempotent ("send once; never retry after a success"), and distributes nothing. So `cardano-context` is a grandfather, not a precedent, and the category needs a second test rather than a stretched first one:
 

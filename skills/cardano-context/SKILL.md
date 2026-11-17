@@ -147,9 +147,17 @@ Each check that fails goes to Step 4 as a reason to ask.
   root, or it has no project signal: no git repository, no package manifest
   (such as `package.json`, `aiken.toml`, `pyproject.toml`, `Cargo.toml`,
   `go.mod`, `pom.xml`, `build.gradle`, a `.cabal` file), and no existing
-  `AGENTS.md` or `CLAUDE.md`. A git repository means a `.git` file, or a
-  `.git` directory containing `HEAD`; an empty `.git` directory is not one,
-  because a command sandbox can mount empty placeholders under that name.
+  `AGENTS.md` or `CLAUDE.md`. A git repository is one of:
+  - a `.git` directory that contains `HEAD`;
+  - a `.git` file holding a line `gitdir: <path>`, where `<path>`, resolved
+    against the target directory when it is relative, is an existing
+    directory that contains `HEAD`. Git worktrees and submodules look like
+    this.
+
+  Anything else named `.git` is not a project signal: an empty `.git` file, one
+  without a `gitdir:` line, one whose path does not exist or has no `HEAD`, or
+  a `.git` directory without `HEAD`. A command sandbox can mount empty
+  placeholders under that name, and a stray file proves nothing.
 - **Symlink outside the project.** `AGENTS.md` or `CLAUDE.md` is a symlink that
   resolves to a path outside the target directory. Use a directory listing
   that shows link targets where the host offers one.
@@ -160,45 +168,62 @@ Each check that fails goes to Step 4 as a reason to ask.
 
 ### Step 3: Inventory our regions
 
-Read each file that exists. Find every line containing
-`<!-- BEGIN cardano-dev-skills` or `<!-- END cardano-dev-skills`, and pair each
-`BEGIN` with the next `END` of the same label (`v1`, `v2`, … or `import`).
-Classify what you find:
+Read each file that exists and note where each code fence opens and closes.
+Find every line containing `<!-- BEGIN cardano-dev-skills` or
+`<!-- END cardano-dev-skills`, and pair each `BEGIN` with the next `END` of the
+same label (`v1`, `v2`, … or `import`). Classify what you find:
 
 - **Malformed:** a `BEGIN` without its `END`, an `END` without its `BEGIN`, a
   label that does not match, or one region nested inside another.
-- **Duplicated:** more than one versioned block in one file, or more than one
-  import region. One block in each file is the older two-file layout, not a
-  duplicate.
+- **Duplicated:** more than one versioned block in one file. One block in
+  each file is the older two-file layout, not a duplicate.
 - Each versioned block is then one of: **v4 unedited**, **v4 edited**,
   **older unedited** (v1 to v3, matching a text in the previous-blocks
   reference), **older edited**, or **newer** (a version above v4).
 
-Then check whether `CLAUDE.md` already imports `AGENTS.md`: a line that is
-exactly `@AGENTS.md` or `@./AGENTS.md`, outside a code fence, with or without
-our import markers around it.
+Then classify every `import` region in either file, by content and location,
+and every bare import:
+
+- A **bare import** is a line of `CLAUDE.md`, outside any code fence and
+  outside any import region, that is exactly `@AGENTS.md` or `@./AGENTS.md`.
+- An import region is **canonical** when it is in `CLAUDE.md`, outside any
+  code fence, and its markers enclose exactly one line, `@AGENTS.md`, ignoring
+  line endings and trailing whitespace.
+- Every other import region is **noncanonical**: an empty region, one with any
+  other or any additional line, one inside a code fence, and any import region
+  in `AGENTS.md`.
+
+The project's import state is exactly one of:
+
+- **none:** zero import regions and zero bare imports;
+- **ours:** exactly one import region, canonical, and zero bare imports;
+- **user import:** zero import regions and at least one bare import;
+- **divergent:** anything else, such as a noncanonical region, two regions,
+  or a canonical region together with a bare import.
 
 ### Step 4: Decide, and ask when anything diverges
 
 **Ask first.** If any of the following holds, show the user what you found
 (the file, the region or condition, and the lines that differ from what this
 skill expects), say what you propose, and ask. Change no file in this run.
+Still give the Step 6 report, with `asked — unchanged` for each file, and end
+with your question.
 
 - A Step 2 check failed.
-- A region is malformed or duplicated.
+- A versioned block is malformed or duplicated.
+- The import state is divergent. Never add a second import region.
 - A block is newer than v4. Never downgrade it; suggest updating the plugin.
 - A block, in either file, is edited (v4 or older). List the user's own lines,
-  those not in our recorded text, and ask whether to:
-  - **keep** them: carry them verbatim directly below the v4 block in
-    `AGENTS.md`, outside the markers;
-  - **merge** them: the user says which lines still apply and how to word
-    them, and the result goes below the block, outside the markers;
-  - **drop** them: they are covered by the new block or no longer wanted.
+  those not in our recorded text, and ask whether to **keep** them (carried
+  verbatim below our block, outside the markers), **merge** them (the user
+  says which lines still apply and how to word them, and the agreed text goes
+  inside our block), or **drop** them (covered by the new block or no longer
+  wanted). Say that text inside our markers is replaced or asked about again
+  at the next upgrade, while text outside them is never touched.
 
-  Text placed inside our markers is replaced by the next upgrade; text outside
-  them never is, so the user's lines always end up outside.
-
-When the user answers, apply the plan below with their choice and report it.
+When the user answers, apply the automatic plan below with their decision,
+and for an edited block write exactly what "After consent on an edited block"
+says. Report it as usual.
 
 **Otherwise, plan automatically,** one file at a time:
 
@@ -211,17 +236,45 @@ When the user answers, apply the plan below with their choice and report it.
   - v4 unedited block: leave the file alone (`no-op`).
 - `CLAUDE.md`, only if it exists:
   - unedited block of any version, v4 included: it moves to `AGENTS.md`
-    (`moved to AGENTS.md`). If `CLAUDE.md` already imports `AGENTS.md`, remove
-    the region and add nothing. Otherwise replace the region, `BEGIN` through
-    `END` inclusive, with the import region in the same place
+    (`moved to AGENTS.md`). If the import state is ours or user import,
+    remove the region and add nothing. If it is none, replace the region,
+    `BEGIN` through `END` inclusive, with the import region in the same place
     (`import added`). If the file would then hold nothing but whitespace and
-    the import region, delete `CLAUDE.md` instead (`deleted (empty)`): Claude
-    reads `AGENTS.md` directly when there is no `CLAUDE.md`. Deleting is the
-    one destructive step; the host may ask the user to approve it;
-  - no versioned block and no import of `AGENTS.md`: append the import region
+    the import region, delete `CLAUDE.md` instead (`deleted (empty)`), unless
+    Step 5's symlink rule forbids it: Claude reads `AGENTS.md` directly when
+    there is no `CLAUDE.md`. Deleting is the one destructive step; the host
+    may ask the user to approve it;
+  - no versioned block and import state none: append the import region
     (`import added`);
-  - no versioned block and an existing import: leave the file alone
-    (`no-op`).
+  - no versioned block and import state ours or user import: leave the file
+    alone (`no-op`).
+
+**After consent on an edited block.** The v4 result always goes to
+`AGENTS.md`, whichever file held the edited block. Write, for the choice the
+user made:
+
+- **keep:** the canonical v4 block, one blank line, then the user's lines
+  verbatim and in their original order, below the `END` marker, outside the
+  markers;
+- **merge:** the `BEGIN cardano-dev-skills v4` marker, the text the user
+  agreed, and the `END cardano-dev-skills v4` marker, so the agreed text is
+  inside our markers; tell the user the next upgrade will find this block
+  edited and ask again;
+- **drop:** the canonical v4 block alone.
+
+Place that result in `AGENTS.md`:
+
+- edited block in `AGENTS.md`: the result replaces that region, `BEGIN`
+  through `END` inclusive (`updated vN→v4`);
+- edited block in `CLAUDE.md` (the move to `AGENTS.md`): the result replaces
+  the versioned block `AGENTS.md` holds, or is appended, or creates the file,
+  as in the automatic plan. The `CLAUDE.md` region is then handled exactly as
+  an unedited block in the automatic plan: replaced by the import region or
+  removed, and the file deleted when nothing else is left
+  (`moved to AGENTS.md`, plus `import added` or `deleted (empty)`);
+- edited blocks in both files: agree a choice for each. Write one v4 block;
+  with keep, the lines from `AGENTS.md` come first, then those from
+  `CLAUDE.md`.
 
 ### Step 5: Write without collateral changes
 
@@ -232,8 +285,18 @@ When the user answers, apply the plan below with their choice and report it.
   followed by a newline.
 - Preserve each file's existing line endings: in a CRLF file, write the new
   region with CRLF too.
-- Follow an instruction-file symlink that stays inside the project and edit its
-  resolved target, noting that in the report.
+- Write `AGENTS.md` first, then read it back and confirm it holds exactly one
+  versioned block, a v4 block with the text you meant to write, and that the
+  rest of the file is as before apart from what the plan adds. Change or
+  delete `CLAUDE.md` only after that check passes. Report
+  what you read back, not what you intended: if a file does not hold what the
+  plan says, stop, say so, and leave `CLAUDE.md` alone.
+- Symlinks. Follow an instruction-file symlink that stays inside the project
+  and edit its resolved target, never the link itself, noting that in the
+  report. Never delete a file that is a symlink or the target of one in the
+  project. If `CLAUDE.md` is such a file and the plan would delete it, write
+  the import region instead (`import added`) and tell the user it now holds
+  only the import and was left for them to remove.
 
 ### Step 6: Report
 

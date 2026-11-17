@@ -136,6 +136,8 @@ GROUNDING_REGION_RE = re.compile(
     GROUNDING_BEGIN_RE.pattern + r"(.*?)" + re.escape(GROUNDING_END), re.S)
 GROUNDING_MARKER_RE = re.compile(r"<!--\s*cds:grounding\b")
 FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
+# CommonMark fence: at most three leading spaces, no tab indentation.
+COMMONMARK_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 CONTEXT_BLOCK_RE = re.compile(
     r"<!-- BEGIN cardano-dev-skills v\d+ -->(.*?)"
     r"<!-- END cardano-dev-skills v\d+ -->", re.S)
@@ -296,7 +298,8 @@ def validate_skill(skill_dir: Path) -> None:
                 checked_text = ref_text
                 if ref_file.resolve() == HISTORICAL_BLOCKS_FILE.resolve():
                     checked_text = "\n".join(
-                        part for inside, part in fence_segments(ref_text)
+                        part for inside, part in fence_segments(
+                            ref_text, commonmark_indent=True)
                         if not inside)
                 for variable in FORBIDDEN_SHARED_VARIABLES:
                     if variable in checked_text:
@@ -352,7 +355,8 @@ def load_grounding_texts() -> dict[str | None, str] | None:
     return texts
 
 
-def fence_segments(text: str) -> list[tuple[bool, str]]:
+def fence_segments(text: str, commonmark_indent: bool = False
+                   ) -> list[tuple[bool, str]]:
     """Split `text` into consecutive (inside_fence, text) segments.
 
     The fence lines belong to their fenced segment. A fence opens on FENCE_RE
@@ -360,13 +364,17 @@ def fence_segments(text: str) -> list[tuple[bool, str]]:
     indent, then a run of the opening character at least as long as the
     opening run, then nothing but spaces or tabs. Any other line stays code,
     including a fence line with an info string or of the other character.
+    With `commonmark_indent`, an opener or closer counts only with at most
+    three leading spaces and no tab, as in CommonMark; a line indented further
+    is not a fence line.
     """
+    opener_re = COMMONMARK_FENCE_RE if commonmark_indent else FENCE_RE
     segments: list[tuple[bool, str]] = []
     current: list[str] = []
     fence: str | None = None
     for line in text.splitlines():
         if fence is None:
-            match = FENCE_RE.match(line)
+            match = opener_re.match(line)
             if match:
                 segments.append((False, "\n".join(current)))
                 current, fence = [line], match.group(1)
@@ -375,6 +383,9 @@ def fence_segments(text: str) -> list[tuple[bool, str]]:
         else:
             current.append(line)
             closer = line.lstrip().rstrip(" \t")
+            indent = line[:len(line) - len(line.lstrip())]
+            if commonmark_indent and not re.fullmatch(" {0,3}", indent):
+                continue
             if len(closer) >= len(fence) and closer == fence[0] * len(closer):
                 segments.append((True, "\n".join(current)))
                 current, fence = [], None

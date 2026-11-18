@@ -317,7 +317,12 @@ the `CLAUDE.md` block is handled as shown (`moved to AGENTS.md`, plus
   versioned block, a v4 block with the text you meant to write, and that the
   rest of the file is as before apart from what the plan adds. For an edited
   block, confirm instead that `AGENTS.md` holds exactly the text the user
-  accepted. Change or delete `CLAUDE.md` only after that check passes. Report
+  accepted. Read back the whole file and compare it with the complete text you
+  meant it to hold, every byte outside and inside our markers, not only the
+  region from `BEGIN` to `END`, which a stray character after a marker passes;
+  on any difference, stop, leave `CLAUDE.md` untouched, and report what
+  differs. Check any other file you edit the same way before a destructive
+  step. Change or delete `CLAUDE.md` only after that check passes. Report
   what you read back, not what you intended: if a file does not hold what the
   plan says, stop, say so, and leave `CLAUDE.md` alone.
 - Symlinks. Follow an instruction-file symlink that stays inside the project

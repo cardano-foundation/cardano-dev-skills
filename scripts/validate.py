@@ -151,7 +151,13 @@ NEW_SKILL_TEMPLATE = REPO_ROOT / "scripts" / "new-skill.sh"
 HEREDOC_RE = re.compile(
     r"(?<!<)<<(?!<)(-?)[ \t]*"
     r"(?:'([^'\n]+)'|\"([^\"\n]+)\"|(\\?)([A-Za-z_][A-Za-z0-9_]*))")
-SKILL_MD_REDIRECT_RE = re.compile(r">[ \t]*\"[^\"\n]*SKILL\.md\"")
+# The one accepted shape of the command that writes the template, matched
+# against the whole line: `cat > ".../SKILL.md" << 'DELIM'` (or `<<-`, or a
+# double-quoted delimiter) and nothing else, so a redirect that sits in a
+# trailing comment or beside a second command is never taken for it.
+TEMPLATE_COMMAND_RE = re.compile(
+    r"cat[ \t]+>[ \t]*\"[^\"\n]*SKILL\.md\"[ \t]*<<(-?)[ \t]*"
+    r"(?:'([^'\n]+)'|\"([^\"\n]+)\")")
 # Every context block shipped before the canonical vN is kept as a `## vK`
 # section of HISTORICAL_BLOCKS_FILE: a user's unedited older block that is
 # missing there would be treated as the user's own edit.
@@ -440,21 +446,25 @@ def fence_segments(text: str, commonmark_indent: bool = False
 
 
 def skill_md_heredoc(script: str, label: str) -> str | None:
-    """Return the body of the one heredoc in `script` whose redirect target
-    ends in `SKILL.md"`: the text the script writes into a new skill.
+    """Return the body of the one heredoc in `script` opened by a template
+    command, a whole line matching TEMPLATE_COMMAND_RE: the text the script
+    writes into a new skill.
 
     Heredocs are read in order, so a line inside one heredoc's body is never
     taken for a command. A body runs to the line that is exactly its
     delimiter (`<<-` also strips leading tabs, from the body as well). Lines
-    starting with `#` outside a body are comments. A missing, duplicated or
-    unterminated template heredoc, or one whose delimiter is unquoted (its
-    body would undergo expansion, so it is not the text written), is an
+    starting with `#` outside a body are comments, and a line that follows
+    one ending in a backslash continues that command, so it is never a
+    template command. Only a quoted delimiter is accepted: an unquoted one
+    would put the body through expansion, so it would not be the text
+    written. A missing, duplicated or unterminated template heredoc is an
     error naming `label`, and returns None."""
     found: list[tuple[int, str, bool, list[str] | None]] = []
     # Heredocs opened on the current command line, waiting for their bodies:
     # (start line, delimiter, strip tabs, body lines or None if not the
     # template).
     pending: list[tuple[int, str, bool, list[str] | None]] = []
+    continued = False
     for number, line in enumerate(script.splitlines(), 1):
         if pending:
             start, delimiter, strip_tabs, body = pending[0]
@@ -466,31 +476,26 @@ def skill_md_heredoc(script: str, label: str) -> str | None:
             continue
         if line.lstrip().startswith("#"):
             continue
-        operators = list(HEREDOC_RE.finditer(line))
-        writes_skill_md = bool(SKILL_MD_REDIRECT_RE.search(line))
-        if writes_skill_md and len(operators) != 1:
-            error(f"{label}: line {number} writes SKILL.md with "
-                  f"{len(operators)} heredocs; expected exactly one")
-            return None
-        for match in operators:
-            strip_tabs = match.group(1) == "-"
-            delimiter = (match.group(2) or match.group(3)
-                         or match.group(5))
-            quoted = bool(match.group(2) or match.group(3)
-                          or match.group(4))
-            template_body: list[str] | None = None
-            if writes_skill_md:
-                if not quoted:
-                    error(f"{label}: the SKILL.md heredoc on line {number} "
-                          f"has an unquoted delimiter {delimiter}; quote it "
-                          "so the template is written verbatim")
-                    return None
-                template_body = []
-                found.append((number, delimiter, strip_tabs, template_body))
-            pending.append((number, delimiter, strip_tabs, template_body))
+        command = None if continued else TEMPLATE_COMMAND_RE.fullmatch(
+            line.strip())
+        trailing = len(line) - len(line.rstrip("\\"))
+        continued = trailing % 2 == 1
+        if command:
+            template_body: list[str] = []
+            entry = (number, command.group(2) or command.group(3),
+                     command.group(1) == "-", template_body)
+            found.append(entry)
+            pending.append(entry)
+            continue
+        for match in HEREDOC_RE.finditer(line):
+            pending.append((number,
+                            match.group(2) or match.group(3)
+                            or match.group(5),
+                            match.group(1) == "-", None))
     if not found:
-        error(f"{label}: no heredoc writes SKILL.md (expected one whose "
-              "redirect target ends in SKILL.md\")")
+        error(f"{label}: no heredoc writes SKILL.md (expected exactly one "
+              "line of the form cat > \".../SKILL.md\" << 'DELIM', with "
+              "nothing else on it)")
         return None
     if len(found) > 1:
         lines = ", ".join(str(entry[0]) for entry in found)

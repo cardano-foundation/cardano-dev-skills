@@ -103,7 +103,7 @@
   glob_patterns:
     - README.md
     - "cardano-cli/**/*.md"
-  description: Official command-line tool for interacting with cardano-node — building, signing, submitting transactions, queries, key management
+  description: The cardano-node project's command-line tool for interacting with cardano-node — building, signing, submitting transactions, queries, key management
 
 - name: Amaru
   repo: https://github.com/pragma-org/amaru.git
@@ -147,7 +147,7 @@
   format: markdown
   category: infrastructure
   priority: low
-  description: Official PostgreSQL chain indexer (resource-heavy)
+  description: IntersectMBO's PostgreSQL chain indexer (resource-heavy)
 
 - name: Mithril
   repo: https://github.com/IntersectMBO/mithril.git
@@ -918,7 +918,7 @@
   glob_patterns:
     - "**/*.md"
     - "**/*.mdx"
-  description: Official governance UI - register as DRep, delegate, vote
+  description: Intersect's governance web app - register as DRep, delegate, vote
 
 - name: SanchoNet
   repo: https://github.com/input-output-hk/sanchonet.git
@@ -1036,7 +1036,7 @@
   format: markdown
   category: standards
   priority: high
-  description: Official developer portal at developers.cardano.org
+  description: The Cardano Foundation's developer portal at developers.cardano.org
   website: https://developers.cardano.org
 
 - name: Developer Portal Templates
@@ -1079,7 +1079,7 @@
   format: markdown
   category: standards
   priority: high
-  description: Official Cardano documentation at docs.cardano.org
+  description: IOG's Cardano documentation at docs.cardano.org
   website: https://docs.cardano.org
 
 - name: Cardano Ledger

@@ -259,6 +259,7 @@ Instructions...
 - [ ] States durable reasons rather than dates, counts, versions or popularity
       figures, unless the figure is fixed by nature and changes what the reader
       does (a version floor, a deliberate pin, a dated hard fork)
+- [ ] "Official" is used only for a project's own product, SDK, docs or examples. For open, permissionless functions such as governance, name who builds a tool instead: no interface is the official one
 - [ ] No mention of specific deployed dApps; teach categories generically
 - [ ] No mention of grants, treasuries, or governance proposals — the skill must read as a neutral community contribution
 

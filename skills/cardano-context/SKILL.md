@@ -53,6 +53,16 @@ the two agents can never drift apart.
    ```
 
    Never create a `CLAUDE.md`: without one, Claude already reads `AGENTS.md`.
+
+   Claude resolves an `@` import from the directory of the file that holds
+   it, and when `CLAUDE.md` is a symlink, that is the directory of the link's
+   resolved target, not of the link. The **import line** is therefore
+   `@AGENTS.md` when `CLAUDE.md` is a regular file or resolves to a file in
+   the project directory itself, and otherwise the relative path from the
+   target's directory to the project's `AGENTS.md`: `@../../AGENTS.md` for a
+   target in `docs/shared/`. A plain `@AGENTS.md` there would load
+   `docs/shared/AGENTS.md`, or nothing. The import region this skill writes
+   always holds the project's import line.
 2. **Only our marked regions change.** This skill owns the text from a
    `<!-- BEGIN cardano-dev-skills ... -->` marker through its matching `END`
    marker, nothing else. Every byte outside those regions stays as it is.
@@ -62,7 +72,8 @@ the two agents can never drift apart.
    alone happen without a question, and the report says what happened.
    Anything that diverges from what this skill expects is shown to the user
    and asked about before any file changes, because a wrong guess silently
-   loses the user's own instructions.
+   loses the user's own instructions. Where the user has edited our block,
+   the skill proposes a merged result and writes only what the user accepts.
 4. **Never downgrade.** A block newer than v4 means this copy of the skill is
    out of date. Leave it alone and suggest updating the plugin.
 5. **Portable discovery.** The block refers to skill names and paths without
@@ -185,13 +196,16 @@ Then classify every `import` region in either file, by content and location,
 and every bare import:
 
 - A **bare import** is a line of `CLAUDE.md`, outside any code fence and
-  outside any import region, that is exactly `@AGENTS.md` or `@./AGENTS.md`.
+  outside any import region, that is exactly the project's import line (Key
+  principle 1), or that line with `./` after the `@`, such as `@./AGENTS.md`.
 - An import region is **canonical** when it is in `CLAUDE.md`, outside any
-  code fence, and its markers enclose exactly one line, `@AGENTS.md`, ignoring
-  line endings and trailing whitespace.
+  code fence, and its markers enclose exactly one line, the project's import
+  line, ignoring line endings and trailing whitespace.
 - Every other import region is **noncanonical**: an empty region, one with any
   other or any additional line, one inside a code fence, and any import region
-  in `AGENTS.md`.
+  in `AGENTS.md`. A region holding `@AGENTS.md` in a symlinked `CLAUDE.md`
+  whose target lies in a subdirectory is noncanonical too: it does not load
+  the project's `AGENTS.md`, so propose the correct import line.
 
 The project's import state is exactly one of:
 
@@ -206,24 +220,19 @@ The project's import state is exactly one of:
 **Ask first.** If any of the following holds, show the user what you found
 (the file, the region or condition, and the lines that differ from what this
 skill expects), say what you propose, and ask. Change no file in this run.
-Still give the Step 6 report, with `asked — unchanged` for each file, and end
-with your question.
+Still give the Step 6 report, with the status `asked — unchanged`, spelled
+exactly so, for each file, and end with your question.
 
 - A Step 2 check failed.
 - A versioned block is malformed or duplicated.
 - The import state is divergent. Never add a second import region.
 - A block is newer than v4. Never downgrade it; suggest updating the plugin.
-- A block, in either file, is edited (v4 or older). List the user's own lines,
-  those not in our recorded text, and ask whether to **keep** them (carried
-  verbatim below our block, outside the markers), **merge** them (the user
-  says which lines still apply and how to word them, and the agreed text goes
-  inside our block), or **drop** them (covered by the new block or no longer
-  wanted). Say that text inside our markers is replaced or asked about again
-  at the next upgrade, while text outside them is never touched.
+- A block, in either file, is edited (v4 or older). Propose a merged result
+  as "Proposing a merge for an edited block" says.
 
 When the user answers, apply the automatic plan below with their decision,
-and for an edited block write exactly what "After consent on an edited block"
-says. Report it as usual.
+and for an edited block write exactly the text they accepted. Report it as
+usual.
 
 **Otherwise, plan automatically,** one file at a time:
 
@@ -249,32 +258,38 @@ says. Report it as usual.
   - no versioned block and import state ours or user import: leave the file
     alone (`no-op`).
 
-**After consent on an edited block.** The v4 result always goes to
-`AGENTS.md`, whichever file held the edited block. Write, for the choice the
-user made:
+**Proposing a merge for an edited block.** No fixed rule can tell what the
+user meant by their edits, so propose one result and let them decide. The
+user's own lines are those not in our recorded text, from every edited block
+in either file. Compose one proposed `AGENTS.md`, whichever file held the
+edited block, since the v4 result always lives there:
 
-- **keep:** the canonical v4 block, one blank line, then the user's lines
-  verbatim and in their original order, below the `END` marker, outside the
-  markers;
-- **merge:** the `BEGIN cardano-dev-skills v4` marker, the text the user
-  agreed, and the `END cardano-dev-skills v4` marker, so the agreed text is
-  inside our markers; tell the user the next upgrade will find this block
-  edited and ask again;
-- **drop:** the canonical v4 block alone.
+- It holds exactly one versioned block: the canonical v4 text inside one
+  `BEGIN cardano-dev-skills v4` and `END cardano-dev-skills v4` marker pair.
+- Each of the user's lines goes where it best keeps its meaning, in the
+  user's own wording: inside the block, next to the passage it changes, when
+  it changes what our directive tells the agent; below the `END` marker,
+  outside the markers, when it is the user's own note. With lines from both
+  files, those from `AGENTS.md` come first.
+- The block takes the place of the versioned block `AGENTS.md` holds, or is
+  appended, or creates the file, as in the automatic plan. Every other byte of
+  `AGENTS.md` stays as it is.
 
-Place that result in `AGENTS.md`:
+Show the full proposed text of `AGENTS.md` and say what happens to
+`CLAUDE.md`: its block is handled exactly as an unedited block in the
+automatic plan, replaced by the import region or removed, and the file
+deleted when nothing else is left. In one or two lines, explain why each of
+the user's lines sits where it does: text inside our markers is compared
+again at the next upgrade, which will find the block edited and propose
+again, while text outside them is never touched. Then ask the user to
+accept the proposal, edit it, or discuss it. They may ask for something
+else, such as keeping all their lines verbatim below the block, dropping
+lines the new block already covers, or rewording a line.
 
-- edited block in `AGENTS.md`: the result replaces that region, `BEGIN`
-  through `END` inclusive (`updated vN→v4`);
-- edited block in `CLAUDE.md` (the move to `AGENTS.md`): the result replaces
-  the versioned block `AGENTS.md` holds, or is appended, or creates the file,
-  as in the automatic plan. The `CLAUDE.md` region is then handled exactly as
-  an unedited block in the automatic plan: replaced by the import region or
-  removed, and the file deleted when nothing else is left
-  (`moved to AGENTS.md`, plus `import added` or `deleted (empty)`);
-- edited blocks in both files: agree a choice for each. Write one v4 block;
-  with keep, the lines from `AGENTS.md` come first, then those from
-  `CLAUDE.md`.
+Write nothing until the user accepts a text. Then `AGENTS.md` receives
+exactly the accepted text (`updated vN→v4`, `appended` or `created`), and
+the `CLAUDE.md` block is handled as shown (`moved to AGENTS.md`, plus
+`import added` or `deleted (empty)`).
 
 ### Step 5: Write without collateral changes
 
@@ -284,23 +299,40 @@ Place that result in `AGENTS.md`:
   end the file with a newline. When creating `AGENTS.md`, write the v4 block
   followed by a newline.
 - Preserve each file's existing line endings: in a CRLF file, write the new
-  region with CRLF too.
+  region with CRLF too. A newly created `AGENTS.md` takes the line endings of
+  the project's `CLAUDE.md`: CRLF when that file uses CRLF, LF when it uses
+  LF or does not exist, so the two files a teammate edits side by side match.
+  Tell CRLF from LF by the file's bytes or by searching it for a carriage
+  return, because some file readers hide carriage returns. If the host offers
+  no way to tell, write LF and say in the report that the line endings of
+  `CLAUDE.md` were not checked. Write CRLF when the host's tools can: some
+  file tools write only LF, and a command that converts the file runs only if
+  the user's permissions allow it. This skill's `allowed-tools` only
+  pre-approves the tools it lists; any other command goes through the host's
+  usual permission check. When the new file cannot be written with CRLF, keep
+  LF, carry on with the plan, and say in the report that `AGENTS.md` has LF
+  line endings while `CLAUDE.md` has CRLF. Line endings alone are never a
+  reason to stop half-way.
 - Write `AGENTS.md` first, then read it back and confirm it holds exactly one
   versioned block, a v4 block with the text you meant to write, and that the
-  rest of the file is as before apart from what the plan adds. Change or
-  delete `CLAUDE.md` only after that check passes. Report
+  rest of the file is as before apart from what the plan adds. For an edited
+  block, confirm instead that `AGENTS.md` holds exactly the text the user
+  accepted. Change or delete `CLAUDE.md` only after that check passes. Report
   what you read back, not what you intended: if a file does not hold what the
   plan says, stop, say so, and leave `CLAUDE.md` alone.
 - Symlinks. Follow an instruction-file symlink that stays inside the project
   and edit its resolved target, never the link itself, noting that in the
-  report. Never delete a file that is a symlink or the target of one in the
-  project. If `CLAUDE.md` is such a file and the plan would delete it, write
-  the import region instead (`import added`) and tell the user it now holds
-  only the import and was left for them to remove.
+  report. An import region written into a symlinked `CLAUDE.md` holds the
+  import line for its target's directory (Key principle 1). Never delete a
+  file that is a symlink or the target of one in the project. If `CLAUDE.md`
+  is such a file and the plan would delete it, write the import region
+  instead (`import added`) and tell the user it now holds only the import and
+  was left for them to remove.
 
 ### Step 6: Report
 
-List `AGENTS.md` and `CLAUDE.md` separately with what happened to each:
+List `AGENTS.md` and `CLAUDE.md` separately with what happened to each,
+using these statuses verbatim so the report reads the same on every host:
 `created`, `appended`, `updated vN→v4`, `moved to AGENTS.md`, `import added`,
 `deleted (empty)`, `no-op`, or `asked — unchanged`. A file can carry two, for
 example `CLAUDE.md: moved to AGENTS.md, import added`. Then:

@@ -142,8 +142,16 @@ CONTEXT_BLOCK_RE = re.compile(
     r"<!-- BEGIN cardano-dev-skills v(\d+) -->(.*?)"
     r"<!-- END cardano-dev-skills v(\d+) -->", re.S)
 # The new-skill template must open every new skill with the general text, so a
-# template that drifted would seed each new skill with a stale block.
+# template that drifted would seed each new skill with a stale block. Only the
+# heredoc that writes the scaffolded SKILL.md is checked: a block anywhere
+# else in the script never reaches a new skill.
 NEW_SKILL_TEMPLATE = REPO_ROOT / "scripts" / "new-skill.sh"
+# A heredoc operator (not a `<<<` here-string) and its delimiter word, quoted
+# ('D', "D" or \D) or bare.
+HEREDOC_RE = re.compile(
+    r"(?<!<)<<(?!<)(-?)[ \t]*"
+    r"(?:'([^'\n]+)'|\"([^\"\n]+)\"|(\\?)([A-Za-z_][A-Za-z0-9_]*))")
+SKILL_MD_REDIRECT_RE = re.compile(r">[ \t]*\"[^\"\n]*SKILL\.md\"")
 # Every context block shipped before the canonical vN is kept as a `## vK`
 # section of HISTORICAL_BLOCKS_FILE: a user's unedited older block that is
 # missing there would be treated as the user's own edit.
@@ -431,6 +439,72 @@ def fence_segments(text: str, commonmark_indent: bool = False
     return segments
 
 
+def skill_md_heredoc(script: str, label: str) -> str | None:
+    """Return the body of the one heredoc in `script` whose redirect target
+    ends in `SKILL.md"`: the text the script writes into a new skill.
+
+    Heredocs are read in order, so a line inside one heredoc's body is never
+    taken for a command. A body runs to the line that is exactly its
+    delimiter (`<<-` also strips leading tabs, from the body as well). Lines
+    starting with `#` outside a body are comments. A missing, duplicated or
+    unterminated template heredoc, or one whose delimiter is unquoted (its
+    body would undergo expansion, so it is not the text written), is an
+    error naming `label`, and returns None."""
+    found: list[tuple[int, str, bool, list[str] | None]] = []
+    # Heredocs opened on the current command line, waiting for their bodies:
+    # (start line, delimiter, strip tabs, body lines or None if not the
+    # template).
+    pending: list[tuple[int, str, bool, list[str] | None]] = []
+    for number, line in enumerate(script.splitlines(), 1):
+        if pending:
+            start, delimiter, strip_tabs, body = pending[0]
+            text = line.lstrip("\t") if strip_tabs else line
+            if text == delimiter:
+                pending.pop(0)
+            elif body is not None:
+                body.append(text)
+            continue
+        if line.lstrip().startswith("#"):
+            continue
+        operators = list(HEREDOC_RE.finditer(line))
+        writes_skill_md = bool(SKILL_MD_REDIRECT_RE.search(line))
+        if writes_skill_md and len(operators) != 1:
+            error(f"{label}: line {number} writes SKILL.md with "
+                  f"{len(operators)} heredocs; expected exactly one")
+            return None
+        for match in operators:
+            strip_tabs = match.group(1) == "-"
+            delimiter = (match.group(2) or match.group(3)
+                         or match.group(5))
+            quoted = bool(match.group(2) or match.group(3)
+                          or match.group(4))
+            template_body: list[str] | None = None
+            if writes_skill_md:
+                if not quoted:
+                    error(f"{label}: the SKILL.md heredoc on line {number} "
+                          f"has an unquoted delimiter {delimiter}; quote it "
+                          "so the template is written verbatim")
+                    return None
+                template_body = []
+                found.append((number, delimiter, strip_tabs, template_body))
+            pending.append((number, delimiter, strip_tabs, template_body))
+    if not found:
+        error(f"{label}: no heredoc writes SKILL.md (expected one whose "
+              "redirect target ends in SKILL.md\")")
+        return None
+    if len(found) > 1:
+        lines = ", ".join(str(entry[0]) for entry in found)
+        error(f"{label}: {len(found)} heredocs write SKILL.md (lines "
+              f"{lines}); exactly one is allowed")
+        return None
+    start, delimiter = found[0][0], found[0][1]
+    if any(entry[0] == start for entry in pending):
+        error(f"{label}: the SKILL.md heredoc on line {start} is "
+              f"unterminated (no {delimiter} line closes it)")
+        return None
+    return "\n".join(found[0][3])
+
+
 def check_grounding_region(label: str, parts: list[str],
                            expected_variant: str | None,
                            canonical: dict[str | None, str]) -> None:
@@ -485,10 +559,12 @@ def validate_grounding(skill_dirs: list[Path]) -> None:
             GROUNDING_VARIANTS.get(name), canonical)
 
     if NEW_SKILL_TEMPLATE.exists():
-        check_grounding_region(
-            f"{NEW_SKILL_TEMPLATE.relative_to(REPO_ROOT).as_posix()} "
-            "(new-skill template)",
-            [NEW_SKILL_TEMPLATE.read_text(encoding="utf-8")], None, canonical)
+        label = (f"{NEW_SKILL_TEMPLATE.relative_to(REPO_ROOT).as_posix()} "
+                 "(new-skill template)")
+        template = skill_md_heredoc(
+            NEW_SKILL_TEMPLATE.read_text(encoding="utf-8"), label)
+        if template is not None:
+            check_grounding_region(label, [template], None, canonical)
     else:
         error(f"Missing {NEW_SKILL_TEMPLATE} (new-skill template)")
 

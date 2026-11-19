@@ -1,0 +1,495 @@
+---
+title: "Build Transactions"
+description: "Lock and redeem assets from Aiken smart contracts using Mesh"
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+This guide shows you how to build transactions that interact with Aiken smart contracts. You'll learn to lock assets at a script address and redeem them by providing valid datum and redeemer values.
+
+**What you'll learn:**
+- Initialize a PlutusScript from compiled Aiken code
+- Lock assets at a script address with a datum
+- Redeem assets by providing a valid redeemer
+- Handle collateral for Plutus transactions
+
+**Prerequisites:**
+- <Link href="/docs/aiken/first-script">Compiled Aiken validator</Link> (plutus.json)
+- <Link href="/docs/svelte/getting-started">Connected wallet</Link> via Mesh
+- Testnet ADA for testing
+
+## Quick Start
+
+Lock 5 ADA at a script address.
+
+```typescript
+import { MeshTxBuilder, applyParamsToScript, resolvePlutusScriptAddress, resolvePaymentKeyHash } from "@meshsdk/core";
+import blueprint from "./plutus.json";
+
+// Setup script
+const scriptCbor = applyParamsToScript(blueprint.validators[0].compiledCode, []);
+const script = { code: scriptCbor, version: "V3" as const };
+const scriptAddress = resolvePlutusScriptAddress(script, 0);
+
+// Get wallet info
+const address = await wallet.getChangeAddress();
+const hash = resolvePaymentKeyHash(address);
+const utxos = await wallet.getUtxos();
+
+// Build lock transaction
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+const unsignedTx = await txBuilder
+  .txOut(scriptAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .txOutDatumHashValue({ alternative: 0, fields: [hash] })
+  .changeAddress(address)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+## Step-by-Step: Lock Assets
+
+### Step 1: Initialize the Script
+
+Load the compiled validator from your Aiken blueprint and resolve its address.
+
+```typescript
+import {
+  applyParamsToScript,
+  resolvePlutusScriptAddress,
+  PlutusScript,
+  Data,
+} from "@meshsdk/core";
+import blueprint from "./hello_world/plutus.json";
+
+function getScript() {
+  // Get compiled code from blueprint
+  const compiledCode = blueprint.validators[0].compiledCode;
+
+  // Apply parameters (empty array if no params)
+  const scriptCbor = applyParamsToScript(compiledCode, []);
+
+  // Create script object
+  const script: PlutusScript = {
+    code: scriptCbor,
+    version: "V3",
+  };
+
+  // Resolve script address (0 = mainnet, 1 = testnet)
+  const scriptAddress = resolvePlutusScriptAddress(script, 0);
+
+  return { script, scriptAddress };
+}
+
+const { script, scriptAddress } = getScript();
+console.log("Script Address:", scriptAddress);
+```
+
+### Step 2: Get Wallet Information
+
+Retrieve the user's address and payment key hash for the datum.
+
+```typescript
+import { resolvePaymentKeyHash } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+async function getWalletInfo(wallet: MeshCardanoBrowserWallet) {
+  // Get the user's address
+  const addresses = await wallet.getUsedAddresses();
+  const address = addresses[0];
+
+  if (!address) {
+    throw new Error("No wallet address found");
+  }
+
+  // Extract the payment key hash
+  const hash = resolvePaymentKeyHash(address);
+
+  return { address, hash };
+}
+
+const { address, hash } = await getWalletInfo(wallet);
+```
+
+### Step 3: Create the Datum
+
+Build the datum object matching your Aiken type definition.
+
+```typescript
+import { Data } from "@meshsdk/core";
+
+// Datum structure matches Aiken's Datum type:
+// pub type Datum { owner: VerificationKeyHash }
+const datum: Data = {
+  alternative: 0,  // First constructor (and only one)
+  fields: [hash],  // owner field = wallet key hash
+};
+```
+
+**Important:** The `alternative` index corresponds to the constructor order in your Aiken type. For single-constructor types, use `0`.
+
+### Step 4: Build and Submit the Lock Transaction
+
+Create a transaction that sends assets to the script address with the datum attached.
+
+```typescript
+import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+async function lockAssets(wallet: MeshCardanoBrowserWallet, amount: string) {
+  const { scriptAddress } = getScript();
+  const { address, hash } = await getWalletInfo(wallet);
+
+  // Create datum with owner's key hash
+  const datum: Data = {
+    alternative: 0,
+    fields: [hash],
+  };
+
+  // Get UTXOs and change address
+  const utxos = await wallet.getUtxos();
+  const changeAddress = await wallet.getChangeAddress();
+
+  // Initialize provider for fee calculation
+  const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+
+  // Build transaction
+  const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+  const unsignedTx = await txBuilder
+    .txOut(scriptAddress, [{ unit: "lovelace", quantity: amount }])
+    .txOutDatumHashValue(datum)
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  // Sign and submit
+  const signedTx = await wallet.signTx(unsignedTx);
+  const txHash = await wallet.submitTx(signedTx);
+
+  return txHash;
+}
+
+// Lock 5 ADA
+const txHash = await lockAssets(wallet, "5000000");
+console.log("Lock Transaction:", txHash);
+```
+
+## Step-by-Step: Redeem Assets
+
+### Step 1: Find the Locked UTXO
+
+Query the script address for UTXOs matching your datum hash.
+
+```typescript
+import { resolveDataHash, BlockfrostProvider } from "@meshsdk/core";
+
+async function findLockedUtxo(scriptAddress: string, datum: Data) {
+  const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+
+  // Fetch all UTXOs at script address
+  const utxos = await provider.fetchAddressUTxOs(scriptAddress, "lovelace");
+
+  // Calculate expected datum hash
+  const expectedHash = resolveDataHash(datum);
+
+  // Find UTXO with matching datum
+  const utxo = utxos.find((u: any) => u.output.dataHash === expectedHash);
+
+  if (!utxo) {
+    throw new Error("No UTXO found with matching datum");
+  }
+
+  return utxo;
+}
+```
+
+### Step 2: Create the Redeemer
+
+Build the redeemer matching your Aiken type.
+
+```typescript
+import { Data } from "@meshsdk/core";
+
+// Redeemer structure matches Aiken's Redeemer type:
+// pub type Redeemer { msg: ByteArray }
+const redeemer: Data = {
+  alternative: 0,
+  fields: ["Hello, World!"],  // Must match validator check
+};
+```
+
+### Step 3: Build and Submit the Redeem Transaction
+
+Create a transaction that spends the script UTXO with the correct redeemer.
+
+```typescript
+import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+async function redeemAssets(wallet: MeshCardanoBrowserWallet) {
+  const { script, scriptAddress } = getScript();
+  const { address, hash } = await getWalletInfo(wallet);
+  const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+
+  // Recreate datum (must match what was locked)
+  const datum: Data = {
+    alternative: 0,
+    fields: [hash],
+  };
+
+  // Create redeemer with required message
+  const redeemer: Data = {
+    alternative: 0,
+    fields: ["Hello, World!"],
+  };
+
+  // Find the locked UTXO
+  const assetUtxo = await findLockedUtxo(scriptAddress, datum);
+
+  // Get wallet UTXOs for fees
+  const utxos = await wallet.getUtxos();
+  const changeAddress = await wallet.getChangeAddress();
+
+  // Get collateral (required for Plutus scripts)
+  const collateral = await wallet.getCollateral();
+
+  if (!collateral || collateral.length === 0) {
+    throw new Error("No collateral available. Set collateral in your wallet.");
+  }
+
+  // Build redeem transaction
+  const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+  const unsignedTx = await txBuilder
+    // Indicate we're spending a Plutus V3 script
+    .spendingPlutusScriptV3()
+    // Reference the script UTXO
+    .txIn(assetUtxo.input.txHash, assetUtxo.input.outputIndex)
+    // Provide the datum value
+    .txInDatumValue(datum)
+    // Provide the redeemer value
+    .txInRedeemerValue(redeemer)
+    // Attach the script
+    .txInScript(script.code)
+    // Output to wallet
+    .txOut(address, assetUtxo.output.amount)
+    // Required signer (validator checks this)
+    .requiredSignerHash(hash)
+    // Collateral for script execution
+    .txInCollateral(
+      collateral[0].input.txHash,
+      collateral[0].input.outputIndex,
+      collateral[0].output.amount,
+      collateral[0].output.address
+    )
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  // Sign transaction (partial = true because script provides one signature)
+  const signedTx = await wallet.signTx(unsignedTx, true);
+  const txHash = await wallet.submitTx(signedTx);
+
+  return txHash;
+}
+
+const txHash = await redeemAssets(wallet);
+console.log("Redeem Transaction:", txHash);
+```
+
+## Complete Example
+
+A full implementation showing both lock and redeem functionality.
+
+```typescript
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  applyParamsToScript,
+  resolvePlutusScriptAddress,
+  resolvePaymentKeyHash,
+  resolveDataHash,
+  PlutusScript,
+  Data,
+} from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+import blueprint from "./hello_world/plutus.json";
+
+// Configuration
+const NETWORK_ID = 0; // 0 = mainnet, 1 = testnet
+const BLOCKFROST_API_KEY = "<YOUR_API_KEY>";
+
+// Initialize provider
+const provider = new BlockfrostProvider(BLOCKFROST_API_KEY);
+
+// Script helpers
+function getScript(): { script: PlutusScript; scriptAddress: string } {
+  const compiledCode = blueprint.validators[0].compiledCode;
+  const scriptCbor = applyParamsToScript(compiledCode, []);
+
+  const script: PlutusScript = {
+    code: scriptCbor,
+    version: "V3",
+  };
+
+  const scriptAddress = resolvePlutusScriptAddress(script, NETWORK_ID);
+  return { script, scriptAddress };
+}
+
+async function getWalletInfo(wallet: MeshCardanoBrowserWallet) {
+  const addresses = await wallet.getUsedAddresses();
+  const address = addresses[0];
+  if (!address) throw new Error("No address found");
+
+  const hash = resolvePaymentKeyHash(address);
+  return { address, hash };
+}
+
+// Lock assets at script address
+export async function lockAssets(
+  wallet: MeshCardanoBrowserWallet,
+  lovelaceAmount: string
+): Promise<string> {
+  const { scriptAddress } = getScript();
+  const { hash } = await getWalletInfo(wallet);
+
+  const datum: Data = {
+    alternative: 0,
+    fields: [hash],
+  };
+
+  const utxos = await wallet.getUtxos();
+  const changeAddress = await wallet.getChangeAddress();
+
+  const txBuilder = new MeshTxBuilder({ fetcher: provider });
+  const unsignedTx = await txBuilder
+    .txOut(scriptAddress, [{ unit: "lovelace", quantity: lovelaceAmount }])
+    .txOutDatumHashValue(datum)
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  const signedTx = await wallet.signTx(unsignedTx);
+  return wallet.submitTx(signedTx);
+}
+
+// Redeem assets from script address
+export async function redeemAssets(wallet: MeshCardanoBrowserWallet): Promise<string> {
+  const { script, scriptAddress } = getScript();
+  const { address, hash } = await getWalletInfo(wallet);
+
+  const datum: Data = {
+    alternative: 0,
+    fields: [hash],
+  };
+
+  const redeemer: Data = {
+    alternative: 0,
+    fields: ["Hello, World!"],
+  };
+
+  // Find UTXO
+  const utxos = await provider.fetchAddressUTxOs(scriptAddress, "lovelace");
+  const dataHash = resolveDataHash(datum);
+  const assetUtxo = utxos.find((u: any) => u.output.dataHash === dataHash);
+
+  if (!assetUtxo) {
+    throw new Error("No locked UTXO found");
+  }
+
+  const walletUtxos = await wallet.getUtxos();
+  const changeAddress = await wallet.getChangeAddress();
+  const collateral = await wallet.getCollateral();
+
+  if (!collateral?.length) {
+    throw new Error("Set collateral in your wallet");
+  }
+
+  const txBuilder = new MeshTxBuilder({ fetcher: provider });
+  const unsignedTx = await txBuilder
+    .spendingPlutusScriptV3()
+    .txIn(assetUtxo.input.txHash, assetUtxo.input.outputIndex)
+    .txInDatumValue(datum)
+    .txInRedeemerValue(redeemer)
+    .txInScript(script.code)
+    .txOut(address, assetUtxo.output.amount)
+    .requiredSignerHash(hash)
+    .txInCollateral(
+      collateral[0].input.txHash,
+      collateral[0].input.outputIndex,
+      collateral[0].output.amount,
+      collateral[0].output.address
+    )
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(walletUtxos)
+    .complete();
+
+  const signedTx = await wallet.signTx(unsignedTx, true);
+  return wallet.submitTx(signedTx);
+}
+```
+
+## API Reference
+
+### MeshTxBuilder Methods
+
+| Method | Description |
+|--------|-------------|
+| `txOut(address, assets)` | Add an output to the transaction |
+| `txOutDatumHashValue(datum)` | Attach a datum hash to the previous output |
+| `spendingPlutusScriptV3()` | Indicate next input is a Plutus V3 script |
+| `txIn(txHash, index)` | Add a UTXO input |
+| `txInDatumValue(datum)` | Provide datum value for script input |
+| `txInRedeemerValue(redeemer)` | Provide redeemer value for script input |
+| `txInScript(code)` | Attach the script code |
+| `requiredSignerHash(hash)` | Add required signer (for signature checks) |
+| `txInCollateral(...)` | Set collateral UTXO for script execution |
+| `changeAddress(address)` | Set change output address |
+| `selectUtxosFrom(utxos)` | Provide UTXOs for coin selection |
+| `complete()` | Build the transaction |
+
+### Data Format
+
+Mesh uses a structured format for Plutus data:
+
+```typescript
+interface Data {
+  alternative: number;  // Constructor index (0-based)
+  fields: (string | number | Data)[];  // Constructor arguments
+}
+```
+
+## Troubleshooting
+
+### "No collateral available"
+
+Set collateral in your wallet settings. Most wallets require 5 ADA as collateral.
+
+### "Script validation failed"
+
+Common causes:
+1. **Wrong redeemer message** - Must exactly match "Hello, World!"
+2. **Missing signature** - Transaction must be signed by the datum owner
+3. **Datum mismatch** - Datum hash must match what was locked
+
+### "UTXO not found"
+
+1. Wait for the lock transaction to confirm (1-2 blocks)
+2. Verify you're querying the correct script address
+3. Check the datum hash matches exactly
+
+### "Insufficient funds for fees"
+
+Ensure your wallet has extra ADA beyond what's being locked. Script transactions require more fees than simple transfers.
+
+## Related Links
+
+- <Link href="/docs/aiken/first-script">Write a Smart Contract</Link> - Create the validator used in this guide
+- <Link href="/apis/transaction">Transaction Builder API</Link> - Complete MeshTxBuilder reference
+- <Link href="/apis/wallets/browserwallet">Browser Wallet API</Link> - Wallet methods reference
+- <Link href="https://aiken-lang.org/example--hello-world">Aiken Hello World</Link> - Official tutorial

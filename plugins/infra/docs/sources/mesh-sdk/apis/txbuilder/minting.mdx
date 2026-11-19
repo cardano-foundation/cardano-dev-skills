@@ -1,0 +1,676 @@
+---
+title: "Minting and Burning Assets"
+description: "Create and destroy native assets using Native Scripts and Plutus Scripts."
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+Minting creates new native assets on Cardano, while burning destroys existing ones. You can mint using Native Scripts (simple signature-based) or Plutus Scripts (programmable smart contracts).
+
+**When to use this:**
+- Creating NFT collections
+- Issuing fungible tokens
+- Implementing tokenized loyalty programs
+- Building CIP-68 compliant tokens with on-chain metadata
+- Setting up royalty tokens for secondary market sales
+
+## Quick Start
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  ForgeScript,
+  resolveScriptHash,
+  stringToHex
+} from "@meshsdk/core";
+
+// Initialize
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+// Get wallet data
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+
+// Create minting script
+const forgingScript = ForgeScript.withOneSignature(changeAddress);
+const policyId = resolveScriptHash(forgingScript);
+const tokenNameHex = stringToHex("MeshToken");
+
+// Build mint transaction
+const unsignedTx = await txBuilder
+  .mint("1", policyId, tokenNameHex)
+  .mintingScript(forgingScript)
+  .metadataValue(721, {
+    [policyId]: {
+      MeshToken: {
+        name: "Mesh Token",
+        image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",
+      }
+    }
+  })
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+// Sign and submit
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+## API Reference
+
+### mint()
+
+Specify the asset to mint or burn.
+
+```tsx
+.mint(quantity: string, policyId: string, tokenNameHex: string)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `quantity` | `string` | Amount to mint (positive) or burn (negative) |
+| `policyId` | `string` | Policy ID of the asset |
+| `tokenNameHex` | `string` | Hex-encoded token name |
+
+### mintingScript()
+
+Provide the minting script.
+
+```tsx
+.mintingScript(script: string | NativeScript)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `script` | `string \| NativeScript` | CBOR-encoded script or NativeScript object |
+
+### mintPlutusScriptV1() / V2() / V3()
+
+Indicate that a Plutus script will be used for minting.
+
+```tsx
+.mintPlutusScriptV2()
+```
+
+### mintRedeemerValue()
+
+Provide the redeemer for Plutus script minting.
+
+```tsx
+.mintRedeemerValue(redeemer: Data | object | string, type?: "Mesh" | "CBOR" | "JSON", exUnits?: Budget)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `redeemer` | `Data \| object \| string` | Redeemer data |
+| `type` | `"Mesh" \| "CBOR" \| "JSON"` | Data format type (default: "Mesh") |
+| `exUnits` | `Budget` | Optional execution units |
+
+### mintTxInReference()
+
+Reference an on-chain script instead of providing it inline.
+
+```tsx
+.mintTxInReference(txHash: string, txIndex: number)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `txHash` | `string` | Transaction hash containing the reference script |
+| `txIndex` | `number` | Output index of the reference script |
+
+### metadataValue()
+
+Attach metadata to the transaction.
+
+```tsx
+.metadataValue(label: number, metadata: object)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `label` | `number` | Metadata label (721 for NFTs, 777 for royalties) |
+| `metadata` | `object` | Metadata object |
+
+## Common Patterns
+
+### Mint with One Signature
+
+The simplest minting approach using a single wallet address:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  ForgeScript,
+  resolveScriptHash,
+  stringToHex
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+
+// Create forging script from wallet address
+const forgingScript = ForgeScript.withOneSignature(changeAddress);
+const policyId = resolveScriptHash(forgingScript);
+const tokenName = "MeshToken";
+const tokenNameHex = stringToHex(tokenName);
+
+// Define NFT metadata
+const metadata = {
+  [policyId]: {
+    [tokenName]: {
+      name: "Mesh Token",
+      image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",
+      mediaType: "image/jpg",
+      description: "This NFT was minted by Mesh.",
+    }
+  }
+};
+
+const unsignedTx = await txBuilder
+  .mint("1", policyId, tokenNameHex)
+  .mintingScript(forgingScript)
+  .metadataValue(721, metadata)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+### Mint Multiple Assets
+
+Mint multiple tokens in a single transaction:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  ForgeScript,
+  resolveScriptHash,
+  stringToHex
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+const forgingScript = ForgeScript.withOneSignature(changeAddress);
+const policyId = resolveScriptHash(forgingScript);
+
+// Build metadata for multiple tokens
+const metadata: Record<string, Record<string, object>> = { [policyId]: {} };
+
+for (let i = 1; i <= 3; i++) {
+  const tokenName = `MeshToken${i}`;
+  const tokenNameHex = stringToHex(tokenName);
+
+  metadata[policyId][tokenName] = {
+    name: tokenName,
+    image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",
+    description: `Token #${i} from the Mesh collection`,
+  };
+
+  // Add mint instruction for each token
+  txBuilder.mint("1", policyId, tokenNameHex);
+  txBuilder.mintingScript(forgingScript);
+}
+
+txBuilder
+  .metadataValue(721, metadata)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos);
+
+const unsignedTx = await txBuilder.complete();
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+### Burn Assets
+
+Burn assets by minting with a negative quantity:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  ForgeScript,
+  resolveScriptHash,
+  stringToHex
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+
+// Use the same forging script that minted the asset
+const forgingScript = ForgeScript.withOneSignature(changeAddress);
+const policyId = resolveScriptHash(forgingScript);
+const tokenNameHex = stringToHex("MeshToken");
+
+// Burn by using negative quantity
+const unsignedTx = await txBuilder
+  .mint("-1", policyId, tokenNameHex)
+  .mintingScript(forgingScript)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+### Mint with Native Script (Time-Locked)
+
+Create a time-locked minting policy:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  ForgeScript,
+  resolveScriptHash,
+  stringToHex,
+  deserializeAddress,
+  NativeScript
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+const { pubKeyHash: keyHash } = deserializeAddress(changeAddress);
+
+// Create time-locked native script
+const nativeScript: NativeScript = {
+  type: "all",
+  scripts: [
+    {
+      type: "before",
+      slot: "99999999", // Policy expires at this slot
+    },
+    {
+      type: "sig",
+      keyHash: keyHash,
+    },
+  ],
+};
+
+const forgingScript = ForgeScript.fromNativeScript(nativeScript);
+const policyId = resolveScriptHash(forgingScript);
+const tokenName = "TimeLocked";
+const tokenNameHex = stringToHex(tokenName);
+
+const metadata = {
+  [policyId]: {
+    [tokenName]: {
+      name: "Time-Locked Token",
+      image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",
+    }
+  }
+};
+
+const unsignedTx = await txBuilder
+  .mint("1", policyId, tokenNameHex)
+  .mintingScript(forgingScript)
+  .metadataValue(721, metadata)
+  .invalidHereafter(99999999)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+### Mint with Plutus Script
+
+Mint using a Plutus smart contract:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  resolveScriptHash,
+  stringToHex,
+  mConStr0,
+  UTxO
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const collateral: UTxO = (await wallet.getCollateral())[0]!;
+const changeAddress = await wallet.getChangeAddress();
+
+// Your Plutus minting script CBOR
+const plutusMintingScript = "your-script-cbor-here";
+const policyId = resolveScriptHash(plutusMintingScript, "V2");
+const tokenName = "PlutusToken";
+const tokenNameHex = stringToHex(tokenName);
+
+const metadata = {
+  [policyId]: {
+    [tokenName]: {
+      name: "Plutus Token",
+      image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",
+    }
+  }
+};
+
+const unsignedTx = await txBuilder
+  .mintPlutusScriptV2()
+  .mint("1", policyId, tokenNameHex)
+  .mintingScript(plutusMintingScript)
+  .mintRedeemerValue(mConStr0(["mesh"]))
+  .metadataValue(721, metadata)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .txInCollateral(
+    collateral.input.txHash,
+    collateral.input.outputIndex,
+    collateral.output.amount,
+    collateral.output.address
+  )
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, true);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+### Mint CIP-68 Tokens
+
+Mint tokens with on-chain metadata using the CIP-68 standard:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  resolveScriptHash,
+  stringToHex,
+  mConStr0,
+  mTxOutRef,
+  applyParamsToScript,
+  serializePlutusScript,
+  metadataToCip68,
+  CIP68_100,
+  CIP68_222,
+  PlutusScript,
+  UTxO
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const collateral: UTxO = (await wallet.getCollateral())[0]!;
+const changeAddress = await wallet.getChangeAddress();
+
+// Define user token metadata
+const userTokenMetadata = {
+  name: "CIP68 Token",
+  image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",
+  mediaType: "image/jpg",
+  description: "A CIP-68 compliant token with on-chain metadata",
+};
+
+// Create always-succeed script for storing reference token
+const alwaysSucceedScript: PlutusScript = {
+  code: "your-always-succeed-script-cbor",
+  version: "V1",
+};
+const { address: scriptAddress } = serializePlutusScript(alwaysSucceedScript);
+
+// Create one-time minting policy (parameterized by UTxO)
+const oneTimeMintingPolicy = "your-one-time-minting-policy-cbor";
+const scriptCode = applyParamsToScript(oneTimeMintingPolicy, [
+  mTxOutRef(utxos[0]!.input.txHash, utxos[0]!.input.outputIndex),
+]);
+
+const policyId = resolveScriptHash(scriptCode, "V2");
+const tokenName = "MyCIP68Token";
+const tokenNameHex = stringToHex(tokenName);
+
+const unsignedTx = await txBuilder
+  // Consume the UTxO used to parameterize the policy
+  .txIn(
+    utxos[0]!.input.txHash,
+    utxos[0]!.input.outputIndex,
+    utxos[0]!.output.amount,
+    utxos[0]!.output.address
+  )
+  // Mint reference token (100 label)
+  .mintPlutusScriptV2()
+  .mint("1", policyId, CIP68_100(tokenNameHex))
+  .mintingScript(scriptCode)
+  .mintRedeemerValue(mConStr0([]))
+  // Mint user token (222 label)
+  .mintPlutusScriptV2()
+  .mint("1", policyId, CIP68_222(tokenNameHex))
+  .mintingScript(scriptCode)
+  .mintRedeemerValue(mConStr0([]))
+  // Send reference token to script address with metadata as datum
+  .txOut(scriptAddress, [
+    { unit: policyId + CIP68_100(tokenNameHex), quantity: "1" },
+  ])
+  .txOutInlineDatumValue(metadataToCip68(userTokenMetadata))
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .txInCollateral(
+    collateral.input.txHash,
+    collateral.input.outputIndex,
+    collateral.output.amount,
+    collateral.output.address
+  )
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, true);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+### Mint Royalty Token (CIP-27)
+
+Create a royalty token for secondary market sales:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  ForgeScript,
+  resolveScriptHash,
+  RoyaltiesStandard
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const address = (await wallet.getUsedAddresses())[0]!;
+
+const forgingScript = ForgeScript.withOneSignature(address);
+const policyId = resolveScriptHash(forgingScript);
+
+// Royalty metadata (CIP-27)
+const royaltyMetadata: RoyaltiesStandard = {
+  rate: "0.05", // 5% royalty
+  address: "addr_test1qz...", // Royalty recipient address
+};
+
+const unsignedTx = await txBuilder
+  .mint("1", policyId, "") // Empty token name for royalty token
+  .mintingScript(forgingScript)
+  .metadataValue(777, royaltyMetadata)
+  .changeAddress(address)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+## Complete Example
+
+This example demonstrates a complete NFT minting workflow:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  ForgeScript,
+  resolveScriptHash,
+  stringToHex,
+  deserializeAddress,
+  NativeScript
+} from "@meshsdk/core";
+
+async function mintNFTCollection(
+  wallet: any,
+  provider: BlockfrostProvider,
+  collectionSize: number
+) {
+  const txBuilder = new MeshTxBuilder({
+    fetcher: provider,
+    verbose: true,
+  });
+
+  // Get wallet data
+  const utxos = await wallet.getUtxos();
+  const changeAddress = await wallet.getChangeAddress();
+  const { pubKeyHash: keyHash } = deserializeAddress(changeAddress);
+
+  // Create time-locked policy (expires in ~1 year)
+  const currentSlot = 100000000; // Get current slot from provider
+  const expirationSlot = currentSlot + 31536000; // ~1 year
+
+  const nativeScript: NativeScript = {
+    type: "all",
+    scripts: [
+      { type: "before", slot: expirationSlot.toString() },
+      { type: "sig", keyHash: keyHash },
+    ],
+  };
+
+  const forgingScript = ForgeScript.fromNativeScript(nativeScript);
+  const policyId = resolveScriptHash(forgingScript);
+
+  // Build metadata for collection
+  const metadata: Record<string, Record<string, object>> = { [policyId]: {} };
+
+  for (let i = 1; i <= collectionSize; i++) {
+    const tokenName = `MyNFT${i.toString().padStart(4, "0")}`;
+    const tokenNameHex = stringToHex(tokenName);
+
+    metadata[policyId][tokenName] = {
+      name: `My NFT #${i}`,
+      image: `ipfs://QmCollection.../${i}.png`,
+      mediaType: "image/png",
+      description: `NFT #${i} from My Collection`,
+      attributes: {
+        rarity: i <= 10 ? "Legendary" : i <= 50 ? "Rare" : "Common",
+        edition: i,
+        totalSupply: collectionSize,
+      },
+    };
+
+    txBuilder.mint("1", policyId, tokenNameHex);
+    txBuilder.mintingScript(forgingScript);
+  }
+
+  // Build transaction
+  txBuilder
+    .metadataValue(721, metadata)
+    .invalidHereafter(expirationSlot)
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos);
+
+  const unsignedTx = await txBuilder.complete();
+  const signedTx = await wallet.signTx(unsignedTx);
+  const txHash = await wallet.submitTx(signedTx);
+
+  return {
+    txHash,
+    policyId,
+    expirationSlot,
+  };
+}
+
+// Usage
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const result = await mintNFTCollection(wallet, provider, 100);
+console.log(`Minted collection with policy: ${result.policyId}`);
+console.log(`Transaction: ${result.txHash}`);
+```
+
+## Troubleshooting
+
+### "Script hash mismatch" error
+- Ensure the forging script matches the policy ID you're minting under
+- For time-locked policies, verify the slot number matches exactly
+
+### "Insufficient collateral" for Plutus minting
+- Provide collateral using `txInCollateral()`
+- Collateral must be a pure ADA UTxO (no native assets)
+- Collateral should be at least 5 ADA for most transactions
+
+### "Missing required signer" error
+- For Native Scripts, ensure all required key hashes have signed
+- Use `wallet.signTx(unsignedTx, true)` for partial signing in multi-sig scenarios
+
+### "Token already exists" for one-time policies
+- One-time minting policies consume a specific UTxO
+- That UTxO must exist and be unspent at transaction time
+
+### Metadata too large
+- Keep metadata under 16KB total
+- Use IPFS for large images and reference the CID
+- Split large collections across multiple transactions
+
+### Time-locked policy expired
+- Check the current slot number against your policy's expiration
+- Use `invalidHereafter()` to match the policy's time constraint
+
+## Related
+
+- <Link href="/apis/txbuilder/basics">Transaction Basics</Link> - Core transaction building
+- <Link href="/apis/txbuilder/smart-contracts">Smart Contracts</Link> - Plutus script interactions
+- <Link href="/guides/nft-collection">NFT Collection Guide</Link> - Step-by-step NFT tutorial
+- <Link href="/apis/data">Data Types</Link> - Working with Cardano data

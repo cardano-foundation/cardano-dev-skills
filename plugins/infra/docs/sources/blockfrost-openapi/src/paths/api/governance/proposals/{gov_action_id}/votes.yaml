@@ -1,0 +1,58 @@
+get:
+  tags:
+    - Cardano » Governance
+  summary: GovActionID Proposal votes
+  description: History of Proposal votes.
+  parameters:
+    - in: path
+      name: gov_action_id
+      required: true
+      schema:
+        type: string
+      description: Governance Action Identifier (CIP-0129)
+      example: "gov_action1zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsq6dmejn"
+    - in: query
+      name: count
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 100
+      description: The number of results displayed on one page.
+    - in: query
+      name: page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 21474836
+        default: 1
+      description: The page number for listing the results.
+    - in: query
+      name: order
+      required: false
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: asc
+      description: |
+        The ordering of items from the point of view of the blockchain,
+        not the page listing itself. By default, we return oldest first, newest last.
+  responses:
+    "200":
+      description: Return the Proposal votes
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../../schemas/governance/proposal_votes.yaml
+    "400":
+      $ref: ../../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../../responses/errors/403.yaml
+    "429":
+      $ref: ../../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../../responses/errors/500.yaml

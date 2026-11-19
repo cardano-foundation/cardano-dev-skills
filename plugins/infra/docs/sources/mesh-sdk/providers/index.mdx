@@ -1,0 +1,138 @@
+---
+title: "Blockchain Providers"
+description: "Connect to Cardano with Blockfrost, Koios, Nexus, Ogmios, UTxO RPC, and Bitcoin with Blockstream. Unified provider interface for data fetching and transaction submission."
+icon: CloudIcon
+---
+
+import { linksProviders } from "@/data/links-providers";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+Providers are the bridge between your application and the blockchain. They handle data fetching, transaction submission, and blockchain queries so you can focus on building your application.
+
+## Overview
+
+MeshJS supports multiple blockchain data providers, each with different strengths:
+
+### Cardano Providers
+
+| Provider | Best For | Key Features |
+|----------|----------|--------------|
+| [Blockfrost](/providers/blockfrost) | Production apps | 100+ APIs, reliable infrastructure |
+| [Koios](/providers/koios) | Open-source projects | Free tier, distributed architecture |
+| [Nexus](/providers/nexus) | Hosted or self-hosted Cardano API | REST queries, submit, and script evaluation |
+| [UTxORPC](/providers/utxorpc) | High performance | gRPC protocol, minimal overhead |
+| [Ogmios](/providers/ogmios) | Self-hosted nodes | WebSocket API, local deployment |
+| [Yaci](/providers/yaci) | Local development | Custom devnets, fast iteration |
+| [Hydra](/providers/hydra) | Layer 2 scaling | High throughput, low latency |
+| [Iagon Insight](/providers/iagon-insight) | Mainnet apps | Data, submit and evaluate in one, Blockfrost and Koios compatible |
+| [Offline Fetcher](/providers/offline-fetcher) | Testing | No network required, mock data |
+| [Offline Evaluator](/providers/offline-evaluator) | Script testing | Plutus evaluation, cost analysis |
+
+### Bitcoin Providers
+
+| Provider | Best For | Key Features |
+|----------|----------|--------------|
+| [Blockstream](/providers/bitcoin-blockstream) | Development & prototyping | No API key, free public Esplora API |
+| [Blockstream Enterprise](/providers/bitcoin-blockstream-enterprise) | Production applications | OAuth API keys, authenticated Esplora hosts |
+
+## Quick Start
+
+Install MeshJS and choose a provider:
+
+```bash
+npm install @meshsdk/core
+```
+
+Initialize your provider:
+
+```tsx
+import { BlockfrostProvider } from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+```
+
+Use the provider to fetch blockchain data:
+
+```tsx
+// Fetch UTxOs from an address
+const utxos = await provider.fetchAddressUTxOs(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9"
+);
+
+// Fetch protocol parameters
+const params = await provider.fetchProtocolParameters();
+
+// Submit a transaction
+const txHash = await provider.submitTx(signedTx);
+```
+
+## Provider Interface
+
+All providers implement a common interface, making them interchangeable:
+
+```tsx
+interface IFetcher {
+  fetchAccountInfo(address: string): Promise<AccountInfo>;
+  fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]>;
+  fetchAssetAddresses(asset: string): Promise<AssetAddress[]>;
+  fetchAssetMetadata(asset: string): Promise<AssetMetadata>;
+  fetchBlockInfo(hash: string): Promise<BlockInfo>;
+  fetchCollectionAssets(policyId: string, cursor?: number): Promise<CollectionAssets>;
+  fetchProtocolParameters(epoch?: number): Promise<Protocol>;
+  fetchTxInfo(hash: string): Promise<TransactionInfo>;
+  fetchUTxOs(hash: string, index?: number): Promise<UTxO[]>;
+}
+
+interface ISubmitter {
+  submitTx(tx: string): Promise<string>;
+}
+
+interface IEvaluator {
+  evaluateTx(tx: string): Promise<Omit<Action, "data">[]>;
+}
+```
+
+## Choosing a Provider
+
+**For production applications:**
+- Use [Blockfrost](/providers/blockfrost) or [Nexus](/providers/nexus) for reliable, managed infrastructure
+- Consider [UTxORPC](/providers/utxorpc) if you need maximum performance
+
+**For development and testing:**
+- Use [Yaci](/providers/yaci) for local devnets with fast feedback loops
+- Use [Offline Fetcher](/providers/offline-fetcher) for unit tests without network dependencies
+
+**For self-hosted infrastructure:**
+- Use [Ogmios](/providers/ogmios) to connect directly to your cardano-node
+- Use [UTxORPC](/providers/utxorpc) with Dolos for a lightweight alternative
+
+**For Layer 2 applications:**
+- Use [Hydra](/providers/hydra) for high-throughput, low-latency transactions
+
+**For Bitcoin applications:**
+- Use [Blockstream](/providers/bitcoin-blockstream) for free, zero-config access to mainnet and testnet
+- Use [Blockstream Enterprise](/providers/bitcoin-blockstream-enterprise) when you have Explorer API credentials and want the enterprise Esplora hosts
+
+## Available Providers
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {linksProviders.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## Related Resources
+
+- [Transaction Builder](/transaction/basics) - Build transactions using provider data
+- [Wallets](/wallets) - Connect wallets and sign transactions
+- [Smart Contracts](/smart-contracts) - Deploy and interact with Plutus scripts

@@ -1,0 +1,700 @@
+// Copyright 2026 Blink Labs Software
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package common
+
+import (
+	"bytes"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"math/big"
+	"sort"
+	"strconv"
+	"strings"
+
+	"github.com/blinklabs-io/gouroboros/cbor"
+)
+
+// ParseCardanoCLIMetadataJSONNoSchema parses cardano-cli no-schema metadata
+// JSON into a metadata map. Top-level object keys are transaction metadata
+// labels and must be decimal uint64 values. Lowercase strings with a "0x"
+// prefix are decoded as bytes, integer-looking map keys are decoded as ints,
+// and other strings are decoded as text.
+//
+// To attach the parsed metadata to a metadata-only transaction auxiliary data
+// value, pass the result to NewShelleyAuxiliaryData and CBOR encode it.
+func ParseCardanoCLIMetadataJSONNoSchema(
+	data []byte,
+) (TransactionMetadatum, error) {
+	return parseCardanoCLIMetadataJSON(data, metadataFromJSONNoSchema)
+}
+
+// ParseCardanoCLIMetadataJSONDetailedSchema parses cardano-cli
+// detailed-schema metadata JSON into a metadata map. Each metadatum object must
+// contain exactly one of "int", "bytes", "string", "list", or "map". Detailed
+// schema byte strings are hex encoded without a "0x" prefix. Map entries must
+// contain exactly "k" and "v" fields, allowing arbitrary metadatum map keys.
+//
+// To attach the parsed metadata to a metadata-only transaction auxiliary data
+// value, pass the result to NewShelleyAuxiliaryData and CBOR encode it.
+func ParseCardanoCLIMetadataJSONDetailedSchema(
+	data []byte,
+) (TransactionMetadatum, error) {
+	return parseCardanoCLIMetadataJSON(data, metadataFromJSONDetailedSchema)
+}
+
+// NewShelleyAuxiliaryData creates metadata-only Shelley auxiliary data.
+// This is also the compact metadata-only auxiliary data representation used by
+// later eras when no auxiliary scripts are present.
+func NewShelleyAuxiliaryData(
+	metadata TransactionMetadatum,
+) *ShelleyAuxiliaryData {
+	return &ShelleyAuxiliaryData{metadata: metadata}
+}
+
+// MetadataJSONMaxNestingDepth is the deepest a metadata JSON document may
+// nest before parsing is rejected. The mandatory top-level object counts as
+// depth 0, so this many containers may be open at once.
+//
+// The bound has no counterpart in cardano-ledger and is not a protocol
+// constant.
+//
+// The check runs before descending because the readers below recurse once per
+// level, and exhausting the goroutine stack is a fatal error that recover
+// cannot catch.
+//
+// This is deliberately independent of MaxMetadataNestedLevels, not derived
+// from it: readMetadataJSONObject/readMetadataJSONArray recurse through
+// encoding/json.Decoder, whose own Token() calls a private nesting-depth
+// check that rejects before this package's own check ever runs (fixed at a
+// depth well under MaxMetadataNestedLevels's 16384, confirmed empirically by
+// TestParseMetadataJSONNoSchemaRejectsExcessiveNesting starting to report
+// "exceeded max depth" -- encoding/json's own error text -- instead of this
+// package's "nesting depth" once linked to 16384 in blinklabs-io/dingo#4351's
+// fix). 1024 already stays comfortably under that stdlib bound.
+const MetadataJSONMaxNestingDepth = 1024
+
+// checkMetadataJSONNestingDepth reports whether a container opened at depth
+// may be descended into.
+func checkMetadataJSONNestingDepth(depth int) error {
+	if depth >= MetadataJSONMaxNestingDepth {
+		return fmt.Errorf(
+			"metadata JSON exceeds maximum nesting depth %d",
+			MetadataJSONMaxNestingDepth,
+		)
+	}
+	return nil
+}
+
+type metadataJSONValueKind uint8
+
+const (
+	metadataJSONNull metadataJSONValueKind = iota
+	metadataJSONBool
+	metadataJSONNumber
+	metadataJSONString
+	metadataJSONArray
+	metadataJSONObject
+)
+
+type metadataJSONValue struct {
+	kind   metadataJSONValueKind
+	number json.Number
+	str    string
+	array  []metadataJSONValue
+	object []metadataJSONMember
+}
+
+type metadataJSONMember struct {
+	key   string
+	value metadataJSONValue
+}
+
+type metadataJSONConverter func(
+	value metadataJSONValue,
+	path *metadataJSONPath,
+) (TransactionMetadatum, error)
+
+func parseCardanoCLIMetadataJSON(
+	data []byte,
+	convert metadataJSONConverter,
+) (TransactionMetadatum, error) {
+	root, err := decodeMetadataJSON(data)
+	if err != nil {
+		return nil, err
+	}
+	if root.kind != metadataJSONObject {
+		return nil, errors.New(
+			"metadata JSON top-level value must be an object",
+		)
+	}
+	pairs := make([]MetaPair, 0, len(root.object))
+	seenLabels := make(map[uint64]struct{}, len(root.object))
+	for _, member := range root.object {
+		label, err := parseMetadataJSONLabel(member.key)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := seenLabels[label]; ok {
+			return nil, fmt.Errorf("duplicate metadata label %d", label)
+		}
+		seenLabels[label] = struct{}{}
+		value, err := convert(member.value, newMetadataJSONPath(member.key))
+		if err != nil {
+			return nil, fmt.Errorf("metadata label %d: %w", label, err)
+		}
+		pairs = append(pairs, MetaPair{
+			Key:   MetaInt{Value: new(big.Int).SetUint64(label)},
+			Value: value,
+		})
+	}
+	return newParsedMetaMap(pairs)
+}
+
+func decodeMetadataJSON(data []byte) (metadataJSONValue, error) {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	value, err := readMetadataJSONValue(decoder, 0)
+	if err != nil {
+		return metadataJSONValue{}, err
+	}
+	if token, err := decoder.Token(); err != io.EOF {
+		if err != nil {
+			return metadataJSONValue{}, err
+		}
+		return metadataJSONValue{}, fmt.Errorf(
+			"unexpected trailing JSON token %v",
+			token,
+		)
+	}
+	return value, nil
+}
+
+func readMetadataJSONValue(
+	decoder *json.Decoder,
+	depth int,
+) (metadataJSONValue, error) {
+	token, err := decoder.Token()
+	if err != nil {
+		return metadataJSONValue{}, err
+	}
+	switch value := token.(type) {
+	case nil:
+		return metadataJSONValue{kind: metadataJSONNull}, nil
+	case bool:
+		return metadataJSONValue{kind: metadataJSONBool}, nil
+	case json.Number:
+		return metadataJSONValue{
+			kind:   metadataJSONNumber,
+			number: value,
+		}, nil
+	case string:
+		return metadataJSONValue{
+			kind: metadataJSONString,
+			str:  value,
+		}, nil
+	case json.Delim:
+		switch value {
+		case '{':
+			return readMetadataJSONObject(decoder, depth)
+		case '[':
+			return readMetadataJSONArray(decoder, depth)
+		default:
+			return metadataJSONValue{}, fmt.Errorf(
+				"unexpected JSON delimiter %q",
+				value,
+			)
+		}
+	default:
+		return metadataJSONValue{}, fmt.Errorf(
+			"unsupported JSON token %T",
+			token,
+		)
+	}
+}
+
+func readMetadataJSONObject(
+	decoder *json.Decoder,
+	depth int,
+) (metadataJSONValue, error) {
+	if err := checkMetadataJSONNestingDepth(depth); err != nil {
+		return metadataJSONValue{}, err
+	}
+	members := []metadataJSONMember{}
+	seen := map[string]struct{}{}
+	for decoder.More() {
+		token, err := decoder.Token()
+		if err != nil {
+			return metadataJSONValue{}, err
+		}
+		key, ok := token.(string)
+		if !ok {
+			return metadataJSONValue{}, fmt.Errorf(
+				"expected JSON object key, got %T",
+				token,
+			)
+		}
+		if _, ok := seen[key]; ok {
+			return metadataJSONValue{}, fmt.Errorf(
+				"duplicate JSON object key %q",
+				key,
+			)
+		}
+		seen[key] = struct{}{}
+		value, err := readMetadataJSONValue(decoder, depth+1)
+		if err != nil {
+			return metadataJSONValue{}, err
+		}
+		members = append(members, metadataJSONMember{
+			key:   key,
+			value: value,
+		})
+	}
+	if err := readMetadataJSONEnd(decoder, '}'); err != nil {
+		return metadataJSONValue{}, err
+	}
+	return metadataJSONValue{
+		kind:   metadataJSONObject,
+		object: members,
+	}, nil
+}
+
+func readMetadataJSONArray(
+	decoder *json.Decoder,
+	depth int,
+) (metadataJSONValue, error) {
+	if err := checkMetadataJSONNestingDepth(depth); err != nil {
+		return metadataJSONValue{}, err
+	}
+	items := []metadataJSONValue{}
+	for decoder.More() {
+		value, err := readMetadataJSONValue(decoder, depth+1)
+		if err != nil {
+			return metadataJSONValue{}, err
+		}
+		items = append(items, value)
+	}
+	if err := readMetadataJSONEnd(decoder, ']'); err != nil {
+		return metadataJSONValue{}, err
+	}
+	return metadataJSONValue{
+		kind:  metadataJSONArray,
+		array: items,
+	}, nil
+}
+
+func readMetadataJSONEnd(decoder *json.Decoder, want json.Delim) error {
+	token, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	delim, ok := token.(json.Delim)
+	if !ok || delim != want {
+		return fmt.Errorf("expected JSON delimiter %q, got %v", want, token)
+	}
+	return nil
+}
+
+func parseMetadataJSONLabel(label string) (uint64, error) {
+	if label == "" {
+		return 0, errors.New("metadata label cannot be empty")
+	}
+	if len(label) > 1 && label[0] == '0' {
+		return 0, fmt.Errorf(
+			"metadata label %q has redundant leading zeroes",
+			label,
+		)
+	}
+	for _, r := range label {
+		if r < '0' || r > '9' {
+			return 0, fmt.Errorf("metadata label %q is not a uint64", label)
+		}
+	}
+	ret, err := strconv.ParseUint(label, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("metadata label %q is not a uint64", label)
+	}
+	return ret, nil
+}
+
+// metadataJSONPathSegment is one step of the path reported in conversion
+// errors. It is rendered only when an error is built.
+type metadataJSONPathSegment struct {
+	prefix string
+	name   string
+	idx    int
+	hasIdx bool
+}
+
+// metadataJSONPath is the stack of segments leading to the value being
+// converted. Converters push before descending and pop on return, so a
+// successful conversion never materialises the full path.
+type metadataJSONPath struct {
+	segments []metadataJSONPathSegment
+}
+
+func newMetadataJSONPath(label string) *metadataJSONPath {
+	return &metadataJSONPath{
+		segments: []metadataJSONPathSegment{{prefix: "$.", name: label}},
+	}
+}
+
+func (p *metadataJSONPath) push(seg metadataJSONPathSegment) {
+	p.segments = append(p.segments, seg)
+}
+
+func (p *metadataJSONPath) pop() {
+	p.segments = p.segments[:len(p.segments)-1]
+}
+
+func (p *metadataJSONPath) String() string {
+	var sb strings.Builder
+	for _, seg := range p.segments {
+		sb.WriteString(seg.prefix)
+		sb.WriteString(seg.name)
+		if seg.hasIdx {
+			sb.WriteByte('[')
+			sb.WriteString(strconv.Itoa(seg.idx))
+			sb.WriteByte(']')
+		}
+	}
+	return sb.String()
+}
+
+// errorf prefixes the formatted message with the current path and an optional
+// suffix naming a child member that was not pushed. The path is passed as an
+// argument rather than spliced into the format because member keys may
+// contain '%'; %w in format still wraps.
+func (p *metadataJSONPath) errorf(
+	suffix string,
+	format string,
+	args ...any,
+) error {
+	return fmt.Errorf(
+		"%s%s: "+format,
+		append([]any{p.String(), suffix}, args...)...,
+	)
+}
+
+func metadataFromJSONNoSchema(
+	value metadataJSONValue,
+	path *metadataJSONPath,
+) (TransactionMetadatum, error) {
+	switch value.kind {
+	case metadataJSONNull:
+		return nil, path.errorf("", "null is not allowed in metadata JSON")
+	case metadataJSONBool:
+		return nil, path.errorf("", "bool is not allowed in metadata JSON")
+	case metadataJSONNumber:
+		n, err := parseMetadataJSONInteger(value.number)
+		if err != nil {
+			return nil, path.errorf("", "%w", err)
+		}
+		return MetaInt{Value: n}, nil
+	case metadataJSONString:
+		if bytesValue, ok := parseNoSchemaHexBytes(value.str); ok {
+			return MetaBytes{Value: bytesValue}, nil
+		}
+		return MetaText{Value: value.str}, nil
+	case metadataJSONArray:
+		items := make([]TransactionMetadatum, 0, len(value.array))
+		for idx, item := range value.array {
+			path.push(metadataJSONPathSegment{idx: idx, hasIdx: true})
+			md, err := metadataFromJSONNoSchema(item, path)
+			path.pop()
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, md)
+		}
+		return MetaList{Items: items}, nil
+	case metadataJSONObject:
+		pairs := make([]MetaPair, 0, len(value.object))
+		for _, member := range value.object {
+			path.push(metadataJSONPathSegment{prefix: ".", name: member.key})
+			md, err := metadataFromJSONNoSchema(member.value, path)
+			path.pop()
+			if err != nil {
+				return nil, err
+			}
+			pairs = append(pairs, MetaPair{
+				Key:   parseNoSchemaMapKey(member.key),
+				Value: md,
+			})
+		}
+		return newParsedMetaMap(pairs)
+	default:
+		return nil, path.errorf("", "unsupported JSON value")
+	}
+}
+
+func metadataFromJSONDetailedSchema(
+	value metadataJSONValue,
+	path *metadataJSONPath,
+) (TransactionMetadatum, error) {
+	if value.kind != metadataJSONObject {
+		return nil, path.errorf("", "detailed metadatum must be an object")
+	}
+	if len(value.object) != 1 {
+		return nil, path.errorf(
+			"",
+			"detailed metadatum must have exactly one field",
+		)
+	}
+	member := value.object[0]
+	switch member.key {
+	case "int":
+		if member.value.kind != metadataJSONNumber {
+			return nil, path.errorf(".int", "expected JSON number")
+		}
+		n, err := parseMetadataJSONInteger(member.value.number)
+		if err != nil {
+			return nil, path.errorf(".int", "%w", err)
+		}
+		return MetaInt{Value: n}, nil
+	case "bytes":
+		if member.value.kind != metadataJSONString {
+			return nil, path.errorf(".bytes", "expected JSON string")
+		}
+		bytesValue, err := hex.DecodeString(member.value.str)
+		if err != nil {
+			return nil, path.errorf(".bytes", "invalid hex: %w", err)
+		}
+		return MetaBytes{Value: bytesValue}, nil
+	case "string":
+		if member.value.kind != metadataJSONString {
+			return nil, path.errorf(".string", "expected JSON string")
+		}
+		return MetaText{Value: member.value.str}, nil
+	case "list":
+		if member.value.kind != metadataJSONArray {
+			return nil, path.errorf(".list", "expected JSON array")
+		}
+		items := make([]TransactionMetadatum, 0, len(member.value.array))
+		for idx, item := range member.value.array {
+			path.push(
+				metadataJSONPathSegment{
+					prefix: ".list",
+					idx:    idx,
+					hasIdx: true,
+				},
+			)
+			md, err := metadataFromJSONDetailedSchema(item, path)
+			path.pop()
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, md)
+		}
+		return MetaList{Items: items}, nil
+	case "map":
+		if member.value.kind != metadataJSONArray {
+			return nil, path.errorf(".map", "expected JSON array")
+		}
+		return metadataMapFromJSONDetailedSchema(member.value.array, path)
+	default:
+		return nil, path.errorf(
+			"",
+			"unknown detailed metadatum field %q",
+			member.key,
+		)
+	}
+}
+
+func metadataMapFromJSONDetailedSchema(
+	entries []metadataJSONValue,
+	path *metadataJSONPath,
+) (TransactionMetadatum, error) {
+	pairs := make([]MetaPair, 0, len(entries))
+	for idx, entry := range entries {
+		path.push(
+			metadataJSONPathSegment{prefix: ".map", idx: idx, hasIdx: true},
+		)
+		pair, err := metadataPairFromJSONDetailedSchema(entry, path)
+		path.pop()
+		if err != nil {
+			return nil, err
+		}
+		pairs = append(pairs, pair)
+	}
+	return newParsedMetaMap(pairs)
+}
+
+// metadataPairFromJSONDetailedSchema converts one map entry; path already
+// ends at that entry.
+func metadataPairFromJSONDetailedSchema(
+	entry metadataJSONValue,
+	path *metadataJSONPath,
+) (MetaPair, error) {
+	if entry.kind != metadataJSONObject {
+		return MetaPair{}, path.errorf("", "map entry must be an object")
+	}
+	if len(entry.object) != 2 {
+		return MetaPair{}, path.errorf(
+			"",
+			"map entry must contain exactly k and v fields",
+		)
+	}
+	var (
+		keyJSON   *metadataJSONValue
+		valueJSON *metadataJSONValue
+	)
+	for memberIdx := range entry.object {
+		member := &entry.object[memberIdx]
+		switch member.key {
+		case "k":
+			keyJSON = &member.value
+		case "v":
+			valueJSON = &member.value
+		default:
+			return MetaPair{}, path.errorf(
+				"",
+				"unexpected map entry field %q",
+				member.key,
+			)
+		}
+	}
+	if keyJSON == nil || valueJSON == nil {
+		return MetaPair{}, path.errorf(
+			"",
+			"map entry must contain k and v fields",
+		)
+	}
+	path.push(metadataJSONPathSegment{prefix: ".k"})
+	key, err := metadataFromJSONDetailedSchema(*keyJSON, path)
+	path.pop()
+	if err != nil {
+		return MetaPair{}, err
+	}
+	path.push(metadataJSONPathSegment{prefix: ".v"})
+	value, err := metadataFromJSONDetailedSchema(*valueJSON, path)
+	path.pop()
+	if err != nil {
+		return MetaPair{}, err
+	}
+	return MetaPair{Key: key, Value: value}, nil
+}
+
+func parseMetadataJSONInteger(number json.Number) (*big.Int, error) {
+	text := number.String()
+	if strings.ContainsAny(text, ".eE") {
+		return nil, fmt.Errorf(
+			"metadata JSON number %q is not an integer",
+			text,
+		)
+	}
+	ret, ok := new(big.Int).SetString(text, 10)
+	if !ok {
+		return nil, fmt.Errorf(
+			"metadata JSON number %q is not an integer",
+			text,
+		)
+	}
+	return ret, nil
+}
+
+func parseNoSchemaMapKey(key string) TransactionMetadatum {
+	if n, ok := parseNoSchemaMapKeyInteger(key); ok {
+		return MetaInt{Value: n}
+	}
+	if bytesValue, ok := parseNoSchemaHexBytes(key); ok {
+		return MetaBytes{Value: bytesValue}
+	}
+	return MetaText{Value: key}
+}
+
+func parseNoSchemaMapKeyInteger(key string) (*big.Int, bool) {
+	if key == "" {
+		return nil, false
+	}
+	unsigned := key
+	if key[0] == '-' {
+		unsigned = key[1:]
+		if unsigned == "" {
+			return nil, false
+		}
+	}
+	if len(unsigned) > 1 && unsigned[0] == '0' {
+		return nil, false
+	}
+	for _, r := range unsigned {
+		if r < '0' || r > '9' {
+			return nil, false
+		}
+	}
+	ret, ok := new(big.Int).SetString(key, 10)
+	return ret, ok
+}
+
+func parseNoSchemaHexBytes(value string) ([]byte, bool) {
+	if !strings.HasPrefix(value, "0x") {
+		return nil, false
+	}
+	hexText := value[2:]
+	for _, r := range hexText {
+		if r >= 'A' && r <= 'F' {
+			return nil, false
+		}
+	}
+	ret, err := hex.DecodeString(hexText)
+	if err != nil {
+		return nil, false
+	}
+	return ret, true
+}
+
+func newParsedMetaMap(pairs []MetaPair) (MetaMap, error) {
+	pairs, err := sortMetaMapPairs(pairs)
+	if err != nil {
+		return MetaMap{}, err
+	}
+	return MetaMap{Pairs: pairs}, nil
+}
+
+func sortMetaMapPairs(pairs []MetaPair) ([]MetaPair, error) {
+	type keyedPair struct {
+		pair MetaPair
+		key  []byte
+	}
+	ret := make([]keyedPair, 0, len(pairs))
+	seen := make(map[string]struct{}, len(pairs))
+	for idx, pair := range pairs {
+		keyCbor, err := cbor.Encode(pair.Key)
+		if err != nil {
+			return nil, fmt.Errorf("encode metadata map key %d: %w", idx, err)
+		}
+		key := string(keyCbor)
+		if _, ok := seen[key]; ok {
+			return nil, fmt.Errorf(
+				"duplicate metadata map key %q at index %d",
+				key,
+				idx,
+			)
+		}
+		seen[key] = struct{}{}
+		ret = append(ret, keyedPair{pair: pair, key: keyCbor})
+	}
+	sort.Slice(ret, func(i, j int) bool {
+		return metaMapKeyLess(ret[i].key, ret[j].key)
+	})
+
+	sortedPairs := make([]MetaPair, 0, len(ret))
+	for _, pair := range ret {
+		sortedPairs = append(sortedPairs, pair.pair)
+	}
+	return sortedPairs, nil
+}

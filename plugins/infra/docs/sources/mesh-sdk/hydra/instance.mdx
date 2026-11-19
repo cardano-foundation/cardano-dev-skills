@@ -1,0 +1,352 @@
+---
+title: "Hydra Instance API"
+description: "Complete API reference for HydraInstance - commit funds, manage UTxOs, and interact with Hydra Heads programmatically."
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+The `HydraInstance` class provides methods to interact with a Hydra Head after initialization. Use it to commit funds, manage incremental deposits, and handle blueprint transactions for advanced use cases like script UTxOs.
+
+### When to use HydraInstance
+
+- Committing funds to a new or existing Hydra Head
+- Managing incremental deposits to an open Head
+- Handling complex transactions with script UTxOs
+- Building custom commit workflows
+
+## Prerequisites
+
+Before using HydraInstance, ensure you have:
+
+- A running Hydra node with API access
+- A configured blockchain provider (Blockfrost, Maestro, etc.)
+- A wallet with funds for committing to the Head
+- The `@meshsdk/hydra` package installed
+
+## Quick start
+
+```typescript
+import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
+import { BlockfrostProvider } from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+
+// Set up providers
+const blockfrost = new BlockfrostProvider("<YOUR_BLOCKFROST_KEY>");
+
+const hydraProvider = new HydraProvider({
+  httpUrl: "http://localhost:4001",
+});
+
+// Create the Hydra instance
+const instance = new HydraInstance({
+  provider: hydraProvider,
+  fetcher: blockfrost,
+  submitter: blockfrost,
+});
+
+// Connect to the Hydra node
+await hydraProvider.connect();
+```
+
+## Setup
+
+### Installation
+
+```bash
+npm install @meshsdk/hydra @meshsdk/core
+```
+
+### Configuration
+
+The `HydraInstance` constructor accepts the following options:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `provider` | `HydraProvider` | Connected HydraProvider instance |
+| `fetcher` | `IFetcher` | Blockchain provider for fetching UTxOs |
+| `submitter` | `ISubmitter` | Blockchain provider for submitting transactions |
+
+```typescript
+import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
+import { BlockfrostProvider } from "@meshsdk/core";
+
+const blockfrost = new BlockfrostProvider("<YOUR_BLOCKFROST_KEY>");
+
+const hydraProvider = new HydraProvider({
+  httpUrl: "http://localhost:4001",
+});
+
+const instance = new HydraInstance({
+  provider: hydraProvider,
+  fetcher: blockfrost,
+  submitter: blockfrost,
+});
+```
+
+## API reference
+
+### commitEmpty()
+
+Request an empty commit transaction to open the Head without committing funds. Use this when you only want to receive funds on Layer 2.
+
+**Returns:** `Promise<string>` - Transaction CBOR hex ready for signing
+
+```typescript
+import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
+import { MeshCardanoHeadlessWallet } from "@meshsdk/wallet";
+
+const commit = await instance.commitEmpty();
+const signedTx = await wallet.signTx(commit, false);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Empty commit submitted:", txHash);
+```
+
+### commitFunds(txHash, outputIndex)
+
+Commit a specific UTxO to the Hydra Head. The committed funds become available on Layer 2 after the Head opens.
+
+**Parameters:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `txHash` | `string` | Transaction hash containing the UTxO |
+| `outputIndex` | `number` | Index of the output to commit |
+
+**Returns:** `Promise<string>` - Transaction CBOR hex ready for partial signing
+
+```typescript
+import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
+import { MeshCardanoHeadlessWallet } from "@meshsdk/wallet";
+
+const txHash = "abc123...";
+const outputIndex = 0;
+
+const commitTx = await instance.commitFunds(txHash, outputIndex);
+const signedTx = await wallet.signTx(commitTx, true); // partial sign
+const commitTxHash = await wallet.submitTx(signedTx);
+
+console.log("Funds committed:", commitTxHash);
+```
+
+### commitBlueprint(txHash, outputIndex, hydraTransaction)
+
+Commit a Cardano transaction blueprint to the Hydra Head. Use this for advanced scenarios like committing script UTxOs.
+
+**Parameters:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `txHash` | `string` | Transaction hash of the UTxO |
+| `outputIndex` | `number` | Index of the output |
+| `hydraTransaction` | `object` | Blueprint transaction object |
+
+**hydraTransaction object:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `cborHex` | `string` | Unsigned transaction CBOR |
+| `description` | `string` | Human-readable description |
+| `type` | `string` | Transaction era (e.g., "Tx ConwayEra") |
+
+```typescript
+import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
+import { MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet } from "@meshsdk/wallet";
+
+// Build the blueprint transaction
+const txBuilder = new MeshTxBuilder({
+  fetcher: blockfrost,
+  verbose: true,
+});
+
+const unsignedTx = await txBuilder
+  .txIn(txHash, outputIndex)
+  .setFee("0")
+  .changeAddress(address)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+// Commit the blueprint
+const commitTx = await instance.commitBlueprint(txHash, outputIndex, {
+  cborHex: unsignedTx,
+  description: "Commit script UTxO",
+  type: "Tx ConwayEra",
+});
+
+const signedTx = await wallet.signTx(commitTx, false);
+const commitTxHash = await wallet.submitTx(signedTx);
+
+console.log("Blueprint committed:", commitTxHash);
+```
+
+### incrementalCommitFunds(txHash, outputIndex)
+
+Add additional UTxOs to an already open Hydra Head. The deposit period is configured by the `--deposit-period` hydra-node parameter.
+
+**Parameters:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `txHash` | `string` | Transaction hash containing the UTxO |
+| `outputIndex` | `number` | Index of the output to commit |
+
+**Returns:** `Promise<string>` - Transaction CBOR hex ready for signing
+
+```typescript
+import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
+
+const txHash = "def456...";
+const outputIndex = 0;
+
+const incrementalTx = await instance.incrementalCommitFunds(txHash, outputIndex);
+const signedTx = await wallet.signTx(incrementalTx, true);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Incremental commit submitted:", txHash);
+```
+
+For more details on incremental commits, see the <Link href="https://hydra.family/head-protocol/docs/how-to/incremental-commit">Hydra documentation</Link>.
+
+### incrementalBlueprintCommit(txHash, outputIndex, hydraTransaction)
+
+Add a blueprint transaction to an open Hydra Head incrementally.
+
+**Parameters:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `txHash` | `string` | Transaction hash of the UTxO |
+| `outputIndex` | `number` | Index of the output |
+| `hydraTransaction` | `object` | Blueprint transaction object |
+
+```typescript
+import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
+
+const incrementalTx = await instance.incrementalBlueprintCommit(
+  txHash,
+  outputIndex,
+  {
+    cborHex: unsignedTx,
+    description: "Incremental blueprint commit",
+    type: "Tx ConwayEra",
+  }
+);
+
+const signedTx = await wallet.signTx(incrementalTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+## Complete example
+
+This example demonstrates the full workflow of connecting to a Hydra node and committing funds when the Head is initializing:
+
+```typescript
+import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
+import { BlockfrostProvider } from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+
+// Initialize providers
+const blockfrost = new BlockfrostProvider("<YOUR_BLOCKFROST_KEY>");
+
+const hydraProvider = new HydraProvider({
+  httpUrl: "http://localhost:4001",
+});
+
+const instance = new HydraInstance({
+  provider: hydraProvider,
+  fetcher: blockfrost,
+  submitter: blockfrost,
+});
+
+// Set up wallet
+const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+  networkId: 0,
+  walletAddressType: AddressType.Base,
+  fetcher: blockfrost,
+  submitter: blockfrost,
+  mnemonic: ["your", "mnemonic", "words", "..."],
+});
+
+// Connect to Hydra
+await hydraProvider.connect();
+await hydraProvider.init();
+
+// Listen for Head status and commit when initializing
+hydraProvider.onMessage(async (message) => {
+  const status =
+    message.tag === "Greetings"
+      ? { headStatus: message.headStatus }
+      : { tag: message.tag };
+
+  if (
+    status.tag === "HeadIsInitializing" ||
+    status.headStatus === "Initializing"
+  ) {
+    // Get a UTxO to commit
+    const utxos = await wallet.getUtxosMesh();
+    const utxoToCommit = utxos[0];
+
+    // Commit funds to the Head
+    const commitTx = await instance.commitFunds(
+      utxoToCommit.input.txHash,
+      utxoToCommit.input.outputIndex
+    );
+    const signedTx = await wallet.signTx(commitTx, true);
+    const txHash = await wallet.submitTx(signedTx);
+
+    console.log("Committed funds to Head:", txHash);
+  }
+
+  if (status.tag === "HeadIsOpen") {
+    console.log("Head is now open! Ready for L2 transactions.");
+  }
+});
+```
+
+## Troubleshooting
+
+### "Connection refused" when connecting to Hydra node
+
+Ensure your Hydra node is running and the API port is accessible:
+
+```bash
+# Check if Hydra node is running
+curl http://localhost:4001/protocol-parameters
+```
+
+### Commit transaction fails with "UTxO not found"
+
+The UTxO you are trying to commit may have been spent. Fetch fresh UTxOs before committing:
+
+```typescript
+const utxos = await blockfrost.fetchAddressUTxOs(address);
+const validUtxo = utxos[0];
+```
+
+### "Head is not initializing" error
+
+You can only commit funds during the `HeadIsInitializing` phase. Check the Head status:
+
+```typescript
+hydraProvider.onMessage((message) => {
+  console.log("Current status:", message.tag || message.headStatus);
+});
+```
+
+### Partial signing issues
+
+When committing funds, use partial signing (`true` as second parameter):
+
+```typescript
+const signedTx = await wallet.signTx(commitTx, true); // Enable partial signing
+```
+
+## Related resources
+
+- [End-to-end Tutorial](/docs/hydra/tutorial) - Complete walkthrough of Hydra Head lifecycle
+- [Hydra Overview](/docs/hydra) - Introduction to Hydra and its benefits
+- [Hydra Protocol Docs](https://hydra.family/head-protocol/docs/how-to/incremental-commit) - Official incremental commit documentation
+- [Cardano Providers](/providers) - Configure blockchain providers

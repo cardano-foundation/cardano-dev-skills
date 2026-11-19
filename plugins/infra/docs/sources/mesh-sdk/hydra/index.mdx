@@ -1,0 +1,89 @@
+---
+title: "Hydra - Layer 2 Scaling for Cardano"
+description: "Build fast, low-cost applications with Hydra Head protocol. Process thousands of transactions per second while maintaining Cardano's security guarantees."
+icon: "icons/hydra.svg"
+---
+
+import { linksHydra } from "@/data/links-hydra";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+## Overview
+
+Hydra is a Layer 2 scaling solution for Cardano that enables near-instant, low-cost transactions between participants. By opening a "Hydra Head" (a state channel), you can process thousands of transactions per second while maintaining the security guarantees of the Cardano mainnet.
+
+### When to use Hydra
+
+- **High-frequency transactions**: Gaming, micropayments, or real-time applications requiring sub-second finality
+- **Cost-sensitive applications**: Reduce transaction fees by batching settlements on Layer 1
+- **Private transactions**: Keep transaction details off-chain until final settlement
+- **Interactive applications**: Multi-party protocols requiring rapid state updates
+
+### Key benefits
+
+| Feature | Description |
+|---------|-------------|
+| **Speed** | Near-instant transaction confirmation within the Head |
+| **Low cost** | Minimal fees inside the Head; only pay L1 fees for open/close |
+| **Security** | Funds are always secured by Cardano's consensus |
+| **Isomorphic** | Use the same transaction format as Layer 1 |
+
+## Quick start
+
+Install the Mesh Hydra package and connect to a running Hydra node:
+
+```typescript
+import { HydraProvider, HydraInstance } from "@meshsdk/hydra";
+import { BlockfrostProvider } from "@meshsdk/core";
+
+// Initialize the blockchain provider for L1 operations
+const blockfrost = new BlockfrostProvider("<YOUR_BLOCKFROST_KEY>");
+
+// Connect to your Hydra node
+const hydraProvider = new HydraProvider({
+  httpUrl: "http://localhost:4001",
+});
+
+// Create a Hydra instance for head operations
+const hydraInstance = new HydraInstance({
+  provider: hydraProvider,
+  fetcher: blockfrost,
+  submitter: blockfrost,
+});
+
+// Connect and initialize the head
+await hydraProvider.connect();
+await hydraProvider.init();
+```
+
+## Documentation
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {linksHydra.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## How Hydra works
+
+1. **Initialize**: Participants agree to open a Hydra Head
+2. **Commit**: Each participant commits funds from Layer 1 to the Head
+3. **Transact**: Process unlimited transactions instantly within the Head
+4. **Close**: Submit the final state back to Layer 1
+5. **Fanout**: Distribute funds according to the final Head state
+
+## Related resources
+
+- [Hydra Instance API](/docs/hydra/instance) - Detailed API reference for HydraInstance
+- [End-to-end Tutorial](/docs/hydra/tutorial) - Complete walkthrough from setup to settlement
+- [Hydra Protocol Documentation](https://hydra.family/head-protocol/) - Official Hydra protocol specifications
+- [Cardano Providers](/providers) - Configure blockchain providers for L1 operations

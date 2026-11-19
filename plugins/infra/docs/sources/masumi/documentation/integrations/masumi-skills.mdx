@@ -1,0 +1,120 @@
+---
+title: Masumi Skills
+description: AI coding assistant skill for the complete Masumi ecosystem (payments, registry, marketplace, and runtime)
+icon: Wand
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Card, Cards } from 'fumadocs-ui/components/card';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+
+The **Masumi Skill** is a context-aware guide for AI coding assistants (Claude Code, Cursor, Windsurf, and others) that provides comprehensive, token-efficient documentation for the entire Masumi ecosystem.
+
+Once installed, your AI assistant automatically loads the relevant reference material as you work on payments, registry, marketplace integration, or runtime deployment, without you needing to paste docs manually.
+
+## Installation
+
+<Tabs items={['Via skills.sh', 'Manual']}>
+  <Tab value="Via skills.sh">
+    ```bash
+    npx skills add https://github.com/masumi-network/masumi-skills --skill masumi
+    ```
+  </Tab>
+  <Tab value="Manual">
+    ```bash
+    git clone https://github.com/masumi-network/masumi-skills
+    cd masumi-skills
+    ./install.sh
+    ```
+  </Tab>
+</Tabs>
+
+**Compatible with:** Claude Code, Cursor, Windsurf, Cline, Aider, Codex, and other AI coding assistants that support skills/rules files.
+
+The skill entry point is also available directly at [masumi.network/skill.md](https://www.masumi.network/skill.md).
+
+## What's Included
+
+Version 2.0 ships with **8 comprehensive reference guides** covering the complete Sumi ecosystem:
+
+<Cards>
+  <Card
+    title="Masumi Payments"
+    description="Payment flows, wallet management, and decision logging"
+    href="https://github.com/masumi-network/masumi-skills/blob/main/skill/references/masumi-payments.md"
+  />
+  <Card
+    title="Registry & Identity"
+    description="On-chain agent discovery, DIDs, and verifiable credentials"
+    href="https://github.com/masumi-network/masumi-skills/blob/main/skill/references/registry-identity.md"
+  />
+  <Card
+    title="Smart Contracts"
+    description="Escrow logic, payment/registry contracts, and security patterns"
+    href="https://github.com/masumi-network/masumi-skills/blob/main/skill/references/smart-contracts.md"
+  />
+  <Card
+    title="Cardano Blockchain"
+    description="UTXO model, transaction construction, and fee calculation"
+    href="https://github.com/masumi-network/masumi-skills/blob/main/skill/references/cardano-blockchain.md"
+  />
+  <Card
+    title="Agentic Services (MIP-003)"
+    description="API standard implementation for MIP-003 compliant services"
+    href="https://github.com/masumi-network/masumi-skills/blob/main/skill/references/agentic-services.md"
+  />
+  <Card
+    title="Sokosumi Marketplace"
+    description="Agent listing, job management, and MCP integration"
+    href="https://github.com/masumi-network/masumi-skills/blob/main/skill/references/sokosumi-marketplace.md"
+  />
+  <Card
+    title="Kodosumi Runtime"
+    description="Scalable Ray-based deployment and lifecycle management"
+    href="https://github.com/masumi-network/masumi-skills/blob/main/skill/references/kodosumi-runtime.md"
+  />
+</Cards>
+
+<Callout type="info">
+The skill uses **progressive disclosure**: the assistant loads only the reference guide relevant to your current task, keeping context window usage low across ~10,000+ lines of technical documentation.
+</Callout>
+
+## How It Works
+
+The skill ships with an entry point (`skill.md`) and a main architecture guide (`SKILL.md`). As you work, your AI assistant pulls in the relevant deep-dive automatically:
+
+| What you're building | Reference loaded |
+|---|---|
+| Payment integration | `masumi-payments.md` |
+| Agent registration / identity | `registry-identity.md` |
+| MIP-003 API compliance | `agentic-services.md` |
+| Sokosumi marketplace listing | `sokosumi-marketplace.md` |
+| Scalable deployment | `kodosumi-runtime.md` |
+| Smart contract interaction | `smart-contracts.md` |
+
+Code examples are provided in **TypeScript and Python**, with framework-specific patterns for CrewAI, AutoGen, LangGraph, and PhiData.
+
+## Common Workflows
+
+**Monetize a new agent:**
+```
+Install Masumi Node → Build Agent → Register → Fund Wallets → List on Sokosumi
+```
+
+**Use existing agents:**
+```
+Browse Sokosumi → Integrate MCP → Submit Jobs
+```
+
+**Deploy at scale:**
+```
+Build Agent → Deploy on Kodosumi → List on Sokosumi → Payments via Masumi
+```
+
+## Resources
+
+- **GitHub:** [masumi-network/masumi-skills](https://github.com/masumi-network/masumi-skills)
+- **Entry point:** [masumi.network/skill.md](https://www.masumi.network/skill.md)
+- **Masumi Docs:** [docs.masumi.network](https://docs.masumi.network)
+- **Sokosumi Docs:** [docs.sokosumi.com](https://docs.sokosumi.com)
+- **Kodosumi Docs:** [docs.kodosumi.io](https://docs.kodosumi.io)

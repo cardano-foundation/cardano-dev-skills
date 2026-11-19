@@ -1,0 +1,497 @@
+---
+title: "Lesson 7: Vesting Contract"
+description: "Build a time-locked vesting contract that releases funds to a beneficiary after a specified period."
+---
+import Link from "fumadocs-core/link";
+
+## Learning Objectives
+
+By the end of this lesson, you will be able to:
+
+- Implement a time-locked vesting contract in Aiken
+- Use validity ranges to enforce time constraints
+- Differentiate between owner and beneficiary spending conditions
+- Build deposit and withdrawal transactions with Mesh SDK
+- Test vesting contracts with various scenarios
+
+## Prerequisites
+
+Before starting this lesson, ensure you have:
+
+- Completed <Link href="/resources/cardano-course/06-interpreting-blueprint">Lesson 6: Interpreting Blueprint</Link>
+- An Aiken development environment set up
+- A funded preprod wallet
+- A Blockfrost API key
+
+## Key Concepts
+
+### What is a Vesting Contract?
+
+A vesting contract locks funds until a specified time, then allows a designated beneficiary to withdraw them. Common use cases include:
+
+- **Employee compensation**: Tokens vest over time to incentivize retention
+- **Token launches**: Gradual release prevents market dumps
+- **Escrow**: Time-based release for agreements
+
+### Contract Requirements
+
+| Actor | Permissions |
+|-------|-------------|
+| **Owner** | Can withdraw at any time |
+| **Beneficiary** | Can withdraw only after the lockup period |
+
+## Step 1: Define the Contract Types
+
+Create the datum structure that stores vesting parameters:
+
+```rs
+// lib/vesting/types.ak
+
+pub type VestingDatum {
+  /// POSIX time in milliseconds when funds unlock
+  lock_until: Int,
+  /// Owner's public key hash (can withdraw anytime)
+  owner: ByteArray,
+  /// Beneficiary's public key hash (can withdraw after lock_until)
+  beneficiary: ByteArray,
+}
+```
+
+### Datum Fields
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `lock_until` | `Int` | POSIX timestamp (milliseconds) when funds unlock |
+| `owner` | `ByteArray` | Public key hash of the fund depositor |
+| `beneficiary` | `ByteArray` | Public key hash of the designated recipient |
+
+## Step 2: Implement the Validator
+
+Create the spending validator that enforces vesting rules:
+
+```rs
+// validators/vesting.ak
+
+use aiken/crypto.{VerificationKeyHash}
+use cardano/transaction.{OutputReference, Transaction}
+use vesting/types.{VestingDatum}
+use vodka/extra/list.{key_signed}
+use vodka/extra/validity_range.{valid_after}
+
+validator vesting {
+  spend(
+    datum_opt: Option<VestingDatum>,
+    _redeemer: Data,
+    _input: OutputReference,
+    tx: Transaction,
+  ) {
+    expect Some(datum) = datum_opt
+
+    // Owner can always withdraw
+    // OR beneficiary can withdraw after lock time
+    or {
+      key_signed(tx.extra_signatories, datum.owner),
+      and {
+        key_signed(tx.extra_signatories, datum.beneficiary),
+        valid_after(tx.validity_range, datum.lock_until),
+      },
+    }
+  }
+
+  else(_) {
+    fail
+  }
+}
+```
+
+### Validation Logic
+
+The contract allows spending when:
+
+1. **Owner signature present**: The owner can withdraw at any time, no time check needed
+2. **Beneficiary conditions met**: Both conditions must be true:
+   - Transaction is signed by the beneficiary
+   - Transaction validity range starts after `lock_until`
+
+### Time Validation
+
+Cardano transactions include validity intervals specifying when they can be executed. The ledger verifies these bounds before running scripts.
+
+```rs
+valid_after(tx.validity_range, datum.lock_until)
+```
+
+This checks that the transaction's lower bound is after the lock time. If true, we know the current time is at least `lock_until`.
+
+## Step 3: Write Contract Tests
+
+Test all valid and invalid spending scenarios:
+
+```rs
+// validators/vesting.ak (continued)
+
+use mocktail.{
+  complete, invalid_before, mock_pub_key_hash, mock_tx_hash,
+  mocktail_tx, required_signer_hash, tx_in, tx_in_inline_datum,
+}
+
+const mock_owner = mock_pub_key_hash(0)
+const mock_beneficiary = mock_pub_key_hash(1)
+const mock_lock_time = 1000
+
+fn mock_datum() -> VestingDatum {
+  VestingDatum {
+    lock_until: mock_lock_time,
+    owner: mock_owner,
+    beneficiary: mock_beneficiary,
+  }
+}
+
+type VestingTest {
+  is_owner_signed: Bool,
+  is_beneficiary_signed: Bool,
+  is_time_passed: Bool,
+}
+
+fn mock_tx(test: VestingTest) -> Transaction {
+  let VestingTest { is_owner_signed, is_beneficiary_signed, is_time_passed } = test
+
+  mocktail_tx()
+    |> tx_in(True, mock_tx_hash(0), 0, [], mock_script_address(0, None))
+    |> tx_in_inline_datum(True, mock_datum())
+    |> required_signer_hash(is_owner_signed, mock_owner)
+    |> required_signer_hash(is_beneficiary_signed, mock_beneficiary)
+    |> invalid_before(is_time_passed, mock_lock_time + 1)
+    |> complete()
+}
+
+// Success: Owner can always withdraw
+test success_owner_withdraws() {
+  let test = VestingTest {
+    is_owner_signed: True,
+    is_beneficiary_signed: False,
+    is_time_passed: False,
+  }
+  vesting.spend("", Void, mock_utxo_ref(0, 0), mock_tx(test))
+}
+
+// Success: Beneficiary withdraws after time passes
+test success_beneficiary_withdraws_after_lock() {
+  let test = VestingTest {
+    is_owner_signed: False,
+    is_beneficiary_signed: True,
+    is_time_passed: True,
+  }
+  vesting.spend("", Void, mock_utxo_ref(0, 0), mock_tx(test))
+}
+
+// Failure: Beneficiary cannot withdraw before time passes
+test fail_beneficiary_too_early() {
+  let test = VestingTest {
+    is_owner_signed: False,
+    is_beneficiary_signed: True,
+    is_time_passed: False,
+  }
+  !vesting.spend("", Void, mock_utxo_ref(0, 0), mock_tx(test))
+}
+
+// Failure: Time passed but no signature
+test fail_no_signature() {
+  let test = VestingTest {
+    is_owner_signed: False,
+    is_beneficiary_signed: False,
+    is_time_passed: True,
+  }
+  !vesting.spend("", Void, mock_utxo_ref(0, 0), mock_tx(test))
+}
+```
+
+Run tests:
+
+```bash
+aiken check
+```
+
+## Step 4: Build and Deploy
+
+Compile the contract:
+
+```bash
+aiken build
+```
+
+This generates `plutus.json` with the compiled validator.
+
+## Step 5: Deposit Funds
+
+Create a transaction that locks funds in the vesting contract.
+
+### Setup
+
+```ts
+import {
+  BlockfrostProvider,
+  MeshTxBuilder,
+  deserializeAddress,
+  serializePlutusScript,
+  mConStr0,
+  integer,
+  byteString,
+} from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+import blueprint from "./plutus.json";
+
+const provider = new BlockfrostProvider("YOUR_BLOCKFROST_API_KEY");
+
+// Load the vesting script
+const vestingValidator = blueprint.validators.find(
+  (v) => v.title === "vesting.vesting.spend"
+);
+const scriptCbor = vestingValidator.compiledCode;
+
+const script = serializePlutusScript(
+  { code: scriptCbor, version: "V3" },
+  undefined,
+  "preprod"
+);
+```
+
+### Define Vesting Parameters
+
+```ts
+// Lock funds for 1 minute from now
+const lockUntilTimestamp = new Date();
+lockUntilTimestamp.setMinutes(lockUntilTimestamp.getMinutes() + 1);
+const lockUntilMs = lockUntilTimestamp.getTime();
+
+// Amount to lock
+const assets = [
+  { unit: "lovelace", quantity: "10000000" }, // 10 ADA
+];
+```
+
+### Build Deposit Transaction
+
+```ts
+// Initialize wallet
+const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+  networkId: 0,
+  walletAddressType: AddressType.Base,
+  fetcher: provider,
+  submitter: provider,
+  mnemonic: ["your", "mnemonic", "here"],
+});
+
+const utxos = await wallet.getUtxosMesh();
+const changeAddress = await wallet.getChangeAddressBech32();
+
+// Get public key hashes
+const { pubKeyHash: ownerPubKeyHash } = deserializeAddress(changeAddress);
+const { pubKeyHash: beneficiaryPubKeyHash } = deserializeAddress(beneficiaryAddress);
+
+// Build datum
+const datum = mConStr0([
+  integer(lockUntilMs),
+  byteString(ownerPubKeyHash),
+  byteString(beneficiaryPubKeyHash),
+]);
+
+// Build transaction
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const unsignedTx = await txBuilder
+  .txOut(script.address, assets)
+  .txOutInlineDatumValue(datum)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+// Sign and submit
+const signedTx = await wallet.signTx(unsignedTx, false);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Deposit transaction hash:", txHash);
+```
+
+View the transaction on <Link href="https://preprod.cardanoscan.io/">CardanoScan Preprod</Link>.
+
+## Step 6: Withdraw Funds
+
+After the lock period, the beneficiary can withdraw.
+
+### Find the Vesting UTXO
+
+```ts
+// Use the deposit transaction hash
+const depositTxHash = "556f2bfcd447e146509996343178c046b1b9ad4ac091a7a32f85ae206345e925";
+const utxos = await provider.fetchUTxOs(depositTxHash);
+const vestingUtxo = utxos[0];
+```
+
+### Parse the Datum
+
+```ts
+import { deserializeDatum, SLOT_CONFIG_NETWORK, unixTimeToEnclosingSlot } from "@meshsdk/core";
+
+// Define datum type for parsing
+type VestingDatum = {
+  fields: [
+    { int: number },      // lock_until
+    { bytes: string },    // owner
+    { bytes: string },    // beneficiary
+  ];
+};
+
+const datum = deserializeDatum<VestingDatum>(vestingUtxo.output.plutusData!);
+const lockUntil = datum.fields[0].int;
+```
+
+### Calculate Validity Interval
+
+```ts
+// Transaction must be valid after the lock time
+const invalidBefore = unixTimeToEnclosingSlot(
+  Math.min(lockUntil, Date.now() - 15000),  // Use current time if already past lock
+  SLOT_CONFIG_NETWORK.preprod
+) + 1;
+```
+
+### Build Withdrawal Transaction
+
+```ts
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+// Get beneficiary wallet info
+const walletAddress = await beneficiaryWallet.getChangeAddress();
+const { pubKeyHash } = deserializeAddress(walletAddress);
+const inputUtxos = await beneficiaryWallet.getUtxos();
+const collateral = (await beneficiaryWallet.getCollateral())[0];
+
+const unsignedTx = await txBuilder
+  // Spend from vesting script
+  .spendingPlutusScriptV3()
+  .txIn(
+    vestingUtxo.input.txHash,
+    vestingUtxo.input.outputIndex,
+    vestingUtxo.output.amount,
+    script.address
+  )
+  .spendingReferenceTxInInlineDatumPresent()
+  .spendingReferenceTxInRedeemerValue("")  // Empty redeemer
+  .txInScript(scriptCbor)
+
+  // Output to beneficiary
+  .txOut(walletAddress, [])
+
+  // Collateral for script execution
+  .txInCollateral(
+    collateral.input.txHash,
+    collateral.input.outputIndex,
+    collateral.output.amount,
+    collateral.output.address
+  )
+
+  // Time constraint
+  .invalidBefore(invalidBefore)
+
+  // Required signature
+  .requiredSignerHash(pubKeyHash)
+
+  // Standard transaction components
+  .changeAddress(walletAddress)
+  .selectUtxosFrom(inputUtxos)
+  .complete();
+
+const signedTx = await beneficiaryWallet.signTx(unsignedTx);
+const txHash = await beneficiaryWallet.submitTx(signedTx);
+
+console.log("Withdrawal transaction hash:", txHash);
+```
+
+## Complete Working Example
+
+### Project Structure
+
+```
+vesting-contract/
+  aiken-workspace/
+    lib/
+      vesting/
+        types.ak
+    validators/
+      vesting.ak
+    plutus.json
+  offchain/
+    deposit.ts
+    withdraw.ts
+```
+
+### Key Transaction Methods
+
+| Method | Purpose |
+|--------|---------|
+| `txOut(address, assets)` | Send funds to script address |
+| `txOutInlineDatumValue(datum)` | Attach datum to output |
+| `spendingPlutusScriptV3()` | Start building script input |
+| `txIn(hash, index, amount, address)` | Reference the script UTXO |
+| `spendingReferenceTxInInlineDatumPresent()` | Indicate inline datum |
+| `spendingReferenceTxInRedeemerValue(redeemer)` | Provide redeemer |
+| `txInScript(cbor)` | Attach script for validation |
+| `invalidBefore(slot)` | Set validity lower bound |
+| `requiredSignerHash(hash)` | Declare required signer |
+
+## Key Concepts Explained
+
+### Validity Ranges and Time
+
+Cardano uses slot numbers, not timestamps. Convert between them:
+
+```ts
+const slot = unixTimeToEnclosingSlot(timestampMs, SLOT_CONFIG_NETWORK.preprod);
+```
+
+Setting `invalidBefore` proves to the script that current time is at least the specified slot.
+
+### Deterministic Execution
+
+The script does not check the current time directly. Instead:
+
+1. Transaction specifies validity bounds
+2. Ledger verifies bounds before script execution
+3. Script checks if bounds satisfy its requirements
+
+This maintains determinism - the script always produces the same result for the same inputs.
+
+## Exercises
+
+1. **Gradual vesting**: Modify the contract to release 25% of funds every quarter instead of all at once.
+
+2. **Cliff period**: Add a minimum wait time before any vesting begins.
+
+3. **Cancellation**: Allow the owner to cancel vesting and reclaim funds before the lock period.
+
+4. **Multiple beneficiaries**: Support splitting vested funds among multiple recipients.
+
+## Next Steps
+
+You have learned:
+
+- How vesting contracts lock funds with time constraints
+- How to use validity ranges for time-based logic
+- How to build deposit and withdrawal transactions
+- How to test vesting scenarios
+
+In the next lesson, you build a <Link href="/resources/cardano-course/08-plutus-nft">Plutus NFT contract</Link> with auto-incrementing indices.
+
+## Related Links
+
+- <Link href="https://github.com/cardanobuilders/cardanobuilders.github.io/tree/main/codes/course-hello-cardano/03-vesting">Source Code on GitHub</Link>
+- <Link href="https://preprod.cardanoscan.io/transaction/556f2bfcd447e146509996343178c046b1b9ad4ac091a7a32f85ae206345e925">Example Deposit Transaction</Link>
+- <Link href="https://preprod.cardanoscan.io/transaction/13d6b2258680bbdf08f50a3bbc03e7ed674f5614844ce773fc191c9582282b04">Example Withdrawal Transaction</Link>
+- <Link href="/apis/txbuilder">MeshTxBuilder API Reference</Link>

@@ -1,0 +1,48 @@
+---
+title: sdk/builders/operations/AttachMetadata.ts
+nav_order: 122
+parent: Modules
+---
+
+## AttachMetadata overview
+
+AttachMetadata operation - attaches transaction metadata to auxiliary data.
+
+Transaction metadata is stored in the auxiliary data of a transaction and allows
+attaching arbitrary structured data following CIP-10 standard label registry.
+Common use cases include NFT metadata (CIP-25), transaction messages (CIP-20),
+and royalty information (CIP-27).
+
+Added in v2.0.0
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [programs](#programs)
+  - [createAttachMetadataProgram](#createattachmetadataprogram)
+
+---
+
+# programs
+
+## createAttachMetadataProgram
+
+Creates a ProgramStep for attachMetadata operation.
+Attaches metadata to the transaction's auxiliary data.
+
+Implementation:
+
+1. Validates that the label hasn't been used already
+2. Creates or updates the ConwayAuxiliaryData with new metadata
+3. Preserves existing plutus and native scripts in auxiliary data
+
+**Signature**
+
+```ts
+export declare const createAttachMetadataProgram: (
+  params: AttachMetadataParams
+) => Effect.Effect<void, TransactionBuilderError, TxContext>
+```
+
+Added in v2.0.0

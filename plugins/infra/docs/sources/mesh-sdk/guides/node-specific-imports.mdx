@@ -1,0 +1,403 @@
+---
+title: "Fix Node.js Polyfill Errors in Browser Projects"
+description: "Resolve 'Buffer is not defined' and Node.js polyfill errors in React, Vue, Svelte, and Angular with Mesh SDK."
+---
+
+import Link from "fumadocs-core/link";
+import { HowToSchema } from "@/components/seo";
+
+<HowToSchema
+  name="Fix Node.js Buffer and Polyfill Errors in Browser Projects"
+  description="Resolve Buffer is not defined and Node.js polyfill errors when building Cardano dApps for the browser."
+  totalTime="PT15M"
+  steps={[
+    { name: "Identify error", text: "Recognize Buffer is not defined or similar polyfill errors." },
+    { name: "Install polyfills", text: "Install buffer, process, and stream-browserify packages." },
+    { name: "Configure bundler", text: "Add polyfill configuration for your framework." },
+    { name: "Test build", text: "Verify the application builds and runs correctly." }
+  ]}
+/>
+
+## Overview
+
+When building Cardano dApps for the browser, you may encounter errors like `Buffer is not defined`. This happens because Mesh SDK uses Node.js APIs that are not available in browsers by default.
+
+### Common error messages
+
+```
+Uncaught ReferenceError: Buffer is not defined
+Module not found: Can't resolve 'buffer'
+ReferenceError: TextEncoder is not defined
+```
+
+### Affected modules
+
+| Module | Purpose |
+|--------|---------|
+| `Buffer` | Binary data handling |
+| `TextEncoder` / `TextDecoder` | String encoding |
+| `crypto` | Cryptographic operations |
+| `process` | Environment variables |
+| `stream` | Data streaming |
+
+Modern bundlers (Webpack 5, Vite) do not automatically polyfill these. This guide shows you how to fix these errors for each framework.
+
+### Time to complete
+
+15 minutes
+
+## What Are Polyfills?
+
+Polyfills are packages that implement Node.js functionality for browsers. You configure your bundler to use these browser-compatible versions instead of Node.js modules.
+
+Install the common polyfills:
+
+```bash
+npm install buffer process stream-browserify crypto-browserify --save
+```
+
+## Framework-Specific Solutions
+
+### Next.js
+
+Next.js uses Webpack internally. Add the polyfill plugin:
+
+```bash
+npm install node-polyfill-webpack-plugin --save-dev
+```
+
+Update `next.config.js`:
+
+```javascript
+const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  webpack: (config, { isServer }) => {
+    // Only add polyfills for client-side
+    if (!isServer) {
+      config.plugins.push(new NodePolyfillPlugin());
+    }
+    return config;
+  },
+};
+
+module.exports = nextConfig;
+```
+
+**What to expect:** The build completes without polyfill errors.
+
+### Vite (React, Vue, Svelte)
+
+Vite uses Rollup. Install the polyfill plugin:
+
+```bash
+npm install rollup-plugin-polyfill-node --save-dev
+```
+
+Update `vite.config.ts`:
+
+```typescript
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react"; // or vue, svelte
+import rollupNodePolyFill from "rollup-plugin-polyfill-node";
+
+export default defineConfig({
+  plugins: [react()],
+  build: {
+    rollupOptions: {
+      plugins: [rollupNodePolyFill()],
+    },
+  },
+  resolve: {
+    alias: {
+      buffer: "rollup-plugin-polyfill-node/polyfills/buffer-es6",
+      process: "rollup-plugin-polyfill-node/polyfills/process-es6",
+    },
+  },
+});
+```
+
+If you still see errors, add this to your entry file:
+
+```typescript
+import { Buffer } from "buffer";
+globalThis.Buffer = globalThis.Buffer || Buffer;
+```
+
+**What to expect:** The dev server and production build work correctly.
+
+### Webpack 5
+
+Webpack 5 removed automatic Node.js polyfills. Choose one approach:
+
+**Option 1: Use NodePolyfillPlugin (recommended)**
+
+```bash
+npm install node-polyfill-webpack-plugin --save-dev
+```
+
+Update `webpack.config.js`:
+
+```javascript
+const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
+
+module.exports = {
+  plugins: [
+    new NodePolyfillPlugin(),
+  ],
+};
+```
+
+**Option 2: Manual resolve.fallback**
+
+```bash
+npm install buffer process stream-browserify --save
+```
+
+Update `webpack.config.js`:
+
+```javascript
+module.exports = {
+  resolve: {
+    fallback: {
+      buffer: require.resolve("buffer/"),
+      process: require.resolve("process/browser"),
+      stream: require.resolve("stream-browserify"),
+    },
+  },
+};
+```
+
+**What to expect:** Webpack builds without module resolution errors.
+
+### Create React App (CRA)
+
+CRA uses Webpack 5 but does not expose the config. Use CRACO to override:
+
+```bash
+npm install @craco/craco node-polyfill-webpack-plugin --save-dev
+```
+
+Update `package.json` scripts:
+
+```json
+{
+  "scripts": {
+    "start": "craco start",
+    "build": "craco build",
+    "test": "craco test"
+  }
+}
+```
+
+Create `craco.config.js`:
+
+```javascript
+const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
+
+module.exports = {
+  webpack: {
+    plugins: {
+      add: [new NodePolyfillPlugin()],
+    },
+  },
+};
+```
+
+**What to expect:** CRA builds with polyfills applied.
+
+### Angular
+
+Angular uses Webpack internally. Use `ngx-build-plus` to extend the config:
+
+```bash
+npm install ngx-build-plus node-polyfill-webpack-plugin buffer process stream-browserify --save-dev
+```
+
+Update `angular.json`:
+
+```json
+{
+  "projects": {
+    "my-app": {
+      "architect": {
+        "build": {
+          "builder": "ngx-build-plus:browser"
+        },
+        "serve": {
+          "builder": "ngx-build-plus:dev-server"
+        }
+      }
+    }
+  }
+}
+```
+
+Create `webpack.config.js`:
+
+```javascript
+const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
+
+module.exports = {
+  plugins: [new NodePolyfillPlugin()],
+};
+```
+
+Build with the extra config:
+
+```bash
+ng build --extra-webpack-config webpack.config.js
+```
+
+**What to expect:** Angular builds with Node.js polyfills.
+
+### SvelteKit
+
+SvelteKit uses Vite. Follow the Vite instructions above, but update `svelte.config.js`:
+
+```javascript
+import adapter from "@sveltejs/adapter-auto";
+import { vitePreprocess } from "@sveltejs/kit/vite";
+
+/** @type {import('@sveltejs/kit').Config} */
+const config = {
+  preprocess: vitePreprocess(),
+  kit: {
+    adapter: adapter(),
+  },
+};
+
+export default config;
+```
+
+And `vite.config.ts`:
+
+```typescript
+import { sveltekit } from "@sveltejs/kit/vite";
+import { defineConfig } from "vite";
+import rollupNodePolyFill from "rollup-plugin-polyfill-node";
+
+export default defineConfig({
+  plugins: [sveltekit()],
+  build: {
+    rollupOptions: {
+      plugins: [rollupNodePolyFill()],
+    },
+  },
+});
+```
+
+**What to expect:** SvelteKit handles Node.js modules correctly.
+
+## Complete Example: Next.js
+
+Here is a complete Next.js setup:
+
+**package.json:**
+
+```json
+{
+  "dependencies": {
+    "@meshsdk/core": "^1.0.0",
+    "@meshsdk/react": "^1.0.0",
+    "next": "14.0.0",
+    "react": "18.2.0"
+  },
+  "devDependencies": {
+    "node-polyfill-webpack-plugin": "^3.0.0"
+  }
+}
+```
+
+**next.config.js:**
+
+```javascript
+const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.plugins.push(new NodePolyfillPlugin());
+    }
+    return config;
+  },
+};
+
+module.exports = nextConfig;
+```
+
+## Next Steps
+
+- <Link href="/guides/nextjs">Build your first dApp</Link> - Complete Next.js integration
+- <Link href="/svelte">Svelte integration</Link> - Use Mesh with Svelte
+- <Link href="/apis/wallets/browserwallet">BrowserWallet API</Link> - Connect browser wallets
+
+## Troubleshooting
+
+### Error persists after configuration
+
+**Cause:** Bundler cache contains old build artifacts.
+
+**Solution:** Clear the cache and rebuild:
+
+```bash
+# Next.js
+rm -rf .next node_modules/.cache
+npm run build
+
+# Vite
+rm -rf node_modules/.vite
+npm run build
+```
+
+### Multiple Buffer definitions
+
+**Cause:** Different packages include conflicting Buffer implementations.
+
+**Solution:** Ensure only one Buffer polyfill is used:
+
+```typescript
+// Add to entry file
+import { Buffer } from "buffer";
+if (typeof window !== "undefined") {
+  window.Buffer = window.Buffer || Buffer;
+}
+```
+
+### Runtime errors despite successful build
+
+**Cause:** Polyfills are configured for build but not dev server.
+
+**Solution:** Ensure polyfill configuration applies to both build and dev. For Vite, add to `optimizeDeps`:
+
+```typescript
+export default defineConfig({
+  optimizeDeps: {
+    include: ["buffer", "process"],
+  },
+});
+```
+
+### Cannot resolve 'fs' or 'path'
+
+**Cause:** Server-only modules are imported in client code.
+
+**Solution:** These modules cannot be polyfilled. Use dynamic imports or conditional loading:
+
+```typescript
+// Mark as client-only in Next.js
+"use client";
+
+// Or use dynamic import
+const MeshComponent = dynamic(() => import("./MeshComponent"), {
+  ssr: false,
+});
+```
+
+## Related Links
+
+- <Link href="/guides/nextjs">Next.js Integration Guide</Link>
+- <Link href="https://webpack.js.org/configuration/resolve/#resolvefallback">Webpack Resolve Fallback</Link>
+- <Link href="https://vitejs.dev/config/build-options.html">Vite Build Options</Link>

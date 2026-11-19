@@ -1,0 +1,91 @@
+---
+title: sdk/client/Chain.ts
+nav_order: 150
+parent: Modules
+---
+
+## Chain overview
+
+Chain descriptor — bundles all network context needed by clients and builders.
+
+Replaces the stringly-typed `NetworkId` and the separate `slotConfig` parameter.
+Pass a chain preset (`mainnet`, `preprod`, `preview`) or define a custom one for
+private networks and devnets.
+
+Added in v2.1.0
+
+---
+
+<h2 className="text-delta">Table of contents</h2>
+
+- [model](#model)
+  - [Chain (interface)](#chain-interface)
+- [presets](#presets)
+  - [mainnet](#mainnet)
+  - [preprod](#preprod)
+  - [preview](#preview)
+
+---
+
+# model
+
+## Chain (interface)
+
+Describes a Cardano network — its identity, consensus parameters, and slot timing.
+
+**Signature**
+
+```ts
+export interface Chain {
+  /** Numeric network id: 1 = mainnet, 0 = testnet. Used for address encoding. */
+  readonly id: number
+  /** Human-readable name, e.g. "Cardano Mainnet". */
+  readonly name: string
+  /** Network magic — uniquely identifies the network for peer-to-peer communication. */
+  readonly networkMagic: number
+  /** Epoch length in seconds. */
+  readonly epochLength: number
+  /** Slot timing parameters required for validity interval conversion. */
+  readonly slotConfig: SlotConfig
+}
+```
+
+Added in v2.1.0
+
+# presets
+
+## mainnet
+
+Cardano mainnet.
+
+**Signature**
+
+```ts
+export declare const mainnet: Chain
+```
+
+Added in v2.1.0
+
+## preprod
+
+Cardano pre-production testnet.
+
+**Signature**
+
+```ts
+export declare const preprod: Chain
+```
+
+Added in v2.1.0
+
+## preview
+
+Cardano preview testnet.
+
+**Signature**
+
+```ts
+export declare const preview: Chain
+```
+
+Added in v2.1.0

@@ -1,0 +1,407 @@
+---
+title: "Lesson 3: Aiken Contracts"
+description: "Introduction to Aiken smart contract development on Cardano."
+---
+import Link from "fumadocs-core/link";
+
+## Learning Objectives
+
+By the end of this lesson, you will be able to:
+
+- Understand how Cardano validators differ from traditional smart contracts
+- Explain the Transaction structure and its key components
+- Identify and create different types of scripts (minting, spending, withdrawing)
+- Write basic Aiken validators with parameters and redeemers
+- Use the Mesh CLI to scaffold an Aiken project
+
+## Prerequisites
+
+Before starting this lesson, ensure you have:
+
+- Completed <Link href="/resources/cardano-course/02-multisig">Lesson 2: Multi-signature Transactions</Link>
+- Aiken installed on your system (follow the <Link href="https://aiken-lang.org/installation-instructions">official installation guide</Link>)
+- Basic understanding of functional programming concepts
+
+## Key Concepts
+
+### Validators vs Smart Contracts
+
+Cardano contracts work differently from smart contracts on other blockchains. Instead of executing arbitrary code, Cardano uses **validators** - pure functions that return `True` or `False` to approve or reject transactions.
+
+A validator examines the transaction context and decides whether the transaction is valid. If the validator returns `True`, the transaction proceeds. If it returns `False`, the transaction fails.
+
+### Why Validators?
+
+| Traditional Smart Contracts | Cardano Validators |
+|----------------------------|-------------------|
+| Execute arbitrary code | Return only True/False |
+| State stored on-chain | State in UTXOs via datums |
+| Sequential execution | Parallel validation possible |
+| Unpredictable costs | Deterministic costs |
+
+## Step 1: Set Up an Aiken Project
+
+Use the Mesh CLI to create a new Aiken project with a template structure.
+
+```bash
+npx meshjs 03-aiken-contracts
+```
+
+Select the **Aiken** template when prompted.
+
+The command creates this structure:
+
+```
+03-aiken-contracts/
+  aiken-workspace/    # Main Aiken project (used in lessons)
+  mesh/               # Equivalent Mesh off-chain code
+```
+
+Navigate to the Aiken workspace:
+
+```bash
+cd 03-aiken-contracts/aiken-workspace
+```
+
+### Optional: Install Cardano-Bar Extension
+
+If you use VS Code, install the <Link href="https://marketplace.visualstudio.com/items/?itemName=sidan-lab.cardano-bar-vscode">Cardano-Bar extension</Link> for helpful code snippets.
+
+## Step 2: Understand the Transaction Structure
+
+Every Aiken validator receives a `Transaction` object containing all information about the current transaction. Understanding this structure is essential for writing validators.
+
+Refer to the <Link href="https://aiken-lang.github.io/stdlib/cardano/transaction.html#Transaction">Aiken standard library documentation</Link> for complete type definitions.
+
+### Key Transaction Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `inputs` | `List<Input>` | UTXOs being spent |
+| `outputs` | `List<Output>` | UTXOs being created |
+| `reference_inputs` | `List<Input>` | UTXOs referenced but not spent |
+| `mint` | `Value` | Assets being minted or burned |
+| `extra_signatories` | `List<Hash>` | Required signers' public key hashes |
+| `validity_range` | `ValidityRange` | Time bounds for the transaction |
+
+### Inputs and Outputs
+
+Cardano transactions consume existing UTXOs (inputs) and create new UTXOs (outputs).
+
+```
+Input {
+  output_reference: OutputReference,  // Points to previous tx output
+  output: Output                      // The actual UTXO data
+}
+
+Output {
+  address: Address,                   // Destination address
+  value: Value,                       // ADA and tokens
+  datum: Datum,                       // Optional data attachment
+}
+```
+
+Common validation patterns:
+
+- Check if an input spends from a specific address
+- Check if an input contains a specific asset
+- Check if an output sends to a specific address
+- Check if datum contains expected values
+
+### Reference Inputs
+
+`reference_inputs` are UTXOs included in the transaction for reading only - they are not spent. Use these to access data (like oracle prices) without consuming the UTXO.
+
+### Mint Field
+
+The `mint` field lists assets being minted (positive quantities) or burned (negative quantities) in this transaction.
+
+### Extra Signatories
+
+`extra_signatories` contains public key hashes that must sign the transaction. Use this to enforce authorization requirements.
+
+### Validity Range
+
+`validity_range` specifies when the transaction is valid. Use this for time-locked contracts.
+
+## Step 3: Create a Minting Script
+
+Minting scripts validate token creation and burning. The script runs whenever assets under its policy ID are minted or burned.
+
+Create a file `validators/mint.ak`:
+
+```rs
+use cardano/assets.{PolicyId}
+use cardano/transaction.{Transaction, placeholder}
+
+validator always_succeed {
+  mint(_redeemer: Data, _policy_id: PolicyId, _tx: Transaction) {
+    True
+  }
+
+  else(_) {
+    fail @"unsupported purpose"
+  }
+}
+
+test test_always_succeed_minting_policy() {
+  let data = Void
+  always_succeed.mint(data, #"", placeholder)
+}
+```
+
+### Understanding the Code
+
+| Element | Description |
+|---------|-------------|
+| `validator always_succeed` | Declares a validator named `always_succeed` |
+| `mint(...)` | Handler for minting/burning operations |
+| `_redeemer: Data` | User-provided data (underscore means unused) |
+| `_policy_id: PolicyId` | The policy ID being validated |
+| `_tx: Transaction` | The full transaction context |
+| `else(_)` | Fallback for unsupported script purposes |
+
+Build and test:
+
+```bash
+aiken build
+aiken check
+```
+
+### Add Parameters
+
+Make the script more useful by requiring a specific signature:
+
+```rs
+use aiken/crypto.{VerificationKeyHash}
+use cardano/assets.{PolicyId}
+use cardano/transaction.{Transaction}
+use vodka/extra/list.{key_signed}
+
+validator minting_policy(owner_vkey: VerificationKeyHash) {
+  mint(_redeemer: Data, _policy_id: PolicyId, tx: Transaction) {
+    key_signed(tx.extra_signatories, owner_vkey)
+  }
+
+  else(_) {
+    fail @"unsupported purpose"
+  }
+}
+```
+
+The `owner_vkey` parameter is baked into the compiled script at deployment time, creating a unique policy ID for each owner.
+
+### Add Redeemer Logic
+
+Extend the policy to handle different actions:
+
+```rs
+use aiken/crypto.{VerificationKeyHash}
+use cardano/assets.{PolicyId}
+use cardano/transaction.{Transaction}
+use vodka/extra/list.{key_signed}
+use vodka/extra/validity_range.{valid_before}
+use vodka/extra/value.{check_policy_only_burn}
+
+pub type MyRedeemer {
+  MintToken
+  BurnToken
+}
+
+validator minting_policy(
+  owner_vkey: VerificationKeyHash,
+  minting_deadline: Int,
+) {
+  mint(redeemer: MyRedeemer, policy_id: PolicyId, tx: Transaction) {
+    when redeemer is {
+      MintToken -> {
+        let before_deadline = valid_before(tx.validity_range, minting_deadline)
+        let is_owner_signed = key_signed(tx.extra_signatories, owner_vkey)
+        before_deadline? && is_owner_signed?
+      }
+      BurnToken -> check_policy_only_burn(tx.mint, policy_id)
+    }
+  }
+
+  else(_) {
+    fail @"unsupported purpose"
+  }
+}
+```
+
+### Redeemer Types
+
+| Redeemer | Conditions |
+|----------|------------|
+| `MintToken` | Must be before deadline AND signed by owner |
+| `BurnToken` | Only burning allowed (no new minting) |
+
+The `?` operator after boolean expressions enables tracing - if validation fails, it reports which condition failed.
+
+## Step 4: Create a Spending Script
+
+Spending scripts validate when UTXOs at a script address are spent.
+
+Create a file `validators/spend.ak`:
+
+```rs
+use cardano/assets.{PolicyId}
+use cardano/transaction.{OutputReference, Transaction}
+use vodka/extra/list.{inputs_with_policy}
+
+pub type Datum {
+  oracle_nft: PolicyId,
+}
+
+validator hello_world {
+  spend(
+    datum_opt: Option<Datum>,
+    _redeemer: Data,
+    _input: OutputReference,
+    tx: Transaction,
+  ) {
+    when datum_opt is {
+      Some(datum) ->
+        when inputs_with_policy(tx.reference_inputs, datum.oracle_nft) is {
+          [_ref_input] -> True
+          _ -> False
+        }
+      None -> False
+    }
+  }
+
+  else(_) {
+    fail @"unsupported purpose"
+  }
+}
+```
+
+### Understanding Spending Scripts
+
+| Parameter | Description |
+|-----------|-------------|
+| `datum_opt` | Optional datum attached to the UTXO being spent |
+| `redeemer` | User-provided data for this spend action |
+| `input` | Reference to the UTXO being spent |
+| `tx` | Full transaction context |
+
+This example requires a reference input containing an "oracle NFT" to unlock funds.
+
+### Common Datum Pattern: Oracle NFT
+
+A common pattern uses an NFT as a "state thread token" to ensure UTXO uniqueness:
+
+```rs
+pub type Datum {
+  oracle_nft: PolicyId,  // NFT that must be referenced
+}
+```
+
+This pattern:
+1. Creates a unique NFT (only one exists)
+2. Stores the NFT at an oracle address with data in the datum
+3. Requires referencing this UTXO to spend from the validator
+
+## Step 5: Create a Withdrawal Script
+
+Withdrawal scripts validate stake reward withdrawals and are commonly used for validation delegation (covered in Lesson 5).
+
+Create a file `validators/withdraw.ak`:
+
+```rs
+use aiken/crypto.{VerificationKeyHash}
+use cardano/address.{Credential, Script}
+use cardano/certificate.{Certificate}
+use cardano/transaction.{Transaction, placeholder}
+
+validator always_succeed(_key_hash: VerificationKeyHash) {
+  withdraw(_redeemer: Data, _credential: Credential, _tx: Transaction) {
+    True
+  }
+
+  publish(_redeemer: Data, _certificate: Certificate, _tx: Transaction) {
+    True
+  }
+
+  else(_) {
+    fail @"unsupported purpose"
+  }
+}
+
+test test_always_succeed_withdrawal_policy() {
+  let data = Void
+  always_succeed.withdraw("", data, Script(#""), placeholder)
+}
+```
+
+### Withdrawal Script Requirements
+
+All withdrawal scripts must include a `publish` handler because:
+
+1. The script must be registered on-chain before use
+2. Registration creates a certificate
+3. The `publish` function validates registration/deregistration
+
+### When to Use Withdrawal Scripts
+
+Most users stake and withdraw using regular payment keys. However, dApps use withdrawal scripts to:
+
+- Centralize validation logic across multiple validators
+- Implement the "withdraw 0 trick" for efficient validation (see <Link href="/resources/cardano-course/05-avoid-redundant-validation">Lesson 5</Link>)
+
+## Key Concepts Explained
+
+### Script Types Summary
+
+| Type | Triggered When | Common Use |
+|------|---------------|------------|
+| Minting | Assets minted/burned under the policy | Token creation, NFT minting |
+| Spending | UTXO at script address is spent | Escrow, vesting, DeFi protocols |
+| Withdrawing | Stake rewards withdrawn | Validation delegation |
+
+### The `else` Handler
+
+Every validator needs an `else` handler for unsupported purposes:
+
+```rs
+else(_) {
+  fail @"unsupported purpose"
+}
+```
+
+This prevents the script from being used for unintended operations.
+
+### Vodka Library
+
+The examples use <Link href="https://github.com/sidan-lab/vodka">vodka</Link>, a utility library for common Aiken operations:
+
+- `key_signed`: Check if a key hash is in the signatories list
+- `valid_before`: Check if transaction is valid before a time
+- `inputs_with_policy`: Find inputs containing a specific policy
+- `check_policy_only_burn`: Verify only burning occurs
+
+## Exercises
+
+1. **Extend the minting script**: Add a third redeemer action `TransferOwnership` that allows changing the owner key hash (hint: you need to track state).
+
+2. **Time-bounded spending**: Create a spending script that only allows spending after a certain time stored in the datum.
+
+3. **Multi-oracle validation**: Modify the spending script to require references to multiple oracle NFTs.
+
+## Next Steps
+
+You have learned:
+
+- How Cardano validators work
+- The Transaction structure and its components
+- How to write minting, spending, and withdrawal scripts
+- How to use parameters and redeemers
+
+In the next lesson, you learn how to <Link href="/resources/cardano-course/04-contract-testing">test Aiken contracts</Link> using mock transactions.
+
+## Related Links
+
+- <Link href="https://aiken-lang.org/">Aiken Language Documentation</Link>
+- <Link href="https://aiken-lang.github.io/stdlib/">Aiken Standard Library</Link>
+- <Link href="https://app.andamio.io/course/db22e013578fcead6c2fed5446d61891ad31f3cb4955e88d980107e7">Andamio's AikenPBL Course</Link>
+- <Link href="https://github.com/sidan-lab/vodka">Vodka Utility Library</Link>

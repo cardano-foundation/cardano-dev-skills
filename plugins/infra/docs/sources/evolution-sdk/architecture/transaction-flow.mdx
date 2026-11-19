@@ -1,0 +1,415 @@
+---
+title: Transaction Flow
+description: How transactions flow through build, sign, and submit phases with fresh state
+---
+
+## Abstract
+
+Cardano transactions follow a sequential flow: construct valid transaction (build), add witness signatures (sign), and broadcast to network (submit). The architecture enforces this ordering through types—attempting operations out of sequence produces compile-time errors. The critical design decision is **fresh state per execution**: each `build()` call creates independent state from stored program descriptions, enabling safe builder reuse without state contamination.
+
+## Purpose and Scope
+
+This document explains how transaction construction separates **program description** (what to do) from **program execution** (doing it), and why this separation enables safe reuse patterns. It covers the builder→sign→submit flow for signing wallets, and the builder→result flow for read-only wallets.
+
+**Not covered**: Specific API methods for building transactions (see transaction guides), coin selection algorithms (see provider layer), or wallet signing internals (see wallet layer).
+
+## Design Philosophy
+
+Traditional mutable builders face a dilemma: execute operations immediately (preventing inspection before commitment) or accumulate mutable state (creating unsafe reuse patterns). Immediate execution couples program description with execution timing. Mutable state creates cross-contamination when builders are reused.
+
+The architecture resolves this by storing **program descriptions** without executing them. When `build()` is called, the builder creates fresh state and runs all programs sequentially. The same builder can be called multiple times—each execution starts from an empty slate with no contamination from previous runs.
+
+This separation enables template reuse (define a payment pattern once, execute multiple times) and pre-execution inspection (examine the program sequence before committing resources).
+
+## Builder Flow by Wallet Type
+
+The transaction flow varies based on wallet capabilities:
+
+<Mermaid chart={`
+graph TD
+    A[newTx] --> B{Wallet Type?}
+    
+    B -->|Signing Wallet| C["[1] SigningTransactionBuilder"]
+    B -->|Read-Only Wallet| D["[2] ReadOnlyTransactionBuilder"]
+    
+    C --> C1[payToAddress<br/>collectFrom<br/>attachScript]
+    C1 --> C2["build()"]
+    C2 --> C3[SignBuilder]
+    C3 --> C4["sign()"]
+    C4 --> C5[SubmitBuilder]
+    C5 --> C6["submit()"]
+    
+    D --> D1[payToAddress<br/>collectFrom<br/>attachScript]
+    D1 --> D2["build()"]
+    D2 --> D3[TransactionResultBase<br/>unsigned transaction]
+    
+    style B fill:#fff3cd,stroke:#856404,stroke-width:3px,color:#856404
+    style C fill:#f59e0b,stroke:#92400e,stroke-width:3px,color:#ffffff
+    style C1 fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
+    style C2 fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
+    style C3 fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
+    style C4 fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
+    style C5 fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
+    style C6 fill:#2ecc71,stroke:#27ae60,stroke-width:4px,color:#ffffff
+    
+    style D fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+    style D1 fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
+    style D2 fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
+    style D3 fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
+`} />
+
+**[1] SigningTransactionBuilder**: Wallet can sign (seed phrase, private key, or CIP-30)
+- Builder methods append programs to immutable array
+- `build()` creates fresh state, executes programs → returns `SignBuilder`
+- `sign()` adds witnesses → returns `SubmitBuilder`
+- `submit()` broadcasts transaction → returns transaction hash
+
+**[2] ReadOnlyTransactionBuilder**: Wallet cannot sign (read-only or no wallet)
+- Builder methods append programs to immutable array
+- `build()` creates fresh state, executes programs → returns `TransactionResultBase` (unsigned)
+- Type system prevents `sign()` and `submit()` methods from existing
+
+## Fresh State Execution Model
+
+Each `build()` call creates completely independent state. The builder stores program descriptions permanently, but execution state lives only for one build cycle:
+
+<Mermaid chart={`
+sequenceDiagram
+    participant User
+    participant Builder
+    participant State
+    participant Provider
+
+    User->>Builder: newTx().payToAddress(...)
+    Note over Builder: [1] Store program<br/>NO execution
+    
+    User->>Builder: build() #1
+    Builder->>State: [2] Create fresh Refs<br/>outputs: []<br/>inputs: []
+    Builder->>State: [3] Execute all programs
+    State->>Provider: Query UTxOs
+    Provider-->>State: Return UTxOs
+    State->>State: Select inputs<br/>Balance outputs
+    State-->>User: Result #1
+    
+    User->>Builder: build() #2
+    Builder->>State: [2] Create NEW fresh Refs<br/>outputs: []<br/>inputs: []
+    Note over State: Completely independent
+    Builder->>State: [3] Execute all programs
+    State->>Provider: Query UTxOs (fresh)
+    Provider-->>State: Return UTxOs
+    State->>State: Select inputs<br/>Balance outputs
+    State-->>User: Result #2
+`} />
+
+**[1] Program Storage**: Builder methods (payToAddress, collectFrom) append to an immutable program array. No I/O happens yet.
+
+**[2] Fresh State Creation**: Each `build()` creates new `Ref` instances for outputs, inputs, scripts. Previous execution state is discarded.
+
+**[3] Program Execution**: All stored programs run sequentially against fresh state. UTxO queries, coin selection, fee calculation—all independent per execution.
+
+This model provides three critical guarantees:
+1. **Reusability**: Same builder works for multiple transactions without state contamination
+2. **Predictability**: Each execution starts from known empty state, no accumulated side effects
+3. **Concurrency**: Multiple `build()` calls can run concurrently (on different instances) without interference
+
+## Build Phase State Machine
+
+The `build()` execution runs through a multi-phase state machine where each phase handles one aspect of transaction construction and returns the next phase to execute. Each phase is shown below with its complete decision logic derived from the source code.
+
+## [1] Selection Phase
+
+Orchestrates coin selection to cover transaction requirements, handling both initial selection and reselection when additional inputs are needed:
+
+<Mermaid chart={`
+graph TD
+    Start([Start: selection]) --> CalcNeeded[Calculate Required<br/>outputs + shortfall]
+    CalcNeeded --> CheckSufficient{Assets<br/>Sufficient?}
+    
+    CheckSufficient -->|Yes| SkipSelection[Skip Selection<br/>Use Explicit Inputs]
+    CheckSufficient -->|No| IsReselection{Reselection?<br/>shortfall > 0}
+    
+    IsReselection -->|Yes| ReselectLovelace[Select for<br/>Shortfall Amount]
+    IsReselection -->|No| SelectShortfall[Select for<br/>Asset Delta]
+    
+    ReselectLovelace --> IncrementAttempt[Increment Attempt]
+    SelectShortfall --> IncrementAttempt
+    SkipSelection --> IncrementAttempt
+    
+    IncrementAttempt --> HasScripts{Has<br/>Redeemers?}
+    HasScripts -->|Yes| ToCollateral([Next: collateral])
+    HasScripts -->|No| ToChange([Next: changeCreation])
+    
+    style Start fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#000000
+    style ToCollateral fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style ToChange fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style CheckSufficient fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style IsReselection fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style HasScripts fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+`} />
+
+**Key Phase Behaviors:**
+
+- **Sufficiency Check**: Skips coin selection if explicit inputs (from `collectFrom()`) already cover requirements
+- **Normal Selection**: Invokes coin selection algorithm for asset delta when initial inputs insufficient
+- **Reselection Mode**: When change creation sets shortfall, selects specifically for that shortfall amount
+- **Script Routing**: Routes to collateral phase first when redeemers exist (scripts need collateral before change)
+- **Attempt Tracking**: Increments attempt counter after each pass, reset at phase start
+
+Routes to **collateral** first if scripts are present (before change creation), or **changeCreation** for non-script transactions. Reselection adds more UTxOs when shortfall exists from fee increases or minUTxO requirements.
+
+**See Also**: [Coin Selection](/docs/architecture/coin-selection) for algorithm details, largest-first strategy, multi-asset handling, and custom selection functions.
+
+## [2] Change Creation Phase
+
+Creates change outputs from leftover assets using cascading retry strategies:
+
+<Mermaid chart={`
+graph TD
+    Start([Start: changeCreation]) --> CalcLeftover[Calculate Leftover<br/>inputs - outputs - fee]
+    CalcLeftover --> CheckNegative{Leftover<br/>Negative?}
+    
+    CheckNegative -->|Yes| SetShortfall[Set Shortfall]
+    SetShortfall --> BackToSelection([Next: selection])
+    
+    CheckNegative -->|No| CheckMinUTxO{Leftover >=<br/>MinUTxO?}
+    
+    CheckMinUTxO -->|No| HasUTxOs{More UTxOs<br/>Available?}
+    HasUTxOs -->|Yes & attempt < MAX| Reselect[Set Shortfall<br/>Trigger Reselection]
+    Reselect --> BackToSelection
+    HasUTxOs -->|No or MAX reached| HasNativeAssets{Has Native<br/>Assets?}
+    
+    HasNativeAssets -->|Yes| ErrorNative[Error:<br/>Cannot drain/burn tokens]
+    HasNativeAssets -->|No| HasFallback{Has drainTo<br/>or burn?}
+    HasFallback -->|Yes| ToFallback([Next: fallback])
+    HasFallback -->|No| ErrorNoStrategy[Error:<br/>No fallback strategy]
+    
+    CheckMinUTxO -->|Yes| TryUnfrack{Unfrack Enabled<br/>& canUnfrack?}
+    TryUnfrack -->|Yes| CreateUnfrack[Create N Outputs<br/>unfrack strategy]
+    TryUnfrack -->|No| CreateSingle[Create Single<br/>Change Output]
+    
+    CreateUnfrack --> StoreOutputs[Store Change Outputs]
+    CreateSingle --> StoreOutputs
+    StoreOutputs --> ToFee([Next: feeCalculation])
+    
+    style Start fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#000000
+    style BackToSelection fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style ToFallback fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style ToFee fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style CheckNegative fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckMinUTxO fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style HasUTxOs fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style HasNativeAssets fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style HasFallback fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style TryUnfrack fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style ErrorNative fill:#e74c3c,stroke:#c0392b,stroke-width:3px,color:#ffffff
+    style ErrorNoStrategy fill:#e74c3c,stroke:#c0392b,stroke-width:3px,color:#ffffff
+`} />
+
+Returns to **selection** when leftover is negative or below minUTxO, routes to **fallback** when MAX_ATTEMPTS exhausted, proceeds to **feeCalculation** when valid change created.
+
+## [3] Fee Calculation Phase
+
+Calculates transaction fee iteratively based on current transaction structure:
+
+<Mermaid chart={`
+graph TD
+    Start([Start: feeCalculation]) --> BuildInputs[Build Transaction<br/>Inputs]
+    BuildInputs --> CombineOutputs[Combine Base Outputs<br/>+ Change Outputs]
+    CombineOutputs --> CalcBase[Calculate Base Fee<br/>Iteratively]
+    CalcBase --> AddRefScript[Add Reference<br/>Script Fee]
+    AddRefScript --> CalcLeftover[Calculate Leftover<br/>After Fee]
+    CalcLeftover --> StoreContext[Store Fee &<br/>Leftover in Context]
+    StoreContext --> ToBalance([Next: balance])
+    
+    style Start fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#000000
+    style ToBalance fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+`} />
+
+Always proceeds to **balance**. Includes change outputs in fee calculation and stores both calculatedFee and leftoverAfterFee for Balance phase.
+
+## [4] Balance Phase
+
+Verifies that inputs equal outputs plus change plus fees:
+
+<Mermaid chart={`
+graph TD
+    Start([Start: balance]) --> CalcDelta[Calculate Delta<br/>inputs - outputs - change - fee]
+    CalcDelta --> IsBalanced{Delta == 0?}
+    
+    IsBalanced -->|Yes| HasUnevaluated{Has Unevaluated<br/>Redeemers?}
+    HasUnevaluated -->|Yes| ToEval([Next: evaluation])
+    HasUnevaluated -->|No| ToComplete([Next: complete])
+    
+    IsBalanced -->|No| HasNative{Delta Has<br/>Native Assets?}
+    HasNative -->|Yes| ErrorNative[Error: Bug in<br/>Change Creation]
+    
+    HasNative -->|No| CheckSign{Delta > 0?}
+    
+    CheckSign -->|Yes Excess| IsDrainTo{DrainTo<br/>Strategy?}
+    IsDrainTo -->|Yes| MergeDelta[Merge Delta into<br/>Target Output]
+    IsDrainTo -->|No| IsBurn{Burn<br/>Strategy?}
+    IsBurn -->|Yes| BurnDelta[Accept as<br/>Implicit Fee]
+    IsBurn -->|No| ErrorExcess[Error: Unexpected<br/>Positive Delta]
+    
+    MergeDelta --> ToComplete
+    BurnDelta --> ToComplete
+    
+    CheckSign -->|No Shortfall| BackToChange([Next: changeCreation])
+    
+    style Start fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#000000
+    style ToEval fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style ToComplete fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style BackToChange fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style IsBalanced fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style HasUnevaluated fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style HasNative fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckSign fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style IsDrainTo fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style IsBurn fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style ErrorNative fill:#e74c3c,stroke:#c0392b,stroke-width:3px,color:#ffffff
+    style ErrorExcess fill:#e74c3c,stroke:#c0392b,stroke-width:3px,color:#ffffff
+`} />
+
+Routes to **evaluation** when balanced with unevaluated redeemers, **complete** when balanced and evaluated, **changeCreation** on shortfall. Handles drainTo/burn strategies for positive delta.
+
+## [5] Evaluation Phase
+
+Executes script validators to compute execution units (ExUnits) for redeemers. This phase determines the computational cost of running Plutus scripts, which affects transaction fees:
+
+<Mermaid chart={`
+graph TD
+    Start([Start: evaluation]) --> CheckRedeemers{Has<br/>Redeemers?}
+    CheckRedeemers -->|No| SkipEval[Skip Evaluation]
+    CheckRedeemers -->|Yes| AlreadyEval{All<br/>Evaluated?}
+    
+    AlreadyEval -->|Yes| SkipEval
+    AlreadyEval -->|No| GetEvaluator{Evaluator<br/>Available?}
+    
+    GetEvaluator -->|No| ErrorNoEval[Error: No evaluator<br/>provided]
+    GetEvaluator -->|Yes| BuildTx[Build Transaction<br/>for Evaluation]
+    
+    BuildTx --> SerializeCBOR[Serialize to<br/>CBOR Hex]
+    SerializeCBOR --> PrepareContext[Prepare Evaluation<br/>Context cost models]
+    PrepareContext --> CallEvaluator[Call Evaluator<br/>with UTxOs]
+    CallEvaluator --> MatchResults[Match Results to<br/>Redeemers by tag+index]
+    MatchResults --> UpdateExUnits[Update Redeemer<br/>ExUnits]
+    UpdateExUnits --> ToFee([Next: feeCalculation])
+    
+    SkipEval --> ToFee
+    
+    style Start fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#000000
+    style ToFee fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style CheckRedeemers fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style AlreadyEval fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style GetEvaluator fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style ErrorNoEval fill:#e74c3c,stroke:#c0392b,stroke-width:3px,color:#ffffff
+`} />
+
+**Key Phase Behaviors:**
+
+- **Conditional Execution**: Skips entirely if no redeemers present (ADA-only transactions)
+- **Loop Prevention**: Checks if all redeemers already evaluated to prevent infinite re-evaluation
+- **Evaluator Resolution**: Uses provider-based evaluation (default) or custom UPLC evaluator (e.g., Aiken)
+- **ExUnits Update**: Writes computed memory and CPU steps back to redeemer entries
+- **Fee Impact**: Updated ExUnits change transaction size, triggering fee recalculation
+
+Always proceeds to **feeCalculation**. Re-evaluation occurs when ExUnits are invalidated after reselection changes the input set.
+
+**See Also**: [Script Evaluation](/docs/architecture/script-evaluation) for detailed algorithm explanation, custom evaluator patterns, and UPLC execution mechanics.
+
+## [6] Collateral Phase
+
+Selects collateral UTxOs for script transactions (runs before change creation):
+
+<Mermaid chart={`
+graph TD
+    Start([Start: collateral]) --> HasRedeemers{Has<br/>Redeemers?}
+    HasRedeemers -->|No| SkipCollateral[Skip Collateral]
+    HasRedeemers -->|Yes| FilterCandidates[Filter Available UTxOs<br/>exclude ref scripts]
+    
+    FilterCandidates --> HasCandidates{Has<br/>Candidates?}
+    HasCandidates -->|No| ErrorNoCandidates[Error: No suitable<br/>UTxOs for collateral]
+    
+    HasCandidates -->|Yes| SortCandidates[Sort: Pure ADA first<br/>then by amount desc]
+    SortCandidates --> GreedySelect[Greedy Selection<br/>target 5 ADA, max 3 inputs]
+    GreedySelect --> CheckTotal{Total >=<br/>Target?}
+    
+    CheckTotal -->|No| ErrorInsufficient[Error: Insufficient<br/>collateral available]
+    CheckTotal -->|Yes| CalcReturn[Calculate Return<br/>total - target]
+    
+    CalcReturn --> NeedsReturn{Return > 0<br/>or Has Tokens?}
+    NeedsReturn -->|No| StoreNoReturn[Store Collateral<br/>no return output]
+    NeedsReturn -->|Yes| CheckMinUTxO{Return >=<br/>MinUTxO?}
+    
+    CheckMinUTxO -->|No| ErrorMinUTxO[Error: Return below<br/>minUTxO requirement]
+    CheckMinUTxO -->|Yes| CreateReturn[Create Collateral<br/>Return Output]
+    CreateReturn --> StoreWithReturn[Store Collateral<br/>with return]
+    
+    StoreNoReturn --> ToChange([Next: changeCreation])
+    StoreWithReturn --> ToChange
+    SkipCollateral --> ToChange
+    
+    style Start fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#000000
+    style ToChange fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style HasRedeemers fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style HasCandidates fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckTotal fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style NeedsReturn fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckMinUTxO fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style ErrorNoCandidates fill:#e74c3c,stroke:#c0392b,stroke-width:3px,color:#ffffff
+    style ErrorInsufficient fill:#e74c3c,stroke:#c0392b,stroke-width:3px,color:#ffffff
+    style ErrorMinUTxO fill:#e74c3c,stroke:#c0392b,stroke-width:3px,color:#ffffff
+`} />
+
+Always proceeds to **changeCreation**. Skips if no redeemers present. Selects up to 3 pure-ADA UTxOs, creates collateral return output if excess exists.
+
+## [7] Fallback Phase
+
+Handles insufficient change scenarios after MAX_ATTEMPTS exhausted:
+
+<Mermaid chart={`
+graph TD
+    Start([Start: fallback]) --> HasDrainTo{DrainTo<br/>Configured?}
+    
+    HasDrainTo -->|Yes| ValidateIndex{Index<br/>Valid?}
+    ValidateIndex -->|No| ErrorInvalidIndex[Error: Invalid<br/>drainTo index]
+    ValidateIndex -->|Yes| ClearChange1[Clear Change Outputs]
+    ClearChange1 --> ToFee1([Next: feeCalculation<br/>leftover merged in Balance])
+    
+    HasDrainTo -->|No| HasBurn{Burn<br/>Strategy?}
+    HasBurn -->|Yes| ClearChange2[Clear Change Outputs]
+    ClearChange2 --> ToFee2([Next: feeCalculation<br/>leftover becomes fee])
+    
+    HasBurn -->|No| ErrorNoStrategy[Error: No strategy<br/>configured Bug]
+    
+    style Start fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#000000
+    style ToFee1 fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style ToFee2 fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style HasDrainTo fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style ValidateIndex fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style HasBurn fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style ErrorInvalidIndex fill:#e74c3c,stroke:#c0392b,stroke-width:3px,color:#ffffff
+    style ErrorNoStrategy fill:#e74c3c,stroke:#c0392b,stroke-width:3px,color:#ffffff
+`} />
+
+Always proceeds to **feeCalculation**. DrainTo defers actual merge to Balance phase. Burn strategy treats leftover as implicit network fee.
+
+## Integration Points
+
+The transaction builder integrates with two key layers:
+
+**Provider Layer**: During the `build()` phase, the builder queries the provider for:
+- Protocol parameters (fees, transaction size limits)
+- Available UTxOs at wallet addresses
+- Script evaluation (when Plutus scripts are attached)
+
+**Wallet Layer**: The wallet type determines builder capabilities:
+- **Signing wallets** (seed, private key, CIP-30) → `SigningTransactionBuilder` → full build/sign/submit flow
+- **Read-only wallets** → `ReadOnlyTransactionBuilder` → build only, returns unsigned transaction
+- Type system enforces these boundaries at compile time—cannot call `sign()` on read-only builder
+
+## Related Topics
+
+- [Deferred Execution](/docs/architecture/deferred-execution) - How program descriptions enable composition
+- [Provider Layer](/docs/architecture/provider-layer) - Blockchain data queries during build phase
+- [Wallet Layer](/docs/architecture/wallet-layer) - Signing capabilities and type constraints

@@ -1,0 +1,129 @@
+---
+title: "x402 Payments on Cardano"
+description: "Charge for an API or page with Cardano. The server answers 402, the client pays, the content unlocks."
+icon: CreditCardIcon
+---
+
+x402 turns an HTTP `402 Payment Required` into a real payment. A client asks for something, the server says what it costs, the client pays, and the server hands over the content. No accounts, no API keys, no checkout page.
+
+`@meshsdk/x402` implements the Cardano `exact` scheme of [x402](https://github.com/x402-foundation/x402) v2 ([spec](https://github.com/x402-foundation/x402/blob/main/specs/schemes/exact/scheme_exact_cardano.md)).
+
+```bash
+npm install @meshsdk/x402
+```
+
+## How is this different from a normal Cardano payment?
+
+Normally you build a transaction, submit it, then tell the server "I paid, here is the hash" and the server has to query and match it against the blockchain.
+
+With x402 the payment is part of the request:
+
+| | Normal payment | x402 |
+|---|---|---|
+| Who states the price | Your docs or a checkout page | The server, in the `402` response |
+| Who submits the transaction | You | A facilitator, after checking it |
+| How the server knows it was paid | You send a hash, it looks it up | It gets the confirmation before it answers |
+| Reuse of one payment | Server must track it | Blocked by the protocol |
+| Payment tied to the request | No | Yes, to exactly the terms offered |
+
+The money still moves as an ordinary Cardano transaction. x402 is the HTTP layer around it.
+
+## The flow
+
+```text
+client                      server                     facilitator            Cardano
+  | GET /weather              |                            |                     |
+  |-------------------------->|                            |                     |
+  |  402 + price              |                            |                     |
+  |<--------------------------|                            |                     |
+  | builds + signs tx         |                            |                     |
+  | GET /weather + signed tx  |                            |                     |
+  |-------------------------->| verify, then settle        |                     |
+  |                           |--------------------------->| submits, waits      |
+  |                           |                            |-------------------->|
+  |  200 + content            |        confirmed           |                     |
+  |<--------------------------|<---------------------------|                     |
+```
+
+The client never broadcasts. It signs and attaches the transaction to the retry (`PAYMENT-SIGNATURE` header). The server's price travels in `PAYMENT-REQUIRED`, and the result in `PAYMENT-RESPONSE`.
+
+## Try it: three small pieces
+
+**Facilitator** checks and submits payments. It needs no wallet.
+
+```ts
+import { BlockfrostProvider } from "@meshsdk/provider";
+import { chainStateFrom, createFacilitatorApp } from "@meshsdk/x402";
+import { serveMeshHttp } from "@meshsdk/x402/http";
+
+const provider = new BlockfrostProvider("<BLOCKFROST_PREPROD_KEY>");
+
+const facilitator = createFacilitatorApp({
+  fetcher: provider,
+  submitter: provider,
+  supportedNetworks: ["cardano:preprod"],
+  resolveChainState: chainStateFrom(provider),
+});
+serveMeshHttp(facilitator, { port: 8787 });
+```
+
+**Server** puts a price on a route.
+
+```ts
+import { buildDefaultOffer, createFacilitatorClient, createPaywall } from "@meshsdk/x402";
+
+const paywall = createPaywall({
+  network: "cardano:preprod",
+  facilitator: createFacilitatorClient("http://localhost:8787"),
+  issue: () =>
+    buildDefaultOffer({ network: "cardano:preprod", amount: "2000000", payTo: "addr_test1..." }),
+  serve: () => Response.json({ city: "Lagos", tempC: 31 }),
+});
+
+// createMeshHttpApp() from "@meshsdk/x402/http", but any framework that gives you a Request works
+app.get("/weather", (c) => paywall(c.req.raw));
+```
+
+**Client** pays and gets the content.
+
+```ts
+import { chainStateFrom, fetchWithPayment } from "@meshsdk/x402";
+
+const { protocol, currentSlot } = await chainStateFrom(provider)();
+
+const { response, paymentResponse } = await fetchWithPayment(
+  "http://localhost:3000/weather",
+  undefined,
+  wallet, // a MeshWallet
+  { fetcher: provider, protocol, currentSlot },
+);
+
+console.log(await response.json());      // { city: "Singapore", tempC: 18 }
+console.log(paymentResponse?.transaction); // the Cardano tx hash
+```
+
+That is the whole loop. Details: [client](/apis/x402/client), [server](/apis/x402/server), [facilitator](/apis/x402/facilitator), [withdrawal](/apis/x402/withdrawal).
+
+## Three ways to get paid
+
+Pick one per offer with `extra.assetTransferMethod`.
+
+| Method | Money goes to | Use it for |
+|---|---|---|
+| `default` | Your address | Plain pay-per-request |
+| `script` | A script address you choose, with an optional datum | Locking payments into your own contract |
+| `masumi` | The Masumi escrow contract | Agent jobs with refunds and disputes ([details](/apis/x402/masumi)) |
+
+You can charge in `lovelace` or any native token (`policyId.assetNameHex`). Getting the money out afterwards depends on the method: [withdrawal](/apis/x402/withdrawal).
+
+## Waiting for confirmations
+
+Set how sure you want to be before the content is released:
+
+```ts
+buildDefaultOffer({ network: "cardano:preprod", amount: "2000000", payTo, confirmations: 1 });
+```
+
+`1` is the default (one block on top). `0` is "in a block", up to `20` is safer. `-1` releases on mempool acceptance and can be rolled back, so avoid it for anything valuable.
+
+Networks: `cardano:mainnet`, `cardano:preprod`, `cardano:preview`.

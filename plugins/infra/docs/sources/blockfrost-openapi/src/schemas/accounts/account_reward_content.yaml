@@ -1,0 +1,50 @@
+type: array
+items:
+  type: object
+  properties:
+    epoch:
+      type: integer
+      description: Epoch of the associated reward
+    amount:
+      type: string
+      description: Rewards for given epoch in Lovelaces
+    pool_id:
+      type: string
+      description: Bech32 pool ID being delegated to
+    type:
+      type: string
+      enum:
+        - leader
+        - member
+        - pool_deposit_refund
+      description: Type of the reward
+  required:
+    - epoch
+    - amount
+    - pool_id
+    - type
+example:
+  - epoch: 215
+    amount: "12695385"
+    pool_id: "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy"
+    type: member
+  - epoch: 216
+    amount: "3586329"
+    pool_id: "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy"
+    type: member
+  - epoch: 217
+    amount: "1"
+    pool_id: "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy"
+    type: member
+  - epoch: 217
+    amount: "1337"
+    pool_id: "pool1cytwr0n7eas6du2h2xshl8ypa1yqr18f0erlhhjcuczysiunjcs"
+    type: leader
+  - epoch: 218
+    amount: "1395265"
+    pool_id: "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy"
+    type: member
+  - epoch: 218
+    amount: "500000000"
+    pool_id: "pool1cytwr0n7eas6du2h2xshl8ypa1yqr18f0erlhhjcuczysiunjcs"
+    type: pool_deposit_refund

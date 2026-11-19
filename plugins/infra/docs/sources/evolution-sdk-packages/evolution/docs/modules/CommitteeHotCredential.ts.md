@@ -1,0 +1,182 @@
+---
+title: CommitteeHotCredential.ts
+nav_order: 39
+parent: Modules
+---
+
+## CommitteeHotCredential overview
+
+Committee Hot Credential module - provides an alias for Credential specialized for committee hot key usage.
+
+In Cardano, committee_hot_credential = credential, representing the same credential structure
+but used specifically for committee hot keys in governance.
+
+Implements CIP-129 bech32 encoding with "cc_hot" prefix.
+
+Added in v2.0.0
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [encoding](#encoding)
+  - [toBech32](#tobech32)
+  - [toBytes](#tobytes)
+  - [toHex](#tohex)
+- [parsing](#parsing)
+  - [fromBech32](#frombech32)
+  - [fromBytes](#frombytes)
+  - [fromHex](#fromhex)
+- [transformations](#transformations)
+  - [FromBech32](#frombech32-1)
+  - [FromBytes](#frombytes-1)
+  - [FromHex](#fromhex-1)
+- [utils](#utils)
+  - [CommitteeHotCredential](#committeehotcredential)
+
+---
+
+# encoding
+
+## toBech32
+
+Encode Committee Hot Credential to Bech32 string (CIP-129 format).
+
+**Signature**
+
+```ts
+export declare const toBech32: (a: KeyHash.KeyHash | ScriptHash.ScriptHash, overrideOptions?: ParseOptions) => string
+```
+
+Added in v2.0.0
+
+## toBytes
+
+Encode Committee Hot Credential to CIP-129 bytes.
+
+**Signature**
+
+```ts
+export declare const toBytes: (a: KeyHash.KeyHash | ScriptHash.ScriptHash, overrideOptions?: ParseOptions) => any
+```
+
+Added in v2.0.0
+
+## toHex
+
+Encode Committee Hot Credential to hex string.
+
+**Signature**
+
+```ts
+export declare const toHex: (a: KeyHash.KeyHash | ScriptHash.ScriptHash, overrideOptions?: ParseOptions) => string
+```
+
+Added in v2.0.0
+
+# parsing
+
+## fromBech32
+
+Parse Committee Hot Credential from Bech32 string (CIP-129 format).
+
+**Signature**
+
+```ts
+export declare const fromBech32: (i: string, overrideOptions?: ParseOptions) => KeyHash.KeyHash | ScriptHash.ScriptHash
+```
+
+Added in v2.0.0
+
+## fromBytes
+
+Parse Committee Hot Credential from CIP-129 bytes.
+
+**Signature**
+
+```ts
+export declare const fromBytes: (i: any, overrideOptions?: ParseOptions) => KeyHash.KeyHash | ScriptHash.ScriptHash
+```
+
+Added in v2.0.0
+
+## fromHex
+
+Parse Committee Hot Credential from hex string.
+
+**Signature**
+
+```ts
+export declare const fromHex: (i: string, overrideOptions?: ParseOptions) => KeyHash.KeyHash | ScriptHash.ScriptHash
+```
+
+Added in v2.0.0
+
+# transformations
+
+## FromBech32
+
+Transform from Bech32 string to Committee Hot Credential following CIP-129.
+Bech32 prefix: "cc_hot" for both KeyHash and ScriptHash
+
+**Signature**
+
+```ts
+export declare const FromBech32: Schema.transformOrFail<
+  typeof Schema.String,
+  Schema.SchemaClass<KeyHash.KeyHash | ScriptHash.ScriptHash, KeyHash.KeyHash | ScriptHash.ScriptHash, never>,
+  never
+>
+```
+
+Added in v2.0.0
+
+## FromBytes
+
+Transform from CIP-129 bytes (29 bytes) to Committee Hot Credential.
+Format: [header_byte(1)][credential_bytes(28)]
+Header byte for cc_hot:
+
+- 0x1E = KeyHash (bits: 0001 1110 = key type 0x01, cred type 0x0E)
+- 0x1F = ScriptHash (bits: 0001 1111 = key type 0x01, cred type 0x0F)
+
+**Signature**
+
+```ts
+export declare const FromBytes: Schema.transformOrFail<
+  typeof Schema.Uint8ArrayFromSelf,
+  Schema.SchemaClass<KeyHash.KeyHash | ScriptHash.ScriptHash, KeyHash.KeyHash | ScriptHash.ScriptHash, never>,
+  never
+>
+```
+
+Added in v2.0.0
+
+## FromHex
+
+Transform from hex string to Committee Hot Credential.
+
+**Signature**
+
+```ts
+export declare const FromHex: Schema.transform<
+  Schema.Schema<Uint8Array, string, never>,
+  Schema.transformOrFail<
+    typeof Schema.Uint8ArrayFromSelf,
+    Schema.SchemaClass<KeyHash.KeyHash | ScriptHash.ScriptHash, KeyHash.KeyHash | ScriptHash.ScriptHash, never>,
+    never
+  >
+>
+```
+
+Added in v2.0.0
+
+# utils
+
+## CommitteeHotCredential
+
+**Signature**
+
+```ts
+export declare const CommitteeHotCredential: typeof Credential
+```

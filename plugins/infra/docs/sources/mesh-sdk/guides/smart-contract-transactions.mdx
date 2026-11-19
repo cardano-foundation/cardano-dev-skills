@@ -1,0 +1,496 @@
+---
+title: "Build NFT Marketplace Smart Contract Transactions"
+description: "Build transactions for listing, purchasing, canceling, and updating NFTs with Cardano smart contracts using Mesh SDK."
+---
+
+import Link from "fumadocs-core/link";
+import { HowToSchema } from "@/components/seo";
+
+<HowToSchema
+  name="Build NFT Marketplace Transactions with Cardano Smart Contracts"
+  description="Construct listing, purchasing, canceling, and updating transactions for an NFT marketplace on Cardano."
+  totalTime="PT60M"
+  steps={[
+    { name: "Load Plutus script", text: "Initialize the compiled contract and resolve script address." },
+    { name: "List an asset", text: "Send NFT to script address with datum containing sale details." },
+    { name: "Cancel listing", text: "Redeem UTxO as seller with cancel redeemer." },
+    { name: "Purchase asset", text: "Pay seller and receive NFT with buy redeemer." },
+    { name: "Update price", text: "Redeem and re-list with new datum." }
+  ]}
+/>
+
+## Overview
+
+In this guide, you build the transaction patterns for an NFT marketplace on Cardano. You learn how to construct listing, purchasing, canceling, and updating transactions using Plutus smart contracts on the [eUTXO model](https://docs.cardano.org/about-cardano/learn/eutxo-explainer/).
+
+### What you will build
+
+- Listing transactions that lock NFTs at a script address
+- Purchase transactions that pay sellers and transfer ownership
+- Cancel and update transactions for seller management
+
+### What you will learn
+
+- Locking assets at script addresses with datums
+- Spending from scripts with redeemers
+- Authorization patterns with required signers
+
+### Prerequisites
+
+- A deployed Plutus smart contract (see <Link href="/guides/aiken">Aiken guide</Link>)
+- Next.js application with Mesh SDK
+- Understanding of datums and redeemers
+
+### Time to complete
+
+60 minutes
+
+## Quick Start
+
+This guide uses a simple marketplace contract. View the complete example:
+
+- <Link href="https://github.com/MeshJS/examples">GitHub examples repository</Link>
+
+## Step-by-Step Guide
+
+### Step 1: Load the Plutus script
+
+Load your compiled marketplace contract:
+
+```typescript
+import { resolvePlutusScriptAddress } from "@meshsdk/core";
+import type { PlutusScript, Data } from "@meshsdk/core";
+
+// Your compiled Plutus script in CBOR format
+const scriptCbor = "590795..."; // Full CBOR hex string
+
+const script: PlutusScript = {
+  code: scriptCbor,
+  version: "V2",
+};
+
+// Get the script address (0 = testnet, 1 = mainnet)
+const scriptAddress = resolvePlutusScriptAddress(script, 0);
+```
+
+**What to expect:** A script address where marketplace UTxOs are stored.
+
+### Step 2: Define the datum structure
+
+The datum stores sale information:
+
+```typescript
+import { resolvePaymentKeyHash } from "@meshsdk/core";
+
+function createListingDatum(
+  sellerAddress: string,
+  priceLovelace: string,
+  policyId: string,
+  assetName: string
+): Data {
+  return {
+    alternative: 0,
+    fields: [
+      resolvePaymentKeyHash(sellerAddress), // seller pubkey hash
+      priceLovelace, // price in lovelace
+      policyId, // NFT policy ID
+      assetName, // NFT asset name (hex)
+    ],
+  };
+}
+```
+
+**What to expect:** A datum constructor for marketplace listings.
+
+### Step 3: List an asset for sale
+
+Send the NFT to the script address with the listing datum:
+
+```typescript
+import { MeshTxBuilder, KoiosProvider, resolvePaymentKeyHash } from "@meshsdk/core";
+import { useWallet } from "@meshsdk/react";
+
+async function listNFT(
+  policyId: string,
+  assetName: string,
+  priceLovelace: string
+) {
+  const provider = new KoiosProvider("preprod");
+  const { wallet } = useWallet();
+
+  const utxos = await wallet.getUtxos();
+  const changeAddress = await wallet.getChangeAddress();
+  const sellerAddress = (await wallet.getUsedAddresses())[0];
+
+  // Create the listing datum
+  const datum = createListingDatum(
+    sellerAddress,
+    priceLovelace,
+    policyId,
+    assetName
+  );
+
+  const assetUnit = policyId + assetName;
+
+  const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+  const unsignedTx = await txBuilder
+    // Send NFT to script with datum
+    .txOut(scriptAddress, [{ unit: assetUnit, quantity: "1" }])
+    .txOutDatumHashValue(datum)
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  const signedTx = await wallet.signTx(unsignedTx);
+  const txHash = await wallet.submitTx(signedTx);
+
+  console.log("Listed NFT:", txHash);
+  return txHash;
+}
+```
+
+**What to expect:** The NFT is locked at the script address with sale information in the datum.
+
+### Step 4: Find a listing UTxO
+
+Helper function to find a specific listing:
+
+```typescript
+import { resolveDataHash } from "@meshsdk/core";
+
+async function findListingUtxo(
+  scriptAddress: string,
+  assetUnit: string,
+  datum: Data
+) {
+  const provider = new KoiosProvider("preprod");
+  const utxos = await provider.fetchAddressUTxOs(scriptAddress, assetUnit);
+
+  if (utxos.length === 0) {
+    throw new Error("No listing found for this asset");
+  }
+
+  // Match by datum hash
+  const dataHash = resolveDataHash(datum);
+  const listingUtxo = utxos.find(
+    (utxo) => utxo.output.dataHash === dataHash
+  );
+
+  if (!listingUtxo) {
+    throw new Error("Listing not found with matching datum");
+  }
+
+  return listingUtxo;
+}
+```
+
+**What to expect:** A function to locate specific marketplace listings.
+
+### Step 5: Cancel a listing
+
+Only the seller can cancel. Use redeemer alternative 1:
+
+```typescript
+async function cancelListing(
+  policyId: string,
+  assetName: string,
+  priceLovelace: string
+) {
+  const provider = new KoiosProvider("preprod");
+  const { wallet } = useWallet();
+
+  const utxos = await wallet.getUtxos();
+  const changeAddress = await wallet.getChangeAddress();
+  const sellerAddress = (await wallet.getUsedAddresses())[0];
+  const collateral = await wallet.getCollateral();
+
+  // Recreate the original datum
+  const datum = createListingDatum(
+    sellerAddress,
+    priceLovelace,
+    policyId,
+    assetName
+  );
+
+  const assetUnit = policyId + assetName;
+  const listingUtxo = await findListingUtxo(scriptAddress, assetUnit, datum);
+
+  // Cancel redeemer (alternative 1)
+  const redeemer: Data = { alternative: 1, fields: [] };
+
+  const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+  const unsignedTx = await txBuilder
+    .spendingPlutusScriptV2()
+    .txIn(listingUtxo.input.txHash, listingUtxo.input.outputIndex)
+    .txInDatumValue(datum)
+    .txInRedeemerValue(redeemer)
+    .txInScript(script.code)
+    // Return NFT to seller
+    .txOut(sellerAddress, listingUtxo.output.amount)
+    // Seller must sign
+    .requiredSignerHash(resolvePaymentKeyHash(sellerAddress))
+    .txInCollateral(
+      collateral[0].input.txHash,
+      collateral[0].input.outputIndex,
+      collateral[0].output.amount,
+      collateral[0].output.address
+    )
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  const signedTx = await wallet.signTx(unsignedTx, true);
+  const txHash = await wallet.submitTx(signedTx);
+
+  console.log("Cancelled listing:", txHash);
+  return txHash;
+}
+```
+
+**What to expect:** The NFT returns to the seller's wallet.
+
+### Step 6: Purchase a listed asset
+
+Buyer pays the seller and receives the NFT. Use redeemer alternative 0:
+
+```typescript
+async function purchaseNFT(
+  sellerAddress: string,
+  policyId: string,
+  assetName: string,
+  priceLovelace: string
+) {
+  const provider = new KoiosProvider("preprod");
+  const { wallet } = useWallet();
+
+  const utxos = await wallet.getUtxos();
+  const changeAddress = await wallet.getChangeAddress();
+  const buyerAddress = (await wallet.getUsedAddresses())[0];
+  const collateral = await wallet.getCollateral();
+
+  // Reconstruct the listing datum
+  const datum = createListingDatum(
+    sellerAddress,
+    priceLovelace,
+    policyId,
+    assetName
+  );
+
+  const assetUnit = policyId + assetName;
+  const listingUtxo = await findListingUtxo(scriptAddress, assetUnit, datum);
+
+  // Buy redeemer (alternative 0)
+  const redeemer: Data = { alternative: 0, fields: [] };
+
+  const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+  const unsignedTx = await txBuilder
+    .spendingPlutusScriptV2()
+    .txIn(listingUtxo.input.txHash, listingUtxo.input.outputIndex)
+    .txInDatumValue(datum)
+    .txInRedeemerValue(redeemer)
+    .txInScript(script.code)
+    // Send NFT to buyer
+    .txOut(buyerAddress, [{ unit: assetUnit, quantity: "1" }])
+    // Pay seller
+    .txOut(sellerAddress, [{ unit: "lovelace", quantity: priceLovelace }])
+    // Buyer must sign
+    .requiredSignerHash(resolvePaymentKeyHash(buyerAddress))
+    .txInCollateral(
+      collateral[0].input.txHash,
+      collateral[0].input.outputIndex,
+      collateral[0].output.amount,
+      collateral[0].output.address
+    )
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  const signedTx = await wallet.signTx(unsignedTx, true);
+  const txHash = await wallet.submitTx(signedTx);
+
+  console.log("Purchased NFT:", txHash);
+  return txHash;
+}
+```
+
+**What to expect:** The buyer receives the NFT and the seller receives payment.
+
+### Step 7: Update listing price
+
+Redeem the UTxO and re-list with a new price:
+
+```typescript
+async function updateListingPrice(
+  policyId: string,
+  assetName: string,
+  currentPrice: string,
+  newPrice: string
+) {
+  const provider = new KoiosProvider("preprod");
+  const { wallet } = useWallet();
+
+  const utxos = await wallet.getUtxos();
+  const changeAddress = await wallet.getChangeAddress();
+  const sellerAddress = (await wallet.getUsedAddresses())[0];
+  const collateral = await wallet.getCollateral();
+
+  // Current listing datum
+  const currentDatum = createListingDatum(
+    sellerAddress,
+    currentPrice,
+    policyId,
+    assetName
+  );
+
+  // New listing datum with updated price
+  const newDatum = createListingDatum(
+    sellerAddress,
+    newPrice,
+    policyId,
+    assetName
+  );
+
+  const assetUnit = policyId + assetName;
+  const listingUtxo = await findListingUtxo(scriptAddress, assetUnit, currentDatum);
+
+  // Update uses cancel redeemer (alternative 1)
+  const redeemer: Data = { alternative: 1, fields: [] };
+
+  const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+  const unsignedTx = await txBuilder
+    .spendingPlutusScriptV2()
+    .txIn(listingUtxo.input.txHash, listingUtxo.input.outputIndex)
+    .txInDatumValue(currentDatum)
+    .txInRedeemerValue(redeemer)
+    .txInScript(script.code)
+    // Re-list at script with new datum
+    .txOut(scriptAddress, [{ unit: assetUnit, quantity: "1" }])
+    .txOutDatumHashValue(newDatum)
+    .requiredSignerHash(resolvePaymentKeyHash(sellerAddress))
+    .txInCollateral(
+      collateral[0].input.txHash,
+      collateral[0].input.outputIndex,
+      collateral[0].output.amount,
+      collateral[0].output.address
+    )
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  const signedTx = await wallet.signTx(unsignedTx, true);
+  const txHash = await wallet.submitTx(signedTx);
+
+  console.log("Updated listing price:", txHash);
+  return txHash;
+}
+```
+
+**What to expect:** The listing is updated with the new price while remaining at the script address.
+
+## Complete Example
+
+Here is a complete React component with all marketplace actions:
+
+```typescript
+import { useState } from "react";
+import { CardanoWallet, useWallet } from "@meshsdk/react";
+import {
+  MeshTxBuilder,
+  KoiosProvider,
+  resolvePaymentKeyHash,
+  resolveDataHash,
+  resolvePlutusScriptAddress,
+} from "@meshsdk/core";
+import type { PlutusScript, Data, UTxO } from "@meshsdk/core";
+
+// Your marketplace script
+const script: PlutusScript = {
+  code: "590795...", // Your compiled script
+  version: "V2",
+};
+const scriptAddress = resolvePlutusScriptAddress(script, 0);
+
+export default function Marketplace() {
+  const { wallet, connected } = useWallet();
+  const [loading, setLoading] = useState(false);
+
+  // Implement list, cancel, purchase, update functions here
+  // using the patterns shown above
+
+  return (
+    <div className="p-8">
+      <h1 className="text-2xl font-bold mb-4">NFT Marketplace</h1>
+      <CardanoWallet />
+
+      {connected && (
+        <div className="mt-4 space-y-4">
+          <button
+            onClick={() => listNFT("policyId", "assetName", "10000000")}
+            disabled={loading}
+            className="px-4 py-2 bg-blue-500 text-white rounded"
+          >
+            List NFT for 10 ADA
+          </button>
+
+          {/* Add more action buttons */}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## Next Steps
+
+- <Link href="/guides/aiken">Write custom validators with Aiken</Link>
+- <Link href="/guides/vesting">Build a vesting contract</Link>
+- <Link href="/apis/txbuilder">Advanced transaction patterns</Link>
+
+## Troubleshooting
+
+### Script validation failed
+
+**Cause:** Datum or redeemer does not match contract expectations.
+
+**Solution:** Ensure the datum fields match your contract's expected structure. Check that the redeemer alternative matches the action (0 for buy, 1 for cancel in this example).
+
+### UTxO not found
+
+**Cause:** The listing was already purchased or cancelled.
+
+**Solution:** Verify the listing exists before building the transaction. Implement a refresh mechanism in your UI.
+
+### Collateral required error
+
+**Cause:** No collateral set in the wallet.
+
+**Solution:** Enable collateral in wallet settings. Most wallets require at least 5 ADA:
+
+```typescript
+const collateral = await wallet.getCollateral();
+if (collateral.length === 0) {
+  throw new Error("Please set collateral in your wallet");
+}
+```
+
+### Authorization failed
+
+**Cause:** The signer does not match the datum's seller address.
+
+**Solution:** Ensure `requiredSignerHash` matches the original seller for cancel/update operations.
+
+## References
+
+- [Cardano eUTXO Model](https://docs.cardano.org/about-cardano/learn/eutxo-explainer/) - Understanding the extended UTXO model that enables deterministic smart contracts
+- [Aiken Smart Contract Language](https://aiken-lang.org/) - Official documentation for writing Cardano validators
+- [Cardano Developer Portal](https://developers.cardano.org) - Official Cardano development resources and smart contract guides
+
+## Related Links
+
+- <Link href="/guides/aiken">Getting Started with Aiken</Link>
+- <Link href="/guides/vesting">Vesting Contract Guide</Link>
+- <Link href="/apis/txbuilder">Transaction Builder API</Link>

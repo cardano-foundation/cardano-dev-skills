@@ -1,0 +1,99 @@
+# Amaru TUI
+
+`amaru-tui` is the terminal UI used by Amaru when running in an interactive
+terminal. It is launched automatically by `amaru node run` when `--tui-off` is
+not set.
+
+The architectural rationale lives in
+[EDR 030](../../engineering-decision-records/030-embedded-terminal-observability-ui.md).
+
+## Crate layout
+
+- `src/capture.rs`: captures in-process tracing records
+- `src/session.rs`: owns the terminal thread and runtime wiring
+- `src/startup.rs`: static startup context and config sections
+- `src/model.rs`: root app model and tests
+- `src/model/`: bounded submodels plus reducer slices grouped by concern
+  - `interaction.rs`: keyboard, mouse, focus, pane toggles, paging
+  - `telemetry_update.rs`: folds OTLP-derived telemetry into model state
+  - `metrics_update.rs`: folds OTLP-derived metrics into UI state
+  - `queries.rs`: derived read-only views over bounded model state
+- `src/ui/mod.rs`: thin compositor and shell chrome
+- `src/ui/common.rs`: shared border, scrollbar, gradient, and layout helpers
+- `src/ui/format.rs` and `src/ui/theme.rs`: shared formatting and styling primitives
+
+## Maintenance contract
+
+Most changes should fall into one of two buckets:
+
+- UI work: layout, formatting, focus, copy mode, shutdown mode, new widgets
+- observability work: telemetry or metrics changed and the reducer must follow
+
+The crate should not become a backdoor into Amaru internals. Prefer deriving
+new state from telemetry or shared metrics over introducing direct database or
+store access.
+
+Embedded sessions use the same model and reducers. The only extra wiring is:
+
+- an in-process tracing layer that forwards structured telemetry into the TUI
+- a single in-process callback that mirrors local `MetricsEvent`s
+
+Shared metrics should remain about the Amaru process itself and the small set of
+host totals that are genuinely useful to export globally. Process memory
+footprint is sampled by Amaru itself and exported through the normal system
+metrics payload, so the TUI consumes one metrics stream.
+
+The TUI keeps bounded state rather than user-selectable rolling time windows.
+Throughput and peer timing widgets use exponential moving averages, rollback
+widgets keep a bounded recent history, and the log pane keeps a memory-bounded
+stream (default 100MiB, `--tui-log-retention` / `AMARU_TUI_LOG_RETENTION`) with
+staggered thinning toward older times: 70% debug and up, 10% info and up, 10%
+warn and up, 10% error. Process and host resource gauges render from the latest
+merged `SystemSample` snapshot rather than keeping historical TUI-local copies.
+
+Keyboard controls deliberately use a small command hierarchy. Directional keys
+scroll the focused panel, with `Ctrl` taking a scrollbar-sized step; `PgUp`,
+`PgDn`, `Home`, and `End` remain available without cluttering the footer. `;`
+cycles focus and `Tab` changes page. Press `f` before selecting log filtering,
+highlighting, time jumps, or wrapping; press `q` again or `y` before shutdown.
+`Esc` always leaves the current command level, switching between normal and
+copy mode only at the top level. Copy mode removes shell and panel borders,
+scrollbars, and separators. On log pages the mouse stays captured: click a line
+then click another to mark a time range (a later click moves the nearer end;
+drag also works), then `e` writes the currently visible lines in that range
+(or every visible line if nothing is selected) to a plain-text file in the
+working directory. On the Config page, mouse capture is still released so the
+terminal can select text. In the live dashboard the TUI copies text itself:
+double-click a value, or drag across the characters. A peer address copies as
+`ip:port`. The screen does not update until the drag is released. On this Mac
+the text goes to the clipboard. Inside tmux it also goes to the tmux paste buffer.
+
+`AMARU_TUI_ALIASES` replaces keyboard controls with comma-separated
+`key=alias` entries, for example `esc=~,ctrl+up=j,ctrl+down=k`. The `ctrl+` and
+`shift+` prefixes mean Ctrl and Shift. Aliases must leave every control with a unique
+physical key; the TUI aborts startup with the conflicting controls otherwise.
+The footer renders simple aliases directly and uses `aliased` for grouped page
+or scrolling controls when any key in the group changes.
+
+Configuration and protocol tables size their identifier columns from the
+content currently displayed. The environment-variable column is omitted when
+the terminal cannot show it without compromising the option and value columns.
+
+For telemetry, prefer the schema-generated helpers exported by
+`amaru-observability` for both event matching and field decoding. Avoid raw
+field-name strings in reducers when a generated accessor exists.
+
+When changing the TUI itself:
+
+- keep `src/ui/mod.rs` thin; prefer pushing widget rendering into
+  `src/ui/components/` and page layout into `src/ui/screens/`
+- keep the root `Model` as the bounded state container and split update logic by
+  concern under `src/model/`
+- prefer adding local helper functions next to the screen/component that uses
+  them over growing generic utility modules prematurely
+
+## Useful commands
+
+- `cargo check -p amaru-tui -p amaru`
+- `cargo test -p amaru-tui`
+- `cargo run -p amaru -- node run --network preview`

@@ -1,0 +1,550 @@
+---
+title: "Migrate from Lucid to Mesh"
+description: "Step-by-step migration guide from Lucid to Mesh SDK with API mapping, code examples, and common patterns."
+---
+
+import Link from "fumadocs-core/link";
+import { HowToSchema } from "@/components/seo";
+
+<HowToSchema
+  name="Migrate from Lucid to Mesh"
+  description="Step-by-step migration guide from Lucid to Mesh with API mapping and code patterns."
+  totalTime="PT120M"
+  steps={[
+    { name: "Install Mesh packages", text: "Install @meshsdk/core and @meshsdk/react." },
+    { name: "Replace provider setup", text: "Configure BlockfrostProvider, KoiosProvider, or another provider." },
+    { name: "Update wallet connection", text: "Use MeshCardanoBrowserWallet or React hooks instead of Lucid wallet selection." },
+    { name: "Refactor transactions", text: "Map Lucid methods to Mesh MeshTxBuilder equivalents." },
+    { name: "Update smart contract code", text: "Adjust script loading and datum handling for Mesh patterns." },
+    { name: "Replace serialization", text: "Use Mesh serialization utilities." },
+    { name: "Update tests", text: "Migrate from Lucid Emulator to Mesh testing tools." }
+  ]}
+/>
+
+## Overview
+
+In this guide, you migrate an existing Cardano application from Lucid to Mesh SDK. Mesh separates transaction building, wallet interaction, and blockchain queries into distinct components, giving you more flexibility in how you structure your application.
+
+### What you will learn
+
+- How Lucid concepts map to Mesh equivalents
+- Key differences in API design and architecture
+- Step-by-step migration patterns for common operations
+- How to update tests and smart contract code
+
+### Prerequisites
+
+- An existing application using Lucid
+- Node.js 18+ installed
+- Basic TypeScript knowledge
+
+### Time to complete
+
+2 hours (varies based on application complexity)
+
+## Quick Start
+
+Install Mesh packages alongside your existing Lucid installation:
+
+```bash
+npm install @meshsdk/core @meshsdk/react
+```
+
+You can migrate incrementally, using both libraries during the transition.
+
+## Step-by-Step Guide
+
+### Step 1: Understand the architectural differences
+
+**Lucid** combines provider and wallet in a single configured instance:
+
+```typescript
+// Lucid pattern
+const lucid = await Lucid.new(
+  new Blockfrost("https://cardano-preprod.blockfrost.io/api", "key"),
+  "Preprod"
+);
+await lucid.selectWallet(walletApi);
+const tx = await lucid.newTx().payToAddress(...).complete();
+```
+
+**Mesh** separates these concerns:
+
+```typescript
+// Mesh pattern
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+const provider = new BlockfrostProvider("key");
+const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+```
+
+**Why this matters:** You can swap providers without changing wallet code, and test transactions without blockchain connectivity.
+
+### Step 2: Install Mesh packages
+
+Add Mesh to your project:
+
+```bash
+npm install @meshsdk/core @meshsdk/react
+```
+
+For React applications, `@meshsdk/react` provides wallet components and hooks.
+
+**What to expect:** Both Lucid and Mesh can coexist during migration.
+
+### Step 3: Replace provider setup
+
+**Lucid:**
+
+```typescript
+import { Blockfrost, Lucid } from "lucid-cardano";
+
+const lucid = await Lucid.new(
+  new Blockfrost("https://cardano-preprod.blockfrost.io/api", "project_key"),
+  "Preprod"
+);
+```
+
+**Mesh:**
+
+```typescript
+import { BlockfrostProvider } from "@meshsdk/core";
+
+// Preprod
+const provider = new BlockfrostProvider("project_key_preprod");
+
+// Mainnet
+const providerMainnet = new BlockfrostProvider("project_key_mainnet");
+
+// Preview
+const providerPreview = new BlockfrostProvider("project_key_preview");
+```
+
+Mesh auto-detects the network from your API key prefix. Alternative providers:
+
+```typescript
+import { KoiosProvider, MaestroProvider, OgmiosProvider } from "@meshsdk/core";
+
+const koios = new KoiosProvider("preprod");
+const maestro = new MaestroProvider({ apiKey: "key", network: "Preprod" });
+const ogmios = new OgmiosProvider("ws://localhost:1337");
+```
+
+**What to expect:** Provider instances ready to pass to transaction builders.
+
+### Step 4: Update wallet connection
+
+**Lucid:**
+
+```typescript
+const api = await window.cardano.eternl.enable();
+lucid.selectWallet(api);
+
+const address = await lucid.wallet.address();
+const utxos = await lucid.wallet.getUtxos();
+```
+
+**Mesh:**
+
+```typescript
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+const address = await wallet.getChangeAddressBech32();
+const usedAddresses = await wallet.getUsedAddressesBech32();
+const utxos = await wallet.getUtxosMesh();
+```
+
+**React hooks (Mesh):**
+
+```typescript
+import { CardanoWallet, useWallet } from "@meshsdk/react";
+
+function WalletConnect() {
+  const { wallet, connected, connect } = useWallet();
+
+  if (!connected) {
+    return <CardanoWallet />;
+  }
+
+  return <div>Connected</div>;
+}
+```
+
+**What to expect:** Wallet instances with CIP-30 standard methods.
+
+### Step 5: Migrate transaction building
+
+**Lucid payment transaction:**
+
+```typescript
+const tx = await lucid
+  .newTx()
+  .payToAddress("addr_test1...", { lovelace: 5000000n })
+  .complete();
+
+const signedTx = await tx.sign().complete();
+const txHash = await signedTx.submit();
+```
+
+**Mesh payment transaction:**
+
+```typescript
+import { MeshTxBuilder } from "@meshsdk/core";
+
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+const utxos = await wallet.getUtxosMesh();
+const changeAddress = await wallet.getChangeAddressBech32();
+
+const unsignedTx = await txBuilder
+  .txOut("addr_test1...", [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, false);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+**Key differences:**
+- Mesh uses explicit input/output methods (`txIn`, `txOut`)
+- Amounts are strings, not BigInt
+- Signing returns a new string, does not mutate
+- Change address must be set explicitly
+
+**What to expect:** Transaction hashes on successful submission.
+
+### Step 6: Migrate native token minting
+
+**Lucid:**
+
+```typescript
+const { paymentCredential } = lucid.utils.getAddressDetails(address);
+const mintingPolicy = lucid.utils.nativeScriptFromJson({
+  type: "sig",
+  keyHash: paymentCredential.hash,
+});
+const policyId = lucid.utils.mintingPolicyToId(mintingPolicy);
+
+const tx = await lucid
+  .newTx()
+  .mintAssets({ [policyId + tokenName]: 1n })
+  .validTo(Date.now() + 100000)
+  .attachMintingPolicy(mintingPolicy)
+  .complete();
+```
+
+**Mesh:**
+
+```typescript
+import {
+  MeshTxBuilder,
+  ForgeScript,
+  resolveScriptHash,
+  stringToHex,
+} from "@meshsdk/core";
+
+const address = await wallet.getChangeAddressBech32();
+const forgingScript = ForgeScript.withOneSignature(address);
+const policyId = resolveScriptHash(forgingScript);
+const tokenNameHex = stringToHex("MyToken");
+
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+const utxos = await wallet.getUtxosMesh();
+
+const unsignedTx = await txBuilder
+  .mint("1", policyId, tokenNameHex)
+  .mintingScript(forgingScript)
+  .txOut(address, [{ unit: policyId + tokenNameHex, quantity: "1" }])
+  .changeAddress(address)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, false);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+**What to expect:** NFTs minted with Mesh's ForgeScript utilities.
+
+### Step 7: Migrate smart contract interactions
+
+**Lucid locking funds:**
+
+```typescript
+const tx = await lucid
+  .newTx()
+  .payToContract(scriptAddress, { inline: datum }, { lovelace: 5000000n })
+  .complete();
+```
+
+**Mesh locking funds:**
+
+```typescript
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+const unsignedTx = await txBuilder
+  .txOut(scriptAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .txOutInlineDatumValue(datum)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+**Lucid unlocking funds:**
+
+```typescript
+const tx = await lucid
+  .newTx()
+  .collectFrom([utxo], redeemer)
+  .attachSpendingValidator(validator)
+  .complete();
+```
+
+**Mesh unlocking funds:**
+
+```typescript
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+const unsignedTx = await txBuilder
+  .spendingPlutusScriptV2()
+  .txIn(utxo.input.txHash, utxo.input.outputIndex)
+  .txInInlineDatumPresent()
+  .txInRedeemerValue(redeemer)
+  .txInScript(scriptCbor)
+  .txOut(recipientAddress, utxo.output.amount)
+  .requiredSignerHash(pubKeyHash)
+  .txInCollateral(
+    collateral.input.txHash,
+    collateral.input.outputIndex,
+    collateral.output.amount,
+    collateral.output.address
+  )
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, true); // true for partial signing
+```
+
+**What to expect:** Smart contract transactions with explicit script and datum handling.
+
+### Step 8: Migrate data serialization
+
+**Lucid:**
+
+```typescript
+import { Data } from "lucid-cardano";
+
+const datum = Data.to({ owner: pubKeyHash });
+const parsed = Data.from(onchainDatum);
+```
+
+**Mesh:**
+
+```typescript
+import { serializePlutusData, deserializePlutusData } from "@meshsdk/core";
+import type { Data } from "@meshsdk/core";
+
+// For simple datums, use the Data type directly
+const datum: Data = {
+  alternative: 0,
+  fields: [pubKeyHash],
+};
+
+// For complex serialization
+const cbor = serializePlutusData(datum);
+const parsed = deserializePlutusData(onchainDatum);
+```
+
+**What to expect:** CBOR-encoded datum and redeemer values.
+
+### Step 9: Migrate tests
+
+**Lucid Emulator:**
+
+```typescript
+import { Emulator, Lucid } from "lucid-cardano";
+
+const emulator = new Emulator([{ address, assets: { lovelace: 100_000_000n } }]);
+const lucid = await Lucid.new(emulator);
+```
+
+**Mesh testing:**
+
+```typescript
+import { OfflineFetcher, MeshTxBuilder } from "@meshsdk/core";
+
+// Mock blockchain state
+const offlineFetcher = new OfflineFetcher();
+offlineFetcher.addUTxOs([
+  {
+    input: { txHash: "abc...", outputIndex: 0 },
+    output: { address, amount: [{ unit: "lovelace", quantity: "100000000" }] },
+  },
+]);
+
+const txBuilder = new MeshTxBuilder({ fetcher: offlineFetcher });
+```
+
+For local development, use Yaci:
+
+```typescript
+import { YaciProvider } from "@meshsdk/core";
+
+const yaci = new YaciProvider("http://localhost:8080");
+```
+
+**What to expect:** Test environments without live blockchain connectivity.
+
+## API Mapping Reference
+
+| Lucid | Mesh | Notes |
+|-------|------|-------|
+| `Lucid.new()` | `new BlockfrostProvider()` + `new MeshTxBuilder()` | Separate provider and builder |
+| `lucid.selectWallet()` | `MeshCardanoBrowserWallet.enable()` | Returns wallet instance |
+| `lucid.newTx()` | `new MeshTxBuilder()` | Builder pattern |
+| `tx.payToAddress()` | `txBuilder.txOut()` | Output construction |
+| `tx.payToContract()` | `txBuilder.txOut()` + `txOutInlineDatumValue()` | With datum |
+| `tx.mintAssets()` | `txBuilder.mint()` + `mintingScript()` | Minting |
+| `tx.collectFrom()` | `txBuilder.txIn()` + script methods | Script spending |
+| `tx.attachSpendingValidator()` | `txBuilder.txInScript()` | Attach validator |
+| `tx.complete()` | `txBuilder.complete()` | Build transaction |
+| `tx.sign().complete()` | `wallet.signTx()` | Returns signed CBOR |
+| `signedTx.submit()` | `wallet.submitTx()` | Submit to network |
+| `Data.to()` | `serializePlutusData()` | Serialize datum |
+| `Data.from()` | `deserializePlutusData()` | Parse datum |
+| `Emulator` | `OfflineFetcher` | Testing |
+
+## Complete Example
+
+Here is a complete migration example for a payment transaction:
+
+**Before (Lucid):**
+
+```typescript
+import { Blockfrost, Lucid } from "lucid-cardano";
+
+async function sendPayment() {
+  const lucid = await Lucid.new(
+    new Blockfrost("https://cardano-preprod.blockfrost.io/api", "key"),
+    "Preprod"
+  );
+
+  const api = await window.cardano.eternl.enable();
+  lucid.selectWallet(api);
+
+  const tx = await lucid
+    .newTx()
+    .payToAddress("addr_test1...", { lovelace: 5000000n })
+    .complete();
+
+  const signedTx = await tx.sign().complete();
+  const txHash = await signedTx.submit();
+
+  console.log("TX:", txHash);
+}
+```
+
+**After (Mesh):**
+
+```typescript
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+async function sendPayment() {
+  const provider = new BlockfrostProvider("key_preprod");
+  const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+  const utxos = await wallet.getUtxosMesh();
+  const changeAddress = await wallet.getChangeAddressBech32();
+
+  const txBuilder = new MeshTxBuilder({ fetcher: provider, submitter: provider });
+
+  const unsignedTx = await txBuilder
+    .txOut("addr_test1...", [{ unit: "lovelace", quantity: "5000000" }])
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  const signedTx = await wallet.signTx(unsignedTx, false);
+  const txHash = await wallet.submitTx(signedTx);
+
+  console.log("TX:", txHash);
+}
+```
+
+## Troubleshooting
+
+### Type errors with amounts
+
+**Cause:** Lucid uses BigInt for amounts, Mesh uses strings.
+
+**Solution:** Convert amounts when migrating:
+
+```typescript
+// Lucid
+{ lovelace: 5000000n }
+
+// Mesh
+[{ unit: "lovelace", quantity: "5000000" }]
+```
+
+### Transaction signing fails
+
+**Cause:** Missing the partial signing flag for Plutus scripts.
+
+**Solution:** Pass `true` as the second argument to `signTx()`:
+
+```typescript
+const signedTx = await wallet.signTx(unsignedTx, true);
+```
+
+### Missing change address error
+
+**Cause:** Mesh requires explicit change address.
+
+**Solution:** Always set the change address:
+
+```typescript
+const changeAddress = await wallet.getChangeAddress();
+txBuilder.changeAddress(changeAddress);
+```
+
+### Script validation fails
+
+**Cause:** Datum or redeemer structure does not match contract expectations.
+
+**Solution:** Verify your Data structure matches the Aiken/Plutus types:
+
+```typescript
+const datum: Data = {
+  alternative: 0, // Constructor index
+  fields: [value1, value2], // Field values
+};
+```
+
+### UTxO not found errors
+
+**Cause:** UTxOs fetched at different times may be spent.
+
+**Solution:** Fetch UTxOs immediately before building the transaction:
+
+```typescript
+const utxos = await wallet.getUtxosMesh();
+// Build transaction immediately after
+const unsignedTx = await txBuilder
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+## Related Links
+
+- <Link href="/apis/txbuilder">Transaction Builder API</Link>
+- <Link href="/guides/smart-contract-transactions">Smart Contract Transactions</Link>
+- <Link href="/apis/wallets/browserwallet">BrowserWallet API</Link>
+- <Link href="/providers">Providers Documentation</Link>
+- <Link href="https://discord.gg/dH48jH3BKa">Mesh Discord</Link> for migration support

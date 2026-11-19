@@ -1,0 +1,512 @@
+---
+title: "Lesson 9: Hydra End-to-End"
+description: "Implement Layer 2 scaling with the Hydra Head protocol for fast, low-cost transactions."
+---
+import Link from "fumadocs-core/link";
+
+## Learning Objectives
+
+By the end of this lesson, you will be able to:
+
+- Understand the Hydra Head protocol and its benefits
+- Set up Hydra nodes for a multi-party state channel
+- Open, use, and close Hydra Heads
+- Build applications that leverage Hydra for scalability
+- Understand when to use Hydra vs Layer 1
+
+## Prerequisites
+
+Before starting this lesson, ensure you have:
+
+- Completed <Link href="/resources/cardano-course/08-plutus-nft">Lesson 8: Plutus NFT Contract</Link>
+- Docker installed on your system
+- Multiple funded preprod wallets
+- Understanding of state channels conceptually
+
+## Key Concepts
+
+### What is Hydra?
+
+Hydra is Cardano's Layer 2 scaling solution. It enables:
+
+- **Instant finality**: Transactions confirm in milliseconds
+- **Near-zero fees**: No on-chain fees for off-chain transactions
+- **Full Plutus support**: Smart contracts work inside Hydra Heads
+- **Isomorphic**: Same transaction format as Layer 1
+
+### How Hydra Works
+
+1. **Open a Head**: Participants lock funds on Layer 1
+2. **Transact off-chain**: Process transactions instantly within the Head
+3. **Close the Head**: Final state is committed back to Layer 1
+
+```
+Layer 1 (Cardano mainnet)
+    │
+    ├── Open Head ──────────────────► Lock funds
+    │
+    │   Layer 2 (Hydra Head)
+    │   ┌────────────────────────┐
+    │   │ TX → TX → TX → TX → TX │   Fast transactions
+    │   └────────────────────────┘
+    │
+    ├── Close Head ─────────────────► Commit final state
+    │
+Layer 1 (Cardano mainnet)
+```
+
+### Hydra vs Layer 1
+
+| Aspect | Layer 1 | Hydra |
+|--------|---------|-------|
+| Finality | 20+ seconds | Milliseconds |
+| Throughput | ~250 TPS | 1000+ TPS per Head |
+| Fees | Protocol fees | Near-zero |
+| Availability | Always on | Requires all participants |
+| Trust | Trustless | Participants can abort |
+
+## Step 1: Understand the Architecture
+
+A Hydra Head consists of:
+
+- **Hydra Nodes**: One per participant, running the protocol
+- **Cardano Node**: Connected to Layer 1 for opening/closing
+- **Clients**: Applications that submit transactions to the Head
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    Hydra Head                        │
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐        │
+│  │  Node A  │◄─►│  Node B  │◄─►│  Node C  │        │
+│  └────┬─────┘   └────┬─────┘   └────┬─────┘        │
+│       │              │              │               │
+│  ┌────┴─────┐   ┌────┴─────┐   ┌────┴─────┐        │
+│  │ Client A │   │ Client B │   │ Client C │        │
+│  └──────────┘   └──────────┘   └──────────┘        │
+└─────────────────────┬───────────────────────────────┘
+                      │
+              ┌───────┴───────┐
+              │ Cardano Node  │
+              │   (Layer 1)   │
+              └───────────────┘
+```
+
+## Step 2: Set Up the Environment
+
+### Prerequisites
+
+Install the required software:
+
+```bash
+# Install Docker
+# Follow instructions at https://docs.docker.com/get-docker/
+
+# Verify installation
+docker --version
+docker-compose --version
+```
+
+### Clone the Hydra Repository
+
+```bash
+git clone https://github.com/input-output-hk/hydra.git
+cd hydra
+```
+
+### Generate Keys
+
+Each participant needs:
+- A Cardano signing key (for Layer 1)
+- A Hydra signing key (for the Head protocol)
+
+```bash
+# Generate Cardano keys
+cardano-cli address key-gen \
+  --signing-key-file alice.sk \
+  --verification-key-file alice.vk
+
+# Generate Hydra keys
+hydra-node gen-hydra-key \
+  --output-file alice-hydra
+```
+
+Repeat for each participant (Bob, Carol, etc.).
+
+## Step 3: Configure Hydra Nodes
+
+Create a configuration file for each participant:
+
+```yaml
+# alice.yaml
+hydraNodeId: alice
+host: 0.0.0.0
+port: 5001
+apiHost: 0.0.0.0
+apiPort: 4001
+monitoringPort: 6001
+persistenceDir: ./alice-state
+cardanoNodeSocket: /ipc/node.socket
+cardanoSigningKey: ./alice.sk
+hydraSigningKey: ./alice-hydra.sk
+hydraVerificationKeys:
+  - ./bob-hydra.vk
+  - ./carol-hydra.vk
+contestationPeriod: 60
+```
+
+Key configuration options:
+
+| Option | Description |
+|--------|-------------|
+| `hydraNodeId` | Unique identifier for this node |
+| `port` | Port for Hydra protocol communication |
+| `apiPort` | Port for client WebSocket connections |
+| `cardanoSigningKey` | Layer 1 signing key |
+| `hydraSigningKey` | Hydra protocol signing key |
+| `hydraVerificationKeys` | Verification keys of other participants |
+| `contestationPeriod` | Time (seconds) to contest a close |
+
+## Step 4: Start the Hydra Network
+
+### Using Docker Compose
+
+Create a `docker-compose.yml`:
+
+```yaml
+version: "3.8"
+
+services:
+  cardano-node:
+    image: inputoutput/cardano-node:latest
+    volumes:
+      - ./node-data:/data
+      - ./ipc:/ipc
+    environment:
+      - NETWORK=preprod
+
+  alice-hydra:
+    image: ghcr.io/input-output-hk/hydra-node:latest
+    depends_on:
+      - cardano-node
+    volumes:
+      - ./alice-state:/state
+      - ./keys:/keys
+      - ./ipc:/ipc
+    ports:
+      - "4001:4001"
+    command:
+      - --config
+      - /keys/alice.yaml
+
+  bob-hydra:
+    image: ghcr.io/input-output-hk/hydra-node:latest
+    depends_on:
+      - cardano-node
+    volumes:
+      - ./bob-state:/state
+      - ./keys:/keys
+      - ./ipc:/ipc
+    ports:
+      - "4002:4001"
+    command:
+      - --config
+      - /keys/bob.yaml
+```
+
+Start the network:
+
+```bash
+docker-compose up -d
+```
+
+## Step 5: Open a Hydra Head
+
+Connect to a Hydra node via WebSocket and send commands.
+
+### Connect to the API
+
+```ts
+import WebSocket from "ws";
+
+const ws = new WebSocket("ws://localhost:4001");
+
+ws.on("open", () => {
+  console.log("Connected to Hydra node");
+});
+
+ws.on("message", (data) => {
+  const message = JSON.parse(data.toString());
+  console.log("Received:", message);
+});
+```
+
+### Initialize the Head
+
+```ts
+// Each participant sends Init
+ws.send(JSON.stringify({ tag: "Init" }));
+```
+
+After all participants initialize, the Head moves to the "Initializing" state.
+
+### Commit Funds
+
+Each participant commits UTXOs to the Head:
+
+```ts
+// Commit a UTXO
+ws.send(JSON.stringify({
+  tag: "Commit",
+  utxo: {
+    "txhash#index": {
+      address: "addr_test1...",
+      value: { lovelace: 10000000 }
+    }
+  }
+}));
+```
+
+After all commits, the Head opens automatically.
+
+## Step 6: Transact in the Head
+
+Once open, submit transactions directly to the Head.
+
+### Build a Transaction
+
+Use the same transaction format as Layer 1:
+
+```ts
+import { MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet } from "@meshsdk/wallet";
+
+// Build transaction (same as Layer 1!)
+const txBuilder = new MeshTxBuilder();
+const unsignedTx = await txBuilder
+  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "1000000" }])
+  .changeAddress(myAddress)
+  .selectUtxosFrom(headUtxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, false);
+```
+
+### Submit to the Head
+
+```ts
+// Send the transaction to the Head
+ws.send(JSON.stringify({
+  tag: "NewTx",
+  transaction: {
+    cborHex: signedTx
+  }
+}));
+```
+
+### Handle Confirmation
+
+```ts
+ws.on("message", (data) => {
+  const message = JSON.parse(data.toString());
+
+  if (message.tag === "TxValid") {
+    console.log("Transaction confirmed:", message.transaction);
+  }
+
+  if (message.tag === "TxInvalid") {
+    console.error("Transaction failed:", message.validationError);
+  }
+});
+```
+
+## Step 7: Close the Head
+
+When finished, close the Head to commit the final state to Layer 1.
+
+### Initiate Close
+
+```ts
+ws.send(JSON.stringify({ tag: "Close" }));
+```
+
+### Contestation Period
+
+After closing, there is a contestation period where participants can dispute the final state. If no disputes occur, the Head finalizes.
+
+### Fanout
+
+After the contestation period, anyone can trigger the fanout:
+
+```ts
+ws.send(JSON.stringify({ tag: "Fanout" }));
+```
+
+This distributes the Head's final UTXOs back to Layer 1.
+
+## Complete Working Example
+
+### Project Structure
+
+```
+hydra-demo/
+  docker-compose.yml
+  keys/
+    alice.sk
+    alice.vk
+    alice-hydra.sk
+    alice-hydra.vk
+    alice.yaml
+    bob.sk
+    bob.vk
+    bob-hydra.sk
+    bob-hydra.vk
+    bob.yaml
+  client/
+    index.ts
+    hydra-client.ts
+```
+
+### hydra-client.ts
+
+```ts
+import WebSocket from "ws";
+import { MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet } from "@meshsdk/wallet";
+
+export class HydraClient {
+  private ws: WebSocket;
+  private wallet: MeshCardanoHeadlessWallet;
+  private headUtxos: Map<string, any> = new Map();
+
+  constructor(nodeUrl: string, wallet: MeshCardanoHeadlessWallet) {
+    this.ws = new WebSocket(nodeUrl);
+    this.wallet = wallet;
+    this.setupListeners();
+  }
+
+  private setupListeners() {
+    this.ws.on("message", (data) => {
+      const message = JSON.parse(data.toString());
+      this.handleMessage(message);
+    });
+  }
+
+  private handleMessage(message: any) {
+    switch (message.tag) {
+      case "HeadIsOpen":
+        console.log("Head is open with UTXOs:", message.utxo);
+        this.headUtxos = new Map(Object.entries(message.utxo));
+        break;
+      case "TxValid":
+        console.log("Transaction confirmed");
+        // Update local UTXO set
+        break;
+      case "HeadIsClosed":
+        console.log("Head closed, contestation period started");
+        break;
+      case "HeadIsFinalized":
+        console.log("Head finalized, funds returned to Layer 1");
+        break;
+    }
+  }
+
+  async init() {
+    this.ws.send(JSON.stringify({ tag: "Init" }));
+  }
+
+  async commit(utxos: any) {
+    this.ws.send(JSON.stringify({ tag: "Commit", utxo: utxos }));
+  }
+
+  async sendPayment(recipient: string, amount: string) {
+    const txBuilder = new MeshTxBuilder();
+    const myAddress = await this.wallet.getChangeAddressBech32();
+
+    const unsignedTx = await txBuilder
+      .txOut(recipient, [{ unit: "lovelace", quantity: amount }])
+      .changeAddress(myAddress)
+      .selectUtxosFrom(Array.from(this.headUtxos.values()))
+      .complete();
+
+    const signedTx = await this.wallet.signTx(unsignedTx, false);
+
+    this.ws.send(JSON.stringify({
+      tag: "NewTx",
+      transaction: { cborHex: signedTx }
+    }));
+  }
+
+  async close() {
+    this.ws.send(JSON.stringify({ tag: "Close" }));
+  }
+
+  async fanout() {
+    this.ws.send(JSON.stringify({ tag: "Fanout" }));
+  }
+}
+```
+
+## Key Concepts Explained
+
+### Isomorphic Transactions
+
+Hydra uses the same transaction format as Layer 1. This means:
+
+- Existing tools work (MeshTxBuilder, etc.)
+- Smart contracts work unchanged
+- Developers do not need to learn new formats
+
+### Contestation Period
+
+The contestation period protects against dishonest closes:
+
+1. Participant closes with an old state
+2. Others see this and contest with the newer state
+3. The chain accepts the latest valid state
+
+Choose contestation period based on your use case:
+- Shorter = faster finality, less protection
+- Longer = more protection, slower finality
+
+### Availability Requirements
+
+All participants must be online for the Head to function. If one goes offline:
+
+- New transactions cannot be processed
+- The Head can still be closed
+- Funds are never at risk
+
+## Use Cases
+
+| Use Case | Why Hydra? |
+|----------|------------|
+| **Gaming** | Instant moves, no transaction fees |
+| **Micropayments** | Sub-cent payments become viable |
+| **DEX** | High-frequency trading |
+| **Voting** | Fast, cheap vote recording |
+| **IoT** | High-throughput device interactions |
+
+## Exercises
+
+1. **Three-party Head**: Set up a Hydra Head with three participants and execute round-robin payments.
+
+2. **Smart contract in Head**: Deploy a simple swap contract inside a Hydra Head.
+
+3. **Benchmark throughput**: Measure how many transactions per second your Head can process.
+
+## Next Steps
+
+You have learned:
+
+- How Hydra enables Layer 2 scaling
+- How to set up and operate Hydra nodes
+- How to open, transact in, and close Hydra Heads
+- When to use Hydra for your applications
+
+In the final lesson, you explore <Link href="/resources/cardano-course/10-web3-services">Web3 services</Link> for seamless user onboarding.
+
+## Related Links
+
+- <Link href="https://hydra.family/head-protocol/">Hydra Documentation</Link>
+- <Link href="https://github.com/input-output-hk/hydra">Hydra GitHub Repository</Link>
+- <Link href="https://hydra.family/head-protocol/docs/tutorial/">Hydra Tutorial</Link>

@@ -1,0 +1,312 @@
+---
+title: "UI Components"
+description: "Pre-built Svelte components for Cardano wallet connections and interactions"
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+Mesh provides a collection of Svelte 5 UI components that handle common Cardano dApp functionality. Use these components to add wallet connections without building the UI from scratch.
+
+**Available components:**
+- `CardanoWallet` - Wallet connection button with modal
+- `BrowserWalletState` - Reactive wallet state management
+
+## Quick Start
+
+Add a wallet connection button to any Svelte component.
+
+```svelte
+<script lang="ts">
+  import { CardanoWallet } from "@meshsdk/svelte";
+</script>
+
+<CardanoWallet />
+```
+
+## CardanoWallet Component
+
+A button that opens a modal displaying all available CIP-30 wallets. When the user selects a wallet, Mesh handles the connection flow and updates the global state.
+
+### Basic Usage
+
+```svelte
+<script lang="ts">
+  import { CardanoWallet } from "@meshsdk/svelte";
+</script>
+
+<main>
+  <CardanoWallet />
+</main>
+```
+
+### Props Reference
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `label` | `string` | `"Connect Wallet"` | Text displayed on the button |
+| `isDark` | `boolean` | `false` | Enable dark mode styling |
+| `onConnected` | `() => void` | `undefined` | Function called after successful connection |
+
+### Dark Mode
+
+Apply dark mode styling that matches dark-themed applications.
+
+```svelte
+<script lang="ts">
+  import { CardanoWallet } from "@meshsdk/svelte";
+</script>
+
+<CardanoWallet isDark={true} />
+```
+
+### Custom Label
+
+Change the button text to match your application's language or branding.
+
+```svelte
+<script lang="ts">
+  import { CardanoWallet } from "@meshsdk/svelte";
+</script>
+
+<CardanoWallet label="Connect a Wallet" />
+```
+
+### Connection Callback
+
+Execute custom logic after the wallet connects successfully.
+
+```svelte
+<script lang="ts">
+  import { CardanoWallet, BrowserWalletState } from "@meshsdk/svelte";
+
+  async function handleConnected() {
+    // Access the connected wallet
+    const wallet = BrowserWalletState.wallet;
+    if (wallet) {
+      const address = await wallet.getChangeAddress();
+      console.log("Connected:", address);
+
+      // Example: redirect to dashboard
+      // goto('/dashboard');
+    }
+  }
+</script>
+
+<CardanoWallet onConnected={handleConnected} />
+```
+
+## BrowserWalletState
+
+A global state object that tracks wallet connection status. All properties are Svelte 5 runes, providing automatic reactivity.
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `wallet` | `BrowserWallet \| null` | The connected <Link href="/apis/wallets/browserwallet">BrowserWallet</Link> instance |
+| `connected` | `boolean` | `true` when a wallet is connected |
+| `name` | `string` | Name of the connected wallet (e.g., "Nami", "Eternl") |
+| `connecting` | `boolean` | `true` while connection is in progress |
+
+### Usage Example
+
+```svelte
+<script lang="ts">
+  import { CardanoWallet, BrowserWalletState } from "@meshsdk/svelte";
+
+  let address = $state("");
+
+  $effect(() => {
+    if (BrowserWalletState.wallet) {
+      BrowserWalletState.wallet.getChangeAddress().then(addr => {
+        address = addr;
+      });
+    }
+  });
+</script>
+
+<div>
+  {#if BrowserWalletState.connecting}
+    <p>Connecting to wallet...</p>
+  {:else if BrowserWalletState.connected}
+    <p>Connected to {BrowserWalletState.name}</p>
+    <p>Address: {address}</p>
+  {:else}
+    <CardanoWallet />
+  {/if}
+</div>
+```
+
+### Accessing Wallet Methods
+
+Once connected, use `BrowserWalletState.wallet` to access all CIP-30 wallet methods.
+
+```svelte
+<script lang="ts">
+  import { BrowserWalletState } from "@meshsdk/svelte";
+
+  async function getAssets() {
+    const wallet = BrowserWalletState.wallet;
+    if (!wallet) return;
+
+    const utxos = await wallet.getUtxos();
+    const balance = await wallet.getBalance();
+    const addresses = await wallet.getUsedAddresses();
+
+    console.log({ utxos, balance, addresses });
+  }
+</script>
+
+<button onclick={getAssets}>Get Assets</button>
+```
+
+## Complete Example
+
+A full implementation showing conditional rendering based on wallet state.
+
+```svelte
+<script lang="ts">
+  import { CardanoWallet, BrowserWalletState } from "@meshsdk/svelte";
+  import { MeshTxBuilder } from "@meshsdk/core";
+
+  let address = $state("");
+  let balance = $state("0");
+  let loading = $state(false);
+
+  $effect(() => {
+    if (BrowserWalletState.wallet) {
+      loadWalletData();
+    } else {
+      address = "";
+      balance = "0";
+    }
+  });
+
+  async function loadWalletData() {
+    const wallet = BrowserWalletState.wallet;
+    if (!wallet) return;
+
+    loading = true;
+    try {
+      address = await wallet.getChangeAddress();
+
+      const balanceData = await wallet.getBalance();
+      const lovelace = balanceData.find(b => b.unit === "lovelace");
+      if (lovelace) {
+        balance = (parseInt(lovelace.quantity) / 1_000_000).toFixed(2);
+      }
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function sendTransaction() {
+    const wallet = BrowserWalletState.wallet;
+    if (!wallet) return;
+
+    // Build and sign a transaction
+    const utxos = await wallet.getUtxos();
+    const changeAddress = await wallet.getChangeAddress();
+
+    const txBuilder = new MeshTxBuilder();
+    const unsignedTx = await txBuilder
+      .txOut("addr_test1...", [{ unit: "lovelace", quantity: "5000000" }])
+      .changeAddress(changeAddress)
+      .selectUtxosFrom(utxos)
+      .complete();
+
+    const signedTx = await wallet.signTx(unsignedTx);
+    const txHash = await wallet.submitTx(signedTx);
+
+    console.log("Transaction submitted:", txHash);
+  }
+</script>
+
+<main>
+  <h1>My Cardano dApp</h1>
+
+  {#if BrowserWalletState.connecting}
+    <div class="loading">
+      <p>Connecting to wallet...</p>
+    </div>
+  {:else if BrowserWalletState.connected}
+    <div class="wallet-info">
+      <h2>Wallet Connected</h2>
+      <p><strong>Wallet:</strong> {BrowserWalletState.name}</p>
+      <p><strong>Address:</strong> {address.slice(0, 12)}...{address.slice(-8)}</p>
+      <p><strong>Balance:</strong> {balance} ADA</p>
+
+      <button onclick={sendTransaction} disabled={loading}>
+        Send 5 ADA
+      </button>
+    </div>
+  {:else}
+    <div class="connect-prompt">
+      <p>Connect your wallet to get started</p>
+      <CardanoWallet label="Connect Wallet" />
+    </div>
+  {/if}
+</main>
+
+<style>
+  main {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+
+  .wallet-info {
+    padding: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+  }
+
+  button {
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+  }
+</style>
+```
+
+## Troubleshooting
+
+### Component not rendering
+
+Verify that you imported the Mesh CSS in your root layout file.
+
+```svelte
+
+<script lang="ts">
+  import '@meshsdk/svelte/styles.css';
+  let { children } = $props();
+</script>
+
+{@render children()}
+```
+
+### Wallet state not updating
+
+Ensure you access `BrowserWalletState` properties directly, not through destructuring. Svelte 5 runes require direct property access for reactivity.
+
+```svelte
+
+{#if BrowserWalletState.connected}
+
+
+<script>
+  const { connected } = BrowserWalletState; // Don't do this
+</script>
+```
+
+### Building custom components
+
+For advanced customization, reference the <Link href="https://github.com/MeshJS/mesh/blob/main/packages/mesh-svelte/src/cardano-wallet/index.svelte">CardanoWallet source code</Link> and build your own using the <Link href="/apis/wallets/browserwallet">Browser Wallet API</Link>.
+
+## Related Links
+
+- <Link href="/docs/svelte/getting-started">Getting Started</Link> - Installation and setup guide
+- <Link href="/apis/wallets/browserwallet">Browser Wallet API</Link> - Full CIP-30 method reference
+- <Link href="/apis/transaction">Transaction Builder</Link> - Build and submit transactions
+- <Link href="https://github.com/MeshJS/mesh/tree/main/packages/mesh-svelte">GitHub Repository</Link> - Source code and examples

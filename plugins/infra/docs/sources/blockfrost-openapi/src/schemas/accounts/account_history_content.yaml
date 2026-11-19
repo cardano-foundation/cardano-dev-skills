@@ -1,0 +1,25 @@
+type: array
+items:
+  type: object
+  properties:
+    active_epoch:
+      type: integer
+      example: 210
+      description: Epoch in which the stake was active
+    amount:
+      type: string
+      description: Stake amount in Lovelaces
+    pool_id:
+      type: string
+      description: Bech32 ID of pool being delegated to
+  required:
+    - active_epoch
+    - amount
+    - pool_id
+example:
+  - active_epoch: 210
+    amount: "12695385"
+    pool_id: "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy"
+  - active_epoch: 211
+    amount: "22695385"
+    pool_id: "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy"

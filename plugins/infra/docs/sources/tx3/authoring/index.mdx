@@ -1,0 +1,21 @@
+---
+title: Authoring Protocols
+sidebar:
+  label: Introduction
+  order: 0
+pagefind: false
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+This section is for **protocol authors** — the people writing `.tx3` files that describe a UTxO protocol's interface. You declare the parties involved, the assets at stake, the transaction templates a user can invoke, and the rules each one must satisfy. The Tx3 toolchain parses, type-checks, and analyses your file, and emits a publishable interface artifact (the TII) that downstream applications consume.
+
+If instead you're building an application that *uses* an existing Tx3 protocol, see [Consuming Protocols](/tx3/consuming).
+
+<CardGrid>
+  <LinkCard title="Quick Start" href="/tx3/authoring/quick-start" description="Write your first .tx3 protocol — a simple Ada transfer — and run it on a local devnet." />
+  <LinkCard title="Language Guide" href="/tx3/language" description="Reference for every top-level declaration, transaction block, and expression form." />
+  <LinkCard title="Example Catalog" href="/tx3/examples" description="Idiomatic .tx3 snippets organised by use-case: transfers, mints, vesting, swaps, state machines." />
+  <LinkCard title="Local Devnet" href="/tx3/authoring/devnet" description="Run an ephemeral Cardano devnet to invoke and inspect transactions during development." />
+  <LinkCard title="Testing" href="/tx3/authoring/testing" description="Write TOML test scenarios that exercise your transactions against a managed devnet." />
+</CardGrid>

@@ -1,0 +1,67 @@
+type: object
+properties:
+  stake_address:
+    type: string
+    example: stake1ux3g2c9dx2nhhehyrezyxpkstartcqmu9hk63qgfkccw5rqttygt7
+    description: Bech32 stake address
+  active:
+    type: boolean
+    example: true
+    description: "Delegation state of the account. **Note:** For registration state, use the `registered` field instead."
+  registered:
+    type: boolean
+    example: true
+    description: Registration state of an account
+  active_epoch:
+    type: integer
+    nullable: true
+    example: 412
+    description: Epoch of the most recent action - registration or deregistration
+  controlled_amount:
+    type: string
+    example: "619154618165"
+    description: Balance of the account in Lovelaces
+  rewards_sum:
+    type: string
+    example: "319154618165"
+    description: Sum of all rewards for the account in the Lovelaces
+  withdrawals_sum:
+    type: string
+    example: "12125369253"
+    description: Sum of all the withdrawals for the account in Lovelaces
+  reserves_sum:
+    type: string
+    example: "319154618165"
+    description: Sum of all  funds from reserves for the account in the Lovelaces
+  treasury_sum:
+    type: string
+    example: "12000000"
+    description: Sum of all funds from treasury for the account in the Lovelaces
+  withdrawable_amount:
+    type: string
+    example: "319154618165"
+    description: Sum of available rewards that haven't been withdrawn yet for the account in the Lovelaces
+  pool_id:
+    type: string
+    nullable: true
+    example: pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy
+    description: Bech32 pool ID to which this account is delegated
+  drep_id:
+    type: string
+    nullable: true
+    example: drep15cfxz9exyn5rx0807zvxfrvslrjqfchrd4d47kv9e0f46uedqtc
+    description: Bech32 drep ID to which this account is delegated
+
+required:
+  - stake_address
+  - active
+  - registered
+  - active_epoch
+  - controlled_amount
+  - rewards_sum
+  - withdrawals_sum
+  - reserves_sum
+  - treasury_sum
+  - withdrawable_amount
+  - pool_id
+  - drep_id

@@ -1,0 +1,146 @@
+type: object
+properties:
+  hash:
+    type: string
+    example: "1e043f100dce12d107f679685acd2fc0610e10f72a92d412794c9773d11d8477"
+    description: Transaction hash
+  inputs:
+    type: array
+    items:
+      type: object
+      properties:
+        address:
+          type: string
+          example: "addr1q9ld26v2lv8wvrxxmvg90pn8n8n5k6tdst06q2s856rwmvnueldzuuqmnsye359fqrk8hwvenjnqultn7djtrlft7jnq7dy7wv"
+          description: Input address
+        amount:
+          type: array
+          items:
+            type: object
+            description: The sum of all the UTXO per asset
+            properties:
+              unit:
+                type: string
+                format: Lovelace or concatenation of asset policy_id and hex-encoded asset_name
+                description: The unit of the value
+              quantity:
+                type: string
+                description: The quantity of the unit
+            required:
+              - unit
+              - quantity
+          example:
+            - unit: "lovelace"
+              quantity: "42000000"
+            - unit: "b0d07d45fe9514f80213f4020e5a61241458be626841cde717cb38a76e7574636f696e"
+              quantity: "12"
+        tx_hash:
+          type: string
+          example: "1a0570af966fb355a7160e4f82d5a80b8681b7955f5d44bec0dce628516157f0"
+          description: Hash of the UTXO transaction
+        output_index:
+          type: integer
+          example: 0
+          description: UTXO index in the transaction
+        data_hash:
+          type: string
+          nullable: true
+          description: The hash of the transaction output datum
+          example: "9e478573ab81ea7a8e31891ce0648b81229f408d596a3483e6f4f9b92d3cf710"
+        inline_datum:
+          type: string
+          nullable: true
+          description: CBOR encoded inline datum
+          example: "19a6aa"
+        reference_script_hash:
+          type: string
+          nullable: true
+          description: The hash of the reference script of the input
+          example: "13a3efd825703a352a8f71f4e2758d08c28c564e8dfcce9f77776ad1"
+        collateral:
+          type: boolean
+          example: false
+          description: Whether the input is a collateral consumed on script validation failure
+        reference:
+          type: boolean
+          example: false
+          description: Whether the input is a reference transaction input
+      required:
+        - address
+        - amount
+        - tx_hash
+        - output_index
+        - data_hash
+        - inline_datum
+        - reference_script_hash
+        - collateral
+  outputs:
+    type: array
+    items:
+      type: object
+      properties:
+        address:
+          type: string
+          example: "addr1q9ld26v2lv8wvrxxmvg90pn8n8n5k6tdst06q2s856rwmvnueldzuuqmnsye359fqrk8hwvenjnqultn7djtrlft7jnq7dy7wv"
+          description: Output address
+        amount:
+          type: array
+          items:
+            type: object
+            description: The sum of all the UTXO per asset
+            properties:
+              unit:
+                type: string
+                format: Lovelace or concatenation of asset policy_id and hex-encoded asset_name
+                description: The unit of the value
+              quantity:
+                type: string
+                description: The quantity of the unit
+            required:
+              - unit
+              - quantity
+          example:
+            - unit: "lovelace"
+              quantity: "42000000"
+            - unit: "b0d07d45fe9514f80213f4020e5a61241458be626841cde717cb38a76e7574636f696e"
+              quantity: "12"
+        output_index:
+          type: integer
+          example: 0
+          description: UTXO index in the transaction
+        data_hash:
+          type: string
+          nullable: true
+          description: The hash of the transaction output datum
+          example: "9e478573ab81ea7a8e31891ce0648b81229f408d596a3483e6f4f9b92d3cf710"
+        inline_datum:
+          type: string
+          nullable: true
+          description: CBOR encoded inline datum
+          example: "19a6aa"
+        collateral:
+          type: boolean
+          example: false
+          description: Whether the output is a collateral output
+        reference_script_hash:
+          type: string
+          nullable: true
+          description: The hash of the reference script of the output
+          example: "13a3efd825703a352a8f71f4e2758d08c28c564e8dfcce9f77776ad1"
+        consumed_by_tx:
+          type: string
+          nullable: true
+          description: Transaction hash that consumed the UTXO or null for unconsumed UTXOs. Always null for collateral outputs.
+          example: "66c29b56952f6085afac3b0632d781af78d020b080063bcfd6c54b8e2b8fed41"
+      required:
+        - address
+        - amount
+        - output_index
+        - data_hash
+        - inline_datum
+        - collateral
+        - reference_script_hash
+required:
+  - hash
+  - inputs
+  - outputs

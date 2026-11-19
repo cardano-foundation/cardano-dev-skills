@@ -1,0 +1,104 @@
+---
+title: "Cardano React Components"
+description: "Build Cardano dApps with pre-built React components and hooks for wallet connections, transactions, and blockchain interactions."
+icon: ComputerDesktopIcon
+---
+
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+## Overview
+
+Mesh React provides a complete toolkit for building Cardano decentralized applications with React. You get pre-built UI components for wallet connections, React hooks for accessing wallet state, and utilities for blockchain interactions.
+
+**Use Mesh React when you need to:**
+
+- Connect users to their Cardano wallets (Nami, Eternl, Flint, etc.)
+- Display wallet balances and assets
+- Build transaction signing flows
+- Create multi-wallet support in your dApp
+
+## Quick Start
+
+Install the package and wrap your app with the provider:
+
+```tsx
+import "@meshsdk/react/styles.css";
+import { MeshProvider, CardanoWallet } from "@meshsdk/react";
+
+function App() {
+  return (
+    <MeshProvider>
+      <CardanoWallet />
+    </MeshProvider>
+  );
+}
+```
+
+## What's Included
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch mt-6">
+  <Link href="/docs/react/getting-started" className="no-underline">
+    <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+      <CardTitle className="font-heading">Getting Started</CardTitle>
+      <CardDescription>Installation, setup, and your first wallet connection</CardDescription>
+    </Card>
+  </Link>
+  <Link href="/docs/react/ui-components" className="no-underline">
+    <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+      <CardTitle className="font-heading">UI Components</CardTitle>
+      <CardDescription>Pre-built wallet buttons, badges, and connection modals</CardDescription>
+    </Card>
+  </Link>
+  <Link href="/docs/react/wallet-hooks" className="no-underline">
+    <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+      <CardTitle className="font-heading">Wallet Hooks</CardTitle>
+      <CardDescription>React hooks for wallet state, assets, addresses, and networks</CardDescription>
+    </Card>
+  </Link>
+  <Link href="/apis/wallets/browserwallet" className="no-underline">
+    <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+      <CardTitle className="font-heading">Browser Wallet API</CardTitle>
+      <CardDescription>Full CIP-30 wallet API for transactions and signing</CardDescription>
+    </Card>
+  </Link>
+</div>
+
+## Installation
+
+Install using your preferred package manager:
+
+```bash
+npm install @meshsdk/react
+```
+
+```bash
+yarn add @meshsdk/react
+```
+
+```bash
+pnpm add @meshsdk/react
+```
+
+Or scaffold a complete project with the Mesh CLI:
+
+```bash
+npx meshjs your-app-name
+```
+
+## Requirements
+
+- React 18 or later
+- Next.js 13+ (App Router or Pages Router)
+- A Cardano wallet browser extension (Nami, Eternl, Flint, Lace, etc.)
+
+## Related Resources
+
+- [Browser Wallet API](/apis/wallets/browserwallet) - Full CIP-30 wallet interface
+- [Transaction Builder](/apis/transaction) - Build and sign transactions
+- [Providers](/providers) - Blockchain data providers (Blockfrost, Koios, etc.)
+- [Mesh CLI](/getting-started/mesh-cli) - Project scaffolding and utilities

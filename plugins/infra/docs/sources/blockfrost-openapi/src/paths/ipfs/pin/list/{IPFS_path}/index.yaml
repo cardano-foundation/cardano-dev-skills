@@ -1,0 +1,86 @@
+servers:
+  - url: https://ipfs.blockfrost.io/api/v0
+get:
+  tags:
+    - IPFS » Pins
+  summary: Get details about pinned object
+  description: |
+    Get information about locally pinned IPFS object
+
+    <p>
+      <span class="hosted">Hosted</span> Endpoint only available for hosted variant.
+    </p>
+  parameters:
+    - in: path
+      required: true
+      name: IPFS_path
+      schema:
+        type: string
+        description: The path to the IPFS object
+  x-codeSamples:
+    - lang: "Shell"
+      label: "cURL"
+      source: |
+        curl "https://ipfs.blockfrost.io/api/v0/ipfs/pin/list/{IPFS_PATH}" \
+          -H "project_id: $PROJECT_ID" \
+  responses:
+    "200":
+      description: Returns the pins pinned
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              time_created:
+                type: integer
+                description: Time of the creation of the IPFS object on our backends
+                example: 1615551024
+              time_pinned:
+                type: integer
+                description: Time of the pin of the IPFS object on our backends
+                example: 1615551024
+              ipfs_hash:
+                type: string
+                description: IPFS hash of the pinned object
+                example: "QmdVMnULrY95mth2XkwjxDtMHvzuzmvUPTotKE1tgqKbCx"
+              size:
+                type: string
+                description: Size of the object in Bytes
+                example: "1615551024"
+              state:
+                type: string
+                enum:
+                  - queued
+                  - pinned
+                  - unpinned
+                  - failed
+                  - gc
+                description: |
+                  State of the pinned object. We define 5 states: `queued`, `pinned`, `unpinned`, `failed`, `gc`.
+                  When the object is pending retrieval (i.e. after `/ipfs/pin/add/{IPFS_path}`), the state is `queued`.
+                  If the object is already successfully retrieved, state is changed to `pinned` or `failed` otherwise.
+                  When object is unpinned (i.e. after `/ipfs/pin/remove/{IPFS_path}`) it is marked for garbage collection.
+                  State `gc` means that a previously `unpinned` item has been garbage collected due to account being over storage quota.
+                example: "pinned"
+              filecoin:
+                type: boolean
+                description: Whether filecoin was used to pin the resource.
+            required:
+              - time_created
+              - time_pinned
+              - ipfs_hash
+              - size
+              - state
+              - filecoin
+    "400":
+      $ref: ../../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../../responses/errors/500.yaml

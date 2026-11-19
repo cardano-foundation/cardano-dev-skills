@@ -1,0 +1,360 @@
+---
+title: "Nexus Provider"
+description: "Query Cardano and submit transactions through Gero's Nexus REST API, hosted or self-hosted."
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+<Link href="https://nexus.gerowallet.io">Nexus</Link> is Gero's Cardano data API. `NexusProvider` implements Mesh's fetcher, submitter, evaluator, and listener interfaces over a Blockfrost-style REST surface, so it plugs into wallets and the transaction builder the same way as Blockfrost or Koios.
+
+**Use Nexus when you need:**
+- A hosted Cardano API keyed by network (`mainnet`, `preprod`, or `preview`)
+- Transaction evaluation (requires an Ogmios evaluation backend on the Nexus instance)
+- A self-hosted indexer you can point at with a base URL
+
+## Quick Start
+
+```bash
+npm install @meshsdk/provider
+```
+
+Hosted instance. The API key is network-scoped, so you can omit the network and let the key decide:
+
+```ts
+import { NexusProvider } from "@meshsdk/provider";
+
+const provider = new NexusProvider("<YOUR_API_KEY>", "preprod");
+
+const utxos = await provider.fetchAddressUTxOs(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+);
+
+const txHash = await provider.submitTx(signedTx);
+```
+
+Name the network explicitly when you want it on every request as `?network=`. The OpenAPI id, the dashboard kebab id, and Mesh's bare network name all work, and matching is case-insensitive:
+
+```ts
+const provider = new NexusProvider("<YOUR_API_KEY>", "CARDANO_PREPROD");
+const provider = new NexusProvider("<YOUR_API_KEY>", "cardano-preprod");
+const provider = new NexusProvider("<YOUR_API_KEY>", "preprod");
+```
+
+The named network must match the API key's network. A mismatch is a `400`.
+
+Get an API key from the [Nexus dashboard](https://nexus.gerowallet.io).
+
+## Configuration Options
+
+`NexusProvider` has two constructor shapes.
+
+**Hosted** (`https://nexus.gerowallet.io/api`):
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `apiKey` | `string` | Yes | Nexus API key, sent as the `X-Api-Key` header |
+| `network` | `NexusSupportedNetworks` | No | Sent as `?network=`. Omit it to let the key's network decide |
+
+**Self-hosted** (base URL must include the `/api` path):
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `baseUrl` | `string` | Yes | Instance URL, for example `https://my-nexus.example.com/api` |
+| `apiKey` | `string` | No | Optional `X-Api-Key` header |
+| `network` | `NexusSupportedNetworks` | No | Network the instance serves, sent as `?network=`. If you omit both the key and the network, the server defaults to preprod |
+
+```ts
+const provider = new NexusProvider(
+  "https://my-nexus.example.com/api",
+  undefined,
+  "CARDANO_PREVIEW",
+);
+```
+
+A value that starts with `http` or `/` is treated as a base URL. Anything else is treated as an API key and uses the hosted URL.
+
+### Network values
+
+| You pass | Sent as `?network=` |
+|----------|---------------------|
+| `CARDANO_MAINNET`, `cardano-mainnet`, `mainnet` | `CARDANO_MAINNET` |
+| `CARDANO_PREPROD`, `cardano-preprod`, `preprod` | `CARDANO_PREPROD` |
+| `CARDANO_PREVIEW`, `cardano-preview`, `preview` | `CARDANO_PREVIEW` |
+
+An unknown network throws at construction. Nexus itself only accepts the `CARDANO_*` ids; the kebab and bare Mesh spellings are normalised by this provider.
+
+When `network` is omitted, the provider does not send `?network=`. Internally it still stores `CARDANO_MAINNET`, and that stored value is what `fetchHandle` and `fetchHandleAddress` check. Those two methods therefore do not throw the non-mainnet error unless you explicitly pass `preprod` or `preview`. The HTTP request itself still follows the API key, or the server default.
+
+## API Reference
+
+### fetchAddressUTxOs
+
+```ts
+await provider.fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]>
+```
+
+```ts
+const utxos = await provider.fetchAddressUTxOs("addr_test1...");
+
+const filtered = await provider.fetchAddressUTxOs(
+  "addr_test1...",
+  "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e",
+);
+```
+
+---
+
+### fetchAddressAssets
+
+```ts
+await provider.fetchAddressAssets(address: string): Promise<{ [unit: string]: string }>
+```
+
+---
+
+### fetchAddressTxs
+
+```ts
+await provider.fetchAddressTxs(
+  address: string,
+  option?: IFetcherOptions,
+): Promise<TransactionInfo[]>
+```
+
+---
+
+### fetchAccountInfo
+
+```ts
+const account = await provider.fetchAccountInfo(" ");
+
+console.log(account.poolId);
+console.log(account.balance);
+console.log(account.rewards);
+console.log(account.withdrawals);
+console.log(account.active);
+```
+
+---
+
+### fetchAssetAddresses
+
+```ts
+await provider.fetchAssetAddresses(
+  asset: string,
+): Promise<{ address: string; quantity: string }[]>
+```
+
+---
+
+### fetchAssetMetadata
+
+```ts
+await provider.fetchAssetMetadata(asset: string): Promise<AssetMetadata>
+```
+
+---
+
+### fetchCollectionAssets
+
+```ts
+await provider.fetchCollectionAssets(
+  policyId: string,
+  cursor?: number,
+): Promise<{ assets: Asset[]; next: string | number | null }>
+```
+
+---
+
+### fetchBlockInfo
+
+Block details by hash.
+
+```ts
+await provider.fetchBlockInfo(hash: string): Promise<BlockInfo>
+```
+
+### fetchLatestBlock
+
+The current tip.
+
+```ts
+await provider.fetchLatestBlock(): Promise<BlockInfo>
+```
+
+---
+
+### fetchProtocolParameters
+
+```ts
+await provider.fetchProtocolParameters(epoch?: number): Promise<Protocol>
+```
+
+### fetchCostModels
+
+```ts
+await provider.fetchCostModels(epoch?: number): Promise<number[][]>
+```
+
+---
+
+### fetchTxInfo
+
+```ts
+await provider.fetchTxInfo(hash: string): Promise<TransactionInfo>
+```
+
+### fetchUTxOs
+
+
+```ts
+await provider.fetchUTxOs(hash: string, index?: number): Promise<UTxO[]>
+```
+
+Reference scripts are normalised to Mesh `scriptRef` CBOR. When the output only has a script hash, the provider loads `/scripts/{hash}`.
+
+---
+
+### fetchGovernanceProposal
+
+
+```ts
+await provider.fetchGovernanceProposal(
+  txHash: string,
+  certIndex: number,
+): Promise<GovernanceProposalInfo>
+```
+
+---
+
+### fetchHandleAddress
+
+
+```ts
+await provider.fetchHandleAddress(handle: string): Promise<string>
+```
+
+### fetchHandle
+
+```ts
+await provider.fetchHandle(handle: string): Promise<AssetMetadata>
+```
+
+---
+
+### fetchScriptByHash
+
+```ts
+await provider.fetchScriptByHash(scriptHash: string): Promise<{
+  hash: string;
+  type: string;
+  bytes?: string;
+  cbor?: string;
+  value?: unknown;
+} | undefined>
+```
+
+---
+
+### evaluateTx
+
+Execution units for a transaction. The Nexus instance must have an Ogmios evaluation backend; otherwise the endpoint responds `503`.
+
+```ts
+await provider.evaluateTx(
+  cbor: string,
+  additionalUtxos?: UTxO[],
+  additionalTxs?: string[],
+): Promise<Omit<Action, "data">[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `cbor` | `string` | Yes | Unsigned transaction CBOR hex |
+| `additionalUtxos` | `UTxO[]` | No | UTxOs the transaction references that are not yet on-chain |
+| `additionalTxs` | `string[]` | No | Chained transactions whose outputs this transaction spends |
+
+Nexus redeemer tags are mapped before they are returned. An unrecognised tag throws.
+
+| Nexus `redeemerTag` | Returned `tag` |
+|---------------------|----------------|
+| `spend` | `SPEND` |
+| `mint` | `MINT` |
+| `cert`, `certificate`, `publish` | `CERT` |
+| `reward`, `withdraw`, `withdrawal` | `REWARD` |
+| `vote`, `voting` | `VOTE` |
+| `propose`, `proposing` | `PROPOSE` |
+
+```ts
+const evaluation = await provider.evaluateTx(unsignedTx);
+// [{ index: 0, tag: "SPEND", budget: { mem: number, steps: number } }]
+```
+
+---
+
+### submitTx
+
+
+```ts
+await provider.submitTx(tx: string): Promise<string>
+```
+
+---
+
+### onTxConfirmed
+
+Polls every 5 seconds. Calls `callback` when `fetchBlockInfo` reports `confirmations > 0`. `limit` (default `100`) counts failed `fetchTxInfo` or `fetchBlockInfo` calls only. A transaction that exists but is not yet confirmed does not advance the counter, so polling continues until it confirms or a request fails `limit` times.
+
+```ts
+provider.onTxConfirmed(txHash, () => {
+  console.log("Transaction confirmed");
+});
+```
+
+## Complete Example
+
+```ts
+import { MeshTxBuilder } from "@meshsdk/core";
+import { NexusProvider } from "@meshsdk/provider";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+
+const provider = new NexusProvider("<YOUR_API_KEY>", "preprod");
+
+const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+  networkId: 0,
+  walletAddressType: AddressType.Base,
+  fetcher: provider,
+  submitter: provider,
+  mnemonic: ["your", "mnemonic", "phrase", "..."],
+});
+
+const utxos = await wallet.getUtxosMesh();
+const changeAddress = await wallet.getChangeAddressBech32();
+
+const unsignedTx = await new MeshTxBuilder({ fetcher: provider })
+  .txOut("addr_test1qz...", [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, false);
+const txHash = await provider.submitTx(signedTx);
+
+provider.onTxConfirmed(txHash, () => {
+  console.log(`Transaction ${txHash} confirmed`);
+});
+```
+
+## References
+
+- [Nexus](https://nexus.gerowallet.io) - Hosted API and dashboard
+- [Cardano Developer Portal](https://developers.cardano.org) - Official Cardano development resources
+
+## Related
+
+- <Link href="/providers/blockfrost">Blockfrost Provider</Link> - Another hosted Cardano REST provider
+- <Link href="/providers/koios">Koios Provider</Link> - Community Cardano query layer
+- <Link href="/apis/txbuilder/basics">Transaction Builder</Link> - Build transactions with this provider as the fetcher
+- <Link href="/providers">All Providers</Link>

@@ -1,0 +1,58 @@
+---
+title: Environments
+description: Masumi knows two different kind of environments - Mainnet and Preprod.
+icon: Globe
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+<Callout type="info">
+The Masumi environments correspond directly to the underlying [Cardano Blockchain](/core-concepts/blockchain), which knows exactly the same environments.
+</Callout>
+
+There are many places in which you will encounter differentiations between the **Preprod** and **Mainnet** environments related to the Masumi Node, [Explorer](https://explorer.masumi.network), [Smart Contracts](/core-concepts/smart-contracts), [Wallets](/core-concepts/wallets) and more.
+
+## Preprod (Pre-production Environment)
+
+The preprod environment is designed for testing and development, allowing developers and users to experiment before deploying on the Mainnet. This is where you should start to learn to work with Masumi and connect your Agentic Services first.
+
+The Preprod environment allows you to do all the same things as on the Mainnet, but with zero risks attached.
+
+### Key Characteristics:
+
+- **Test ADA:** Transactions use "test ADA," which has no monetary value and can be obtained for free from a faucet. See [Wallets](/core-concepts/wallets) on how to obtain Test ADA.
+- **Test Stablecoin ($tUSDM):** On Preprod, the active stablecoin is $tUSDM, a testnet-only token with no monetary value.
+- **Controlled Testing:** Enables developers to safely test Agentic Services, new clients, and upgraded [smart contracts](/core-concepts/smart-contracts) without risking real funds.
+- **Replicates Mainnet Conditions:** Closely mirrors the Mainnet environment to ensure tests provide reliable results.
+
+### Use-Cases:
+
+- Testing your Agentic Service, especially when integrating other services
+- Testing new smart contracts and decentralized applications
+- Running quality assurance (QA) or user acceptance testing (UAT)
+- Testing new Masumi Tools and Templates
+- No Risk: Errors or bugs in preprod do not have real-world consequences
+
+### Regulatory Compliance:
+
+While developing on Preprod, you do not yet have to take into account requirements for [Regulatory Compliance](/core-concepts/regulatory-compliance), as this is just a development environment. But it's a great place to work on becoming compliant and implementing all things necessary.
+
+### Helpful Preprod Links:
+
+- [Masumi Explorer on Preprod](https://explorer.masumi.network/?network=preprod)
+- [Cardanoscan on Preprod](https://preprod.cardanoscan.io)
+- [Cardano Faucet for Preprod](https://docs.cardano.org/cardano-testnets/tools/faucet)
+
+<Callout type="info">
+We recommend you setup two different environments where you run the  Masumi Node setup for Preprod purposes and separate this from a Mainnet environment, with separate Masumi Nodes.
+</Callout>
+
+## Mainnet (Main Network)
+
+The Mainnet is the live production environment where real transactions and activities occur on the Masumi Network and the Cardano blockchain. This is where you use [Stablecoins](/core-concepts/tokens) pegged to real-world currencies like the USD to charge for your Agentic Services and start to monetize.
+
+### Key Characteristics:
+
+- **Real Tokens:** Transactions use actual [$ADA tokens](/core-concepts/tokens) - which have monetary value - and [Stablecoins like USDCx](/core-concepts/tokens)
+- **Live Data:** All transactions, smart contracts and activities are recorded permanently on the blockchain.
+- **Public Access:** It is open to everyone, and any transaction or deployment on this network has real-world implications.

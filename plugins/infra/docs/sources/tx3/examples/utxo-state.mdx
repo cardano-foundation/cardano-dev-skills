@@ -1,0 +1,73 @@
+---
+title: UTxO state
+---
+
+A UTxO is more than a bag of value. It can carry a *datum* — a typed payload — and that datum is where on-chain state lives. Whatever shape your protocol's state takes (a counter, a registry, an oracle reading, a pool's reserves), it is encoded into the datum of a UTxO. Advancing the state means spending that UTxO and producing a new one whose datum reflects the change.
+
+Tx3 lets you describe both sides of that interaction:
+
+- **Spending state.** Consume the UTxO as an `input`. Declare its shape with `datum_is` and the rest of the body can read its fields as typed values, then construct a new datum on the output.
+- **Reading state.** Cite the UTxO in a [`reference`](/tx3/language/txs#reference--read-a-utxo-without-consuming-it) block. The transaction sees its datum but does not consume it, so the same UTxO can be read by any number of concurrent transactions.
+
+The two examples below cover both flavours.
+
+## Advancing a counter
+
+The protocol's UTxO holds a `MyRecord` datum. `datum_is: MyRecord` on the input enables typed field access (`source.counter`, `source.other_field`); the output rebuilds the same record with the counter incremented.
+
+```tx3
+type MyRecord {
+    counter: Int,
+    other_field: Bytes,
+}
+
+party MyParty;
+
+tx increase_counter() {
+    input source {
+        from: MyParty,
+        min_amount: fees,
+        datum_is: MyRecord,
+    }
+
+    output {
+        to: MyParty,
+        amount: source - fees,
+        datum: MyRecord {
+            counter: source.counter + 1,
+            other_field: source.other_field,
+        },
+    }
+}
+```
+
+This is the bread-and-butter shape of any UTxO-based state machine: spend the state UTxO, copy unchanged fields forward, override the fields that move. For datums with many fields the spread operator (`...source`) saves the copy-forward boilerplate — see the [swaps example](/tx3/examples/swaps) for that variant.
+
+## Reading state without consuming it
+
+An oracle, a configuration record, or any other published UTxO that other transactions need to consult is referenced rather than spent. The reference block names the on-chain UTxO; with `datum_is` set, its datum is in scope as typed fields on the reference's name.
+
+```tx3
+party Receiver;
+
+type OracleDatum {
+    value: Int,
+}
+
+tx consume_oracle(oracle_utxo: UtxoRef) {
+    reference oracle_data {
+        ref: oracle_utxo,
+        datum_is: OracleDatum,
+    }
+
+    output {
+        to: Receiver,
+        amount: Ada(0),
+        datum: OracleDatum {
+            value: oracle_data.value,
+        },
+    }
+}
+```
+
+The caller passes the on-chain location of the source UTxO as a `UtxoRef` parameter. The transaction reads `oracle_data.value` and embeds it into its own output datum without ever modifying the source. The same pattern works for any published reference UTxO — oracle feeds, protocol parameters, registry entries, configuration records.

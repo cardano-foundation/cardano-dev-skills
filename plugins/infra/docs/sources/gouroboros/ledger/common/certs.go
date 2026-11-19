@@ -1,0 +1,2748 @@
+// Copyright 2026 Blink Labs Software
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package common
+
+import (
+	"bytes"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math/big"
+	"net"
+	"sort"
+	"strings"
+
+	"github.com/blinklabs-io/gouroboros/cbor"
+	"github.com/blinklabs-io/plutigo/data"
+	utxorpc "github.com/utxorpc/go-codegen/utxorpc/v1alpha/cardano"
+)
+
+type CertificateType uint
+
+const (
+	CertificateTypeStakeRegistration               CertificateType = 0
+	CertificateTypeStakeDeregistration             CertificateType = 1
+	CertificateTypeStakeDelegation                 CertificateType = 2
+	CertificateTypePoolRegistration                CertificateType = 3
+	CertificateTypePoolRetirement                  CertificateType = 4
+	CertificateTypeGenesisKeyDelegation            CertificateType = 5
+	CertificateTypeMoveInstantaneousRewards        CertificateType = 6
+	CertificateTypeRegistration                    CertificateType = 7
+	CertificateTypeDeregistration                  CertificateType = 8
+	CertificateTypeVoteDelegation                  CertificateType = 9
+	CertificateTypeStakeVoteDelegation             CertificateType = 10
+	CertificateTypeStakeRegistrationDelegation     CertificateType = 11
+	CertificateTypeVoteRegistrationDelegation      CertificateType = 12
+	CertificateTypeStakeVoteRegistrationDelegation CertificateType = 13
+	CertificateTypeAuthCommitteeHot                CertificateType = 14
+	CertificateTypeResignCommitteeCold             CertificateType = 15
+	CertificateTypeRegistrationDrep                CertificateType = 16
+	CertificateTypeDeregistrationDrep              CertificateType = 17
+	CertificateTypeUpdateDrep                      CertificateType = 18
+)
+
+type CertificateWrapper struct {
+	Type        uint
+	Certificate Certificate
+}
+
+// ValidatePreConwayCertificateTypes rejects certificate constructors that
+// were introduced with the Conway era.
+func ValidatePreConwayCertificateTypes(
+	certificates []CertificateWrapper,
+) error {
+	for idx, certificate := range certificates {
+		if CertificateType(certificate.Type) >
+			CertificateTypeMoveInstantaneousRewards {
+			return fmt.Errorf(
+				"certificate type is not valid before Conway: index %d type %d",
+				idx,
+				certificate.Type,
+			)
+		}
+	}
+	return nil
+}
+
+func (c *CertificateWrapper) UnmarshalCBOR(data []byte) error {
+	// Determine cert type
+	certType, err := cbor.DecodeIdFromList(data)
+	if err != nil {
+		return err
+	}
+	if certType < 0 {
+		return fmt.Errorf("invalid certificate type: %d", certType)
+	}
+	var tmpCert Certificate
+	switch CertificateType(certType) {
+	case CertificateTypeStakeRegistration:
+		tmpCert = &StakeRegistrationCertificate{}
+	case CertificateTypeStakeDeregistration:
+		tmpCert = &StakeDeregistrationCertificate{}
+	case CertificateTypeStakeDelegation:
+		tmpCert = &StakeDelegationCertificate{}
+	case CertificateTypePoolRegistration:
+		tmpCert = &PoolRegistrationCertificate{}
+	case CertificateTypePoolRetirement:
+		tmpCert = &PoolRetirementCertificate{}
+	case CertificateTypeGenesisKeyDelegation:
+		tmpCert = &GenesisKeyDelegationCertificate{}
+	case CertificateTypeMoveInstantaneousRewards:
+		tmpCert = &MoveInstantaneousRewardsCertificate{}
+	case CertificateTypeRegistration:
+		tmpCert = &RegistrationCertificate{}
+	case CertificateTypeDeregistration:
+		tmpCert = &DeregistrationCertificate{}
+	case CertificateTypeVoteDelegation:
+		tmpCert = &VoteDelegationCertificate{}
+	case CertificateTypeStakeVoteDelegation:
+		tmpCert = &StakeVoteDelegationCertificate{}
+	case CertificateTypeStakeRegistrationDelegation:
+		tmpCert = &StakeRegistrationDelegationCertificate{}
+	case CertificateTypeVoteRegistrationDelegation:
+		tmpCert = &VoteRegistrationDelegationCertificate{}
+	case CertificateTypeStakeVoteRegistrationDelegation:
+		tmpCert = &StakeVoteRegistrationDelegationCertificate{}
+	case CertificateTypeAuthCommitteeHot:
+		tmpCert = &AuthCommitteeHotCertificate{}
+	case CertificateTypeResignCommitteeCold:
+		tmpCert = &ResignCommitteeColdCertificate{}
+	case CertificateTypeRegistrationDrep:
+		tmpCert = &RegistrationDrepCertificate{}
+	case CertificateTypeDeregistrationDrep:
+		tmpCert = &DeregistrationDrepCertificate{}
+	case CertificateTypeUpdateDrep:
+		tmpCert = &UpdateDrepCertificate{}
+	default:
+		return fmt.Errorf("unknown certificate type: %d", certType)
+	}
+	// Decode cert
+	if _, err := cbor.Decode(data, tmpCert); err != nil {
+		return err
+	}
+	// certType is known within uint range
+	c.Type = uint(certType) // #nosec G115
+	c.Certificate = tmpCert
+	return nil
+}
+
+func (c *CertificateWrapper) MarshalCBOR() ([]byte, error) {
+	return cbor.Encode(c.Certificate)
+}
+
+type Certificate interface {
+	isCertificate()
+	Cbor() []byte
+	Utxorpc() (*utxorpc.Certificate, error)
+	Type() uint
+}
+
+const (
+	DrepTypeAddrKeyHash  = 0
+	DrepTypeScriptHash   = 1
+	DrepTypeAbstain      = 2
+	DrepTypeNoConfidence = 3
+)
+
+type Drep struct {
+	Type       int
+	Credential []byte
+}
+
+func (d Drep) MarshalCBOR() ([]byte, error) {
+	switch d.Type {
+	case DrepTypeAddrKeyHash, DrepTypeScriptHash:
+		return cbor.Encode([]any{d.Type, d.Credential})
+	case DrepTypeAbstain, DrepTypeNoConfidence:
+		return cbor.Encode([]any{d.Type})
+	default:
+		return nil, fmt.Errorf("unknown drep type: %d", d.Type)
+	}
+}
+
+// UnmarshalCBOR decodes the drep union the Conway and Dijkstra CDDL define:
+//
+//	drep = [0, addr_keyhash// 1, script_hash// 2// 3]
+//
+// Both hash alternatives alias hash28, so types 0 and 1 carry exactly 28
+// bytes and nothing else, and types 2 and 3 carry nothing at all. The arity
+// is read off the decoded array rather than inferred, because a trailing
+// element on a predefined option would otherwise make [2] and [2, x] the same
+// DRep from different bytes.
+func (d *Drep) UnmarshalCBOR(data []byte) error {
+	if d == nil {
+		return errors.New("nil Drep receiver")
+	}
+	var tmpItems []cbor.RawMessage
+	if _, err := cbor.Decode(data, &tmpItems); err != nil {
+		return err
+	}
+	if len(tmpItems) == 0 {
+		return errors.New("drep is an empty list")
+	}
+	var drepType int
+	if _, err := cbor.Decode(tmpItems[0], &drepType); err != nil {
+		return err
+	}
+	switch drepType {
+	case DrepTypeAddrKeyHash, DrepTypeScriptHash:
+		if len(tmpItems) != 2 {
+			return fmt.Errorf(
+				"drep type %d takes exactly 2 list items, got %d",
+				drepType,
+				len(tmpItems),
+			)
+		}
+		// Blake2b224 is the repository's strict hash28 decoder: it rejects
+		// any byte string that is not 28 bytes, which is what keeps a
+		// wrong-length credential away from the zero-padding conversions
+		// in the era rule packages.
+		var credential Blake2b224
+		if err := credential.UnmarshalCBOR(tmpItems[1]); err != nil {
+			return fmt.Errorf("decode drep credential: %w", err)
+		}
+		d.Type = drepType
+		d.Credential = credential[:]
+	case DrepTypeAbstain, DrepTypeNoConfidence:
+		if len(tmpItems) != 1 {
+			return fmt.Errorf(
+				"drep type %d takes exactly 1 list item, got %d",
+				drepType,
+				len(tmpItems),
+			)
+		}
+		d.Type = drepType
+		d.Credential = nil
+	default:
+		return fmt.Errorf("unknown drep type: %d", drepType)
+	}
+	return nil
+}
+
+func (d *Drep) UnmarshalJSON(data []byte) error {
+	var tmpData string
+	if err := json.Unmarshal(data, &tmpData); err != nil {
+		return fmt.Errorf("decode drep: %w", err)
+	}
+	if strings.HasPrefix(tmpData, `drep-keyHash-`) {
+		d.Type = DrepTypeAddrKeyHash
+		tmpCred, err := hex.DecodeString(tmpData[13:])
+		if err != nil {
+			return fmt.Errorf("decode drep hash: %w", err)
+		}
+		if len(tmpCred) != 28 {
+			return errors.New("invalid drep hash length")
+		}
+		d.Credential = tmpCred
+	} else if strings.HasPrefix(tmpData, `drep-scriptHash-`) {
+		d.Type = DrepTypeScriptHash
+		tmpCred, err := hex.DecodeString(tmpData[16:])
+		if err != nil {
+			return fmt.Errorf("decode drep hash: %w", err)
+		}
+		if len(tmpCred) != 28 {
+			return errors.New("invalid drep hash length")
+		}
+		d.Credential = tmpCred
+	} else if tmpData == `drep-alwaysAbstain` {
+		d.Type = DrepTypeAbstain
+	} else if tmpData == `drep-alwaysNoConfidence` {
+		d.Type = DrepTypeNoConfidence
+	} else {
+		return errors.New("unknown drep type")
+	}
+	return nil
+}
+
+func (d *Drep) Utxorpc() (*utxorpc.DRep, error) {
+	switch d.Type {
+	case DrepTypeAddrKeyHash:
+		return &utxorpc.DRep{
+			Drep: &utxorpc.DRep_AddrKeyHash{AddrKeyHash: d.Credential},
+		}, nil
+	case DrepTypeScriptHash:
+		return &utxorpc.DRep{
+			Drep: &utxorpc.DRep_ScriptHash{ScriptHash: d.Credential},
+		}, nil
+	case DrepTypeAbstain:
+		return &utxorpc.DRep{
+			Drep: &utxorpc.DRep_Abstain{Abstain: true},
+		}, nil
+	case DrepTypeNoConfidence:
+		return &utxorpc.DRep{
+			Drep: &utxorpc.DRep_NoConfidence{NoConfidence: true},
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown DRep type: %d", d.Type)
+	}
+}
+
+func (d *Drep) ToPlutusData() data.PlutusData {
+	switch d.Type {
+	case DrepTypeAddrKeyHash:
+		return data.NewConstr(
+			0,
+			data.NewConstr(
+				0,
+				data.NewByteString(d.Credential),
+			),
+		)
+	case DrepTypeScriptHash:
+		return data.NewConstr(
+			0,
+			data.NewConstr(
+				1,
+				data.NewByteString(d.Credential),
+			),
+		)
+	case DrepTypeAbstain:
+		return data.NewConstr(1)
+	case DrepTypeNoConfidence:
+		return data.NewConstr(2)
+	default:
+		panic(fmt.Sprintf("unsupported drep type: %d", d.Type))
+	}
+}
+
+// String returns a CIP-0129 bech32-encoded representation of the DRep.
+// Returns "drep_abstain" for abstain, "drep_no_confidence" for no confidence,
+// and a CIP-0129 encoded bech32 string with "drep" prefix for key/script hashes.
+func (d *Drep) String() string {
+	switch d.Type {
+	case DrepTypeAddrKeyHash:
+		return encodeCip129Credential(
+			"drep",
+			CredentialTypeAddrKeyHash,
+			d.Credential,
+		)
+	case DrepTypeScriptHash:
+		return encodeCip129Credential(
+			"drep",
+			CredentialTypeScriptHash,
+			d.Credential,
+		)
+	case DrepTypeAbstain:
+		return "drep_abstain"
+	case DrepTypeNoConfidence:
+		return "drep_no_confidence"
+	default:
+		return fmt.Sprintf("drep_unknown_%d", d.Type)
+	}
+}
+
+type StakeRegistrationCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType        uint
+	StakeCredential Credential
+}
+
+func (c StakeRegistrationCertificate) isCertificate() {}
+
+func (c *StakeRegistrationCertificate) UnmarshalCBOR(cborData []byte) error {
+	type tStakeRegistrationCertificate StakeRegistrationCertificate
+	var tmp tStakeRegistrationCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = StakeRegistrationCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c StakeRegistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	stakeCred, err := c.StakeCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_StakeRegistration{
+			StakeRegistration: stakeCred,
+		},
+	}, nil
+}
+
+func (c StakeRegistrationCertificate) Type() uint {
+	return c.CertType
+}
+
+type StakeDeregistrationCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType        uint
+	StakeCredential Credential
+}
+
+func (c StakeDeregistrationCertificate) isCertificate() {}
+
+func (c *StakeDeregistrationCertificate) UnmarshalCBOR(cborData []byte) error {
+	type tStakeDeregistrationCertificate StakeDeregistrationCertificate
+	var tmp tStakeDeregistrationCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = StakeDeregistrationCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c StakeDeregistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	stakeDeReg, err := c.StakeCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+
+	return &utxorpc.Certificate{
+			Certificate: &utxorpc.Certificate_StakeDeregistration{
+				StakeDeregistration: stakeDeReg,
+			},
+		},
+		nil
+}
+
+func (c StakeDeregistrationCertificate) Type() uint {
+	return c.CertType
+}
+
+type StakeDelegationCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType        uint
+	StakeCredential *Credential
+	PoolKeyHash     PoolKeyHash
+}
+
+func (c StakeDelegationCertificate) isCertificate() {}
+
+func (c *StakeDelegationCertificate) UnmarshalCBOR(cborData []byte) error {
+	type tStakeDelegationCertificate StakeDelegationCertificate
+	var tmp tStakeDelegationCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	if tmp.StakeCredential == nil {
+		return errors.New("stake delegation contains a nil credential")
+	}
+	*c = StakeDelegationCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c StakeDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	stakeCred, err := c.StakeCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+	return &utxorpc.Certificate{
+			Certificate: &utxorpc.Certificate_StakeDelegation{
+				StakeDelegation: &utxorpc.StakeDelegationCert{
+					StakeCredential: stakeCred,
+					PoolKeyhash:     c.PoolKeyHash.Bytes(),
+				},
+			},
+		},
+		nil
+}
+
+func (c StakeDelegationCertificate) Type() uint {
+	return c.CertType
+}
+
+type (
+	PoolKeyHash = Blake2b224
+	VrfKeyHash  = Blake2b256
+)
+
+// PoolMetadataHash holds the hash bytes of a pool_metadata entry.
+//
+// The reference ledger stores the field as an unbounded byte string: pmHash in
+// libs/cardano-ledger-core/src/Cardano/Ledger/State/StakePool.hs is a
+// ByteArray, and the DecCBOR instance for PoolMetadata applies no length
+// check. The length bound belongs to the POOL rule instead
+// (PoolMedataHashTooBig in
+// eras/shelley/impl/src/Cardano/Ledger/Shelley/Rules/Pool.hs, gated on
+// SoftForks.restrictPoolMetadataHash), which rejects only hashes longer than
+// 32 bytes and only from protocol version 5 onwards. A fixed 32-byte type
+// would reject registrations the node accepts, so the bound is applied in
+// shelley.UtxoValidatePoolCertificates.
+type PoolMetadataHash []byte
+
+// Bytes returns the raw hash bytes.
+func (h PoolMetadataHash) Bytes() []byte {
+	return []byte(h)
+}
+
+// String returns the hex encoding of the hash bytes.
+func (h PoolMetadataHash) String() string {
+	return hex.EncodeToString(h)
+}
+
+func (h PoolMetadataHash) MarshalJSON() ([]byte, error) {
+	return json.Marshal(h.String())
+}
+
+func (h PoolMetadataHash) MarshalText() ([]byte, error) {
+	return []byte(h.String()), nil
+}
+
+func (h *PoolMetadataHash) UnmarshalText(text []byte) error {
+	decoded, err := hex.DecodeString(string(text))
+	if err != nil {
+		return err
+	}
+	*h = PoolMetadataHash(decoded)
+	return nil
+}
+
+func (h PoolMetadataHash) MarshalCBOR() ([]byte, error) {
+	// A nil value still encodes as a byte string, because
+	// pool_metadata_hash has no null alternative.
+	hashBytes := []byte(h)
+	if hashBytes == nil {
+		hashBytes = []byte{}
+	}
+	return cbor.Encode(hashBytes)
+}
+
+func (h *PoolMetadataHash) UnmarshalCBOR(cborData []byte) error {
+	if h == nil {
+		return errors.New("nil PoolMetadataHash receiver")
+	}
+	// Reject anything that is not a byte string before decoding, so a tag,
+	// an array or a text string cannot reach the hash.
+	if _, _, _, err := byteStringHeader(cborData); err != nil {
+		return fmt.Errorf("decode pool metadata hash: %w", err)
+	}
+	var decoded []byte
+	if _, err := cbor.Decode(cborData, &decoded); err != nil {
+		return fmt.Errorf("decode pool metadata hash: %w", err)
+	}
+	*h = PoolMetadataHash(decoded)
+	return nil
+}
+
+const (
+	LeiosBlsPublicKeySize       = 96
+	LeiosBlsPossessionProofSize = 48
+)
+
+// LeiosKey is the BLS12-381 verification key and proof of possession
+// optionally registered with a Dijkstra-era stake pool. The prototype accepts
+// this data but does not use it for committee voting yet.
+type LeiosKey struct {
+	cbor.StructAsArray
+	PublicKey       []byte `json:"publicKey"`
+	PossessionProof []byte `json:"possessionProof"`
+}
+
+func (k LeiosKey) validate() error {
+	if len(k.PublicKey) != LeiosBlsPublicKeySize {
+		return fmt.Errorf(
+			"invalid Leios BLS public key length: expected %d, got %d",
+			LeiosBlsPublicKeySize,
+			len(k.PublicKey),
+		)
+	}
+	if len(k.PossessionProof) != LeiosBlsPossessionProofSize {
+		return fmt.Errorf(
+			"invalid Leios BLS possession proof length: expected %d, got %d",
+			LeiosBlsPossessionProofSize,
+			len(k.PossessionProof),
+		)
+	}
+	return nil
+}
+
+func (k *LeiosKey) UnmarshalCBOR(data []byte) error {
+	type tmpLeiosKey LeiosKey
+	var tmp tmpLeiosKey
+	if _, err := cbor.Decode(data, &tmp); err != nil {
+		return err
+	}
+	if err := LeiosKey(tmp).validate(); err != nil {
+		return err
+	}
+	*k = LeiosKey(tmp)
+	return nil
+}
+
+func (k *LeiosKey) UnmarshalJSON(data []byte) error {
+	type tmpLeiosKey LeiosKey
+	var tmp tmpLeiosKey
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	if err := LeiosKey(tmp).validate(); err != nil {
+		return err
+	}
+	*k = LeiosKey(tmp)
+	return nil
+}
+
+type PoolMetadata struct {
+	cbor.StructAsArray
+	Url  string
+	Hash PoolMetadataHash
+}
+
+// urlMaxLength and urlMaxLengthLegacy bound the shared CDDL rule
+// url = text .size (0 .. 128), which covers both pool_metadata and anchor.
+// cardano-ledger reaches the same bound through the DecCBOR instance of its
+// Url type, which decodes at 128 bytes from decoder version 9 and at 64 bytes
+// before it.
+const (
+	urlMaxLength       = 128
+	urlMaxLengthLegacy = 64
+)
+
+// ErrPoolMetadataURLTooLong identifies a pool metadata URL that exceeds the
+// protocol's 128-byte bound.
+var ErrPoolMetadataURLTooLong = errors.New(
+	"pool metadata URL exceeds the protocol length limit",
+)
+
+// ValidatePoolMetadata verifies the maximum URL size used when encoding pool
+// metadata to CBOR or exposing it through UTxO RPC. JSON uses the reference
+// ledger's unbounded Url/Text representation and does not call this helper.
+func ValidatePoolMetadata(metadata *PoolMetadata) error {
+	return validatePoolMetadataURL(metadata, urlMaxLength)
+}
+
+// ValidatePoolMetadataForProtocolVersion verifies the protocol-version-aware
+// URL bound for pool metadata. Protocol versions before Conway use the legacy
+// 64-byte bound; Conway and later use the 128-byte bound.
+func ValidatePoolMetadataForProtocolVersion(
+	metadata *PoolMetadata,
+	protocolMajor uint,
+) error {
+	maxURLLength := urlMaxLength
+	if protocolMajor < ProtocolVersionConway {
+		maxURLLength = urlMaxLengthLegacy
+	}
+	return validatePoolMetadataURL(metadata, maxURLLength)
+}
+
+func validatePoolMetadataURL(metadata *PoolMetadata, maxURLLength int) error {
+	if metadata == nil || len(metadata.Url) <= maxURLLength {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: maximum %d bytes, got %d",
+		ErrPoolMetadataURLTooLong,
+		maxURLLength,
+		len(metadata.Url),
+	)
+}
+
+func (p *PoolMetadata) UnmarshalCBOR(data []byte) error {
+	if p == nil {
+		return errors.New("nil PoolMetadata receiver")
+	}
+	type poolMetadata PoolMetadata
+	var tmp poolMetadata
+	if _, err := cbor.Decode(data, &tmp); err != nil {
+		return err
+	}
+	metadata := PoolMetadata(tmp)
+	if err := ValidatePoolMetadata(&metadata); err != nil {
+		return err
+	}
+	*p = metadata
+	return nil
+}
+
+func (p PoolMetadata) MarshalCBOR() ([]byte, error) {
+	if err := ValidatePoolMetadata(&p); err != nil {
+		return nil, err
+	}
+	return cbor.Encode([]any{p.Url, p.Hash})
+}
+
+func (p *PoolMetadata) UnmarshalJSON(data []byte) error {
+	if p == nil {
+		return errors.New("nil PoolMetadata receiver")
+	}
+	var tmp struct {
+		Url  string           `json:"url"`
+		Hash PoolMetadataHash `json:"hash"`
+	}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	metadata := PoolMetadata{
+		Url:  tmp.Url,
+		Hash: tmp.Hash,
+	}
+	*p = metadata
+	return nil
+}
+
+func (p PoolMetadata) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Url  string           `json:"url"`
+		Hash PoolMetadataHash `json:"hash"`
+	}{
+		Url:  p.Url,
+		Hash: p.Hash,
+	})
+}
+
+func (p *PoolMetadata) Utxorpc() (*utxorpc.PoolMetadata, error) {
+	if p == nil {
+		return nil, nil
+	}
+	if err := ValidatePoolMetadata(p); err != nil {
+		return nil, err
+	}
+	return &utxorpc.PoolMetadata{
+			Url:  p.Url,
+			Hash: p.Hash[:],
+		},
+		nil
+}
+
+const (
+	PoolRelayTypeSingleHostAddress        = 0
+	PoolRelayTypeSingleHostName           = 1
+	PoolRelayTypeMultiHostName            = 2
+	poolRelayMaxPort               uint32 = 65535
+	poolRelayMaxHostnameLen               = 128
+	poolRelayIpv4Size                     = 4
+	poolRelayIpv6Size                     = 16
+)
+
+// ErrPoolRelayAddressWidth identifies a single_host_addr relay whose ipv4 or
+// ipv6 byte string is not the width the CDDL fixes.
+var ErrPoolRelayAddressWidth = errors.New(
+	"pool relay address has the wrong width",
+)
+
+// ErrPoolRelayMissingHostname identifies a single_host_name or multi_host_name
+// relay whose dns_name slot holds a CBOR null. Both CDDL productions take
+// dns_name unconditionally, with no nil alternative, and cardano-ledger
+// decodes the slot with the plain DecCBOR DnsName instance rather than
+// decodeNullStrictMaybe, so a null fails there as a type error.
+var ErrPoolRelayMissingHostname = errors.New(
+	"pool relay is missing its dns_name",
+)
+
+type PoolRelay struct {
+	Type     int     `json:"type"`
+	Port     *uint32 `json:"port,omitempty"`
+	Ipv4     *net.IP `json:"ipv4,omitempty"`
+	Ipv6     *net.IP `json:"ipv6,omitempty"`
+	Hostname *string `json:"hostname,omitempty"`
+}
+
+// UnmarshalJSON accepts both the public flat relay representation and the
+// tagged representation emitted by cardano-ledger for Shelley genesis files.
+func (p *PoolRelay) UnmarshalJSON(data []byte) error {
+	type flatPoolRelay PoolRelay
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	if raw, ok := fields["single host address"]; ok {
+		var relay struct {
+			Port *uint32 `json:"port"`
+			Ipv4 *net.IP `json:"IPv4"`
+			Ipv6 *net.IP `json:"IPv6"`
+		}
+		if err := json.Unmarshal(raw, &relay); err != nil {
+			return err
+		}
+		*p = PoolRelay{
+			Type: PoolRelayTypeSingleHostAddress,
+			Port: relay.Port,
+			Ipv4: relay.Ipv4,
+			Ipv6: relay.Ipv6,
+		}
+		return p.validateCBORBounds()
+	}
+	if raw, ok := fields["single host name"]; ok {
+		var relay struct {
+			Port     *uint32 `json:"port"`
+			Hostname string  `json:"dnsName"`
+		}
+		if err := json.Unmarshal(raw, &relay); err != nil {
+			return err
+		}
+		*p = PoolRelay{
+			Type:     PoolRelayTypeSingleHostName,
+			Port:     relay.Port,
+			Hostname: &relay.Hostname,
+		}
+		return p.validateCBORBounds()
+	}
+	if raw, ok := fields["multi host name"]; ok {
+		var relay struct {
+			Hostname string `json:"dnsName"`
+		}
+		if err := json.Unmarshal(raw, &relay); err != nil {
+			return err
+		}
+		*p = PoolRelay{
+			Type:     PoolRelayTypeMultiHostName,
+			Hostname: &relay.Hostname,
+		}
+		return p.validateCBORBounds()
+	}
+
+	var relay flatPoolRelay
+	if err := json.Unmarshal(data, &relay); err != nil {
+		return err
+	}
+	*p = PoolRelay(relay)
+	return p.validateCBORBounds()
+}
+
+func (p PoolRelay) validateCBORBounds() error {
+	switch p.Type {
+	case PoolRelayTypeSingleHostAddress, PoolRelayTypeSingleHostName:
+		if p.Port != nil && *p.Port > poolRelayMaxPort {
+			return fmt.Errorf(
+				"pool relay port must not exceed %d",
+				poolRelayMaxPort,
+			)
+		}
+	}
+	switch p.Type {
+	case PoolRelayTypeSingleHostName, PoolRelayTypeMultiHostName:
+		if p.Hostname != nil && len(*p.Hostname) > poolRelayMaxHostnameLen {
+			return fmt.Errorf(
+				"pool relay hostname must not exceed %d bytes",
+				poolRelayMaxHostnameLen,
+			)
+		}
+	}
+	return nil
+}
+
+// validateDecodedAddressWidths enforces the fixed widths the CDDL gives the
+// relay address fields: ipv4 = bytes .size 4 and ipv6 = bytes .size 16
+// (ledger/dijkstra/testdata/dijkstra.cddl lines 503 and 505, identical in
+// every era from shelley.cddl onwards). cardano-ledger decodes both through
+// binaryGetDecoder, which fails a short byte string in the binary Get and
+// raises DecoderErrorLeftover on a long one, so the reference rejects any
+// other width rather than normalizing it
+// (libs/cardano-ledger-binary/src/Cardano/Ledger/Binary/Decoding/DecCBOR.hs).
+//
+// The check is decode-only. MarshalCBOR normalizes through net.IP.To4 and
+// To16, which a relay built from genesis or JSON needs: net.ParseIP yields
+// the 16-byte IPv4-in-IPv6 form for a dotted-quad address.
+func (p PoolRelay) validateDecodedAddressWidths() error {
+	if p.Ipv4 != nil && len(*p.Ipv4) != poolRelayIpv4Size {
+		return fmt.Errorf(
+			"%w: ipv4 must be %d bytes, got %d",
+			ErrPoolRelayAddressWidth,
+			poolRelayIpv4Size,
+			len(*p.Ipv4),
+		)
+	}
+	if p.Ipv6 != nil && len(*p.Ipv6) != poolRelayIpv6Size {
+		return fmt.Errorf(
+			"%w: ipv6 must be %d bytes, got %d",
+			ErrPoolRelayAddressWidth,
+			poolRelayIpv6Size,
+			len(*p.Ipv6),
+		)
+	}
+	return nil
+}
+
+func decodeOptionalRelayAddress(raw cbor.RawMessage, name string) (*net.IP, error) {
+	if len(raw) == 1 && raw[0] == 0xf6 {
+		return nil, nil
+	}
+	_, _, indefinite, err := byteStringHeader(raw)
+	if err != nil {
+		return nil, fmt.Errorf("decode pool relay %s: %w", name, err)
+	}
+	if indefinite {
+		return nil, fmt.Errorf(
+			"decode pool relay %s: expected a definite-length byte string",
+			name,
+		)
+	}
+	var address net.IP
+	if _, err := cbor.Decode(raw, &address); err != nil {
+		return nil, fmt.Errorf("decode pool relay %s: %w", name, err)
+	}
+	return &address, nil
+}
+
+func decodePoolRelayHostname(raw cbor.RawMessage) (string, error) {
+	if len(raw) == 0 || raw[0]&cbor.CborTypeMask != cbor.CborTypeTextString {
+		return "", errors.New("pool relay hostname must be a CBOR text string")
+	}
+	if raw[0]&0x1f == 0x1f {
+		return "", errors.New("pool relay hostname must be a definite-length text string")
+	}
+	var hostname string
+	if _, err := cbor.Decode(raw, &hostname); err != nil {
+		return "", err
+	}
+	return hostname, nil
+}
+
+func (p *PoolRelay) UnmarshalCBOR(data []byte) error {
+	tmpId, err := cbor.DecodeIdFromList(data)
+	if err != nil {
+		return err
+	}
+	p.Type = tmpId
+	switch tmpId {
+	case PoolRelayTypeSingleHostAddress:
+		var tmpData struct {
+			cbor.StructAsArray
+			Type uint
+			Port *uint32
+			Ipv4 cbor.RawMessage
+			Ipv6 cbor.RawMessage
+		}
+		if _, err := cbor.Decode(data, &tmpData); err != nil {
+			return err
+		}
+		p.Port = tmpData.Port
+		p.Ipv4, err = decodeOptionalRelayAddress(tmpData.Ipv4, "IPv4 address")
+		if err != nil {
+			return err
+		}
+		p.Ipv6, err = decodeOptionalRelayAddress(tmpData.Ipv6, "IPv6 address")
+		if err != nil {
+			return err
+		}
+		if err := p.validateDecodedAddressWidths(); err != nil {
+			return err
+		}
+	case PoolRelayTypeSingleHostName:
+		var tmpData struct {
+			cbor.StructAsArray
+			Type     uint
+			Port     *uint32
+			Hostname cbor.RawMessage
+		}
+		if _, err := cbor.Decode(data, &tmpData); err != nil {
+			return err
+		}
+		if len(tmpData.Hostname) == 0 || tmpData.Hostname[0] == 0xf6 ||
+			tmpData.Hostname[0] == 0xf7 {
+			return ErrPoolRelayMissingHostname
+		}
+		hostname, err := decodePoolRelayHostname(tmpData.Hostname)
+		if err != nil {
+			return err
+		}
+		p.Port = tmpData.Port
+		p.Hostname = &hostname
+	case PoolRelayTypeMultiHostName:
+		var tmpData struct {
+			cbor.StructAsArray
+			Type     uint
+			Hostname cbor.RawMessage
+		}
+		if _, err := cbor.Decode(data, &tmpData); err != nil {
+			return err
+		}
+		if len(tmpData.Hostname) == 0 || tmpData.Hostname[0] == 0xf6 ||
+			tmpData.Hostname[0] == 0xf7 {
+			return ErrPoolRelayMissingHostname
+		}
+		hostname, err := decodePoolRelayHostname(tmpData.Hostname)
+		if err != nil {
+			return err
+		}
+		p.Hostname = &hostname
+	default:
+		return fmt.Errorf("invalid relay type: %d", tmpId)
+	}
+	return p.validateCBORBounds()
+}
+
+func (p PoolRelay) MarshalCBOR() ([]byte, error) {
+	if err := p.validateCBORBounds(); err != nil {
+		return nil, err
+	}
+	switch p.Type {
+	case PoolRelayTypeSingleHostAddress:
+		ipv4 := p.Ipv4
+		if ipv4 != nil {
+			normalized := ipv4.To4()
+			if normalized == nil {
+				return nil, errors.New("invalid IPv4 relay address")
+			}
+			ipv4 = &normalized
+		}
+		ipv6 := p.Ipv6
+		if ipv6 != nil {
+			normalized := ipv6.To16()
+			if normalized == nil {
+				return nil, errors.New("invalid IPv6 relay address")
+			}
+			ipv6 = &normalized
+		}
+		return cbor.Encode(struct {
+			cbor.StructAsArray
+			Type uint
+			Port *uint32
+			Ipv4 *net.IP
+			Ipv6 *net.IP
+		}{
+			Type: uint(p.Type),
+			Port: p.Port,
+			Ipv4: ipv4,
+			Ipv6: ipv6,
+		})
+	case PoolRelayTypeSingleHostName:
+		if p.Hostname == nil {
+			return nil, errors.New("single-host-name relay requires hostname")
+		}
+		return cbor.Encode(struct {
+			cbor.StructAsArray
+			Type     uint
+			Port     *uint32
+			Hostname *string
+		}{
+			Type:     uint(p.Type),
+			Port:     p.Port,
+			Hostname: p.Hostname,
+		})
+	case PoolRelayTypeMultiHostName:
+		if p.Hostname == nil {
+			return nil, errors.New("multi-host-name relay requires hostname")
+		}
+		return cbor.Encode(struct {
+			cbor.StructAsArray
+			Type     uint
+			Hostname *string
+		}{
+			Type:     uint(p.Type),
+			Hostname: p.Hostname,
+		})
+	default:
+		return nil, fmt.Errorf("invalid relay type: %d", p.Type)
+	}
+}
+
+func (p PoolRelay) Utxorpc() (*utxorpc.Relay, error) {
+	ret := &utxorpc.Relay{}
+	if p.Port != nil {
+		ret.Port = *p.Port
+	}
+	if p.Ipv4 != nil {
+		ret.IpV4 = []byte(*p.Ipv4)
+	}
+	if p.Ipv6 != nil {
+		ret.IpV6 = []byte(*p.Ipv6)
+	}
+	if p.Port != nil {
+		ret.Port = *p.Port
+	}
+	return ret, nil
+}
+
+type PoolRegistrationCertificate struct {
+	cbor.StructAsArray   `              json:"-"`
+	cbor.DecodeStoreCbor `              json:"-"`
+	CertType             uint          `json:"certType,omitempty"`
+	Operator             PoolKeyHash   `json:"operator"`
+	VrfKeyHash           VrfKeyHash    `json:"vrfKeyHash"`
+	LeiosKey             *LeiosKey     `json:"leiosKey,omitempty"`
+	Pledge               uint64        `json:"pledge"`
+	Cost                 uint64        `json:"cost"`
+	Margin               GenesisRat    `json:"margin"`
+	RewardAccount        AddrKeyHash   `json:"rewardAccount"`
+	PoolOwners           []AddrKeyHash `json:"poolOwners"`
+	Relays               []PoolRelay   `json:"relays"`
+	PoolMetadata         *PoolMetadata `json:"poolMetadata,omitempty"`
+
+	// rewardAccountNetworkId holds the network id from the address header
+	// byte of the wire reward_account, which RewardAccount itself does not
+	// retain. rewardAccountNetworkIdKnown is false when the certificate was
+	// not decoded from a CBOR reward account carrying a header byte (a
+	// programmatically constructed certificate or one built from JSON/genesis).
+	rewardAccountNetworkId       uint
+	rewardAccountNetworkIdKnown  bool
+	rewardAccountCredentialType  uint
+	rewardAccountCredentialKnown bool
+}
+
+// RewardAccountCredential returns the credential carried by the pool's
+// reward account. Programmatically constructed and JSON/genesis certificates
+// have no wire header and retain the historical key-hash default.
+func (c *PoolRegistrationCertificate) RewardAccountCredential() Credential {
+	cred := Credential{CredType: CredentialTypeAddrKeyHash}
+	if c == nil {
+		return cred
+	}
+	cred.Credential = CredentialHash(c.RewardAccount)
+	if c.rewardAccountCredentialKnown {
+		cred.CredType = c.rewardAccountCredentialType
+	}
+	return cred
+}
+
+// SetRewardAccountCredential sets the reward-account credential and the
+// network identity needed for canonical CBOR encoding.
+func (c *PoolRegistrationCertificate) SetRewardAccountCredential(
+	credential Credential,
+	networkId uint,
+) error {
+	if c == nil {
+		return errors.New("nil pool registration certificate receiver")
+	}
+	if credential.CredType > CredentialTypeScriptHash {
+		return fmt.Errorf(
+			"invalid reward account credential type: %d",
+			credential.CredType,
+		)
+	}
+	if networkId > AddressNetworkMainnet {
+		return fmt.Errorf("invalid reward account network id: %d", networkId)
+	}
+	c.RewardAccount = AddrKeyHash(credential.Credential)
+	c.rewardAccountCredentialType = credential.CredType
+	c.rewardAccountCredentialKnown = true
+	c.rewardAccountNetworkId = networkId
+	c.rewardAccountNetworkIdKnown = true
+	c.DecodeStoreCbor.SetCbor(nil)
+	return nil
+}
+
+// RewardAccountNetworkId returns the network id encoded in the header byte of
+// the certificate's reward account. The second return value is false when the
+// certificate did not come from a wire reward_account carrying that header, in
+// which case no network id is recoverable and callers must not treat the zero
+// value as testnet.
+func (c *PoolRegistrationCertificate) RewardAccountNetworkId() (uint, bool) {
+	return c.rewardAccountNetworkId, c.rewardAccountNetworkIdKnown
+}
+
+// SetCbor invalidates decoded reward-account metadata only when replacing the
+// cached bytes. Clearing the cache before mutating fields must preserve that
+// consensus-relevant metadata.
+func (c *PoolRegistrationCertificate) SetCbor(cborData []byte) {
+	c.DecodeStoreCbor.SetCbor(cborData)
+	if cborData != nil {
+		c.clearRewardAccountMetadata()
+	}
+}
+
+func (c *PoolRegistrationCertificate) clearRewardAccountMetadata() {
+	c.rewardAccountNetworkId = 0
+	c.rewardAccountNetworkIdKnown = false
+	c.rewardAccountCredentialType = CredentialTypeAddrKeyHash
+	c.rewardAccountCredentialKnown = false
+}
+
+// ErrPoolMarginOutsideUnitInterval identifies a stake-pool margin outside the
+// inclusive unit interval.
+var ErrPoolMarginOutsideUnitInterval = errors.New(
+	"pool margin must be in the unit interval [0,1]",
+)
+
+// ErrPoolMarginUTxORPCUnrepresentable identifies a valid ledger pool margin
+// that cannot be represented by the UTxO-RPC RationalNumber schema.
+var ErrPoolMarginUTxORPCUnrepresentable = errors.New(
+	"pool margin cannot be represented by UTxO-RPC",
+)
+
+// ValidatePoolMargin verifies the bounded-rational contract used by stake
+// pool registrations. Pool margins are inclusive at both zero and one.
+func ValidatePoolMargin(margin GenesisRat) error {
+	if margin.Rat == nil {
+		return fmt.Errorf("%w: missing value", ErrPoolMarginOutsideUnitInterval)
+	}
+	return validatePoolMarginComponents(margin.Num(), margin.Denom())
+}
+
+func validatePoolMarginComponents(numerator, denominator *big.Int) error {
+	if err := validatePoolMarginInterval(numerator, denominator); err != nil {
+		return err
+	}
+	if !numerator.IsUint64() {
+		return fmt.Errorf(
+			"%w: numerator cannot be represented by Word64: %s",
+			ErrPoolMarginOutsideUnitInterval,
+			numerator,
+		)
+	}
+	if !denominator.IsUint64() {
+		return fmt.Errorf(
+			"%w: denominator cannot be represented by Word64: %s",
+			ErrPoolMarginOutsideUnitInterval,
+			denominator,
+		)
+	}
+	return nil
+}
+
+func validatePoolMarginInterval(numerator, denominator *big.Int) error {
+	if numerator == nil || denominator == nil {
+		return fmt.Errorf(
+			"%w: missing component",
+			ErrPoolMarginOutsideUnitInterval,
+		)
+	}
+	if denominator.Sign() <= 0 {
+		return fmt.Errorf(
+			"%w: denominator must be positive",
+			ErrPoolMarginOutsideUnitInterval,
+		)
+	}
+	if numerator.Sign() < 0 || numerator.Cmp(denominator) > 0 {
+		return fmt.Errorf(
+			"%w: got %s/%s",
+			ErrPoolMarginOutsideUnitInterval,
+			numerator,
+			denominator,
+		)
+	}
+	return nil
+}
+
+func validatePoolMarginCBOR(data []byte, requireUintComponents bool) error {
+	var tag cbor.RawTag
+	if _, err := cbor.Decode(data, &tag); err != nil {
+		return fmt.Errorf("%w: %w", ErrPoolMarginOutsideUnitInterval, err)
+	}
+	if tag.Number != cbor.CborTagRational {
+		return fmt.Errorf(
+			"%w: expected CBOR tag %d, got %d",
+			ErrPoolMarginOutsideUnitInterval,
+			cbor.CborTagRational,
+			tag.Number,
+		)
+	}
+	if count, _, indefinite := cbor.ArrayInfo(
+		cbor.SkipTags(tag.Content),
+	); !indefinite && count >= 0 && count != 2 {
+		return fmt.Errorf(
+			"%w: expected two components, got %d",
+			ErrPoolMarginOutsideUnitInterval,
+			count,
+		)
+	}
+	var components []cbor.RawMessage
+	if _, err := cbor.Decode(tag.Content, &components); err != nil {
+		return fmt.Errorf("%w: %w", ErrPoolMarginOutsideUnitInterval, err)
+	}
+	if len(components) != 2 {
+		return fmt.Errorf(
+			"%w: expected two components, got %d",
+			ErrPoolMarginOutsideUnitInterval,
+			len(components),
+		)
+	}
+	if requireUintComponents {
+		for idx, component := range components {
+			if len(component) == 0 || component[0]>>5 != 0 {
+				return fmt.Errorf(
+					"%w: component %d must be an unsigned integer",
+					ErrPoolMarginOutsideUnitInterval,
+					idx,
+				)
+			}
+			var value uint64
+			if _, err := cbor.Decode(component, &value); err != nil {
+				return fmt.Errorf(
+					"%w: component %d: %w",
+					ErrPoolMarginOutsideUnitInterval,
+					idx,
+					err,
+				)
+			}
+		}
+	}
+	var margin GenesisRat
+	if _, err := cbor.Decode(data, &margin); err != nil {
+		return fmt.Errorf("%w: %w", ErrPoolMarginOutsideUnitInterval, err)
+	}
+	return ValidatePoolMargin(margin)
+}
+
+// ParsePoolMarginJSON decodes a pool margin while enforcing the unit-interval
+// contract on both the encoded components and the resulting rational value.
+func ParsePoolMarginJSON(data []byte) (GenesisRat, error) {
+	var margin GenesisRat
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 {
+		return margin, fmt.Errorf(
+			"%w: missing value",
+			ErrPoolMarginOutsideUnitInterval,
+		)
+	}
+	if data[0] == '{' {
+		var components struct {
+			Numerator   json.RawMessage `json:"numerator"`
+			Denominator json.RawMessage `json:"denominator"`
+		}
+		if err := json.Unmarshal(data, &components); err != nil {
+			return margin, err
+		}
+		numerator, err := parsePoolMarginJSONInteger(
+			components.Numerator,
+			"numerator",
+		)
+		if err != nil {
+			return margin, err
+		}
+		denominator, err := parsePoolMarginJSONInteger(
+			components.Denominator,
+			"denominator",
+		)
+		if err != nil {
+			return margin, err
+		}
+		// Preserve the encoded-component sign rules while applying the Word64
+		// bound to the normalized rational, as cardano-ledger does.
+		if err := validatePoolMarginInterval(numerator, denominator); err != nil {
+			return margin, err
+		}
+		margin.Rat = new(big.Rat).SetFrac(numerator, denominator)
+		if err := ValidatePoolMargin(margin); err != nil {
+			return margin, err
+		}
+		return margin, nil
+	}
+	if err := margin.UnmarshalJSON(data); err != nil {
+		return margin, err
+	}
+	if err := ValidatePoolMargin(margin); err != nil {
+		return margin, err
+	}
+	return margin, nil
+}
+
+func parsePoolMarginJSONInteger(
+	data []byte,
+	component string,
+) (*big.Int, error) {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 {
+		return nil, fmt.Errorf(
+			"%w: missing %s",
+			ErrPoolMarginOutsideUnitInterval,
+			component,
+		)
+	}
+	value, ok := new(big.Int).SetString(string(data), 10)
+	if !ok {
+		return nil, fmt.Errorf(
+			"%w: %s must be an integer",
+			ErrPoolMarginOutsideUnitInterval,
+			component,
+		)
+	}
+	return value, nil
+}
+
+func (p *PoolRegistrationCertificate) UnmarshalJSON(data []byte) error {
+	type tempPool struct {
+		Operator      string          `json:"operator"`
+		VrfKeyHash    string          `json:"vrfKeyHash"`
+		LeiosKey      *LeiosKey       `json:"leiosKey,omitempty"`
+		Pledge        uint64          `json:"pledge"`
+		Cost          uint64          `json:"cost"`
+		Margin        json.RawMessage `json:"margin"`
+		RewardAccount json.RawMessage `json:"rewardAccount"`
+		PoolOwners    []string        `json:"poolOwners"`
+		Relays        []PoolRelay     `json:"relays"`
+		PoolMetadata  *PoolMetadata   `json:"poolMetadata,omitempty"`
+
+		// Shelley genesis staking.pools uses different field names than the
+		// on-chain / API representation above for the same values. Accept both
+		// so pools declared in genesis parse correctly — otherwise a genesis
+		// pool's VRF key hash is dropped and reads as all-zeros, which breaks
+		// header VRF-key validation for that pool's blocks.
+		PublicKey string        `json:"publicKey"`
+		Vrf       string        `json:"vrf"`
+		Owners    []string      `json:"owners"`
+		Metadata  *PoolMetadata `json:"metadata,omitempty"`
+	}
+
+	var tmp tempPool
+	//nolint:musttag
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return fmt.Errorf("failed to unmarshal pool registration: %w", err)
+	}
+
+	// Resolve fields that have distinct genesis-staking names, preferring the
+	// on-chain/API name when both are present.
+	operator := tmp.Operator
+	if operator == "" {
+		operator = tmp.PublicKey
+	}
+	vrfKeyHash := tmp.VrfKeyHash
+	if vrfKeyHash == "" {
+		vrfKeyHash = tmp.Vrf
+	}
+	poolOwners := tmp.PoolOwners
+	if len(poolOwners) == 0 {
+		poolOwners = tmp.Owners
+	}
+	poolMetadata := tmp.PoolMetadata
+	if poolMetadata == nil {
+		poolMetadata = tmp.Metadata
+	}
+
+	p.Pledge = tmp.Pledge
+	p.Cost = tmp.Cost
+	p.LeiosKey = tmp.LeiosKey
+	p.Relays = tmp.Relays
+	p.PoolMetadata = poolMetadata
+	p.DecodeStoreCbor.SetCbor(nil)
+	p.clearRewardAccountMetadata()
+
+	// Handle margin field
+	margin, err := ParsePoolMarginJSON(tmp.Margin)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal margin: %w", err)
+	}
+	p.Margin = margin
+
+	// Handle reward account
+	if len(tmp.RewardAccount) > 0 {
+		credential, networkId, networkKnown, err := decodePoolRewardAccountJSON(
+			tmp.RewardAccount,
+		)
+		if err != nil {
+			return err
+		}
+		p.RewardAccount = AddrKeyHash(credential.Credential)
+		if networkKnown {
+			if err := p.SetRewardAccountCredential(
+				credential,
+				networkId,
+			); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Convert operator key
+	if operator != "" {
+		opBytes, err := hex.DecodeString(operator)
+		if err != nil {
+			return fmt.Errorf("invalid operator key: %w", err)
+		}
+		if len(opBytes) != Blake2b224Size {
+			return fmt.Errorf(
+				"invalid operator key length: expected %d, got %d",
+				Blake2b224Size,
+				len(opBytes),
+			)
+		}
+		p.Operator = PoolKeyHash(opBytes)
+	}
+
+	// Convert VRF key hash
+	if vrfKeyHash != "" {
+		vrfBytes, err := hex.DecodeString(vrfKeyHash)
+		if err != nil {
+			return fmt.Errorf("invalid VRF key hash: %w", err)
+		}
+		vrfHash, err := NewBlake2b256Checked(vrfBytes)
+		if err != nil {
+			return fmt.Errorf("invalid VRF key hash: %w", err)
+		}
+		p.VrfKeyHash = VrfKeyHash(vrfHash)
+	}
+
+	// Convert pool owners
+	if len(poolOwners) > 0 {
+		owners := make([]AddrKeyHash, len(poolOwners))
+		for i, owner := range poolOwners {
+			ownerBytes, err := hex.DecodeString(owner)
+			if err != nil {
+				return fmt.Errorf("invalid pool owner key: %w", err)
+			}
+			ownerHash, err := NewBlake2b224Checked(ownerBytes)
+			if err != nil {
+				return fmt.Errorf("invalid pool owner key: %w", err)
+			}
+			owners[i] = AddrKeyHash(ownerHash)
+		}
+		p.PoolOwners = owners
+	}
+
+	return nil
+}
+
+func decodePoolRewardAccountJSON(
+	data json.RawMessage,
+) (Credential, uint, bool, error) {
+	var hashText string
+	if err := json.Unmarshal(data, &hashText); err == nil {
+		var hash Blake2b224
+		if err := hash.UnmarshalText([]byte(hashText)); err != nil {
+			return Credential{}, 0, false, fmt.Errorf(
+				"failed to decode reward account key hash: %w",
+				err,
+			)
+		}
+		return Credential{
+			CredType:   CredentialTypeAddrKeyHash,
+			Credential: hash,
+		}, 0, false, nil
+	}
+
+	var rewardAccount struct {
+		Credential struct {
+			KeyHash       string `json:"keyHash"`
+			LegacyKeyHash string `json:"key hash"`
+			ScriptHash    string `json:"scriptHash"`
+		} `json:"credential"`
+		Network string `json:"network"`
+	}
+	if err := json.Unmarshal(data, &rewardAccount); err != nil {
+		return Credential{}, 0, false, fmt.Errorf(
+			"failed to unmarshal reward account: %w",
+			err,
+		)
+	}
+	credentialType := uint(CredentialTypeAddrKeyHash)
+	hashText = rewardAccount.Credential.KeyHash
+	if hashText == "" {
+		hashText = rewardAccount.Credential.LegacyKeyHash
+	}
+	if hashText == "" {
+		credentialType = CredentialTypeScriptHash
+		hashText = rewardAccount.Credential.ScriptHash
+	}
+	if hashText == "" {
+		return Credential{}, 0, false, errors.New(
+			"reward account credential is required",
+		)
+	}
+	var hash Blake2b224
+	if err := hash.UnmarshalText([]byte(hashText)); err != nil {
+		return Credential{}, 0, false, fmt.Errorf(
+			"failed to decode reward account hash: %w",
+			err,
+		)
+	}
+	credential := Credential{
+		CredType:   credentialType,
+		Credential: hash,
+	}
+	switch rewardAccount.Network {
+	case "":
+		return credential, 0, false, nil
+	case "Testnet":
+		return credential, AddressNetworkTestnet, true, nil
+	case "Mainnet":
+		return credential, AddressNetworkMainnet, true, nil
+	default:
+		return Credential{}, 0, false, fmt.Errorf(
+			"invalid reward account network: %s",
+			rewardAccount.Network,
+		)
+	}
+}
+
+// MarshalJSON rejects programmatically constructed margins that do not satisfy
+// the ledger's Word64-backed unit-interval contract.
+func (c PoolRegistrationCertificate) MarshalJSON() ([]byte, error) {
+	if err := ValidatePoolMargin(c.Margin); err != nil {
+		return nil, fmt.Errorf("invalid pool registration margin: %w", err)
+	}
+	if err := ValidatePoolMetadata(c.PoolMetadata); err != nil {
+		return nil, fmt.Errorf("invalid pool registration metadata: %w", err)
+	}
+	type poolRegistrationCertificateJSON PoolRegistrationCertificate
+	//nolint:musttag // The alias preserves PoolRegistrationCertificate's tags.
+	return json.Marshal(poolRegistrationCertificateJSON(c))
+}
+
+func (c *PoolRegistrationCertificate) isCertificate() {}
+
+func (c *PoolRegistrationCertificate) UnmarshalCBOR(cborData []byte) error {
+	type legacyPoolRegistrationCertificate struct {
+		cbor.StructAsArray
+		CertType      uint
+		Operator      PoolKeyHash
+		VrfKeyHash    VrfKeyHash
+		Pledge        uint64
+		Cost          uint64
+		Margin        GenesisRat
+		RewardAccount rewardAccountCBOR
+		PoolOwners    []AddrKeyHash
+		Relays        []PoolRelay
+		PoolMetadata  *PoolMetadata
+	}
+	type leiosPoolRegistrationCertificate struct {
+		cbor.StructAsArray
+		CertType      uint
+		Operator      PoolKeyHash
+		VrfKeyHash    VrfKeyHash
+		LeiosKey      *LeiosKey
+		Pledge        uint64
+		Cost          uint64
+		Margin        GenesisRat
+		RewardAccount rewardAccountCBOR
+		PoolOwners    []AddrKeyHash
+		Relays        []PoolRelay
+		PoolMetadata  *PoolMetadata
+	}
+
+	var fields []cbor.RawMessage
+	if _, err := cbor.Decode(cborData, &fields); err != nil {
+		return err
+	}
+	switch len(fields) {
+	case 10:
+		if err := validatePoolMarginCBOR(fields[5], false); err != nil {
+			return fmt.Errorf("invalid pool registration margin: %w", err)
+		}
+		var tmp legacyPoolRegistrationCertificate
+		if _, err := cbor.Decode(cborData, &tmp); err != nil {
+			return err
+		}
+		c.CertType = tmp.CertType
+		c.Operator = tmp.Operator
+		c.VrfKeyHash = tmp.VrfKeyHash
+		c.LeiosKey = nil
+		c.Pledge = tmp.Pledge
+		c.Cost = tmp.Cost
+		c.Margin = tmp.Margin
+		c.RewardAccount = AddrKeyHash(tmp.RewardAccount.credential.Credential)
+		c.rewardAccountCredentialType = tmp.RewardAccount.credential.CredType
+		c.rewardAccountCredentialKnown = true
+		c.rewardAccountNetworkId = tmp.RewardAccount.networkId
+		c.rewardAccountNetworkIdKnown = tmp.RewardAccount.networkIdKnown
+		c.PoolOwners = tmp.PoolOwners
+		c.Relays = tmp.Relays
+		c.PoolMetadata = tmp.PoolMetadata
+	case 11:
+		// The 11-field form is the protocol-version-12 stake-pool
+		// registration, whose rational components decode as Word64.
+		if err := validatePoolMarginCBOR(fields[6], true); err != nil {
+			return fmt.Errorf("invalid pool registration margin: %w", err)
+		}
+		var tmp leiosPoolRegistrationCertificate
+		if _, err := cbor.Decode(cborData, &tmp); err != nil {
+			return err
+		}
+		c.CertType = tmp.CertType
+		c.Operator = tmp.Operator
+		c.VrfKeyHash = tmp.VrfKeyHash
+		c.LeiosKey = tmp.LeiosKey
+		c.Pledge = tmp.Pledge
+		c.Cost = tmp.Cost
+		c.Margin = tmp.Margin
+		c.RewardAccount = AddrKeyHash(tmp.RewardAccount.credential.Credential)
+		c.rewardAccountCredentialType = tmp.RewardAccount.credential.CredType
+		c.rewardAccountCredentialKnown = true
+		c.rewardAccountNetworkId = tmp.RewardAccount.networkId
+		c.rewardAccountNetworkIdKnown = tmp.RewardAccount.networkIdKnown
+		c.PoolOwners = tmp.PoolOwners
+		c.Relays = tmp.Relays
+		c.PoolMetadata = tmp.PoolMetadata
+	default:
+		return fmt.Errorf(
+			"invalid pool registration certificate: expected 10 or 11 fields, got %d",
+			len(fields),
+		)
+	}
+	// Preserve the header metadata decoded above; the public SetCbor method
+	// intentionally clears that metadata when callers replace the cache.
+	c.DecodeStoreCbor.SetCbor(cborData)
+	return nil
+}
+
+// NOTE: UnmarshalCBOR caches the original CBOR bytes, and MarshalCBOR returns
+// those bytes for both 10- and 11-field variants. Call SetCbor(nil) before
+// marshaling mutated fields.
+func (c PoolRegistrationCertificate) MarshalCBOR() ([]byte, error) {
+	if cborData := c.Cbor(); cborData != nil {
+		return cborData, nil
+	}
+	if err := ValidatePoolMargin(c.Margin); err != nil {
+		return nil, fmt.Errorf("invalid pool registration margin: %w", err)
+	}
+	rewardAccount, err := c.rewardAccountBytes()
+	if err != nil {
+		return nil, err
+	}
+	poolOwners := append([]AddrKeyHash(nil), c.PoolOwners...)
+	sort.Slice(poolOwners, func(i, j int) bool {
+		return bytes.Compare(poolOwners[i][:], poolOwners[j][:]) < 0
+	})
+	poolOwnerSet := cbor.NewSetType(poolOwners, true)
+	if c.LeiosKey == nil {
+		return cbor.Encode([]any{
+			c.CertType,
+			c.Operator,
+			c.VrfKeyHash,
+			c.Pledge,
+			c.Cost,
+			c.Margin,
+			rewardAccount,
+			&poolOwnerSet,
+			c.Relays,
+			c.PoolMetadata,
+		})
+	}
+	return cbor.Encode([]any{
+		c.CertType,
+		c.Operator,
+		c.VrfKeyHash,
+		c.LeiosKey,
+		c.Pledge,
+		c.Cost,
+		c.Margin,
+		rewardAccount,
+		&poolOwnerSet,
+		c.Relays,
+		c.PoolMetadata,
+	})
+}
+
+func (c *PoolRegistrationCertificate) rewardAccountBytes() ([]byte, error) {
+	if !c.rewardAccountNetworkIdKnown || !c.rewardAccountCredentialKnown {
+		return nil, errors.New(
+			"pool reward account metadata is required for CBOR encoding",
+		)
+	}
+	if c.rewardAccountNetworkId > AddressNetworkMainnet {
+		return nil, fmt.Errorf(
+			"invalid reward account network id: %d",
+			c.rewardAccountNetworkId,
+		)
+	}
+	if c.rewardAccountCredentialType > CredentialTypeScriptHash {
+		return nil, fmt.Errorf(
+			"invalid reward account credential type: %d",
+			c.rewardAccountCredentialType,
+		)
+	}
+	header := byte(0xE0)
+	if c.rewardAccountNetworkId == AddressNetworkMainnet {
+		header |= 0x01
+	}
+	if c.rewardAccountCredentialType == CredentialTypeScriptHash {
+		header |= 0x10
+	}
+	ret := make([]byte, Blake2b224Size+1)
+	ret[0] = header
+	copy(ret[1:], c.RewardAccount[:])
+	return ret, nil
+}
+
+func (c *PoolRegistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	if err := ValidatePoolMargin(c.Margin); err != nil {
+		return nil, fmt.Errorf("invalid pool registration margin: %w", err)
+	}
+	margin, err := poolMarginUtxorpc(c.Margin)
+	if err != nil {
+		return nil, err
+	}
+	tmpPoolOwners := make([][]byte, len(c.PoolOwners))
+	for i, owner := range c.PoolOwners {
+		tmpPoolOwners[i] = owner.Bytes()
+	}
+	tmpRelays := make([]*utxorpc.Relay, len(c.Relays))
+	for i, relay := range c.Relays {
+		relayUtxo, err := relay.Utxorpc()
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert relay %d: %w", i, err)
+		}
+		tmpRelays[i] = relayUtxo
+	}
+
+	// Handle pool metadata with error checking
+	poolMetadata, err := c.PoolMetadata.Utxorpc()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert pool metadata: %w", err)
+	}
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_PoolRegistration{
+			PoolRegistration: &utxorpc.PoolRegistrationCert{
+				Operator:      c.Operator.Bytes(),
+				VrfKeyhash:    c.VrfKeyHash[:],
+				Pledge:        ToUtxorpcBigInt(c.Pledge),
+				Cost:          ToUtxorpcBigInt(c.Cost),
+				Margin:        margin,
+				RewardAccount: c.RewardAccount.Bytes(),
+				PoolOwners:    tmpPoolOwners,
+				Relays:        tmpRelays,
+				PoolMetadata:  poolMetadata,
+			},
+		},
+	}, nil
+}
+
+func poolMarginUtxorpc(margin GenesisRat) (*utxorpc.RationalNumber, error) {
+	return ToUtxorpcRationalNumber(margin.Rat)
+}
+
+func (c *PoolRegistrationCertificate) Type() uint {
+	return c.CertType
+}
+
+// PledgeAmount returns the pool pledge as a *big.Int
+func (c *PoolRegistrationCertificate) PledgeAmount() *big.Int {
+	return new(big.Int).SetUint64(c.Pledge)
+}
+
+// CostAmount returns the pool cost as a *big.Int
+func (c *PoolRegistrationCertificate) CostAmount() *big.Int {
+	return new(big.Int).SetUint64(c.Cost)
+}
+
+type PoolRetirementCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType    uint
+	PoolKeyHash PoolKeyHash
+	Epoch       uint64
+}
+
+func (c PoolRetirementCertificate) isCertificate() {}
+
+func (c *PoolRetirementCertificate) UnmarshalCBOR(cborData []byte) error {
+	type tPoolRetirementCertificate PoolRetirementCertificate
+	var tmp tPoolRetirementCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = PoolRetirementCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c PoolRetirementCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_PoolRetirement{
+			PoolRetirement: &utxorpc.PoolRetirementCert{
+				PoolKeyhash: c.PoolKeyHash.Bytes(),
+				Epoch:       c.Epoch,
+			},
+		},
+	}, nil
+}
+
+func (c PoolRetirementCertificate) Type() uint {
+	return c.CertType
+}
+
+type GenesisKeyDelegationCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType            uint
+	GenesisHash         []byte
+	GenesisDelegateHash []byte
+	VrfKeyHash          VrfKeyHash
+}
+
+func (c GenesisKeyDelegationCertificate) isCertificate() {}
+
+func (c *GenesisKeyDelegationCertificate) UnmarshalCBOR(cborData []byte) error {
+	type tGenesisKeyDelegationCertificate GenesisKeyDelegationCertificate
+	var tmp tGenesisKeyDelegationCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = GenesisKeyDelegationCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c GenesisKeyDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_GenesisKeyDelegation{
+			GenesisKeyDelegation: &utxorpc.GenesisKeyDelegationCert{
+				GenesisHash:         c.GenesisHash[:],
+				GenesisDelegateHash: c.GenesisDelegateHash[:],
+				VrfKeyhash:          c.VrfKeyHash[:],
+			},
+		},
+	}, nil
+}
+
+func (c GenesisKeyDelegationCertificate) Type() uint {
+	return c.CertType
+}
+
+type MirSource int32
+
+const (
+	MirSourceUnspecified MirSource = 0
+	MirSourceReserves    MirSource = 1
+	MirSourceTreasury    MirSource = 2
+)
+
+func mirSourceToUtxorpc(source uint) (utxorpc.MirSource, error) {
+	switch source {
+	case 0:
+		return utxorpc.MirSource_MIR_SOURCE_RESERVES, nil
+	case 1:
+		return utxorpc.MirSource_MIR_SOURCE_TREASURY, nil
+	default:
+		return utxorpc.MirSource_MIR_SOURCE_UNSPECIFIED,
+			fmt.Errorf("invalid MIR source pot: %d", source)
+	}
+}
+
+// MoveInstantaneousRewardsCertificateReward is the MIR target: either a map
+// of stake credentials to signed reward deltas, or a coin transferred to the
+// opposite accounting pot.
+//
+// Rewards holds delta_coin values, which the CDDL types as int
+// (eras/mary/impl/cddl/data/mary.cddl) and the reference decodes as the signed
+// unbounded Integer newtype DeltaCoin
+// (libs/cardano-ledger-core/src/Cardano/Ledger/Coin.hs). A negative delta is a
+// decoding matter only; whether it is permitted is decided by the DELEG rule.
+type MoveInstantaneousRewardsCertificateReward struct {
+	// Source is the wire pot: 0 for reserves, 1 for treasury.
+	Source   uint
+	Rewards  map[*Credential]*big.Int
+	OtherPot uint64
+}
+
+// MarshalCBOR encodes the MIR source pot and its reward-map or coin target.
+// A non-nil Rewards map selects the reward target, including an empty map.
+func (r MoveInstantaneousRewardsCertificateReward) MarshalCBOR() ([]byte, error) {
+	if r.Source > 1 {
+		return nil, fmt.Errorf("invalid MIR source pot: %d", r.Source)
+	}
+	if r.Rewards == nil {
+		return cbor.Encode([]any{r.Source, r.OtherPot})
+	}
+	if r.OtherPot != 0 {
+		return nil, errors.New(
+			"instantaneous rewards cannot contain both reward and opposite-pot targets",
+		)
+	}
+	if err := validateCredentialMapKeys(r.Rewards, "instantaneous rewards"); err != nil {
+		return nil, err
+	}
+	for credential, delta := range r.Rewards {
+		if credential.CredType > CredentialTypeScriptHash {
+			return nil, fmt.Errorf(
+				"invalid credential type: %d",
+				credential.CredType,
+			)
+		}
+		if delta == nil {
+			return nil, errors.New("instantaneous rewards delta cannot be nil")
+		}
+	}
+	return cbor.Encode([]any{r.Source, r.Rewards})
+}
+
+func (r *MoveInstantaneousRewardsCertificateReward) UnmarshalCBOR(
+	data []byte,
+) error {
+	var fields []cbor.RawMessage
+	if len(data) == 0 || data[0]>>5 != 4 {
+		return errors.New(
+			"instantaneous rewards must be a two-element CBOR array",
+		)
+	}
+	if _, err := cbor.Decode(data, &fields); err != nil {
+		return err
+	}
+	if len(fields) != 2 {
+		return errors.New(
+			"instantaneous rewards must be a two-element CBOR array",
+		)
+	}
+	// Go unsigned integers also accept null and tagged bignums during decode;
+	// the source and opposite-pot coin require unsigned CBOR integer tokens.
+	if len(fields[0]) == 0 || fields[0][0]>>5 != 0 {
+		return errors.New(
+			"instantaneous rewards source must be an unsigned CBOR integer",
+		)
+	}
+	if len(fields[1]) == 1 && (fields[1][0] == 0xf6 || fields[1][0] == 0xf7) {
+		return errors.New(
+			"instantaneous rewards target is CBOR null or undefined",
+		)
+	}
+	if len(fields[1]) == 0 || (fields[1][0]>>5 != 0 && fields[1][0]>>5 != 5) {
+		return errors.New(
+			"instantaneous rewards target must be a CBOR map or unsigned integer",
+		)
+	}
+	// Try to parse as map. The reference dispatches on the CBOR major type
+	// of the second element and reads Map (Credential Staking) DeltaCoin
+	// with no sign or range constraint
+	// (eras/shelley/impl/src/Cardano/Ledger/Shelley/TxCert.hs, instance
+	// DecCBOR MIRTarget), so this branch has to accept a negative delta.
+	tmpMapData := struct {
+		cbor.StructAsArray
+		Source  uint
+		Rewards map[*Credential]*big.Int
+	}{}
+	if _, err := cbor.Decode(data, &tmpMapData); err == nil {
+		if tmpMapData.Rewards == nil {
+			return errors.New(
+				"instantaneous rewards target is CBOR null or undefined",
+			)
+		}
+		for _, delta := range tmpMapData.Rewards {
+			// A *big.Int target accepts CBOR null and undefined as a
+			// nil pointer. delta_coin is int, so reject them.
+			if delta == nil {
+				return errors.New(
+					"instantaneous rewards delta is CBOR null or undefined",
+				)
+			}
+		}
+		if err := validateCredentialMapKeys(
+			tmpMapData.Rewards,
+			"instantaneous rewards",
+		); err != nil {
+			return err
+		}
+		if tmpMapData.Source > 1 {
+			return fmt.Errorf("invalid MIR source pot: %d", tmpMapData.Source)
+		}
+		*r = MoveInstantaneousRewardsCertificateReward{
+			Source:  tmpMapData.Source,
+			Rewards: tmpMapData.Rewards,
+		}
+		return nil
+	}
+	// Try to parse as coin. The opposite-pot amount is coin, which the CDDL
+	// types as uint.
+	tmpCoinData := struct {
+		cbor.StructAsArray
+		Source uint
+		Coin   uint64
+	}{}
+	if _, err := cbor.Decode(data, &tmpCoinData); err == nil {
+		if tmpCoinData.Source > 1 {
+			return fmt.Errorf("invalid MIR source pot: %d", tmpCoinData.Source)
+		}
+		*r = MoveInstantaneousRewardsCertificateReward{
+			Source:   tmpCoinData.Source,
+			OtherPot: tmpCoinData.Coin,
+		}
+		return nil
+	}
+	return errors.New("failed to decode as known types")
+}
+
+type MoveInstantaneousRewardsCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType uint
+	Reward   MoveInstantaneousRewardsCertificateReward
+}
+
+func (c MoveInstantaneousRewardsCertificate) isCertificate() {}
+
+func (c *MoveInstantaneousRewardsCertificate) UnmarshalCBOR(
+	cborData []byte,
+) error {
+	type tMoveInstantaneousRewardsCertificate MoveInstantaneousRewardsCertificate
+	var tmp tMoveInstantaneousRewardsCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = MoveInstantaneousRewardsCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c MoveInstantaneousRewardsCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	from, err := mirSourceToUtxorpc(c.Reward.Source)
+	if err != nil {
+		return nil, err
+	}
+	tmpMirTargets := []*utxorpc.MirTarget{}
+	for stakeCred, deltaCoin := range c.Reward.Rewards {
+		stakeCr, err := stakeCred.Utxorpc()
+		if err != nil {
+			return nil, err
+		}
+		tmpMirTargets = append(
+			tmpMirTargets,
+			&utxorpc.MirTarget{
+				StakeCredential: stakeCr,
+				DeltaCoin:       BigIntToUtxorpcBigInt(deltaCoin),
+			},
+		)
+	}
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_MirCert{
+			MirCert: &utxorpc.MirCert{
+				From:     from,
+				To:       tmpMirTargets,
+				OtherPot: c.Reward.OtherPot,
+			},
+		},
+	}, nil
+}
+
+func (c MoveInstantaneousRewardsCertificate) Type() uint {
+	return c.CertType
+}
+
+// RewardsAmount returns the rewards map with amounts as *big.Int
+func (r *MoveInstantaneousRewardsCertificateReward) RewardsAmount() map[*Credential]*big.Int {
+	if r.Rewards == nil {
+		return nil
+	}
+	result := make(map[*Credential]*big.Int)
+	for cred, amount := range r.Rewards {
+		if amount == nil {
+			result[cred] = new(big.Int)
+			continue
+		}
+		result[cred] = new(big.Int).Set(amount)
+	}
+	return result
+}
+
+// OtherPotAmount returns the other pot amount as a *big.Int
+func (r *MoveInstantaneousRewardsCertificateReward) OtherPotAmount() *big.Int {
+	return new(big.Int).SetUint64(r.OtherPot)
+}
+
+type RegistrationCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType        uint
+	StakeCredential Credential
+	Amount          uint64
+}
+
+func (c RegistrationCertificate) isCertificate() {}
+
+func (c *RegistrationCertificate) UnmarshalCBOR(
+	cborData []byte,
+) error {
+	type tRegistrationCertificate RegistrationCertificate
+	var tmp tRegistrationCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = RegistrationCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c RegistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	stakeCred, err := c.StakeCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_RegCert{
+			RegCert: &utxorpc.RegCert{
+				StakeCredential: stakeCred,
+				Coin:            BigIntToUtxorpcBigInt(c.DepositAmount()),
+			},
+		},
+	}, nil
+}
+
+func (c RegistrationCertificate) Type() uint {
+	return c.CertType
+}
+
+// DepositAmount returns the deposit amount as a *big.Int
+func (c RegistrationCertificate) DepositAmount() *big.Int {
+	return new(big.Int).SetUint64(c.Amount)
+}
+
+type DeregistrationCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType        uint
+	StakeCredential Credential
+	Amount          uint64
+}
+
+func (c DeregistrationCertificate) isCertificate() {}
+
+func (c *DeregistrationCertificate) UnmarshalCBOR(
+	cborData []byte,
+) error {
+	type tDeregistrationCertificate DeregistrationCertificate
+	var tmp tDeregistrationCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = DeregistrationCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c DeregistrationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	stakeCred, err := c.StakeCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_UnregCert{
+			UnregCert: &utxorpc.UnRegCert{
+				StakeCredential: stakeCred,
+				Coin:            BigIntToUtxorpcBigInt(c.DepositAmount()),
+			},
+		},
+	}, nil
+}
+
+func (c DeregistrationCertificate) Type() uint {
+	return c.CertType
+}
+
+// DepositAmount returns the deposit amount as a *big.Int
+func (c DeregistrationCertificate) DepositAmount() *big.Int {
+	return new(big.Int).SetUint64(c.Amount)
+}
+
+type VoteDelegationCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType        uint
+	StakeCredential Credential
+	Drep            Drep
+}
+
+func (c VoteDelegationCertificate) isCertificate() {}
+
+func (c *VoteDelegationCertificate) UnmarshalCBOR(
+	cborData []byte,
+) error {
+	type tVoteDelegationCertificate VoteDelegationCertificate
+	var tmp tVoteDelegationCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = VoteDelegationCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c VoteDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	drep, err := c.Drep.Utxorpc()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert DRep: %w", err)
+	}
+	stakeCred, err := c.StakeCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_VoteDelegCert{
+			VoteDelegCert: &utxorpc.VoteDelegCert{
+				StakeCredential: stakeCred,
+				Drep:            drep,
+			},
+		},
+	}, nil
+}
+
+func (c VoteDelegationCertificate) Type() uint {
+	return c.CertType
+}
+
+type StakeVoteDelegationCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType        uint
+	StakeCredential Credential
+	PoolKeyHash     PoolKeyHash
+	Drep            Drep
+}
+
+func (c StakeVoteDelegationCertificate) isCertificate() {}
+
+func (c *StakeVoteDelegationCertificate) UnmarshalCBOR(
+	cborData []byte,
+) error {
+	type tStakeVoteDelegationCertificate StakeVoteDelegationCertificate
+	var tmp tStakeVoteDelegationCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = StakeVoteDelegationCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c StakeVoteDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	// Handle DRep conversion with error checking
+	drepProto, err := c.Drep.Utxorpc()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert DRep: %w", err)
+	}
+	stakeCred, err := c.StakeCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_StakeVoteDelegCert{
+			StakeVoteDelegCert: &utxorpc.StakeVoteDelegCert{
+				StakeCredential: stakeCred,
+				PoolKeyhash:     c.PoolKeyHash.Bytes(),
+				Drep:            drepProto,
+			},
+		},
+	}, nil
+}
+
+func (c StakeVoteDelegationCertificate) Type() uint {
+	return c.CertType
+}
+
+type StakeRegistrationDelegationCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType        uint
+	StakeCredential Credential
+	PoolKeyHash     PoolKeyHash
+	Amount          uint64
+}
+
+func (c StakeRegistrationDelegationCertificate) isCertificate() {}
+
+func (c *StakeRegistrationDelegationCertificate) UnmarshalCBOR(
+	cborData []byte,
+) error {
+	type tStakeRegistrationDelegationCertificate StakeRegistrationDelegationCertificate
+	var tmp tStakeRegistrationDelegationCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = StakeRegistrationDelegationCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c StakeRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	stakeCred, err := c.StakeCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_StakeRegDelegCert{
+			StakeRegDelegCert: &utxorpc.StakeRegDelegCert{
+				StakeCredential: stakeCred,
+				PoolKeyhash:     c.PoolKeyHash.Bytes(),
+				Coin:            BigIntToUtxorpcBigInt(c.DepositAmount()),
+			},
+		},
+	}, nil
+}
+
+func (c StakeRegistrationDelegationCertificate) Type() uint {
+	return c.CertType
+}
+
+// DepositAmount returns the deposit amount as a *big.Int
+func (c StakeRegistrationDelegationCertificate) DepositAmount() *big.Int {
+	return new(big.Int).SetUint64(c.Amount)
+}
+
+type VoteRegistrationDelegationCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType        uint
+	StakeCredential Credential
+	Drep            Drep
+	Amount          uint64
+}
+
+func (c VoteRegistrationDelegationCertificate) isCertificate() {}
+
+func (c *VoteRegistrationDelegationCertificate) UnmarshalCBOR(
+	cborData []byte,
+) error {
+	type tVoteRegistrationDelegationCertificate VoteRegistrationDelegationCertificate
+	var tmp tVoteRegistrationDelegationCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = VoteRegistrationDelegationCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c VoteRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	// Handle DRep conversion with error checking
+	drep, err := c.Drep.Utxorpc()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert DRep: %w", err)
+	}
+	stakeCred, err := c.StakeCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_VoteRegDelegCert{
+			VoteRegDelegCert: &utxorpc.VoteRegDelegCert{
+				StakeCredential: stakeCred,
+				Drep:            drep,
+				Coin:            BigIntToUtxorpcBigInt(c.DepositAmount()),
+			},
+		},
+	}, nil
+}
+
+func (c VoteRegistrationDelegationCertificate) Type() uint {
+	return c.CertType
+}
+
+// DepositAmount returns the deposit amount as a *big.Int
+func (c VoteRegistrationDelegationCertificate) DepositAmount() *big.Int {
+	return new(big.Int).SetUint64(c.Amount)
+}
+
+type StakeVoteRegistrationDelegationCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType        uint
+	StakeCredential Credential
+	PoolKeyHash     PoolKeyHash
+	Drep            Drep
+	Amount          uint64
+}
+
+func (c StakeVoteRegistrationDelegationCertificate) isCertificate() {}
+
+func (c *StakeVoteRegistrationDelegationCertificate) UnmarshalCBOR(
+	cborData []byte,
+) error {
+	type tStakeVoteRegistrationDelegationCertificate StakeVoteRegistrationDelegationCertificate
+	var tmp tStakeVoteRegistrationDelegationCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = StakeVoteRegistrationDelegationCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c StakeVoteRegistrationDelegationCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	// Handle DRep conversion with error checking
+	drepProto, err := c.Drep.Utxorpc()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert DRep: %w", err)
+	}
+
+	stakeCred, err := c.StakeCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_StakeVoteRegDelegCert{
+			StakeVoteRegDelegCert: &utxorpc.StakeVoteRegDelegCert{
+				StakeCredential: stakeCred,
+				PoolKeyhash:     c.PoolKeyHash.Bytes(),
+				Drep:            drepProto,
+				Coin:            BigIntToUtxorpcBigInt(c.DepositAmount()),
+			},
+		},
+	}, nil
+}
+
+func (c StakeVoteRegistrationDelegationCertificate) Type() uint {
+	return c.CertType
+}
+
+// DepositAmount returns the deposit amount as a *big.Int
+func (c StakeVoteRegistrationDelegationCertificate) DepositAmount() *big.Int {
+	return new(big.Int).SetUint64(c.Amount)
+}
+
+type AuthCommitteeHotCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType       uint
+	ColdCredential Credential
+	HotCredential  Credential
+}
+
+func (c AuthCommitteeHotCertificate) isCertificate() {}
+
+func (c *AuthCommitteeHotCertificate) UnmarshalCBOR(
+	cborData []byte,
+) error {
+	type tAuthCommitteeHotCertificate AuthCommitteeHotCertificate
+	var tmp tAuthCommitteeHotCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = AuthCommitteeHotCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c AuthCommitteeHotCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	coldCred, err := c.ColdCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+	hotCred, err := c.HotCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_AuthCommitteeHotCert{
+			AuthCommitteeHotCert: &utxorpc.AuthCommitteeHotCert{
+				CommitteeColdCredential: coldCred,
+				CommitteeHotCredential:  hotCred,
+			},
+		},
+	}, nil
+}
+
+func (c AuthCommitteeHotCertificate) Type() uint {
+	return c.CertType
+}
+
+type ResignCommitteeColdCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType       uint
+	ColdCredential Credential
+	Anchor         *GovAnchor
+}
+
+func (c ResignCommitteeColdCertificate) isCertificate() {}
+
+func (c *ResignCommitteeColdCertificate) UnmarshalCBOR(
+	cborData []byte,
+) error {
+	type tResignCommitteeColdCertificate ResignCommitteeColdCertificate
+	var tmp tResignCommitteeColdCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = ResignCommitteeColdCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c ResignCommitteeColdCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	var anchor *utxorpc.Anchor
+	if c.Anchor != nil {
+		anchor = &utxorpc.Anchor{
+			Url:         c.Anchor.Url,
+			ContentHash: c.Anchor.DataHash[:],
+		}
+	}
+	coldCred, err := c.ColdCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_ResignCommitteeColdCert{
+			ResignCommitteeColdCert: &utxorpc.ResignCommitteeColdCert{
+				CommitteeColdCredential: coldCred,
+				Anchor:                  anchor,
+			},
+		},
+	}, nil
+}
+
+func (c ResignCommitteeColdCertificate) Type() uint {
+	return c.CertType
+}
+
+type RegistrationDrepCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType       uint
+	DrepCredential Credential
+	Amount         uint64
+	Anchor         *GovAnchor
+}
+
+func (c RegistrationDrepCertificate) isCertificate() {}
+
+func (c *RegistrationDrepCertificate) UnmarshalCBOR(
+	cborData []byte,
+) error {
+	type tRegistrationDrepCertificate RegistrationDrepCertificate
+	var tmp tRegistrationDrepCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = RegistrationDrepCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c RegistrationDrepCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	// Handle anchor data if present
+	var anchor *utxorpc.Anchor
+	if c.Anchor != nil {
+		anchor = &utxorpc.Anchor{
+			Url:         c.Anchor.Url,
+			ContentHash: c.Anchor.DataHash[:],
+		}
+	}
+	drepCred, err := c.DrepCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_RegDrepCert{
+			RegDrepCert: &utxorpc.RegDRepCert{
+				DrepCredential: drepCred,
+				Anchor:         anchor,
+				Coin:           BigIntToUtxorpcBigInt(c.DepositAmount()),
+			},
+		},
+	}, nil
+}
+
+func (c RegistrationDrepCertificate) Type() uint {
+	return c.CertType
+}
+
+// DepositAmount returns the deposit amount as a *big.Int
+func (c RegistrationDrepCertificate) DepositAmount() *big.Int {
+	return new(big.Int).SetUint64(c.Amount)
+}
+
+type DeregistrationDrepCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType       uint
+	DrepCredential Credential
+	Amount         uint64
+}
+
+func (c DeregistrationDrepCertificate) isCertificate() {}
+
+func (c *DeregistrationDrepCertificate) UnmarshalCBOR(
+	cborData []byte,
+) error {
+	if err := ValidateCBORArrayLength(
+		cborData,
+		3,
+		"DRep deregistration certificate",
+	); err != nil {
+		return err
+	}
+	var fields []cbor.RawMessage
+	if _, err := cbor.DecodeExact(cborData, &fields); err != nil {
+		return err
+	}
+	if len(fields) != 3 {
+		return errors.New("invalid DRep deregistration certificate array")
+	}
+	if len(fields[2]) == 0 || fields[2][0]>>5 != 0 {
+		return errors.New("DRep deregistration amount must be an unsigned integer")
+	}
+	type tDeregistrationDrepCertificate DeregistrationDrepCertificate
+	var tmp tDeregistrationDrepCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = DeregistrationDrepCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c DeregistrationDrepCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	drepCred, err := c.DrepCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_UnregDrepCert{
+			UnregDrepCert: &utxorpc.UnRegDRepCert{
+				DrepCredential: drepCred,
+				Coin:           BigIntToUtxorpcBigInt(c.DepositAmount()),
+			},
+		},
+	}, nil
+}
+
+func (c DeregistrationDrepCertificate) Type() uint {
+	return c.CertType
+}
+
+// DepositAmount returns the deposit amount as a *big.Int
+func (c DeregistrationDrepCertificate) DepositAmount() *big.Int {
+	return new(big.Int).SetUint64(c.Amount)
+}
+
+type UpdateDrepCertificate struct {
+	cbor.StructAsArray
+	cbor.DecodeStoreCbor
+	CertType       uint
+	DrepCredential Credential
+	Anchor         *GovAnchor
+}
+
+func (c UpdateDrepCertificate) isCertificate() {}
+
+func (c *UpdateDrepCertificate) UnmarshalCBOR(
+	cborData []byte,
+) error {
+	if err := ValidateCBORArrayLength(
+		cborData,
+		3,
+		"DRep update certificate",
+	); err != nil {
+		return err
+	}
+	var fields []cbor.RawMessage
+	if _, err := cbor.DecodeExact(cborData, &fields); err != nil {
+		return err
+	}
+	if len(fields) != 3 {
+		return errors.New("invalid DRep update certificate array")
+	}
+	if bytes.Equal(fields[2], []byte{0xf7}) {
+		return errors.New("DRep update anchor cannot be CBOR undefined")
+	}
+	type tUpdateDrepCertificate UpdateDrepCertificate
+	var tmp tUpdateDrepCertificate
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	*c = UpdateDrepCertificate(tmp)
+	c.SetCbor(cborData)
+	return nil
+}
+
+func (c UpdateDrepCertificate) Utxorpc() (*utxorpc.Certificate, error) {
+	var anchor *utxorpc.Anchor
+	if c.Anchor != nil {
+		anchor = &utxorpc.Anchor{
+			Url:         c.Anchor.Url,
+			ContentHash: c.Anchor.DataHash[:],
+		}
+	}
+	drepCred, err := c.DrepCredential.Utxorpc()
+	if err != nil {
+		return nil, err
+	}
+	return &utxorpc.Certificate{
+		Certificate: &utxorpc.Certificate_UpdateDrepCert{
+			UpdateDrepCert: &utxorpc.UpdateDRepCert{
+				DrepCredential: drepCred,
+				Anchor:         anchor,
+			},
+		},
+	}, nil
+}
+
+func (c UpdateDrepCertificate) Type() uint {
+	return c.CertType
+}

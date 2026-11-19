@@ -1,0 +1,790 @@
+---
+title: "UTxORPC Provider"
+description: "Connect to Cardano using the high-performance UTxORPC gRPC protocol"
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+The UTxORPC (U5C) provider connects to Cardano using the <Link href="https://utxorpc.org/">UTxORPC specification</Link>, a standardized gRPC interface for UTxO-based blockchains. It uses a compact, high-performance binary format for efficient communication.
+
+**Key features:**
+- High performance through gRPC protocol
+- Compact binary format minimizes network overhead
+- Standardized interface ensures cross-implementation compatibility
+- Works with Dolos, Demeter.run, and other UTxORPC-compliant servers
+
+**Use UTxORPC when you need:**
+- Maximum performance for high-throughput applications
+- Standardized blockchain access across different implementations
+- Efficient communication with minimal message size
+- Self-hosted infrastructure with Dolos
+
+## Quick Start
+
+Install the MeshJS package:
+
+```bash
+npm install @meshsdk/core
+```
+
+Initialize the provider:
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+```
+
+For hosted services like <Link href="https://demeter.run/">Demeter.run</Link>:
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "https://utxorpc-v0-mainnet.demeter.run",
+  headers: {
+    "dmtr-api-key": "<YOUR_API_KEY>",
+  },
+});
+```
+
+Fetch blockchain data:
+
+```tsx
+// Fetch UTxOs from an address
+const utxos = await provider.fetchAddressUTxOs(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9"
+);
+
+// Submit a transaction
+const txHash = await provider.submitTx(signedTx);
+```
+
+## Configuration Options
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `url` | `string` | Yes | The UTxORPC server URL |
+| `headers` | `Record<string, string>` | No | Custom headers for authentication |
+
+### Server Options
+
+**Self-hosted with Dolos:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+```
+
+**Demeter.run (hosted):**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "https://utxorpc-v0-mainnet.demeter.run",
+  headers: {
+    "dmtr-api-key": "<YOUR_API_KEY>",
+  },
+});
+```
+
+For more server options, see the <Link href="https://github.com/utxorpc/docs/blob/main/pages/servers.md">UTxORPC Ecosystem Servers Documentation</Link>.
+
+## API Reference
+
+### get
+
+Fetch data from the blockchain using a URL path.
+
+```tsx
+await provider.get(endpoint: string): Promise<any>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `endpoint` | `string` | Yes | The API endpoint path |
+
+**Example:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+const transactions = await provider.get(
+  "/addresses/addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9/transactions"
+);
+```
+
+---
+
+### fetchAccountInfo
+
+Retrieve information about a stake account.
+
+```tsx
+await provider.fetchAccountInfo(address: string): Promise<AccountInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | The stake address (bech32 format) |
+
+**Returns:** `AccountInfo` object containing balance, rewards, and delegation status.
+
+**Example:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+const accountInfo = await provider.fetchAccountInfo(
+  "stake_test1uzw5mnt7g4xjgdqkfa80hrk7kdvds6sa4k0vvgjvlj7w8eskffj2n"
+);
+
+console.log(accountInfo.balance);
+console.log(accountInfo.rewards);
+```
+
+---
+
+### fetchAddressAssets
+
+Fetch all assets held by an address.
+
+```tsx
+await provider.fetchAddressAssets(address: string): Promise<Asset[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | The wallet address (bech32 format) |
+
+**Returns:** Array of `Asset` objects with `unit` and `quantity`.
+
+**Example:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+const assets = await provider.fetchAddressAssets(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9"
+);
+
+assets.forEach((asset) => {
+  console.log(`${asset.unit}: ${asset.quantity}`);
+});
+```
+
+---
+
+### fetchAddressUTxOs
+
+Fetch UTxOs controlled by an address, optionally filtered by asset.
+
+```tsx
+await provider.fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | The wallet address (bech32 format) |
+| `asset` | `string` | No | Filter by asset unit (policy ID + asset name hex) |
+
+**Returns:** Array of `UTxO` objects.
+
+**Example:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+// Fetch all UTxOs
+const utxos = await provider.fetchAddressUTxOs(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9"
+);
+
+// Fetch UTxOs containing a specific asset
+const filteredUtxos = await provider.fetchAddressUTxOs(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+  "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e"
+);
+```
+
+---
+
+### fetchAssetAddresses
+
+Fetch all addresses holding a specific asset.
+
+```tsx
+await provider.fetchAssetAddresses(asset: string): Promise<AssetAddress[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `asset` | `string` | Yes | The asset unit (policy ID + asset name hex) |
+
+**Returns:** Array of addresses and quantities.
+
+**Example:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+const holders = await provider.fetchAssetAddresses(
+  "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e"
+);
+
+holders.forEach((holder) => {
+  console.log(`${holder.address}: ${holder.quantity}`);
+});
+```
+
+---
+
+### fetchAssetMetadata
+
+Fetch metadata for an asset.
+
+```tsx
+await provider.fetchAssetMetadata(asset: string): Promise<AssetMetadata>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `asset` | `string` | Yes | The asset unit (policy ID + asset name hex) |
+
+**Returns:** `AssetMetadata` object with name, image, and other metadata fields.
+
+**Example:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+const metadata = await provider.fetchAssetMetadata(
+  "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e"
+);
+
+console.log(metadata.name);
+console.log(metadata.image);
+```
+
+---
+
+### fetchBlockInfo
+
+Fetch information about a block.
+
+```tsx
+await provider.fetchBlockInfo(hash: string): Promise<BlockInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `hash` | `string` | Yes | The block hash |
+
+**Returns:** `BlockInfo` object with block details.
+
+**Example:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+const blockInfo = await provider.fetchBlockInfo(
+  "79f60880b097ec7dabb81f75f0b52fedf5e922d4f779a11c0c432dcf22c56089"
+);
+
+console.log(blockInfo.slot);
+console.log(blockInfo.time);
+```
+
+---
+
+### fetchCollectionAssets
+
+Fetch all assets in an NFT collection by policy ID.
+
+```tsx
+await provider.fetchCollectionAssets(policyId: string, cursor?: number): Promise<{ assets: Asset[]; next: number | null }>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `policyId` | `string` | Yes | The policy ID of the collection |
+| `cursor` | `number` | No | Pagination cursor (default: 1) |
+
+**Returns:** Object with `assets` array and `next` cursor for pagination.
+
+**Example:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+// Fetch first page
+const result = await provider.fetchCollectionAssets(
+  "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527"
+);
+
+console.log(result.assets);
+
+// Fetch next page if available
+if (result.next) {
+  const nextPage = await provider.fetchCollectionAssets(
+    "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527",
+    result.next
+  );
+}
+```
+
+---
+
+### fetchHandleAddress
+
+Resolve an ADA Handle to its associated address.
+
+```tsx
+await provider.fetchHandleAddress(handle: string): Promise<string>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `handle` | `string` | Yes | The ADA Handle (without $) |
+
+**Returns:** The resolved Cardano address.
+
+**Example:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+const address = await provider.fetchHandleAddress("meshsdk");
+console.log(address);
+```
+
+---
+
+### fetchHandle
+
+Fetch CIP-68 handle metadata.
+
+```tsx
+await provider.fetchHandle(handle: string): Promise<HandleMetadata>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `handle` | `string` | Yes | The ADA Handle (without $) |
+
+**Returns:** Handle metadata including CIP-68 fields.
+
+**Example:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+const handleData = await provider.fetchHandle("meshsdk");
+console.log(handleData);
+```
+
+---
+
+### fetchProtocolParameters
+
+Fetch the current protocol parameters.
+
+```tsx
+await provider.fetchProtocolParameters(epoch?: number): Promise<Protocol>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `epoch` | `number` | No | Specific epoch (default: current epoch) |
+
+**Returns:** `Protocol` object with all protocol parameters.
+
+**Example:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+const params = await provider.fetchProtocolParameters();
+
+console.log(params.minFeeA);
+console.log(params.minFeeB);
+console.log(params.maxTxSize);
+```
+
+---
+
+### fetchTxInfo
+
+Fetch information about a confirmed transaction.
+
+```tsx
+await provider.fetchTxInfo(hash: string): Promise<TransactionInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `hash` | `string` | Yes | The transaction hash |
+
+**Returns:** `TransactionInfo` object with transaction details.
+
+**Example:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+const txInfo = await provider.fetchTxInfo(
+  "f4ec9833a3bf95403d395f699bc564938f3419537e7fb5084425d3838a4b6159"
+);
+
+console.log(txInfo.block);
+console.log(txInfo.fees);
+```
+
+---
+
+### fetchUTxOs
+
+Fetch UTxOs by transaction hash.
+
+```tsx
+await provider.fetchUTxOs(hash: string, index?: number): Promise<UTxO[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `hash` | `string` | Yes | The transaction hash |
+| `index` | `number` | No | Specific output index |
+
+**Returns:** Array of `UTxO` objects.
+
+**Example:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+// Fetch all UTxOs from a transaction
+const utxos = await provider.fetchUTxOs(
+  "dfd2a2616e6154a092807b1ceebb9ddcadc0f22cf5c8e0e6b0757815083ccb70"
+);
+
+// Fetch specific output
+const specificUtxo = await provider.fetchUTxOs(
+  "dfd2a2616e6154a092807b1ceebb9ddcadc0f22cf5c8e0e6b0757815083ccb70",
+  0
+);
+```
+
+---
+
+### fetchGovernanceProposal
+
+Fetch information about a governance proposal.
+
+```tsx
+await provider.fetchGovernanceProposal(txHash: string, certIndex: number): Promise<ProposalInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `txHash` | `string` | Yes | The proposal transaction hash |
+| `certIndex` | `number` | Yes | The certificate index |
+
+**Returns:** `ProposalInfo` object with proposal details.
+
+**Example:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+const proposal = await provider.fetchGovernanceProposal(
+  "372d688faa77e146798b581b322c0f2981a9023764736ade5d12e0e4e796af8c",
+  0
+);
+```
+
+---
+
+### evaluateTx
+
+Evaluate a transaction to determine script execution costs.
+
+```tsx
+await provider.evaluateTx(tx: string): Promise<Omit<Action, "data">[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tx` | `string` | Yes | The unsigned transaction CBOR hex |
+
+**Returns:** Array of execution cost estimates for each script.
+
+**Example:**
+
+```tsx
+import { U5CProvider, MeshTxBuilder } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+const unsignedTx = await txBuilder
+  // ... transaction building code
+  .complete();
+
+const evaluation = await provider.evaluateTx(unsignedTx);
+
+console.log(evaluation);
+// [
+//   {
+//     index: 0,
+//     tag: "SPEND",
+//     budget: {
+//       mem: 1700,
+//       steps: 368100
+//     }
+//   }
+// ]
+```
+
+---
+
+### submitTx
+
+Submit a signed transaction to the network.
+
+```tsx
+await provider.submitTx(tx: string): Promise<string>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tx` | `string` | Yes | The signed transaction CBOR hex |
+
+**Returns:** The transaction hash.
+
+**Example:**
+
+```tsx
+import { U5CProvider } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+const txHash = await provider.submitTx(signedTx);
+console.log(`Transaction submitted: ${txHash}`);
+```
+
+---
+
+### onTxConfirmed
+
+Listen for transaction confirmation.
+
+```tsx
+provider.onTxConfirmed(txHash: string, callback: () => void, limit?: number): void
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `txHash` | `string` | Yes | The transaction hash to monitor |
+| `callback` | `() => void` | Yes | Function called when confirmed |
+| `limit` | `number` | No | Maximum confirmation checks |
+
+**Example:**
+
+```tsx
+import { U5CProvider, MeshTxBuilder } from "@meshsdk/core";
+
+const provider = new U5CProvider({
+  url: "http://localhost:50051",
+});
+
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+const unsignedTx = await txBuilder
+  .txOut("addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr", [
+    { unit: "lovelace", quantity: "5000000" },
+  ])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await provider.submitTx(signedTx);
+
+provider.onTxConfirmed(txHash, () => {
+  console.log("Transaction confirmed!");
+});
+```
+
+## Complete Example
+
+```tsx
+import { U5CProvider, MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+
+async function sendAda() {
+  // Initialize provider
+  const provider = new U5CProvider({
+    url: "https://utxorpc-v0-preprod.demeter.run",
+    headers: {
+      "dmtr-api-key": "<YOUR_API_KEY>",
+    },
+  });
+
+  // Initialize wallet
+  const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+    networkId: 0,
+    walletAddressType: AddressType.Base,
+    fetcher: provider,
+    submitter: provider,
+    mnemonic: ["your", "mnemonic", "phrase", "..."],
+  });
+
+  // Get wallet data
+  const utxos = await wallet.getUtxosMesh();
+  const changeAddress = await wallet.getChangeAddressBech32();
+
+  // Build transaction
+  const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+  const unsignedTx = await txBuilder
+    .txOut("addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9", [
+      { unit: "lovelace", quantity: "5000000" },
+    ])
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  // Sign and submit
+  const signedTx = await wallet.signTx(unsignedTx, false);
+  const txHash = await provider.submitTx(signedTx);
+
+  console.log(`Transaction submitted: ${txHash}`);
+
+  // Wait for confirmation
+  provider.onTxConfirmed(txHash, () => {
+    console.log("Transaction confirmed!");
+  });
+}
+```
+
+## Troubleshooting
+
+### Connection Issues
+
+**Problem:** Cannot connect to UTxORPC server.
+
+**Solution:**
+1. Verify the server URL is correct
+2. For self-hosted Dolos, ensure the server is running
+3. For Demeter.run, verify your API key is valid
+
+### gRPC Errors
+
+**Problem:** gRPC-specific errors in the console.
+
+**Solution:**
+1. Ensure you're using compatible client and server versions
+2. Check that the server supports the UTxORPC specification version you're using
+3. Verify network connectivity to the gRPC endpoint
+
+### Authentication Failures
+
+**Problem:** 401 or 403 errors with Demeter.run.
+
+**Solution:**
+1. Verify your API key in the `headers` configuration
+2. Check that your Demeter.run subscription is active
+3. Ensure you're using the correct endpoint for your network (mainnet/preprod/preview)
+
+### Missing Data
+
+**Problem:** Queries return empty results.
+
+**Solution:**
+1. Verify the address or asset exists on the correct network
+2. Check that your UTxORPC server is fully synced
+3. For self-hosted servers, ensure the indexer has processed recent blocks
+
+## References
+
+- [UTxORPC Specification](https://utxorpc.org/) - The standardized gRPC interface for UTxO-based blockchains
+- [Cardano Developer Portal](https://developers.cardano.org) - Official Cardano development resources
+- [Cardano eUTXO Model](https://docs.cardano.org/about-cardano/learn/eutxo-explainer/) - Understanding the extended UTXO model
+
+## Related Links
+
+- <Link href="https://utxorpc.org/">UTxORPC Specification</Link>
+- <Link href="https://github.com/utxorpc/docs/blob/main/pages/servers.md">UTxORPC Server Implementations</Link>
+- <Link href="https://demeter.run/">Demeter.run</Link>
+- <Link href="https://github.com/txpipe/dolos">Dolos (Self-hosted UTxORPC)</Link>
+- [MeshJS Transaction Builder](/transaction/basics)
+- [MeshJS Wallets](/wallets)

@@ -1,0 +1,254 @@
+---
+title: Coin Selection
+description: UTxO selection algorithms for covering transaction requirements
+---
+
+import { Mermaid } from "@/components/mdx/mermaid"
+
+## Abstract
+
+Transactions require UTxOs as inputs to provide assets (ADA and native tokens) for outputs. Coin selection determines which UTxOs from a wallet to spend. The algorithm must cover all required assets while minimizing transaction size and fees. The system implements largest-first selection—choosing UTxOs with the most ADA first until requirements are met. This creates predictable behavior and minimizes input count, though it may select more value than strictly necessary.
+
+## Purpose and Scope
+
+**Purpose**: Select the minimal set of UTxOs that satisfies asset requirements, balancing speed, predictability, and transaction cost.
+
+**Scope**:
+- Pure function: takes available UTxOs and required assets, returns selected UTxOs
+- Covers ADA-only requirements (simple payments)
+- Covers multi-asset requirements (tokens, NFTs)
+- Stateless algorithm with no side effects
+- Supports custom algorithms via function interface
+
+**Out of Scope**:
+- Transaction state management (handled by transaction builder)
+- Fee calculation or change creation
+- UTxO availability querying (handled by provider layer)
+- Wallet consolidation or defragmentation strategies
+
+## Design Philosophy
+
+Transaction costs grow with input count. More inputs mean larger transaction size, which increases fees. The naive approach—randomly selecting UTxOs—produces unpredictable costs and may fragment wallet state further.
+
+The solution operates on first principles: prefer large UTxOs over small ones. A single 100 ADA UTxO is cheaper to spend than ten 10 ADA UTxOs. By sorting UTxOs by value and selecting from largest to smallest, the algorithm minimizes input count naturally. This increases predictability—users with large UTxOs pay lower fees consistently.
+
+The tradeoff appears in change outputs: selecting a 100 ADA UTxO for a 10 ADA payment creates 90 ADA change (minus fees). This is acceptable because the change becomes a large UTxO for the next transaction, maintaining wallet efficiency over time. The alternative—selecting many small UTxOs to minimize change—increases immediate costs more than it saves.
+
+Multi-asset selection extends this principle: track each required asset separately, continue selecting until all are covered. If a UTxO contains multiple needed assets, it contributes toward all requirements simultaneously. This naturally favors UTxOs with diverse asset mixes.
+
+Coin selection is a pure function with no side effects. Given the same UTxOs and requirements, it always returns the same selection. This enables testing, reasoning about behavior, and replacing with custom algorithms without affecting other transaction building logic.
+
+## Largest-First Algorithm
+
+The primary selection strategy sorts by ADA value and selects greedily:
+
+<Mermaid chart={`
+graph TD
+    Start([Start: Coin Selection]) --> SortUtxos[Sort UTxOs by<br/>Lovelace Descending]
+    SortUtxos --> InitAccumulator[Initialize Empty<br/>Accumulated Assets]
+    
+    InitAccumulator --> CheckNext{More UTxOs<br/>Available?}
+    CheckNext -->|No| VerifyRequirements
+    CheckNext -->|Yes| CheckMet{All Requirements<br/>Met?}
+    
+    CheckMet -->|Yes| VerifyRequirements[Verify All<br/>Assets Covered]
+    CheckMet -->|No| SelectUtxo[Select Next<br/>Largest UTxO]
+    
+    SelectUtxo --> AddToSelection[Add to Selected List]
+    AddToSelection --> AccumulateAssets[Accumulate Assets<br/>from UTxO]
+    AccumulateAssets --> CheckNext
+    
+    VerifyRequirements --> CheckShortfall{Any Asset<br/>Insufficient?}
+    CheckShortfall -->|Yes| ThrowError[Throw CoinSelectionError<br/>with shortfall details]
+    CheckShortfall -->|No| ReturnResult[Return Selected UTxOs]
+    
+    ThrowError --> End([End: Error])
+    ReturnResult --> End([End: Success])
+    
+    style Start fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#000000
+    style End fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style CheckNext fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckMet fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckShortfall fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style ThrowError fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#ffffff
+`} />
+
+**Algorithm Steps:**
+
+1. **Sort Phase**: Order all available UTxOs by lovelace value (descending). This ensures large UTxOs are considered first.
+
+2. **Accumulation Phase**: Iterate through sorted UTxOs. For each UTxO:
+   - Check if all required assets are already accumulated
+   - If yes, stop iteration (sufficient inputs found)
+   - If no, add UTxO to selection and update accumulated totals
+
+3. **Verification Phase**: After iteration completes, verify every required asset is covered. If any asset falls short, throw error with specific shortfall details (which asset, how much needed, how much available).
+
+**Key Behaviors:**
+- Stops immediately when requirements met (no over-selection beyond necessity)
+- Handles multi-asset requirements by checking all units every iteration
+- Throws descriptive errors identifying specific asset shortfalls
+- Maintains input order stability (same wallet state = same selection)
+
+## Multi-Asset Selection
+
+When transactions require native assets (tokens, NFTs), selection must cover both ADA and specific asset units:
+
+<Mermaid chart={`
+graph TD
+    Start([Start: Multi-Asset Check]) --> ExtractUnits[Extract All<br/>Required Units]
+    ExtractUnits --> InitTracking[Initialize Tracking<br/>per Asset Unit]
+    
+    InitTracking --> SelectUtxo[Select Next UTxO<br/>from Sorted List]
+    SelectUtxo --> CheckUtxoAssets{UTxO Contains<br/>Needed Assets?}
+    
+    CheckUtxoAssets -->|Yes| UpdateMultiple[Update Multiple<br/>Asset Accumulators]
+    CheckUtxoAssets -->|No| UpdateLovelace[Update Only<br/>Lovelace Accumulator]
+    
+    UpdateMultiple --> CheckAllMet{All Asset Units<br/>Satisfied?}
+    UpdateLovelace --> CheckAllMet
+    
+    CheckAllMet -->|No| SelectUtxo
+    CheckAllMet -->|Yes| VerifyEach[Verify Each Unit<br/>Individually]
+    
+    VerifyEach --> CheckEach{Every Unit<br/>>= Required?}
+    CheckEach -->|Yes| Success([Return Selection])
+    CheckEach -->|No| IdentifyMissing[Identify Missing Units<br/>with Shortfalls]
+    
+    IdentifyMissing --> Error([Throw Error<br/>per Unit])
+    
+    style Start fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#000000
+    style Success fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style Error fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#ffffff
+    style CheckUtxoAssets fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckAllMet fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckEach fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+`} />
+
+**Multi-Asset Principles:**
+
+**Unit Tracking**: Each asset unit (lovelace, specific token policy+name) tracks separately. A UTxO containing 10 ADA and 5 TokenA contributes to both accumulators simultaneously.
+
+**Greedy Coverage**: Selection continues until *all* units meet requirements. A transaction requiring 100 ADA and 10 TokenA must accumulate both. If a UTxO has only ADA, it contributes toward the ADA requirement but selection continues for TokenA.
+
+**Efficiency Through Mixing**: UTxOs with multiple needed assets are more valuable than UTxOs with single assets. A UTxO containing 50 ADA + 3 TokenA + 2 TokenB satisfies three requirements at once, reducing total input count.
+
+**Verification Per Unit**: After selection completes, each required unit verifies independently. Errors report the specific unit that fell short, enabling precise wallet diagnostics.
+
+## Function Interface
+
+Coin selection exposes a simple functional interface:
+
+**Input Parameters:**
+- `availableUtxos`: Array of UTxOs that can be spent (wallet's current UTxO set)
+- `requiredAssets`: Asset map specifying needed amounts (lovelace + native assets)
+
+**Output:**
+- `selectedUtxos`: Array of UTxOs chosen to cover requirements
+
+**Function Signature:**
+```
+(availableUtxos, requiredAssets) → { selectedUtxos }
+```
+
+**Properties:**
+- **Deterministic**: Same inputs always produce same output
+- **Pure**: No side effects, no state mutation
+- **Total**: Either returns valid selection or throws error (no partial results)
+- **Minimal**: Returns smallest set that satisfies requirements (largest-first naturally minimizes count)
+
+**Error Conditions:**
+- Throws `CoinSelectionError` when available assets < required assets
+- Error includes specific unit that fell short and calculated shortfall
+- Empty UTxO set with non-zero requirements immediately fails
+
+## Algorithm Trade-offs
+
+Different selection strategies optimize for different goals:
+
+**Largest-First** (Implemented):
+- **Optimization**: Minimize input count (fewer inputs = smaller tx)
+- **Speed**: O(n log n) for sorting, O(n) for selection
+- **Predictability**: Same wallet state always produces same selection
+- **Weakness**: May select much more value than needed (large change)
+- **Use Case**: Default for most transactions, prioritizes low fees
+
+**Random-Improve** (Not Implemented):
+- **Optimization**: Balance input count with change minimization
+- **Strategy**: Random selection, then iteratively swap UTxOs to reduce change
+- **Speed**: O(n²) due to improvement iterations
+- **Predictability**: Non-deterministic (randomized starting point)
+- **Weakness**: Slower convergence, unpredictable costs
+- **Use Case**: Privacy-focused transactions (selection not deterministic from inputs)
+
+**Optimal** (Not Implemented):
+- **Optimization**: Minimize total fees (inputs + change outputs)
+- **Strategy**: Explore combinations to find true minimum
+- **Speed**: O(2ⁿ) worst case (combinatorial explosion)
+- **Predictability**: Deterministic but computationally expensive
+- **Weakness**: Impractical for large UTxO sets
+- **Use Case**: High-value transactions where fee optimization justifies computation cost
+
+**Custom Functions**: Users can provide their own `CoinSelectionFunction` that implements any strategy. The function receives available UTxOs and required assets, returns selected UTxOs. This enables specialized selection logic (e.g., prefer UTxOs with specific metadata, avoid certain addresses, prioritize token consolidation).
+
+## Error Handling
+
+Coin selection failures provide diagnostic information:
+
+**Insufficient Funds**: When total available assets < required assets, selection throws `CoinSelectionError` with:
+- Specific asset unit that fell short (lovelace, policyID+tokenName)
+- Required amount for that unit
+- Available amount across all UTxOs
+- Calculated shortfall (required - available)
+
+This enables precise error messages: "Insufficient token XYZ: need 100, have 50 in wallet" rather than generic "insufficient funds" errors.
+
+**Empty UTxO Set**: When no UTxOs are available, any non-zero requirement causes immediate error. This catches wallet state issues early (e.g., all UTxOs already selected by previous operations).
+
+**Algorithm-Specific Errors**: Custom selection functions may throw additional errors. The selection phase wraps these in `TransactionBuilderError` with context about which algorithm failed and what assets were being selected.
+
+## Custom Algorithms
+
+The system supports custom selection algorithms through function injection:
+
+**Built-in Algorithms:**
+- `"largest-first"`: Implemented greedy algorithm (default)
+- `"random-improve"`: Reserved for future CIP-2 implementation
+- `"optimal"`: Reserved for future exhaustive search implementation
+
+**Custom Functions**: Provide your own `CoinSelectionFunction` that implements the signature:
+```
+(availableUtxos, requiredAssets) → { selectedUtxos }
+```
+
+**Custom Algorithm Requirements:**
+- Must return UTxOs that cover all required assets (will be verified by caller)
+- Should minimize input count for fee efficiency (not enforced, but recommended)
+- Should be deterministic for predictable behavior (not enforced, but recommended)
+- Must throw error if requirements cannot be met
+
+**Example Use Cases:**
+- **Privacy-focused selection**: Randomize to avoid address linkability
+- **Token consolidation**: Prefer UTxOs with many tokens to reduce fragmentation
+- **Address-aware selection**: Avoid spending from certain addresses
+- **Metadata filtering**: Select only UTxOs with/without specific metadata
+- **Age-based selection**: Prefer older/newer UTxOs by creation time
+
+## Performance Characteristics
+
+Largest-first selection exhibits predictable performance:
+
+**Time Complexity**: O(n log n) for sorting + O(n) for selection = O(n log n) overall, where n is number of available UTxOs.
+
+**Space Complexity**: O(n) for sorted copy of UTxO array + O(m) for selected UTxOs where m ≤ n. In practice, m is typically very small (1-5 UTxOs for most transactions).
+
+**Best Case**: O(1) when no selection needed (explicit inputs sufficient) or when first UTxO covers all requirements.
+
+**Worst Case**: O(n log n) when all UTxOs must be considered before finding sufficient assets.
+
+**Typical Case**: O(n log n) for sorting, then O(1) to O(10) for selection since most wallets contain diverse UTxO sizes and largest-first finds coverage quickly.
+
+## Related Topics
+
+- [Transaction Flow](/docs/architecture/transaction-flow) - How coin selection integrates into the build state machine
+- [Selection Phase](/docs/architecture/transaction-flow#1-selection-phase) - Transaction builder phase that invokes coin selection algorithms

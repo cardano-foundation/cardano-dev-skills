@@ -1,0 +1,35 @@
+get:
+  tags:
+    - Cardano » Pools
+  summary: Stake pool metadata
+  description: |
+    Stake pool registration metadata.
+  parameters:
+    - in: path
+      name: pool_id
+      required: true
+      schema:
+        type: string
+      description: Bech32 or hexadecimal pool ID.
+      example: "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy"
+  responses:
+    "200":
+      description: Return the pool metadata content.
+      content:
+        application/json:
+          schema:
+            anyOf:
+              - $ref: ../../../../schemas/pools/pool_metadata.yaml
+              - $ref: ../../../../schemas/empty_object.yaml
+    "400":
+      $ref: ../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../responses/errors/500.yaml

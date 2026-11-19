@@ -1,0 +1,706 @@
+---
+title: "Smart Contract Interactions"
+description: "Lock, unlock, and interact with Plutus smart contracts on Cardano."
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+Smart contracts on Cardano are Plutus scripts that control how assets can be spent. You interact with them by locking assets at script addresses and unlocking them by providing valid datum and redeemer values.
+
+**When to use this:**
+- Building decentralized applications (dApps)
+- Creating escrow or vesting contracts
+- Implementing decentralized exchanges
+- Building NFT marketplaces
+- Deploying on-chain validators
+
+## Quick Start
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  serializePlutusScript,
+  PlutusScript
+} from "@meshsdk/core";
+
+// Initialize
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+// Define the Plutus script
+const script: PlutusScript = {
+  code: "your-script-cbor-here",
+  version: "V2",
+};
+const { address: scriptAddress } = serializePlutusScript(script);
+
+// Get wallet data
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+
+// Lock assets at script address
+const unsignedTx = await txBuilder
+  .txOut(scriptAddress, [{ unit: "lovelace", quantity: "10000000" }])
+  .txOutInlineDatumValue("my-secret-datum")
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+## API Reference
+
+### Locking Assets
+
+#### txOut()
+
+Send assets to an address (including script addresses).
+
+```tsx
+.txOut(address: string, amount: Asset[])
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `address` | `string` | Recipient address (can be a script address) |
+| `amount` | `Asset[]` | Array of assets to send |
+
+#### txOutInlineDatumValue()
+
+Attach an inline datum to the output.
+
+```tsx
+.txOutInlineDatumValue(datum: Data | object | string, type?: "Mesh" | "CBOR" | "JSON")
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `datum` | `Data \| object \| string` | Datum value |
+| `type` | `"Mesh" \| "CBOR" \| "JSON"` | Data format (default: "Mesh") |
+
+#### txOutDatumHashValue()
+
+Attach a datum hash to the output (datum stored off-chain).
+
+```tsx
+.txOutDatumHashValue(datum: Data | object | string, type?: "Mesh" | "CBOR" | "JSON")
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `datum` | `Data \| object \| string` | Datum value (hash will be computed) |
+| `type` | `"Mesh" \| "CBOR" \| "JSON"` | Data format (default: "Mesh") |
+
+#### txOutReferenceScript()
+
+Attach a reference script to the output.
+
+```tsx
+.txOutReferenceScript(scriptCbor: string, version?: LanguageVersion)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `scriptCbor` | `string` | CBOR-encoded script |
+| `version` | `LanguageVersion` | Script version ("V1", "V2", "V3") |
+
+### Unlocking Assets
+
+#### spendingPlutusScriptV1() / V2() / V3()
+
+Indicate you are spending from a Plutus script.
+
+```tsx
+.spendingPlutusScriptV2()
+```
+
+#### txIn()
+
+Specify the UTxO to spend.
+
+```tsx
+.txIn(txHash: string, txIndex: number, amount?: Asset[], address?: string)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `txHash` | `string` | Transaction hash |
+| `txIndex` | `number` | Output index |
+| `amount` | `Asset[]` | Optional: Output amount |
+| `address` | `string` | Optional: Output address |
+
+#### txInInlineDatumPresent()
+
+Indicate that the input has an inline datum.
+
+```tsx
+.txInInlineDatumPresent()
+```
+
+#### txInDatumValue()
+
+Provide the datum for the input (when not inline).
+
+```tsx
+.txInDatumValue(datum: Data | object | string, type?: "Mesh" | "CBOR" | "JSON")
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `datum` | `Data \| object \| string` | Datum value |
+| `type` | `"Mesh" \| "CBOR" \| "JSON"` | Data format (default: "Mesh") |
+
+#### txInRedeemerValue()
+
+Provide the redeemer for the script.
+
+```tsx
+.txInRedeemerValue(redeemer: Data | object | string, type?: "Mesh" | "CBOR" | "JSON", exUnits?: Budget)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `redeemer` | `Data \| object \| string` | Redeemer value |
+| `type` | `"Mesh" \| "CBOR" \| "JSON"` | Data format (default: "Mesh") |
+| `exUnits` | `Budget` | Optional execution units |
+
+#### txInScript()
+
+Provide the script for the input.
+
+```tsx
+.txInScript(scriptCbor: string)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `scriptCbor` | `string` | CBOR-encoded Plutus script |
+
+#### spendingTxInReference()
+
+Reference an on-chain script instead of providing it inline.
+
+```tsx
+.spendingTxInReference(txHash: string, txIndex: number, spendingScriptHash?: string)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `txHash` | `string` | Transaction hash containing reference script |
+| `txIndex` | `number` | Output index |
+| `spendingScriptHash` | `string` | Optional script hash for verification |
+
+### Collateral
+
+#### txInCollateral()
+
+Provide collateral for script execution.
+
+```tsx
+.txInCollateral(txHash: string, txIndex: number, amount?: Asset[], address?: string)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `txHash` | `string` | Collateral UTxO transaction hash |
+| `txIndex` | `number` | Output index |
+| `amount` | `Asset[]` | Optional: UTxO amount |
+| `address` | `string` | Optional: UTxO address |
+
+## Common Patterns
+
+### Lock Assets in a Script
+
+Send assets to a script address with an inline datum:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  serializePlutusScript,
+  PlutusScript
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+
+// Define your Plutus script
+const script: PlutusScript = {
+  code: "your-always-succeed-script-cbor",
+  version: "V2",
+};
+const { address: scriptAddress } = serializePlutusScript(script);
+
+// Lock 10 ADA with a datum
+const unsignedTx = await txBuilder
+  .txOut(scriptAddress, [{ unit: "lovelace", quantity: "10000000" }])
+  .txOutInlineDatumValue("meshsecretcode")
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+### Lock with Datum Hash
+
+Lock assets using a datum hash instead of inline datum:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  serializePlutusScript,
+  PlutusScript
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+
+const script: PlutusScript = {
+  code: "your-script-cbor",
+  version: "V2",
+};
+const { address: scriptAddress } = serializePlutusScript(script);
+
+// Lock with datum hash (datum stored off-chain)
+const unsignedTx = await txBuilder
+  .txOut(scriptAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .txOutDatumHashValue("my-secret-datum")
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+### Unlock Assets from a Script
+
+Spend a UTxO from a script address:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  serializePlutusScript,
+  mConStr0,
+  PlutusScript
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const collateral = await wallet.getCollateral();
+const changeAddress = await wallet.getChangeAddress();
+
+// Define the script
+const script: PlutusScript = {
+  code: "your-always-succeed-script-cbor",
+  version: "V2",
+};
+const { address: scriptAddress } = serializePlutusScript(script);
+
+// Find the UTxO to unlock (in production, query from provider)
+const scriptUtxos = await provider.fetchAddressUTxOs(scriptAddress);
+const assetUtxo = scriptUtxos.find(
+  (utxo) => utxo.output.plutusData === "meshsecretcode"
+);
+
+if (!assetUtxo) {
+  throw new Error("UTxO not found");
+}
+
+const unsignedTx = await txBuilder
+  .spendingPlutusScriptV2()
+  .txIn(assetUtxo.input.txHash, assetUtxo.input.outputIndex)
+  .txInInlineDatumPresent()
+  .txInRedeemerValue(mConStr0([]))
+  .txInScript(script.code)
+  .changeAddress(changeAddress)
+  .txInCollateral(
+    collateral[0]!.input.txHash,
+    collateral[0]!.input.outputIndex,
+    collateral[0]!.output.amount,
+    collateral[0]!.output.address
+  )
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+### Unlock with Datum Hash
+
+When the UTxO was locked with a datum hash, you must provide the datum:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  serializePlutusScript,
+  mConStr0,
+  PlutusScript
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const collateral = await wallet.getCollateral();
+const changeAddress = await wallet.getChangeAddress();
+
+const script: PlutusScript = {
+  code: "your-script-cbor",
+  version: "V2",
+};
+
+// The UTxO to unlock
+const assetUtxo = {
+  input: { txHash: "abc123...", outputIndex: 0 },
+  output: { amount: [{ unit: "lovelace", quantity: "5000000" }], address: "..." }
+};
+
+const unsignedTx = await txBuilder
+  .spendingPlutusScriptV2()
+  .txIn(assetUtxo.input.txHash, assetUtxo.input.outputIndex)
+  .txInDatumValue("my-secret-datum") // Provide the original datum
+  .txInRedeemerValue(mConStr0([]))
+  .txInScript(script.code)
+  .changeAddress(changeAddress)
+  .txInCollateral(
+    collateral[0]!.input.txHash,
+    collateral[0]!.input.outputIndex,
+    collateral[0]!.output.amount,
+    collateral[0]!.output.address
+  )
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+### Using Reference Scripts
+
+Reference scripts allow you to use a script stored on-chain, reducing transaction size and fees.
+
+#### Deploy a Reference Script
+
+First, send a reference script on-chain:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+
+const scriptCbor = "your-plutus-script-cbor";
+
+// Send script on-chain (use an address you control)
+const unsignedTx = await txBuilder
+  .txOut("addr_test1qz...", [{ unit: "lovelace", quantity: "10000000" }])
+  .txOutReferenceScript(scriptCbor, "V2")
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+
+// Save txHash and output index for future reference
+console.log(`Reference script deployed at: ${txHash}#0`);
+```
+
+#### Use a Reference Script
+
+Spend using an on-chain reference script:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  mConStr0
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const collateral = await wallet.getCollateral();
+const changeAddress = await wallet.getChangeAddress();
+
+// Reference script location
+const refScriptTxHash = "abc123...";
+const refScriptTxIndex = 0;
+
+// UTxO to unlock
+const assetUtxo = {
+  input: { txHash: "def456...", outputIndex: 0 },
+  output: { amount: [{ unit: "lovelace", quantity: "5000000" }], address: "..." }
+};
+
+const unsignedTx = await txBuilder
+  .spendingPlutusScriptV2()
+  .txIn(assetUtxo.input.txHash, assetUtxo.input.outputIndex)
+  .txInInlineDatumPresent()
+  .txInRedeemerValue(mConStr0([]))
+  .spendingTxInReference(refScriptTxHash, refScriptTxIndex) // Use reference script
+  .changeAddress(changeAddress)
+  .txInCollateral(
+    collateral[0]!.input.txHash,
+    collateral[0]!.input.outputIndex,
+    collateral[0]!.output.amount,
+    collateral[0]!.output.address
+  )
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+### Mint with Plutus Script
+
+Mint tokens using a Plutus minting policy:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  resolveScriptHash,
+  stringToHex,
+  mConStr0,
+  UTxO
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const collateral: UTxO = (await wallet.getCollateral())[0]!;
+const changeAddress = await wallet.getChangeAddress();
+
+const plutusMintingScript = "your-minting-script-cbor";
+const policyId = resolveScriptHash(plutusMintingScript, "V2");
+const tokenName = "MyToken";
+const tokenNameHex = stringToHex(tokenName);
+
+const metadata = {
+  [policyId]: {
+    [tokenName]: {
+      name: "My Plutus Token",
+      image: "ipfs://...",
+    }
+  }
+};
+
+const unsignedTx = await txBuilder
+  .mintPlutusScriptV2()
+  .mint("1", policyId, tokenNameHex)
+  .mintingScript(plutusMintingScript)
+  .mintRedeemerValue(mConStr0(["mesh"]))
+  .metadataValue(721, metadata)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .txInCollateral(
+    collateral.input.txHash,
+    collateral.input.outputIndex,
+    collateral.output.amount,
+    collateral.output.address
+  )
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, true);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+## Complete Example
+
+This example demonstrates a complete escrow workflow:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  serializePlutusScript,
+  deserializeAddress,
+  mConStr0,
+  PlutusScript,
+  UTxO
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+
+// Escrow script that releases funds when correct redeemer is provided
+const escrowScript: PlutusScript = {
+  code: "your-escrow-script-cbor",
+  version: "V2",
+};
+const { address: escrowAddress } = serializePlutusScript(escrowScript);
+
+// Step 1: Lock funds in escrow
+async function createEscrow(
+  wallet: any,
+  amount: string,
+  beneficiary: string
+) {
+  const txBuilder = new MeshTxBuilder({
+    fetcher: provider,
+    verbose: true,
+  });
+
+  const utxos = await wallet.getUtxos();
+  const changeAddress = await wallet.getChangeAddress();
+  const { pubKeyHash } = deserializeAddress(beneficiary);
+
+  // Lock funds with beneficiary's pubKeyHash as datum
+  const unsignedTx = await txBuilder
+    .txOut(escrowAddress, [{ unit: "lovelace", quantity: amount }])
+    .txOutInlineDatumValue(pubKeyHash)
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  const signedTx = await wallet.signTx(unsignedTx);
+  const txHash = await wallet.submitTx(signedTx);
+
+  return txHash;
+}
+
+// Step 2: Release funds from escrow
+async function releaseEscrow(
+  wallet: any,
+  escrowUtxo: UTxO
+) {
+  const txBuilder = new MeshTxBuilder({
+    fetcher: provider,
+    verbose: true,
+  });
+
+  const utxos = await wallet.getUtxos();
+  const collateral = await wallet.getCollateral();
+  const changeAddress = await wallet.getChangeAddress();
+  const { pubKeyHash } = deserializeAddress(changeAddress);
+
+  const unsignedTx = await txBuilder
+    .spendingPlutusScriptV2()
+    .txIn(escrowUtxo.input.txHash, escrowUtxo.input.outputIndex)
+    .txInInlineDatumPresent()
+    .txInRedeemerValue(mConStr0([]))
+    .txInScript(escrowScript.code)
+    .requiredSignerHash(pubKeyHash)
+    .changeAddress(changeAddress)
+    .txInCollateral(
+      collateral[0]!.input.txHash,
+      collateral[0]!.input.outputIndex,
+      collateral[0]!.output.amount,
+      collateral[0]!.output.address
+    )
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  const signedTx = await wallet.signTx(unsignedTx, true);
+  const txHash = await wallet.submitTx(signedTx);
+
+  return txHash;
+}
+
+// Usage
+const escrowTxHash = await createEscrow(
+  sellerWallet,
+  "50000000", // 50 ADA
+  buyerAddress
+);
+console.log(`Escrow created: ${escrowTxHash}`);
+
+// Later, buyer releases funds
+const escrowUtxos = await provider.fetchAddressUTxOs(escrowAddress);
+const myEscrow = escrowUtxos.find(
+  (utxo) => utxo.input.txHash === escrowTxHash
+);
+
+const releaseTxHash = await releaseEscrow(buyerWallet, myEscrow!);
+console.log(`Escrow released: ${releaseTxHash}`);
+```
+
+## Troubleshooting
+
+### "Script execution failed" error
+- Verify the redeemer matches what the script expects
+- Check that the datum is correct (inline vs hash)
+- Ensure all required signers are included
+
+### "Missing collateral" error
+- Provide collateral using `txInCollateral()`
+- Collateral must be a pure ADA UTxO (no tokens)
+- Recommended: at least 5 ADA for collateral
+
+### "Execution units exceeded" error
+- The script is consuming too much resources
+- Optimize your script or provide custom execution units
+- Use `txInRedeemerValue(redeemer, "Mesh", { mem: X, steps: Y })`
+
+### "Datum hash mismatch" error
+- When unlocking with datum hash, provide the exact original datum
+- Ensure the datum type matches (Mesh, CBOR, or JSON)
+
+### "Reference script not found" error
+- Verify the reference script UTxO still exists (not spent)
+- Check the transaction hash and output index are correct
+- Ensure the script version matches (V1, V2, or V3)
+
+### "Required signer missing" error
+- Add `requiredSignerHash()` for scripts that check signatures
+- Use partial signing: `wallet.signTx(unsignedTx, true)`
+
+## Related
+
+- <Link href="/apis/txbuilder/basics">Transaction Basics</Link> - Core transaction building
+- <Link href="/apis/txbuilder/minting">Minting Assets</Link> - Plutus minting policies
+- <Link href="/apis/data">Data Types</Link> - Working with datum and redeemer
+- <Link href="/apis/txparser">Transaction Parser</Link> - Parse and test transactions

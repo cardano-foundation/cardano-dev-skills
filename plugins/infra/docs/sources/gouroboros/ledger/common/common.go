@@ -1,0 +1,3013 @@
+// Copyright 2026 Blink Labs Software
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package common
+
+import (
+	"bytes"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"maps"
+	"math"
+	"math/big"
+	"slices"
+	"strconv"
+	"strings"
+
+	"github.com/blinklabs-io/gouroboros/cbor"
+	"github.com/blinklabs-io/plutigo/data"
+	"github.com/btcsuite/btcd/btcutil/bech32"
+	utxorpc "github.com/utxorpc/go-codegen/utxorpc/v1alpha/cardano"
+	"golang.org/x/crypto/blake2b"
+)
+
+const (
+	Blake2b256Size = 32
+	Blake2b224Size = 28
+	Blake2b160Size = 20
+)
+
+type Blake2b256 [Blake2b256Size]byte
+
+// NewBlake2b256 builds a Blake2b256 from data, zero-padding a short slice
+// and truncating a long one. Use it only where the source is itself 32
+// bytes wide, such as another fixed-size hash array. For any length that is
+// not statically guaranteed -- CBOR, JSON, hex, or database input -- use
+// NewBlake2b256Checked, because a silently padded or truncated hash can
+// collide with an unrelated one and mis-key ledger state.
+func NewBlake2b256(data []byte) Blake2b256 {
+	b := Blake2b256{}
+	copy(b[:], data)
+	return b
+}
+
+// NewBlake2b256Checked builds a Blake2b256 from data, returning an error
+// unless data is exactly Blake2b256Size bytes long.
+func NewBlake2b256Checked(data []byte) (Blake2b256, error) {
+	b := Blake2b256{}
+	if len(data) != Blake2b256Size {
+		return b, fmt.Errorf(
+			"invalid blake2b-256 hash: expected %d bytes, got %d",
+			Blake2b256Size,
+			len(data),
+		)
+	}
+	copy(b[:], data)
+	return b, nil
+}
+
+func (b Blake2b256) String() string {
+	return hex.EncodeToString(b[:])
+}
+
+func (b Blake2b256) Bytes() []byte {
+	return b[:]
+}
+
+func (b Blake2b256) ToPlutusData() data.PlutusData {
+	return data.NewByteString(b[:])
+}
+
+func (b Blake2b256) MarshalJSON() ([]byte, error) {
+	return json.Marshal(b.String())
+}
+
+func (b Blake2b256) MarshalText() ([]byte, error) {
+	return []byte(b.String()), nil
+}
+
+func (b *Blake2b256) UnmarshalText(text []byte) error {
+	decoded, err := hex.DecodeString(string(text))
+	if err != nil {
+		return err
+	}
+	if len(decoded) != Blake2b256Size {
+		return fmt.Errorf("invalid blake2b-256 hash: expected %d bytes, got %d", Blake2b256Size, len(decoded))
+	}
+	copy(b[:], decoded)
+	return nil
+}
+
+func (b Blake2b256) MarshalCBOR() ([]byte, error) {
+	// Ensure we always encode a full-sized bytestring, even if the hash is zero-valued
+	hashBytes := make([]byte, Blake2b256Size)
+	copy(hashBytes, b[:])
+	return cbor.Encode(hashBytes)
+}
+
+func (b Blake2b256) Bech32(prefix string) string {
+	// Convert data to base32 and encode as bech32
+	convData, err := bech32.ConvertBits(b[:], 8, 5, true)
+	if err != nil {
+		panic(
+			fmt.Sprintf("unexpected error converting data to base32: %s", err),
+		)
+	}
+	encoded, err := bech32.Encode(prefix, convData)
+	if err != nil {
+		panic(fmt.Sprintf("unexpected error encoding data as bech32: %s", err))
+	}
+	return encoded
+}
+
+// Blake2b256Hash generates a Blake2b-256 hash from the provided data
+func Blake2b256Hash(data []byte) Blake2b256 {
+	tmpHash, err := blake2b.New(Blake2b256Size, nil)
+	if err != nil {
+		panic(
+			fmt.Sprintf(
+				"unexpected error generating empty blake2b hash: %s",
+				err,
+			),
+		)
+	}
+	tmpHash.Write(data)
+	return Blake2b256(tmpHash.Sum(nil))
+}
+
+type Blake2b224 [Blake2b224Size]byte
+
+// NewBlake2b224 builds a Blake2b224 from data, zero-padding a short slice
+// and truncating a long one. Use it only where the source is itself 28
+// bytes wide, such as another fixed-size hash array. For any length that is
+// not statically guaranteed -- CBOR, JSON, hex, or database input -- use
+// NewBlake2b224Checked, because a silently padded or truncated hash can
+// collide with an unrelated one and mis-key ledger state.
+func NewBlake2b224(data []byte) Blake2b224 {
+	b := Blake2b224{}
+	copy(b[:], data)
+	return b
+}
+
+// NewBlake2b224Checked builds a Blake2b224 from data, returning an error
+// unless data is exactly Blake2b224Size bytes long.
+func NewBlake2b224Checked(data []byte) (Blake2b224, error) {
+	b := Blake2b224{}
+	if len(data) != Blake2b224Size {
+		return b, fmt.Errorf(
+			"invalid blake2b-224 hash: expected %d bytes, got %d",
+			Blake2b224Size,
+			len(data),
+		)
+	}
+	copy(b[:], data)
+	return b, nil
+}
+
+func (b Blake2b224) String() string {
+	return hex.EncodeToString(b[:])
+}
+
+func (b Blake2b224) Bytes() []byte {
+	return b[:]
+}
+
+func (b Blake2b224) ToPlutusData() data.PlutusData {
+	return data.NewByteString(b[:])
+}
+
+func (b Blake2b224) MarshalJSON() ([]byte, error) {
+	return json.Marshal(b.String())
+}
+
+func (b Blake2b224) MarshalText() ([]byte, error) {
+	return []byte(b.String()), nil
+}
+
+func (b *Blake2b224) UnmarshalText(text []byte) error {
+	decoded, err := hex.DecodeString(string(text))
+	if err != nil {
+		return err
+	}
+	if len(decoded) != Blake2b224Size {
+		return fmt.Errorf("invalid blake2b-224 hash: expected %d bytes, got %d", Blake2b224Size, len(decoded))
+	}
+	copy(b[:], decoded)
+	return nil
+}
+
+func (b Blake2b224) MarshalCBOR() ([]byte, error) {
+	// Ensure we always encode a full-sized bytestring, even if the hash is zero-valued
+	hashBytes := make([]byte, Blake2b224Size)
+	copy(hashBytes, b[:])
+	return cbor.Encode(hashBytes)
+}
+
+func (b Blake2b224) Bech32(prefix string) string {
+	// Convert data to base32 and encode as bech32
+	convData, err := bech32.ConvertBits(b[:], 8, 5, true)
+	if err != nil {
+		panic(
+			fmt.Sprintf("unexpected error converting data to base32: %s", err),
+		)
+	}
+	encoded, err := bech32.Encode(prefix, convData)
+	if err != nil {
+		panic(fmt.Sprintf("unexpected error encoding data as bech32: %s", err))
+	}
+	return encoded
+}
+
+// Blake2b224Hash generates a Blake2b-224 hash from the provided data
+func Blake2b224Hash(data []byte) Blake2b224 {
+	tmpHash, err := blake2b.New(Blake2b224Size, nil)
+	if err != nil {
+		panic(
+			fmt.Sprintf(
+				"unexpected error generating empty blake2b hash: %s",
+				err,
+			),
+		)
+	}
+	tmpHash.Write(data)
+	return Blake2b224(tmpHash.Sum(nil))
+}
+
+// GenesisHash is a type alias for the Blake2b-224 hash used for genesis keys
+type GenesisHash = Blake2b224
+
+type Blake2b160 [Blake2b160Size]byte
+
+// NewBlake2b160 builds a Blake2b160 from data, zero-padding a short slice
+// and truncating a long one. Use it only where the source is itself 20
+// bytes wide, such as another fixed-size hash array. For any length that is
+// not statically guaranteed -- CBOR, JSON, hex, or database input -- use
+// NewBlake2b160Checked, because a silently padded or truncated hash can
+// collide with an unrelated one and mis-key ledger state.
+func NewBlake2b160(data []byte) Blake2b160 {
+	b := Blake2b160{}
+	copy(b[:], data)
+	return b
+}
+
+// NewBlake2b160Checked builds a Blake2b160 from data, returning an error
+// unless data is exactly Blake2b160Size bytes long.
+func NewBlake2b160Checked(data []byte) (Blake2b160, error) {
+	b := Blake2b160{}
+	if len(data) != Blake2b160Size {
+		return b, fmt.Errorf(
+			"invalid blake2b-160 hash: expected %d bytes, got %d",
+			Blake2b160Size,
+			len(data),
+		)
+	}
+	copy(b[:], data)
+	return b, nil
+}
+
+func (b Blake2b160) String() string {
+	return hex.EncodeToString(b[:])
+}
+
+func (b Blake2b160) Bytes() []byte {
+	return b[:]
+}
+
+func (b Blake2b160) ToPlutusData() data.PlutusData {
+	return data.NewByteString(b[:])
+}
+
+func (b Blake2b160) MarshalJSON() ([]byte, error) {
+	return json.Marshal(b.String())
+}
+
+func (b Blake2b160) MarshalText() ([]byte, error) {
+	return []byte(b.String()), nil
+}
+
+func (b *Blake2b160) UnmarshalText(text []byte) error {
+	decoded, err := hex.DecodeString(string(text))
+	if err != nil {
+		return err
+	}
+	if len(decoded) != Blake2b160Size {
+		return fmt.Errorf("invalid blake2b-160 hash: expected %d bytes, got %d", Blake2b160Size, len(decoded))
+	}
+	copy(b[:], decoded)
+	return nil
+}
+
+func (b Blake2b160) MarshalCBOR() ([]byte, error) {
+	// Ensure we always encode a full-sized bytestring, even if the hash is zero-valued
+	hashBytes := make([]byte, Blake2b160Size)
+	copy(hashBytes, b[:])
+	return cbor.Encode(hashBytes)
+}
+
+// Blake2b160Hash generates a Blake2b-160 hash from the provided data
+func Blake2b160Hash(data []byte) Blake2b160 {
+	tmpHash, err := blake2b.New(Blake2b160Size, nil)
+	if err != nil {
+		panic(
+			fmt.Sprintf(
+				"unexpected error generating empty blake2b hash: %s",
+				err,
+			),
+		)
+	}
+	tmpHash.Write(data)
+	return Blake2b160(tmpHash.Sum(nil))
+}
+
+type (
+	MultiAssetTypeOutput = *big.Int
+	MultiAssetTypeMint   = *big.Int
+)
+
+// MultiAsset represents a collection of policies, assets, and quantities. It's used for
+// TX outputs (uint64) and TX asset minting (int64 to allow for negative values for burning)
+type MultiAsset[T int64 | uint64 | *big.Int] struct {
+	data             map[Blake2b224]map[cbor.ByteString]T
+	duplicateMapKeys bool
+	// Wire-form conditions that pre-Conway decoding prunes away but that
+	// later decoder versions reject outright. They are recorded here because
+	// UnmarshalCBOR has no protocol version, and reported by
+	// CheckForZeroAssets and CheckForEmptyMultiAsset.
+	zeroQuantity    bool
+	emptyAssets     bool
+	emptyMultiAsset bool
+}
+
+// NewMultiAsset creates a MultiAsset with the specified data
+func NewMultiAsset[T int64 | uint64 | *big.Int](
+	data map[Blake2b224]map[cbor.ByteString]T,
+) MultiAsset[T] {
+	if data == nil {
+		data = make(map[Blake2b224]map[cbor.ByteString]T)
+	}
+	return MultiAsset[T]{data: data}
+}
+
+// multiAssetJson is a convenience type for marshaling/unmarshaling MultiAsset to/from JSON
+type multiAssetJson[T int64 | uint64 | *big.Int] struct {
+	Name        string `json:"name"`
+	NameHex     string `json:"nameHex"`
+	PolicyId    string `json:"policyId"`
+	Fingerprint string `json:"fingerprint"`
+	Amount      string `json:"amount"`
+}
+
+// pruneZeroAssets removes zero-quantity assets, and any policy left with no
+// assets, matching cardano-ledger. Its Value decoder applies
+// pruneZeroMultiAsset (eras/mary/impl/src/Cardano/Ledger/Mary/Value.hs), so a
+// zero-quantity entry never reaches any ledger rule or the Plutus script
+// context. Keeping one makes a script that traverses the value do measurably
+// more work than the node that produced the block, so its execution cost
+// diverges.
+func pruneZeroAssets[T int64 | uint64 | *big.Int](
+	data map[Blake2b224]map[cbor.ByteString]T,
+) map[Blake2b224]map[cbor.ByteString]T {
+	if data == nil {
+		return nil
+	}
+	for policy, assets := range data {
+		for name, qty := range assets {
+			if amountIsZero(qty) {
+				delete(assets, name)
+			}
+		}
+		if len(assets) == 0 {
+			delete(data, policy)
+		}
+	}
+	return data
+}
+
+func (m *MultiAsset[T]) UnmarshalCBOR(data []byte) error {
+	var decoded map[Blake2b224]map[cbor.ByteString]T
+	duplicateMapKeys := false
+	if _, err := cbor.Decode(data, &decoded); err != nil {
+		if !cbor.IsDuplicateMapKeyError(err) {
+			return err
+		}
+		// Pre-Conway (protocol version < 9) cardano-ledger decodes value/mint
+		// maps with Map.fromList, accepting duplicate PolicyID / AssetName keys
+		// and keeping the last one. Such transactions exist on canonical
+		// pre-Conway chains, so keep lenient last-wins decoding while recording
+		// that Conway+ era decoders must reject this value.
+		duplicateMapKeys = true
+		decoded = nil
+		if _, err := cbor.DecodeLenient(data, &decoded); err != nil {
+			return err
+		}
+	}
+	// Record the wire form before pruning: pruning is what makes a zero
+	// quantity and an empty asset map indistinguishable from an absent one.
+	zeroQuantity := false
+	emptyAssets := false
+	emptyMultiAsset := len(decoded) == 0
+	for _, assets := range decoded {
+		if len(assets) == 0 {
+			emptyAssets = true
+		}
+		for name, amount := range assets {
+			if len(name.Bytes()) > 32 {
+				return fmt.Errorf(
+					"invalid asset name length: expected at most 32 bytes, got %d",
+					len(name.Bytes()),
+				)
+			}
+			if amountIsZero(amount) {
+				zeroQuantity = true
+			}
+		}
+	}
+	m.zeroQuantity = zeroQuantity
+	m.emptyAssets = emptyAssets
+	m.emptyMultiAsset = emptyMultiAsset
+	m.data = pruneZeroAssets(decoded)
+	m.duplicateMapKeys = duplicateMapKeys
+	if err := validateMultiAssetCompactRepresentationSize(m.data); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateMultiAssetCompactRepresentationSize[T int64 | uint64 | *big.Int](
+	assets map[Blake2b224]map[cbor.ByteString]T,
+) error {
+	const (
+		compactOffsetLimit = uint64(65535)
+		policyCompactSize  = uint64(28)
+		assetCompactSize   = uint64(44)
+	)
+	policyCount := uint64(len(assets))
+	if policyCount > compactOffsetLimit/policyCompactSize {
+		return errors.New("multiasset is too big to compact")
+	}
+	compactSize := policyCount * policyCompactSize
+	for _, policyAssets := range assets {
+		assetCount := uint64(len(policyAssets))
+		if assetCount > (compactOffsetLimit-compactSize)/assetCompactSize {
+			return errors.New("multiasset is too big to compact")
+		}
+		compactSize += assetCount * assetCompactSize
+	}
+	return nil
+}
+
+// MarshalCBOR encodes MultiAsset maps in cardano-ledger key order.
+func (m *MultiAsset[T]) MarshalCBOR() ([]byte, error) {
+	// cardano-ledger orders asset names by their raw bytes, which can differ
+	// from deterministic CBOR's encoded-key length order.
+	if m.data == nil {
+		return cbor.Encode(m.data)
+	}
+	policies := make([]Blake2b224, 0, len(m.data))
+	for policy := range m.data {
+		policies = append(policies, policy)
+	}
+	slices.SortFunc(policies, func(left, right Blake2b224) int {
+		return bytes.Compare(left[:], right[:])
+	})
+	ret := appendLedgerMapHeader(nil, uint64(len(policies)))
+	for _, policy := range policies {
+		encodedPolicy, err := cbor.Encode(policy)
+		if err != nil {
+			return nil, fmt.Errorf("encode multiasset policy id: %w", err)
+		}
+		assets := m.data[policy]
+		assetNames := make([]cbor.ByteString, 0, len(assets))
+		for name := range assets {
+			assetNames = append(assetNames, name)
+		}
+		slices.SortFunc(assetNames, func(left, right cbor.ByteString) int {
+			return bytes.Compare(left.Bytes(), right.Bytes())
+		})
+		encodedAssets := appendLedgerMapHeader(nil, uint64(len(assetNames)))
+		for _, name := range assetNames {
+			encodedName, err := cbor.Encode(name)
+			if err != nil {
+				return nil, fmt.Errorf("encode multiasset name: %w", err)
+			}
+			encodedQuantity, err := cbor.Encode(assets[name])
+			if err != nil {
+				return nil, fmt.Errorf("encode multiasset quantity: %w", err)
+			}
+			encodedAssets = append(encodedAssets, encodedName...)
+			encodedAssets = append(encodedAssets, encodedQuantity...)
+		}
+		encodedAssets = appendLedgerMapBreak(encodedAssets, uint64(len(assetNames)))
+		ret = append(ret, encodedPolicy...)
+		ret = append(ret, encodedAssets...)
+	}
+	ret = appendLedgerMapBreak(ret, uint64(len(policies)))
+	return ret, nil
+}
+
+// LedgerSerializedSizeAdjustment returns the byte count to add to the CBOR
+// encoding length written by MarshalCBOR to obtain the size cardano-ledger
+// measures for this value. MultiAsset.MarshalCBOR already uses the ledger's
+// variable-length map headers, so the adjustment is zero.
+func (m *MultiAsset[T]) LedgerSerializedSizeAdjustment() int {
+	return 0
+}
+
+func (m *MultiAsset[T]) CheckForDuplicateKeys() error {
+	if m != nil && m.duplicateMapKeys {
+		return errors.New("duplicate map key in multiasset")
+	}
+	return nil
+}
+
+// CheckForZeroAssets reports a decoded wire form that cardano-ledger rejects
+// from protocol version 9 (Conway): an asset quantity of zero, or a policy
+// whose asset map is empty. Its decodeMultiAsset
+// (eras/mary/impl/src/Cardano/Ledger/Mary/Value.hs) switches at that version
+// from pruneZeroMultiAsset to decodeNonEmptyMap decodeNonZeroAmount, which
+// fails with "MultiAsset cannot contain zeros" and "Empty Assets are not
+// allowed". Pre-Conway decoders must keep pruning instead of calling this.
+func (m *MultiAsset[T]) CheckForZeroAssets() error {
+	if m == nil {
+		return nil
+	}
+	if m.zeroQuantity {
+		return errors.New("multiasset cannot contain zeros")
+	}
+	if m.emptyAssets {
+		return errors.New("empty assets are not allowed in multiasset")
+	}
+	return nil
+}
+
+// CheckForEmptyMultiAsset reports a decoded empty multiasset map. Only
+// protocol version 12 (Dijkstra) rejects it, where decodeMultiAsset wraps the
+// outer map in decodeNonEmptyMap as well; Conway still accepts an empty outer
+// map, so only Dijkstra decoders call this.
+func (m *MultiAsset[T]) CheckForEmptyMultiAsset() error {
+	if m == nil {
+		return nil
+	}
+	if m.emptyMultiAsset {
+		return errors.New("empty multiasset map is not allowed")
+	}
+	return nil
+}
+
+// ValidateOutputQuantities checks that retained output quantities are positive
+// and fit the unsigned 64-bit ledger domain. Zero entries are removed while
+// decoding to match cardano-ledger.
+func (m *MultiAsset[T]) ValidateOutputQuantities() error {
+	if m == nil {
+		return nil
+	}
+	for _, assets := range m.data {
+		for _, amount := range assets {
+			quantity := amountToBigInt(amount)
+			if quantity.Sign() <= 0 || !quantity.IsUint64() {
+				return fmt.Errorf(
+					"output asset quantity is outside uint64: %s",
+					quantity,
+				)
+			}
+		}
+	}
+	return nil
+}
+
+// ValidateMintQuantities checks that retained mint quantities fit the signed
+// 64-bit ledger domain. Zero entries are removed while decoding to match
+// cardano-ledger.
+func (m *MultiAsset[T]) ValidateMintQuantities() error {
+	if m == nil {
+		return nil
+	}
+	for _, assets := range m.data {
+		for _, amount := range assets {
+			quantity := amountToBigInt(amount)
+			if quantity.Sign() == 0 || !quantity.IsInt64() {
+				return fmt.Errorf(
+					"mint asset quantity is outside nonzero int64: %s",
+					quantity,
+				)
+			}
+		}
+	}
+	return nil
+}
+
+func (m MultiAsset[T]) MarshalJSON() ([]byte, error) {
+	tmpAssets := make([]multiAssetJson[T], 0, len(m.data))
+	for policyId, policyData := range m.data {
+		for assetName, amount := range policyData {
+			tmpObj := multiAssetJson[T]{
+				Name:     string(assetName.Bytes()),
+				NameHex:  hex.EncodeToString(assetName.Bytes()),
+				Amount:   amountToString(amount),
+				PolicyId: policyId.String(),
+				Fingerprint: NewAssetFingerprint(
+					policyId.Bytes(),
+					assetName.Bytes(),
+				).String(),
+			}
+			tmpAssets = append(tmpAssets, tmpObj)
+		}
+	}
+	return json.Marshal(&tmpAssets)
+}
+
+func (m *MultiAsset[T]) UnmarshalJSON(data []byte) error {
+	tmpAssets := []multiAssetJson[T]{}
+	if err := json.Unmarshal(data, &tmpAssets); err != nil {
+		return err
+	}
+	m.duplicateMapKeys = false
+	m.zeroQuantity = false
+	m.emptyAssets = false
+	m.emptyMultiAsset = false
+	if m.data == nil {
+		m.data = make(map[Blake2b224]map[cbor.ByteString]T)
+	}
+	for _, tmp := range tmpAssets {
+		policyBytes, err := hex.DecodeString(tmp.PolicyId)
+		if err != nil {
+			return err
+		}
+		policy, err := NewBlake2b224Checked(policyBytes)
+		if err != nil {
+			return err
+		}
+		nameBytes, err := hex.DecodeString(tmp.NameHex)
+		if err != nil {
+			return err
+		}
+		amount, err := parseAmount[T](tmp.Amount)
+		if err != nil {
+			return err
+		}
+		if _, ok := m.data[policy]; !ok {
+			m.data[policy] = make(map[cbor.ByteString]T)
+		}
+		m.data[policy][cbor.NewByteString(nameBytes)] = amount
+	}
+	return nil
+}
+
+func (m *MultiAsset[T]) ToPlutusData() data.PlutusData {
+	tmpData := make([][2]data.PlutusData, 0, len(m.data))
+	// Sort policy IDs
+	policyKeys := slices.Collect(maps.Keys(m.data))
+	slices.SortFunc(
+		policyKeys,
+		func(a, b Blake2b224) int { return bytes.Compare(a.Bytes(), b.Bytes()) },
+	)
+	for _, policyId := range policyKeys {
+		policyData := m.data[policyId]
+		tmpPolicyData := make([][2]data.PlutusData, 0, len(policyData))
+		// Sort asset names
+		assetKeys := slices.Collect(maps.Keys(policyData))
+		slices.SortFunc(
+			assetKeys,
+			func(a, b cbor.ByteString) int { return bytes.Compare(a.Bytes(), b.Bytes()) },
+		)
+		for _, assetName := range assetKeys {
+			amount := policyData[assetName]
+			tmpPolicyData = append(
+				tmpPolicyData,
+				[2]data.PlutusData{
+					data.NewByteString(assetName.Bytes()),
+					data.NewInteger(amountToBigInt(amount)),
+				},
+			)
+		}
+		tmpData = append(
+			tmpData,
+			[2]data.PlutusData{
+				data.NewByteString(policyId.Bytes()),
+				data.NewMap(tmpPolicyData),
+			},
+		)
+	}
+	return data.NewMap(tmpData)
+}
+
+func (m *MultiAsset[T]) Policies() []Blake2b224 {
+	ret := make([]Blake2b224, 0, len(m.data))
+	for policyId := range m.data {
+		ret = append(ret, policyId)
+	}
+	return ret
+}
+
+func (m *MultiAsset[T]) Assets(policyId Blake2b224) [][]byte {
+	assets, ok := m.data[policyId]
+	if !ok {
+		return nil
+	}
+	ret := make([][]byte, 0, len(assets))
+	for assetName := range assets {
+		ret = append(ret, assetName.Bytes())
+	}
+	return ret
+}
+
+func (m *MultiAsset[T]) Asset(policyId Blake2b224, assetName []byte) T {
+	policy, ok := m.data[policyId]
+	if !ok {
+		var zero T
+		return zero
+	}
+	return policy[cbor.NewByteString(assetName)]
+}
+
+func (m *MultiAsset[T]) Add(assets *MultiAsset[T]) {
+	if assets == nil {
+		return
+	}
+	for policy, assets := range assets.data {
+		for asset, amount := range assets {
+			existing := m.Asset(policy, asset.Bytes())
+			newAmount := addAmounts(existing, amount)
+			if _, ok := m.data[policy]; !ok {
+				m.data[policy] = make(map[cbor.ByteString]T)
+			}
+			m.data[policy][asset] = newAmount
+		}
+	}
+}
+
+func (m *MultiAsset[T]) Compare(assets *MultiAsset[T]) bool {
+	// Normalize data for easier comparison
+	tmpData := m.normalize()
+	otherData := assets.normalize()
+	// Compare policy counts
+	if len(otherData) != len(tmpData) {
+		return false
+	}
+	for policy, assets := range otherData {
+		// Compare asset counts for policy
+		if len(assets) != len(tmpData[policy]) {
+			return false
+		}
+		for asset, amount := range assets {
+			// Compare quantity of specific asset
+			if !amountsEqual(amount, m.Asset(policy, asset.Bytes())) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (m *MultiAsset[T]) normalize() map[Blake2b224]map[cbor.ByteString]T {
+	ret := map[Blake2b224]map[cbor.ByteString]T{}
+	if m == nil || m.data == nil {
+		return ret
+	}
+	for policy, assets := range m.data {
+		for asset, amount := range assets {
+			if !amountIsZero(amount) {
+				if _, ok := ret[policy]; !ok {
+					ret[policy] = make(map[cbor.ByteString]T)
+				}
+				// copy amount for big.Int to avoid aliasing
+				switch v := any(amount).(type) {
+				case *big.Int:
+					ret[policy][asset] = any(new(big.Int).Set(v)).(T)
+				default:
+					ret[policy][asset] = amount
+				}
+			}
+		}
+	}
+	return ret
+}
+
+// String returns a stable, human-friendly representation of the MultiAsset.
+// Output format: [<policyId>.<assetNameHex>=<amount>, ...] sorted by policyId, then asset name
+func (m *MultiAsset[T]) String() string {
+	if m == nil {
+		return "[]"
+	}
+	norm := m.normalize()
+	if len(norm) == 0 {
+		return "[]"
+	}
+
+	policies := slices.Collect(maps.Keys(norm))
+	slices.SortFunc(
+		policies,
+		func(a, b Blake2b224) int { return bytes.Compare(a.Bytes(), b.Bytes()) },
+	)
+
+	var b strings.Builder
+	b.WriteByte('[')
+	first := true
+	for _, pid := range policies {
+		assets := norm[pid]
+		names := slices.Collect(maps.Keys(assets))
+		slices.SortFunc(
+			names,
+			func(a, b cbor.ByteString) int { return bytes.Compare(a.Bytes(), b.Bytes()) },
+		)
+
+		for _, name := range names {
+			if !first {
+				b.WriteString(", ")
+			}
+			first = false
+			b.WriteString(pid.String())
+			b.WriteByte('.')
+			b.WriteString(hex.EncodeToString(name.Bytes()))
+			b.WriteByte('=')
+			b.WriteString(amountToString(assets[name]))
+		}
+	}
+	b.WriteByte(']')
+	return b.String()
+}
+
+// Helper functions for generic amount handling
+
+func addAmounts[T int64 | uint64 | *big.Int](a, b T) T {
+	switch av := any(a).(type) {
+	case *big.Int:
+		var aInt, bInt *big.Int
+		if av != nil {
+			aInt = av
+		} else {
+			aInt = new(big.Int)
+		}
+		bv := any(b).(*big.Int)
+		if bv != nil {
+			bInt = bv
+		} else {
+			bInt = new(big.Int)
+		}
+		return any(new(big.Int).Add(aInt, bInt)).(T)
+	case int64:
+		return any(av + any(b).(int64)).(T)
+	case uint64:
+		return any(av + any(b).(uint64)).(T)
+	default:
+		var zero T
+		return zero
+	}
+}
+
+func amountsEqual[T int64 | uint64 | *big.Int](a, b T) bool {
+	switch av := any(a).(type) {
+	case *big.Int:
+		bv := any(b).(*big.Int)
+		if av == nil && bv == nil {
+			return true
+		}
+		if av == nil {
+			return bv.Sign() == 0
+		}
+		if bv == nil {
+			return av.Sign() == 0
+		}
+		return av.Cmp(bv) == 0
+	case int64:
+		return av == any(b).(int64)
+	case uint64:
+		return av == any(b).(uint64)
+	default:
+		return false
+	}
+}
+
+func amountIsZero[T int64 | uint64 | *big.Int](a T) bool {
+	switch av := any(a).(type) {
+	case *big.Int:
+		if av == nil {
+			return true
+		}
+		return av.Sign() == 0
+	case int64:
+		return av == 0
+	case uint64:
+		return av == 0
+	default:
+		return false
+	}
+}
+
+func amountToString[T int64 | uint64 | *big.Int](a T) string {
+	switch av := any(a).(type) {
+	case *big.Int:
+		if av == nil {
+			return "0"
+		}
+		return av.String()
+	case int64:
+		return strconv.FormatInt(av, 10)
+	case uint64:
+		return strconv.FormatUint(av, 10)
+	default:
+		return "0"
+	}
+}
+
+func amountToBigInt[T int64 | uint64 | *big.Int](a T) *big.Int {
+	switch av := any(a).(type) {
+	case *big.Int:
+		if av == nil {
+			return new(big.Int)
+		}
+		return new(big.Int).Set(av)
+	case int64:
+		return big.NewInt(av)
+	case uint64:
+		return new(big.Int).SetUint64(av)
+	default:
+		return new(big.Int)
+	}
+}
+
+func parseAmount[T int64 | uint64 | *big.Int](s string) (T, error) {
+	var zero T
+	switch any(zero).(type) {
+	case *big.Int:
+		v, ok := new(big.Int).SetString(s, 10)
+		if !ok {
+			return zero, fmt.Errorf("invalid big.Int: %s", s)
+		}
+		return any(v).(T), nil
+	case int64:
+		i, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return zero, err
+		}
+		return any(i).(T), nil
+	case uint64:
+		u, err := strconv.ParseUint(s, 10, 64)
+		if err != nil {
+			return zero, err
+		}
+		return any(u).(T), nil
+	default:
+		return zero, errors.New("unsupported amount type")
+	}
+}
+
+type AssetFingerprint struct {
+	policyId  []byte
+	assetName []byte
+}
+
+func NewAssetFingerprint(policyId []byte, assetName []byte) AssetFingerprint {
+	return AssetFingerprint{
+		policyId:  policyId,
+		assetName: assetName,
+	}
+}
+
+func (a AssetFingerprint) Hash() Blake2b160 {
+	tmpHash, err := blake2b.New(20, nil)
+	if err != nil {
+		panic(
+			fmt.Sprintf(
+				"unexpected error creating empty blake2b hash: %s",
+				err,
+			),
+		)
+	}
+	tmpHash.Write(a.policyId)
+	tmpHash.Write(a.assetName)
+	return NewBlake2b160(tmpHash.Sum(nil))
+}
+
+func (a AssetFingerprint) String() string {
+	// Convert data to base32 and encode as bech32
+	convData, err := bech32.ConvertBits(a.Hash().Bytes(), 8, 5, true)
+	if err != nil {
+		panic(
+			fmt.Sprintf("unexpected error converting data to base32: %s", err),
+		)
+	}
+	encoded, err := bech32.Encode("asset", convData)
+	if err != nil {
+		panic(fmt.Sprintf("unexpected error encoding data as bech32: %s", err))
+	}
+	return encoded
+}
+
+type PoolId [28]byte
+
+func NewPoolIdFromBech32(poolId string) (PoolId, error) {
+	var p PoolId
+	_, data, err := bech32.DecodeNoLimit(poolId)
+	if err != nil {
+		return p, err
+	}
+	decoded, err := bech32.ConvertBits(data, 5, 8, false)
+	if err != nil {
+		return p, err
+	}
+	if len(decoded) != len(p) {
+		return p, fmt.Errorf("invalid pool ID length: %d", len(decoded))
+	}
+	p = PoolId(decoded)
+	return p, err
+}
+
+func (p PoolId) String() string {
+	return Blake2b224(p).Bech32("pool")
+}
+
+// IssuerVkey represents the verification key for the stake pool that minted a block
+type IssuerVkey [32]byte
+
+func (i IssuerVkey) Hash() Blake2b224 {
+	hash, err := blake2b.New(28, nil)
+	if err != nil {
+		panic(
+			fmt.Sprintf(
+				"unexpected error creating empty blake2b hash: %s",
+				err,
+			),
+		)
+	}
+	hash.Write(i[:])
+	return Blake2b224(hash.Sum(nil))
+}
+
+func (i IssuerVkey) PoolId() string {
+	// Convert data to base32 and encode as bech32
+	convData, err := bech32.ConvertBits(i.Hash().Bytes(), 8, 5, true)
+	if err != nil {
+		panic(
+			fmt.Sprintf("unexpected error converting data to base32: %s", err),
+		)
+	}
+	encoded, err := bech32.Encode("pool", convData)
+	if err != nil {
+		panic(fmt.Sprintf("unexpected error encoding data as bech32: %s", err))
+	}
+	return encoded
+}
+
+// ExUnits represents the steps and memory usage for script execution
+type ExUnits struct {
+	cbor.StructAsArray
+	Memory int64 `json:"memory"`
+	Steps  int64 `json:"steps"`
+}
+
+// UnmarshalCBOR enforces the unsigned wire domain of execution units while
+// retaining signed fields for overflow-checked accumulation.
+func (e *ExUnits) UnmarshalCBOR(cborData []byte) error {
+	if err := ValidateDefiniteCBORArrayLength(
+		cborData,
+		2,
+		"execution units",
+	); err != nil {
+		return err
+	}
+	var encoded struct {
+		cbor.StructAsArray
+		Memory uint64
+		Steps  uint64
+	}
+	if _, err := cbor.Decode(cborData, &encoded); err != nil {
+		return err
+	}
+	if encoded.Memory > math.MaxInt64 || encoded.Steps > math.MaxInt64 {
+		return errors.New("execution units exceed int64 range")
+	}
+	e.Memory = int64(encoded.Memory)
+	e.Steps = int64(encoded.Steps)
+	return nil
+}
+
+// GenesisRat is a convenience type for cbor.Rat
+type GenesisRat = cbor.Rat
+
+// ToUtxorpcBigInt converts a uint64 into a *utxorpc.BigInt pointer
+func ToUtxorpcBigInt(v uint64) *utxorpc.BigInt {
+	if v <= math.MaxInt64 {
+		return &utxorpc.BigInt{
+			BigInt: &utxorpc.BigInt_Int{Int: int64(v)},
+		}
+	}
+	return &utxorpc.BigInt{
+		BigInt: &utxorpc.BigInt_BigUInt{
+			BigUInt: new(big.Int).SetUint64(v).Bytes(),
+		},
+	}
+}
+
+// BigIntToUtxorpcBigInt converts a *big.Int into a *utxorpc.BigInt pointer
+func BigIntToUtxorpcBigInt(v *big.Int) *utxorpc.BigInt {
+	if v == nil {
+		return &utxorpc.BigInt{
+			BigInt: &utxorpc.BigInt_Int{Int: 0},
+		}
+	}
+	// If it fits in int64, use the compact representation
+	if v.IsInt64() {
+		return &utxorpc.BigInt{
+			BigInt: &utxorpc.BigInt_Int{Int: v.Int64()},
+		}
+	}
+	// CBOR bignums: tag 2 carries n, tag 3 carries -1-n, so a negative value
+	// is encoded by the magnitude of -1-n rather than abs(n).
+	if v.Sign() < 0 {
+		return &utxorpc.BigInt{
+			BigInt: &utxorpc.BigInt_BigNInt{
+				BigNInt: new(big.Int).Sub(new(big.Int).Neg(v), big.NewInt(1)).Bytes(),
+			},
+		}
+	}
+	return &utxorpc.BigInt{
+		BigInt: &utxorpc.BigInt_BigUInt{
+			BigUInt: v.Bytes(),
+		},
+	}
+}
+
+// ExtractAndSetTransactionCbor extracts raw CBOR bytes for transaction bodies and witness sets
+// from a block's CBOR data and calls the provided setters to store them. This preserves original
+// encoding for correct transaction size calculations when re-serialized.
+//
+// The setter functions receive the index and the raw CBOR bytes to store.
+// expectedBodies and expectedWitnesses provide bounds checking to prevent panics.
+func ExtractAndSetTransactionCbor(
+	cborData []byte,
+	setBodyCbor func(index int, data []byte),
+	setWitnessCbor func(index int, data []byte),
+	setMetadataCbor func(data []byte),
+	expectedBodies int,
+	expectedWitnesses int,
+) error {
+	if expectedBodies != expectedWitnesses {
+		return fmt.Errorf(
+			"transaction body and witness set counts do not match: "+
+				"body count %d, witness set count %d",
+			expectedBodies,
+			expectedWitnesses,
+		)
+	}
+
+	blockCount, blockHeaderSize, blockIndefinite := cborArrayInfo(cborData)
+	if blockCount < 0 && !blockIndefinite {
+		return errors.New("failed to decode block array: invalid CBOR array")
+	}
+	if !blockIndefinite && blockCount < 3 {
+		return nil // Block doesn't have separated components
+	}
+
+	blockDecoder, err := cbor.NewStreamDecoder(cborData[blockHeaderSize:])
+	if err != nil {
+		return err
+	}
+
+	if _, _, err := blockDecoder.Skip(); err != nil {
+		return fmt.Errorf("failed to skip block header: %w", err)
+	}
+
+	_, txBodiesRaw, err := blockDecoder.DecodeRaw(new(cbor.RawMessage))
+	if err != nil {
+		return fmt.Errorf(
+			"failed to extract transaction bodies from block: %w",
+			err,
+		)
+	}
+
+	_, txWitnessesRaw, err := blockDecoder.DecodeRaw(new(cbor.RawMessage))
+	if err != nil {
+		return fmt.Errorf(
+			"failed to extract transaction witnesses from block: %w",
+			err,
+		)
+	}
+
+	if setMetadataCbor != nil && (blockIndefinite || blockCount > 3) {
+		if _, metadataRaw, err := blockDecoder.DecodeRaw(new(cbor.RawMessage)); err == nil {
+			setMetadataCbor(metadataRaw)
+		}
+	}
+
+	if err := setArrayItemCbor(txBodiesRaw, expectedBodies, setBodyCbor); err != nil {
+		return fmt.Errorf(
+			"failed to extract transaction bodies from block: %w",
+			err,
+		)
+	}
+	if err := setArrayItemCbor(
+		txWitnessesRaw,
+		expectedWitnesses,
+		setWitnessCbor,
+	); err != nil {
+		return fmt.Errorf(
+			"failed to extract transaction witnesses from block: %w",
+			err,
+		)
+	}
+
+	return nil
+}
+
+func setArrayItemCbor(
+	arrayData []byte,
+	expectedCount int,
+	setItemCbor func(index int, data []byte),
+) error {
+	itemCount, headerSize, indefinite := cborArrayInfo(arrayData)
+	if itemCount < 0 && !indefinite {
+		return errors.New("invalid CBOR array")
+	}
+	if !indefinite && itemCount != expectedCount {
+		return fmt.Errorf(
+			"item count mismatch: expected %d, got %d",
+			expectedCount,
+			itemCount,
+		)
+	}
+	dec, err := cbor.NewStreamDecoder(arrayData[headerSize:])
+	if err != nil {
+		return err
+	}
+	itemIndex := 0
+	for ; indefinite || itemIndex < itemCount; itemIndex++ {
+		if indefinite {
+			pos := int(headerSize) + dec.Position()
+			if pos >= len(arrayData) || arrayData[pos] == 0xff {
+				break
+			}
+		}
+		itemOffset, itemLen, err := dec.Skip()
+		if err != nil {
+			return err
+		}
+		if itemIndex >= expectedCount {
+			return fmt.Errorf(
+				"item count mismatch: expected %d, got %d",
+				expectedCount,
+				itemIndex+1,
+			)
+		}
+		itemStart := int(headerSize) + itemOffset
+		setItemCbor(itemIndex, arrayData[itemStart:itemStart+itemLen])
+	}
+	if itemIndex != expectedCount {
+		return fmt.Errorf(
+			"item count mismatch: expected %d, got %d",
+			expectedCount,
+			itemIndex,
+		)
+	}
+	return nil
+}
+
+// ByteRange represents a byte offset and length within block CBOR.
+type ByteRange struct {
+	Offset uint32 // Byte offset within block CBOR
+	Length uint32 // Length in bytes
+}
+
+// TransactionLocation represents the byte location of a transaction within block CBOR.
+type TransactionLocation struct {
+	Body     ByteRange // Location of transaction body within block CBOR
+	Witness  ByteRange // Location of witness set within block CBOR
+	Metadata ByteRange // Location of metadata within block CBOR (zero if no metadata)
+
+	// Outputs contains byte locations for each transaction output (UTxO)
+	// Index matches the output index within the transaction
+	Outputs []ByteRange
+
+	// SubTransactions contains body, witness, metadata, and output locations
+	// for Dijkstra sub-transactions, in ledger application order.
+	SubTransactions []TransactionLocation
+
+	// Witness set component offsets (Alonzo+ era)
+	// These map content hashes to their locations within the block
+
+	// Datums maps datum hash to its byte location
+	Datums map[Blake2b256]ByteRange
+
+	// Redeemers maps redeemer key to its byte location
+	Redeemers map[RedeemerKey]ByteRange
+
+	// Scripts maps script hash to its byte location
+	// Includes native scripts, Plutus V1/V2/V3 scripts
+	Scripts map[ScriptHash]ByteRange
+}
+
+// BlockTransactionOffsets contains byte offset information for all transactions in a block.
+type BlockTransactionOffsets struct {
+	// Transactions maps transaction index to its location information
+	Transactions []TransactionLocation
+
+	// InvalidTransactions contains the transaction indexes listed in the
+	// block's invalid_transactions field, in wire order. A current Dijkstra
+	// block has no such field; each block transaction carries a trailing
+	// is_valid flag instead, and this holds the ascending indexes of the
+	// transactions whose flag is false. Either way,
+	// TransactionValidityFlags yields the per-transaction validity. It is nil
+	// when no transaction is invalid.
+	InvalidTransactions []uint
+}
+
+// TransactionValidityFlags aligns the wire-order invalid transaction indexes
+// with transaction positions, matching cardano-ledger's alignedValidFlags.
+// Duplicate and descending indexes intentionally produce additional invalid
+// flags; callers truncate the result to the block's transaction count.
+func TransactionValidityFlags(
+	transactionCount int,
+	invalidIndexes []uint,
+) []bool {
+	flags := make([]bool, 0, transactionCount)
+	previous := -1
+	for _, rawIndex := range invalidIndexes {
+		// Compare before converting: on 32-bit systems, a wire uint larger
+		// than MaxInt would wrap negative and mark the wrong transactions.
+		index := transactionCount
+		if rawIndex < uint(transactionCount) {
+			index = int(rawIndex)
+		}
+		for index-previous-1 > 0 {
+			flags = append(flags, true)
+			previous++
+		}
+		flags = append(flags, false)
+		previous = index
+	}
+	for len(flags) < transactionCount {
+		flags = append(flags, true)
+	}
+	if len(flags) > transactionCount {
+		flags = flags[:transactionCount]
+	}
+	return flags
+}
+
+// decodeInvalidTransactionIndices decodes the optional invalid_transactions
+// field without requiring a full ledger-era block decode. Keeping this in the
+// offset pass lets callers avoid parsing the block a second time.
+func decodeInvalidTransactionIndices(raw cbor.RawMessage) ([]uint, error) {
+	var indices []uint
+	if _, err := cbor.Decode([]byte(raw), &indices); err != nil {
+		return nil, fmt.Errorf("decode invalid transaction indices: %w", err)
+	}
+	if len(indices) == 0 {
+		return nil, nil
+	}
+	return indices, nil
+}
+
+// isByronBlock checks whether a decoded block array represents a Byron-era block.
+// Byron main blocks have exactly 3 elements: [header, body, extra]
+// where body is a 4-element array [tx_payload, ssc_payload, dlg_payload, upd_payload]
+// and tx_payload is an array of 2-element arrays [tx_body, tx_witnesses].
+func isByronBlock(blockArray []cbor.RawMessage) bool {
+	if len(blockArray) != 3 {
+		return false
+	}
+	// Try to decode blockArray[1] (body) as a 4-element array
+	var bodyParts []cbor.RawMessage
+	if _, err := cbor.Decode([]byte(blockArray[1]), &bodyParts); err != nil {
+		return false
+	}
+	if len(bodyParts) != 4 {
+		return false
+	}
+	// Check that the first element (tx_payload) is an array
+	// If it's empty, that's fine (no transactions) — still Byron
+	var txPayload []cbor.RawMessage
+	if _, err := cbor.Decode([]byte(bodyParts[0]), &txPayload); err != nil {
+		return false
+	}
+	// If there are transactions, verify the first one is a 2-element array
+	if len(txPayload) > 0 {
+		var txPair []cbor.RawMessage
+		if _, err := cbor.Decode([]byte(txPayload[0]), &txPair); err != nil {
+			return false
+		}
+		if len(txPair) != 2 {
+			return false
+		}
+	}
+	return true
+}
+
+// extractByronTransactionOffsets extracts transaction offsets from a Byron-era block.
+// Byron blocks have structure: [header, body, extra]
+// where body = [tx_payload, ssc_payload, dlg_payload, upd_payload]
+// and tx_payload = [[tx_body, tx_witnesses], ...]
+//
+// Each Byron transaction bundles its own body and witnesses as a pair,
+// unlike Shelley+ where bodies and witnesses are in separate top-level arrays.
+func extractByronTransactionOffsets(
+	cborData []byte,
+	blockArray []cbor.RawMessage,
+) (*BlockTransactionOffsets, error) {
+	_, arrayHeaderSize, _ := cborArrayInfo(cborData)
+	if arrayHeaderSize == 0 {
+		return nil, errors.New("invalid Byron block array header")
+	}
+
+	// blockArray[0] = header, blockArray[1] = body, blockArray[2] = extra
+	headerOffset := arrayHeaderSize
+	bodyOffset := headerOffset + uint32(len(blockArray[0])) // #nosec G115 -- Cardano block segments are <<4GiB
+
+	// Decode the body as a 4-element array
+	var bodyParts []cbor.RawMessage
+	if _, err := cbor.Decode([]byte(blockArray[1]), &bodyParts); err != nil {
+		return nil, fmt.Errorf("failed to decode Byron block body: %w", err)
+	}
+	if len(bodyParts) != 4 {
+		return nil, fmt.Errorf(
+			"byron block body has %d elements, expected 4",
+			len(bodyParts),
+		)
+	}
+
+	// bodyParts[0] = tx_payload (array of [tx_body, tx_witnesses] pairs)
+	var txPayload []cbor.RawMessage
+	if _, err := cbor.Decode([]byte(bodyParts[0]), &txPayload); err != nil {
+		return nil, fmt.Errorf("failed to decode Byron tx payload: %w", err)
+	}
+
+	if len(txPayload) == 0 {
+		return &BlockTransactionOffsets{Transactions: []TransactionLocation{}}, nil
+	}
+
+	// Calculate the absolute offset of the tx_payload array within the block.
+	// body starts at bodyOffset, body is an array: [tx_payload, ssc, dlg, upd]
+	_, bodyArrayHeader, _ := cborArrayInfo([]byte(blockArray[1]))
+	if bodyArrayHeader == 0 {
+		return nil, errors.New("invalid Byron block body array header")
+	}
+	txPayloadOffset := bodyOffset + bodyArrayHeader // tx_payload is bodyParts[0]
+
+	// The tx_payload itself is an array of transaction pairs
+	txPayloadAbsStart := int(txPayloadOffset)
+	if txPayloadAbsStart >= len(cborData) {
+		return nil, errors.New("invalid Byron transaction payload offset")
+	}
+	_, txPayloadArrayHeader, _ := cborArrayInfo(cborData[txPayloadAbsStart:])
+	if txPayloadArrayHeader == 0 {
+		return nil, errors.New("invalid Byron transaction payload array header")
+	}
+
+	result := &BlockTransactionOffsets{
+		Transactions: make([]TransactionLocation, len(txPayload)),
+	}
+
+	// Walk through each transaction pair [tx_body, tx_witnesses]
+	pairPos := txPayloadOffset + txPayloadArrayHeader
+	for i, rawPair := range txPayload {
+		var txPair []cbor.RawMessage
+		if _, err := cbor.Decode([]byte(rawPair), &txPair); err != nil {
+			return nil, fmt.Errorf(
+				"failed to decode Byron transaction pair %d: %w", i, err,
+			)
+		}
+		if len(txPair) < 2 {
+			return nil, fmt.Errorf(
+				"byron transaction pair %d has %d elements, expected 2",
+				i, len(txPair),
+			)
+		}
+
+		// Each pair is a 2-element CBOR array: [tx_body, tx_witnesses]
+		pairAbsStart := int(pairPos)
+		if pairAbsStart >= len(cborData) {
+			return nil, errors.New("invalid Byron transaction pair offset")
+		}
+		_, pairArrayHeader, _ := cborArrayInfo(cborData[pairAbsStart:])
+		if pairArrayHeader == 0 {
+			return nil, errors.New("invalid Byron transaction pair array header")
+		}
+
+		bodyStart := pairPos + pairArrayHeader
+		bodyLen := uint32(len(txPair[0])) // #nosec G115 -- Cardano block segments are <<4GiB
+		witnessStart := bodyStart + bodyLen
+		witnessLen := uint32(len(txPair[1])) // #nosec G115 -- Cardano block segments are <<4GiB
+
+		result.Transactions[i].Body = ByteRange{
+			Offset: bodyStart,
+			Length: bodyLen,
+		}
+		result.Transactions[i].Witness = ByteRange{
+			Offset: witnessStart,
+			Length: witnessLen,
+		}
+		// Byron transactions have no separate metadata field
+
+		// Extract output offsets from Byron transaction body.
+		// Byron tx bodies are CBOR arrays: [inputs, outputs, attributes].
+		// Outputs are at index 1.
+		extractByronOutputOffsets(
+			[]byte(txPair[0]),
+			bodyStart,
+			&result.Transactions[i],
+		)
+
+		pairPos += uint32(len(rawPair)) // #nosec G115 -- Cardano block segments are <<4GiB
+	}
+
+	return result, nil
+}
+
+// extractByronOutputOffsets parses a Byron transaction body to find output
+// CBOR positions. Byron tx bodies are CBOR arrays: [inputs, outputs, attributes].
+// The outputs are at array index 1.
+func extractByronOutputOffsets(
+	bodyData []byte,
+	bodyOffset uint32,
+	loc *TransactionLocation,
+) {
+	if len(bodyData) < 2 {
+		return
+	}
+
+	// Byron tx body is a CBOR array: [inputs, outputs, attributes]
+	var bodyParts []cbor.RawMessage
+	if _, err := cbor.Decode(bodyData, &bodyParts); err != nil || len(bodyParts) < 2 {
+		return
+	}
+
+	// bodyParts[1] is the outputs array
+	var outputsRaw []cbor.RawMessage
+	if _, err := cbor.Decode([]byte(bodyParts[1]), &outputsRaw); err != nil || len(outputsRaw) == 0 {
+		return
+	}
+
+	// Calculate offset to the outputs array within the block.
+	// Skip: body array header + inputs element
+	_, bodyArrayHeader, _ := cborArrayInfo(bodyData)
+	if bodyArrayHeader == 0 {
+		return
+	}
+	inputsLen := uint32(len(bodyParts[0])) // #nosec G115
+	outputsAbsOffset := bodyOffset + uint32(bodyArrayHeader) + inputsLen
+
+	// Determine outputs array header size
+	outputsArrayStart := int(outputsAbsOffset - bodyOffset)
+	if outputsArrayStart < 0 || outputsArrayStart >= len(bodyData) {
+		return
+	}
+	_, outputsArrayHeader, _ := cborArrayInfo(bodyData[outputsArrayStart:])
+	if outputsArrayHeader == 0 {
+		return
+	}
+
+	outputPos := outputsAbsOffset + outputsArrayHeader
+	loc.Outputs = make([]ByteRange, len(outputsRaw))
+	for j, rawOutput := range outputsRaw {
+		outputLen := uint32(len(rawOutput)) // #nosec G115
+		loc.Outputs[j] = ByteRange{
+			Offset: outputPos,
+			Length: outputLen,
+		}
+		outputPos += outputLen
+	}
+}
+
+// Dijkstra block component counts. A Dijkstra block is always
+// [header, block_body], but two block_body shapes exist and the era decoder
+// (DijkstraBlockBody.UnmarshalCBOR) accepts both.
+const (
+	dijkstraBlockComponents = 2
+	// dijkstraBodyComponents is the block_body arity defined by the Dijkstra
+	// CDDL: [transactions, leios_certificate/nil, peras_certificate/nil].
+	dijkstraBodyComponents = 3
+	// dijkstraLegacyBodyComponents is the block_body arity of the earlier
+	// prototype-2026w27 layout, which carries a leading invalid_transactions
+	// field: [invalid_transactions/nil, transactions,
+	// leios_certificate/nil, peras_certificate/nil].
+	dijkstraLegacyBodyComponents = 4
+	// dijkstraTxComponents is the arity of a transaction without a validity
+	// flag: [transaction_body, transaction_witness_set, auxiliary_data/nil].
+	// It is the block transaction arity of the prototype-2026w27 layout.
+	dijkstraTxComponents = 3
+	// dijkstraBlockTxComponents is the arity of the block_transaction defined
+	// by the Dijkstra CDDL, whose final element is the is_valid flag set by
+	// the block producer: [transaction_body, transaction_witness_set,
+	// auxiliary_data/nil, bool].
+	dijkstraBlockTxComponents = 4
+)
+
+// dijkstraBlockShape describes how a decoded top-level block array relates to
+// the Dijkstra block layout.
+type dijkstraBlockShape int
+
+const (
+	// dijkstraShapeNone means the value is not a Dijkstra block.
+	dijkstraShapeNone dijkstraBlockShape = iota
+	// dijkstraShapeCurrent means the block_body has the CDDL arity, with the
+	// transactions array as its first element.
+	dijkstraShapeCurrent
+	// dijkstraShapeLegacy means the block_body has the prototype-2026w27
+	// arity, with the transactions array as its second element.
+	dijkstraShapeLegacy
+	// dijkstraShapeMalformed means only a Dijkstra block could carry this
+	// layout, but its block_body or transaction arity is not understood.
+	// Callers must fail rather than silently report no transactions.
+	dijkstraShapeMalformed
+)
+
+// cborArrayItems decodes a CBOR array into its raw elements, reporting whether
+// the value was an array at all. A decode failure is a shape signal for the
+// Dijkstra block classifier rather than an error to propagate.
+func cborArrayItems(data []byte) ([]cbor.RawMessage, bool) {
+	items := []cbor.RawMessage{}
+	if _, err := cbor.Decode(data, &items); err != nil {
+		return []cbor.RawMessage{}, false
+	}
+	return items, true
+}
+
+// dijkstraBodyTxField maps a decoded block_body arity to the index of its
+// transactions field and to the matching block shape.
+func dijkstraBodyTxField(bodyLen int) (int, dijkstraBlockShape) {
+	switch bodyLen {
+	case dijkstraBodyComponents:
+		return 0, dijkstraShapeCurrent
+	case dijkstraLegacyBodyComponents:
+		return 1, dijkstraShapeLegacy
+	default:
+		return 0, dijkstraShapeMalformed
+	}
+}
+
+// classifyDijkstraBlock checks whether a decoded block array represents a
+// Dijkstra block and, if so, which block_body shape it uses. The returned
+// error is non-nil only for dijkstraShapeMalformed and describes the arity
+// that was not understood.
+//
+// The 2-element top level distinguishes Dijkstra from Byron (3-element) and
+// Shelley+ (4+ element) blocks. The nested shape checks guard against
+// misclassifying an unrelated 2-element value (e.g. a value whose second
+// element is a bytestring array rather than an array of transactions).
+//
+// Transaction arity is not tied to the block_body shape here: the walker only
+// needs to find byte ranges, and pairing the two (a prototype-2026w27 body
+// carries flagless transactions, a CDDL body carries block transactions with
+// a trailing is_valid) is enforced by the era decoder.
+func classifyDijkstraBlock(
+	blockArray []cbor.RawMessage,
+) (dijkstraBlockShape, error) {
+	if len(blockArray) != dijkstraBlockComponents {
+		return dijkstraShapeNone, nil
+	}
+	// block_body must be an array; anything else is not a Dijkstra block.
+	bodyParts, ok := cborArrayItems([]byte(blockArray[1]))
+	if !ok {
+		return dijkstraShapeNone, nil
+	}
+	txField, shape := dijkstraBodyTxField(len(bodyParts))
+	if shape == dijkstraShapeMalformed {
+		// A two-element value is only eligible for Dijkstra-specific
+		// malformed shape errors when its header is accepted by the Dijkstra
+		// decoder. This preserves the generic offset-walker fall-through for
+		// unrelated values. Valid Dijkstra body shapes are recognized without
+		// this check because existing callers may provide only a structural
+		// header placeholder.
+		if !isDijkstraCompatibleHeader([]byte(blockArray[0])) {
+			return dijkstraShapeNone, nil
+		}
+		return shape, fmt.Errorf(
+			"dijkstra block body has %d elements, expected %d or %d",
+			len(bodyParts),
+			dijkstraBodyComponents,
+			dijkstraLegacyBodyComponents,
+		)
+	}
+	// The transactions field must be an array, otherwise this 2-element value
+	// is not a Dijkstra block.
+	txs, ok := cborArrayItems([]byte(bodyParts[txField]))
+	if !ok {
+		return dijkstraShapeNone, nil
+	}
+	// If there are transactions, verify the first one has a known arity.
+	if len(txs) > 0 {
+		tx, ok := cborArrayItems([]byte(txs[0]))
+		if !ok {
+			return dijkstraShapeNone, nil
+		}
+		if len(tx) != dijkstraTxComponents &&
+			len(tx) != dijkstraBlockTxComponents {
+			if !isDijkstraCompatibleHeader([]byte(blockArray[0])) {
+				return dijkstraShapeNone, nil
+			}
+			return dijkstraShapeMalformed, fmt.Errorf(
+				"dijkstra transaction 0 has %d elements, expected %d or %d",
+				len(tx),
+				dijkstraTxComponents,
+				dijkstraBlockTxComponents,
+			)
+		}
+	}
+	return shape, nil
+}
+
+// isDijkstraCompatibleHeader checks the structural portion shared by the
+// plain Babbage-shaped and extended Dijkstra headers. The common package
+// cannot import ledger/dijkstra because that package depends on common.
+func isDijkstraCompatibleHeader(data []byte) bool {
+	top, ok := cborArrayItems(data)
+	if !ok || len(top) != 2 {
+		return false
+	}
+	body, ok := cborArrayItems([]byte(top[0]))
+	return ok && len(body) >= 10
+}
+
+// extractDijkstraTransactionOffsets extracts transaction offsets from a
+// Dijkstra block, which is [header, block_body]. Unlike the pre-Dijkstra eras
+// there are no parallel body/witness/metadata segments: each transaction is a
+// complete array inside block_body.
+//
+// Both block_body shapes are supported, selected by shape:
+//
+//   - dijkstraShapeCurrent: block_body = [transactions,
+//     leios_certificate/nil, peras_certificate/nil], each block transaction
+//     [transaction_body, transaction_witness_set, auxiliary_data/nil,
+//     is_valid].
+//   - dijkstraShapeLegacy: the prototype-2026w27 block_body =
+//     [invalid_transactions/nil, transactions, leios_certificate/nil,
+//     peras_certificate/nil], each transaction
+//     [transaction_body, transaction_witness_set, auxiliary_data/nil].
+//
+// The trailing is_valid flag of a current-shape block transaction is a bool
+// rather than a byte range, so it needs no entry in TransactionLocation; a
+// false flag is reported through InvalidTransactions instead.
+func extractDijkstraTransactionOffsets(
+	cborData []byte,
+	blockArray []cbor.RawMessage,
+	shape dijkstraBlockShape,
+) (*BlockTransactionOffsets, error) {
+	if len(blockArray) != dijkstraBlockComponents {
+		return nil, fmt.Errorf(
+			"dijkstra block has %d elements, expected %d",
+			len(blockArray),
+			dijkstraBlockComponents,
+		)
+	}
+	legacyBody := shape == dijkstraShapeLegacy
+	expectedBodyComponents := dijkstraBodyComponents
+	if legacyBody {
+		expectedBodyComponents = dijkstraLegacyBodyComponents
+	}
+
+	topCount, topHeaderSize, topIndefinite := cborArrayInfo(cborData)
+	if topCount < 0 && !topIndefinite {
+		return nil, errors.New("invalid Dijkstra block array")
+	}
+	if !topIndefinite && topCount != dijkstraBlockComponents {
+		return nil, fmt.Errorf(
+			"dijkstra block has %d elements, expected %d",
+			topCount,
+			dijkstraBlockComponents,
+		)
+	}
+
+	var bodyParts []cbor.RawMessage
+	if _, err := cbor.Decode([]byte(blockArray[1]), &bodyParts); err != nil {
+		return nil, fmt.Errorf("failed to decode Dijkstra block body: %w", err)
+	}
+	if len(bodyParts) != expectedBodyComponents {
+		return nil, fmt.Errorf(
+			"dijkstra block body has %d elements, expected %d",
+			len(bodyParts),
+			expectedBodyComponents,
+		)
+	}
+
+	blockDecoder, err := cbor.NewStreamDecoder(cborData[topHeaderSize:])
+	if err != nil {
+		return nil, err
+	}
+	if _, _, err := blockDecoder.Skip(); err != nil {
+		return nil, fmt.Errorf("failed to skip Dijkstra block header: %w", err)
+	}
+	bodyOffset, bodyRaw, err := blockDecoder.DecodeRaw(new(cbor.RawMessage))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode Dijkstra block body: %w", err)
+	}
+	blockBodyOffset := topHeaderSize + uint32(
+		bodyOffset,
+	) // #nosec G115 -- Cardano blocks are <<4GiB
+
+	bodyCount, bodyHeaderSize, bodyIndefinite := cborArrayInfo(bodyRaw)
+	if bodyCount < 0 && !bodyIndefinite {
+		return nil, errors.New("invalid Dijkstra block body array")
+	}
+	if !bodyIndefinite && bodyCount != expectedBodyComponents {
+		return nil, fmt.Errorf(
+			"dijkstra block body has %d elements, expected %d",
+			bodyCount,
+			expectedBodyComponents,
+		)
+	}
+
+	bodyDecoder, err := cbor.NewStreamDecoder(bodyRaw[bodyHeaderSize:])
+	if err != nil {
+		return nil, err
+	}
+	var invalidTransactions []uint
+	// Only the prototype-2026w27 body carries a leading invalid_transactions
+	// field; in the CDDL body the transactions array is the first element.
+	if legacyBody {
+		_, invalidRaw, err := bodyDecoder.DecodeRaw(new(cbor.RawMessage))
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to decode invalid_transactions: %w",
+				err,
+			)
+		}
+		invalidTransactions, err = decodeInvalidTransactionIndices(invalidRaw)
+		if err != nil {
+			return nil, err
+		}
+		if err := cbor.CheckForDuplicateCBORMembers(invalidTransactions); err != nil {
+			return nil, fmt.Errorf("invalid legacy Dijkstra transaction set: %w", err)
+		}
+	}
+	txsOffset, txsRaw, err := bodyDecoder.DecodeRaw(new(cbor.RawMessage))
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to decode Dijkstra transactions: %w",
+			err,
+		)
+	}
+	txsArrayOffset := blockBodyOffset + bodyHeaderSize + uint32(
+		txsOffset,
+	) // #nosec G115 -- Cardano blocks are <<4GiB
+
+	var txs []cbor.RawMessage
+	if _, err := cbor.Decode(txsRaw, &txs); err != nil {
+		return nil, fmt.Errorf(
+			"failed to decode Dijkstra transactions: %w",
+			err,
+		)
+	}
+	if len(txs) == 0 {
+		return &BlockTransactionOffsets{
+			Transactions:        []TransactionLocation{},
+			InvalidTransactions: invalidTransactions,
+		}, nil
+	}
+
+	txsCount, txsHeaderSize, txsIndefinite := cborArrayInfo(txsRaw)
+	if txsCount < 0 && !txsIndefinite {
+		return nil, errors.New("invalid Dijkstra transactions array")
+	}
+	if !txsIndefinite && txsCount != len(txs) {
+		return nil, fmt.Errorf(
+			"dijkstra transactions array has %d elements, decoded %d",
+			txsCount,
+			len(txs),
+		)
+	}
+
+	result := &BlockTransactionOffsets{
+		Transactions:        make([]TransactionLocation, len(txs)),
+		InvalidTransactions: invalidTransactions,
+	}
+
+	// Walk each transaction
+	// [transaction_body, transaction_witness_set, aux/nil] plus, for a block
+	// transaction, the trailing is_valid flag.
+	txsDecoder, err := cbor.NewStreamDecoder(txsRaw[txsHeaderSize:])
+	if err != nil {
+		return nil, err
+	}
+	for i := range txs {
+		txOffset, rawTx, err := txsDecoder.DecodeRaw(new(cbor.RawMessage))
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to decode Dijkstra transaction %d: %w",
+				i,
+				err,
+			)
+		}
+		txPos := txsArrayOffset + txsHeaderSize + uint32(
+			txOffset,
+		) // #nosec G115 -- Cardano blocks are <<4GiB
+
+		var txParts []cbor.RawMessage
+		if _, err := cbor.Decode(rawTx, &txParts); err != nil {
+			return nil, fmt.Errorf(
+				"failed to decode Dijkstra transaction %d: %w", i, err,
+			)
+		}
+		// A current-shape block_transaction must carry its is_valid flag;
+		// reading a three-element one as valid would hide an invalid
+		// transaction. The legacy body keeps both historical arities.
+		if !legacyBody && len(txParts) != dijkstraBlockTxComponents {
+			return nil, fmt.Errorf(
+				"dijkstra transaction %d has %d elements, expected %d",
+				i,
+				len(txParts),
+				dijkstraBlockTxComponents,
+			)
+		}
+		if len(txParts) != dijkstraTxComponents &&
+			len(txParts) != dijkstraBlockTxComponents {
+			return nil, fmt.Errorf(
+				"dijkstra transaction %d has %d elements, expected %d or %d",
+				i,
+				len(txParts),
+				dijkstraTxComponents,
+				dijkstraBlockTxComponents,
+			)
+		}
+
+		txCount, txHeaderSize, txIndefinite := cborArrayInfo(rawTx)
+		if txCount < 0 && !txIndefinite {
+			return nil, fmt.Errorf(
+				"invalid Dijkstra transaction %d array",
+				i,
+			)
+		}
+		if !txIndefinite && txCount != len(txParts) {
+			return nil, fmt.Errorf(
+				"dijkstra transaction %d array has %d elements, decoded %d",
+				i,
+				txCount,
+				len(txParts),
+			)
+		}
+
+		txDecoder, err := cbor.NewStreamDecoder(rawTx[txHeaderSize:])
+		if err != nil {
+			return nil, err
+		}
+		bodyOffset, bodyBytes, err := txDecoder.DecodeRaw(new(cbor.RawMessage))
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to decode Dijkstra transaction %d body: %w",
+				i,
+				err,
+			)
+		}
+		witnessOffset, witnessBytes, err := txDecoder.DecodeRaw(
+			new(cbor.RawMessage),
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to decode Dijkstra transaction %d witness set: %w",
+				i,
+				err,
+			)
+		}
+		auxOffset, auxBytes, err := txDecoder.DecodeRaw(new(cbor.RawMessage))
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to decode Dijkstra transaction %d auxiliary data: %w",
+				i,
+				err,
+			)
+		}
+		// Only the current body shape defines block_transaction's trailing
+		// is_valid; the legacy body carries invalid_transactions instead.
+		if !legacyBody && len(txParts) == dijkstraBlockTxComponents {
+			isValid, err := cbor.DecodeBool(
+				txParts[dijkstraBlockTxComponents-1],
+			)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"failed to decode Dijkstra transaction %d is_valid: %w",
+					i,
+					err,
+				)
+			}
+			if !isValid {
+				result.InvalidTransactions = append(
+					result.InvalidTransactions,
+					uint(i), // #nosec G115 -- i is a non-negative slice index
+				)
+			}
+		}
+
+		bodyStart := txPos + txHeaderSize + uint32(
+			bodyOffset,
+		) // #nosec G115 -- Cardano blocks are <<4GiB
+		bodyLen := uint32(
+			len(bodyBytes),
+		) // #nosec G115 -- Cardano blocks are <<4GiB
+		witnessStart := txPos + txHeaderSize + uint32(
+			witnessOffset,
+		) // #nosec G115 -- Cardano blocks are <<4GiB
+		witnessLen := uint32(
+			len(witnessBytes),
+		) // #nosec G115 -- Cardano blocks are <<4GiB
+		auxStart := txPos + txHeaderSize + uint32(
+			auxOffset,
+		) // #nosec G115 -- Cardano blocks are <<4GiB
+		auxLen := uint32(
+			len(auxBytes),
+		) // #nosec G115 -- Cardano blocks are <<4GiB
+
+		result.Transactions[i].Body = ByteRange{
+			Offset: bodyStart,
+			Length: bodyLen,
+		}
+		result.Transactions[i].Witness = ByteRange{
+			Offset: witnessStart,
+			Length: witnessLen,
+		}
+		// auxiliary_data is CBOR null (0xf6) when absent; only record real
+		// metadata so the zero ByteRange keeps its "no metadata" meaning.
+		if len(auxBytes) != 1 || auxBytes[0] != 0xf6 {
+			result.Transactions[i].Metadata = ByteRange{
+				Offset: auxStart,
+				Length: auxLen,
+			}
+		}
+
+		// Populate output and witness-component offsets, matching the Shelley+
+		// path so downstream DOFF indexing works identically.
+		extractOutputOffsets(
+			bodyBytes,
+			bodyStart,
+			&result.Transactions[i],
+		)
+		extractWitnessComponentOffsets(
+			witnessBytes,
+			witnessStart,
+			&result.Transactions[i],
+		)
+		if err := extractDijkstraSubTransactionOffsets(
+			bodyBytes,
+			bodyStart,
+			&result.Transactions[i],
+		); err != nil {
+			return nil, fmt.Errorf(
+				"failed to decode Dijkstra sub-transaction offsets for transaction %d: %w",
+				i,
+				err,
+			)
+		}
+	}
+
+	return result, nil
+}
+
+func extractDijkstraSubTransactionOffsets(
+	bodyData []byte,
+	bodyOffset uint32,
+	loc *TransactionLocation,
+) error {
+	count, headerSize, indefinite := cborMapInfo(bodyData)
+	if count < 0 && !indefinite {
+		return errors.New("invalid Dijkstra transaction body map")
+	}
+	bodyDecoder, err := cbor.NewStreamDecoder(bodyData[headerSize:])
+	if err != nil {
+		return fmt.Errorf("create transaction-body decoder: %w", err)
+	}
+	for i := 0; indefinite || i < count; i++ {
+		if indefinite {
+			pos := int(headerSize) + bodyDecoder.Position()
+			if pos >= len(bodyData) {
+				return errors.New("unterminated Dijkstra transaction body map")
+			}
+			if bodyData[pos] == 0xff {
+				return nil
+			}
+		}
+		var key uint64
+		if _, _, err := bodyDecoder.Decode(&key); err != nil {
+			return fmt.Errorf("decode transaction-body key: %w", err)
+		}
+		if key != 23 {
+			if _, _, err := bodyDecoder.Skip(); err != nil {
+				return fmt.Errorf("skip transaction-body field %d: %w", key, err)
+			}
+			continue
+		}
+		valueOffset, rawSet, err := bodyDecoder.DecodeRaw(new(cbor.RawMessage))
+		if err != nil {
+			return fmt.Errorf("decode sub-transaction set: %w", err)
+		}
+		setOffset := bodyOffset + uint32(int(headerSize)+valueOffset) // #nosec G115
+		var rawTag cbor.RawTag
+		if _, err := cbor.Decode(rawSet, &rawTag); err == nil {
+			if rawTag.Number != cbor.CborTagSet {
+				return fmt.Errorf("sub-transaction set has unexpected CBOR tag %d", rawTag.Number)
+			}
+			tagHeaderLength := len(rawSet) - len(rawTag.Content)
+			rawSet = rawTag.Content
+			if tagHeaderLength < 0 {
+				return errors.New("invalid CBOR tag around sub-transaction set")
+			}
+			setOffset += uint32(tagHeaderLength) // #nosec G115
+		}
+		setCount, setHeaderSize, setIndefinite := cborArrayInfo(rawSet)
+		if setCount < 0 && !setIndefinite {
+			return errors.New("sub-transaction set is not an array")
+		}
+		var rawSubTxs []cbor.RawMessage
+		if _, err := cbor.Decode(rawSet, &rawSubTxs); err != nil {
+			return fmt.Errorf("decode sub-transaction set items: %w", err)
+		}
+		if !setIndefinite && setCount != len(rawSubTxs) {
+			return fmt.Errorf(
+				"sub-transaction set has %d elements, decoded %d",
+				setCount,
+				len(rawSubTxs),
+			)
+		}
+		setDecoder, err := cbor.NewStreamDecoder(rawSet[setHeaderSize:])
+		if err != nil {
+			return fmt.Errorf("create sub-transaction set decoder: %w", err)
+		}
+		loc.SubTransactions = make([]TransactionLocation, len(rawSubTxs))
+		for subIdx := range rawSubTxs {
+			subOffset, rawSubTx, err := setDecoder.DecodeRaw(new(cbor.RawMessage))
+			if err != nil {
+				return fmt.Errorf("decode sub-transaction %d: %w", subIdx, err)
+			}
+			subPos := setOffset + uint32(int(setHeaderSize)+subOffset) // #nosec G115
+			var components []cbor.RawMessage
+			if _, err := cbor.Decode(rawSubTx, &components); err != nil {
+				return fmt.Errorf("decode sub-transaction %d components: %w", subIdx, err)
+			}
+			if len(components) != 3 {
+				return fmt.Errorf(
+					"sub-transaction %d has %d components, expected 3",
+					subIdx,
+					len(components),
+				)
+			}
+			subCount, subHeaderSize, subIndefinite := cborArrayInfo(rawSubTx)
+			if subCount < 0 && !subIndefinite {
+				return fmt.Errorf("invalid sub-transaction %d array", subIdx)
+			}
+			subDecoder, err := cbor.NewStreamDecoder(rawSubTx[subHeaderSize:])
+			if err != nil {
+				return fmt.Errorf("create sub-transaction %d decoder: %w", subIdx, err)
+			}
+			bodyRel, subBody, err := subDecoder.DecodeRaw(new(cbor.RawMessage))
+			if err != nil {
+				return fmt.Errorf("decode sub-transaction %d body: %w", subIdx, err)
+			}
+			witnessRel, subWitness, err := subDecoder.DecodeRaw(new(cbor.RawMessage))
+			if err != nil {
+				return fmt.Errorf("decode sub-transaction %d witness set: %w", subIdx, err)
+			}
+			auxRel, subAux, err := subDecoder.DecodeRaw(new(cbor.RawMessage))
+			if err != nil {
+				return fmt.Errorf("decode sub-transaction %d auxiliary data: %w", subIdx, err)
+			}
+			subLoc := &loc.SubTransactions[subIdx]
+			subBodyOffset := subPos + uint32(int(subHeaderSize)+bodyRel)                 // #nosec G115
+			subLoc.Body = ByteRange{Offset: subBodyOffset, Length: uint32(len(subBody))} // #nosec G115
+			subLoc.Witness = ByteRange{
+				Offset: subPos + uint32(int(subHeaderSize)+witnessRel), // #nosec G115
+				Length: uint32(len(subWitness)),                        // #nosec G115
+			}
+			if len(subAux) != 1 || subAux[0] != 0xf6 {
+				subLoc.Metadata = ByteRange{
+					Offset: subPos + uint32(int(subHeaderSize)+auxRel), // #nosec G115
+					Length: uint32(len(subAux)),                        // #nosec G115
+				}
+			}
+			extractOutputOffsets(subBody, subBodyOffset, subLoc)
+			extractWitnessComponentOffsets(subWitness, subLoc.Witness.Offset, subLoc)
+		}
+		return nil
+	}
+	return nil
+}
+
+// ExtractTransactionOffsets extracts byte offsets for all transactions in a block.
+// This enables efficient CBOR extraction from block data without full deserialization.
+//
+// The function parses the block CBOR structure to find where each transaction body,
+// witness set, and metadata starts and ends within the raw block bytes.
+//
+// It supports Byron-era blocks (3-element: [header, body, extra]), Shelley+
+// blocks (4+ element: [header, tx_bodies, witnesses, metadata, ...]) and
+// Dijkstra blocks (2-element: [header, block_body]).
+func ExtractTransactionOffsets(cborData []byte) (*BlockTransactionOffsets, error) {
+	blockArray, arrayHeaderSize, err := decodeBlockArrayBytes(cborData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode block array: %w", err)
+	}
+
+	// Detect Dijkstra blocks. Unlike pre-Dijkstra eras, these are a 2-element
+	// array [header, block_body] where transactions live inline inside
+	// block_body rather than as parallel top-level segments, so they must be
+	// recognized before the generic short-block early return. Both the CDDL
+	// block_body shape and the earlier prototype-2026w27 shape are handled.
+	blockShape, err := classifyDijkstraBlock(blockArray)
+	if err != nil {
+		// The layout can only be a Dijkstra block, but its shape is not
+		// understood. Failing here keeps a future layout change loud instead
+		// of silently indexing none of the block's transactions.
+		return nil, err
+	}
+	if blockShape != dijkstraShapeNone {
+		return extractDijkstraTransactionOffsets(
+			cborData,
+			blockArray,
+			blockShape,
+		)
+	}
+
+	if len(blockArray) < 3 {
+		// Block doesn't have separated components (e.g., Byron EBB)
+		// Return empty slice instead of nil to prevent nil pointer dereference
+		return &BlockTransactionOffsets{Transactions: []TransactionLocation{}}, nil
+	}
+
+	// Detect Byron-era blocks and handle them separately
+	if isByronBlock(blockArray) {
+		return extractByronTransactionOffsets(cborData, blockArray)
+	}
+
+	var invalidTransactions []uint
+	if len(blockArray) > 4 {
+		var err error
+		invalidTransactions, err = decodeInvalidTransactionIndices(blockArray[4])
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// blockArray[0] is the header, blockArray[1] is tx bodies, blockArray[2] is witnesses
+	// blockArray[3] is metadata (if present)
+	headerOffset := arrayHeaderSize
+	txBodiesOffset := headerOffset + uint32(len(blockArray[0]))    // #nosec G115 -- Cardano block segments are <<4GiB
+	witnessesOffset := txBodiesOffset + uint32(len(blockArray[1])) // #nosec G115 -- Cardano block segments are <<4GiB
+	var metadataOffset uint32
+	if len(blockArray) > 3 {
+		metadataOffset = witnessesOffset + uint32(len(blockArray[2])) // #nosec G115 -- Cardano block segments are <<4GiB
+	}
+
+	// Parse transaction bodies array
+	var txBodiesRaw []cbor.RawMessage
+	if _, err := cbor.Decode([]byte(blockArray[1]), &txBodiesRaw); err != nil {
+		return nil, fmt.Errorf("failed to decode transaction bodies: %w", err)
+	}
+
+	// Parse witness sets array
+	var witnessesRaw []cbor.RawMessage
+	if _, err := cbor.Decode([]byte(blockArray[2]), &witnessesRaw); err != nil {
+		return nil, fmt.Errorf("failed to decode witness sets: %w", err)
+	}
+
+	// Validate that transaction bodies and witness sets have matching lengths
+	if len(txBodiesRaw) != len(witnessesRaw) {
+		return nil, fmt.Errorf(
+			"mismatched transaction bodies (%d) and witness sets (%d)",
+			len(txBodiesRaw),
+			len(witnessesRaw),
+		)
+	}
+
+	// Parse metadata map (keyed by transaction index)
+	// Metadata is stored as a CBOR map: {tx_index: metadata, ...}
+	metadataByTxIdx := make(map[uint32]struct {
+		offset uint32
+		length uint32
+	})
+	if len(blockArray) > 3 && len(blockArray[3]) > 1 {
+		// Extract metadata offsets by parsing the map structure
+		// Ignore errors - metadata extraction is best-effort
+		// Some blocks may have unusual metadata structures
+		_ = extractMetadataOffsets(
+			[]byte(blockArray[3]),
+			metadataOffset,
+			metadataByTxIdx,
+		)
+	}
+
+	// Build transaction locations
+	result := &BlockTransactionOffsets{
+		Transactions:        make([]TransactionLocation, len(txBodiesRaw)),
+		InvalidTransactions: invalidTransactions,
+	}
+
+	// Calculate body offsets within the tx bodies array.
+	if int(txBodiesOffset) >= len(cborData) {
+		return nil, errors.New("invalid transaction bodies offset")
+	}
+	_, bodiesArrayHeader, _ := cborArrayInfo(cborData[txBodiesOffset:])
+	if bodiesArrayHeader == 0 {
+		return nil, errors.New("invalid transaction bodies array header")
+	}
+	bodyPos := txBodiesOffset + bodiesArrayHeader
+	for i, rawBody := range txBodiesRaw {
+		bodyLen := uint32(len(rawBody)) // #nosec G115 -- Cardano block segments are <<4GiB
+		result.Transactions[i].Body = ByteRange{
+			Offset: bodyPos,
+			Length: bodyLen,
+		}
+
+		// Extract output offsets from transaction body
+		extractOutputOffsets([]byte(rawBody), bodyPos, &result.Transactions[i])
+
+		bodyPos += bodyLen
+	}
+
+	// Calculate witness offsets within the witnesses array.
+	if int(witnessesOffset) >= len(cborData) {
+		return nil, errors.New("invalid witness sets offset")
+	}
+	_, witnessArrayHeader, _ := cborArrayInfo(cborData[witnessesOffset:])
+	if witnessArrayHeader == 0 {
+		return nil, errors.New("invalid witness sets array header")
+	}
+	witnessPos := witnessesOffset + witnessArrayHeader
+	for i, rawWitness := range witnessesRaw {
+		if i < len(result.Transactions) {
+			result.Transactions[i].Witness = ByteRange{
+				Offset: witnessPos,
+				Length: uint32(len(rawWitness)), // #nosec G115 -- Cardano block segments are <<4GiB
+			}
+
+			// Extract datum, redeemer, and script offsets from witness set
+			extractWitnessComponentOffsets(
+				[]byte(rawWitness),
+				witnessPos,
+				&result.Transactions[i],
+			)
+		}
+		witnessPos += uint32(len(rawWitness)) // #nosec G115 -- Cardano block segments are <<4GiB
+	}
+
+	// Assign metadata offsets
+	for i := range result.Transactions {
+		// #nosec G115 -- transaction index bounded by block size
+		if meta, ok := metadataByTxIdx[uint32(i)]; ok {
+			result.Transactions[i].Metadata = ByteRange{
+				Offset: meta.offset,
+				Length: meta.length,
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// Witness set map keys (Alonzo+ era)
+const (
+	witnessKeyVkeyWitnesses    = 0
+	witnessKeyNativeScripts    = 1
+	witnessKeyBootstrapWitness = 2
+	witnessKeyPlutusV1Scripts  = 3
+	witnessKeyPlutusData       = 4 // Datums
+	witnessKeyRedeemers        = 5
+	witnessKeyPlutusV2Scripts  = 6
+	witnessKeyPlutusV3Scripts  = 7
+	witnessKeyPlutusV4Scripts  = 8
+)
+
+// extractOutputOffsets parses a transaction body to find output CBOR positions.
+// This uses streaming decode to track positions of each output within the body.
+// The bodyData is the raw CBOR of the transaction body (a map).
+// The bodyOffset is the absolute offset of bodyData within the block.
+func extractOutputOffsets(
+	bodyData []byte,
+	bodyOffset uint32,
+	loc *TransactionLocation,
+) {
+	if len(bodyData) < 2 {
+		return
+	}
+
+	// Transaction body is a CBOR map with numeric keys
+	// Key 1 contains the outputs array
+	count, headerSize, indefinite := cborMapInfo(bodyData)
+	if count < 0 && !indefinite {
+		return
+	}
+
+	// Create a stream decoder for the body content (after map header)
+	bodyStream, err := cbor.NewStreamDecoder(bodyData[headerSize:])
+	if err != nil {
+		return
+	}
+
+	// Scan through map key-value pairs looking for key 1 (outputs)
+	for i := 0; indefinite || i < count; i++ {
+		// Check for break byte in indefinite maps
+		if indefinite {
+			pos := bodyStream.Position()
+			checkPos := int(headerSize) + pos
+			if checkPos >= len(bodyData) || bodyData[checkPos] == 0xff {
+				break
+			}
+		}
+
+		// Decode map key
+		var key uint64
+		if _, _, err := bodyStream.Decode(&key); err != nil {
+			return
+		}
+
+		if key == 1 {
+			// Found the outputs array - decode it with position tracking
+			valueStart := bodyStream.Position()
+
+			// Decode outputs as array of RawMessage
+			var outputsRaw []cbor.RawMessage
+			if _, _, err := bodyStream.Decode(&outputsRaw); err != nil {
+				return
+			}
+
+			// Calculate the absolute offset of the outputs array
+			// #nosec G115 -- valueStart is position within a Cardano tx body, well under 4GiB
+			outputsArrayOffset := bodyOffset + headerSize + uint32(valueStart)
+
+			arrayStartIdx := int(headerSize) + valueStart
+			if arrayStartIdx < 0 || arrayStartIdx >= len(bodyData) {
+				return
+			}
+			_, outputsArrayHeader, _ := cborArrayInfo(bodyData[arrayStartIdx:])
+			if outputsArrayHeader == 0 {
+				return
+			}
+
+			// Track position within outputs array
+			outputPos := outputsArrayOffset + outputsArrayHeader
+
+			// Record each output's position
+			loc.Outputs = make([]ByteRange, len(outputsRaw))
+			for j, rawOutput := range outputsRaw {
+				outputLen := uint32(len(rawOutput)) // #nosec G115 -- Cardano outputs are <<4GiB
+
+				// Validate offset by checking for valid CBOR type byte.
+				// Transaction outputs are either arrays (0x80-0x9f) or maps (0xa0-0xbf).
+				// If the byte at outputPos doesn't match, adjust backward to find the
+				// correct position. This handles edge cases in CBOR array decoding.
+				adjustedOffset := outputPos
+				bodyIdx := int(adjustedOffset - bodyOffset)
+				if bodyIdx >= 0 && bodyIdx < len(bodyData) {
+					byteAtPos := bodyData[bodyIdx]
+					// Check if this is a valid output type byte
+					isValidOutputStart := (byteAtPos >= 0x80 && byteAtPos <= 0x9f) || // array
+						(byteAtPos >= 0xa0 && byteAtPos <= 0xbf) // map
+					if !isValidOutputStart && bodyIdx > 0 {
+						// Check if the previous byte is a valid start
+						prevByte := bodyData[bodyIdx-1]
+						isPrevValid := (prevByte >= 0x80 && prevByte <= 0x9f) ||
+							(prevByte >= 0xa0 && prevByte <= 0xbf)
+						if isPrevValid {
+							adjustedOffset--
+						}
+					}
+				}
+
+				loc.Outputs[j] = ByteRange{
+					Offset: adjustedOffset,
+					Length: outputLen,
+				}
+				outputPos += outputLen
+			}
+
+			return // Found outputs, done with this body
+		}
+
+		// Skip the value for this key
+		if _, _, err := bodyStream.Skip(); err != nil {
+			return
+		}
+	}
+}
+
+// extractWitnessComponentOffsets parses a witness set and extracts byte offsets
+// for datums, redeemers, and scripts using streaming decoding.
+func extractWitnessComponentOffsets(
+	witnessData []byte,
+	baseOffset uint32,
+	loc *TransactionLocation,
+) {
+	if len(witnessData) < 2 {
+		return
+	}
+
+	// Initialize maps with small capacity hints
+	loc.Datums = make(map[Blake2b256]ByteRange, 4)
+	loc.Redeemers = make(map[RedeemerKey]ByteRange, 4)
+	loc.Scripts = make(map[ScriptHash]ByteRange, 4)
+
+	// Get map info from header
+	count, headerSize, indefinite := cborMapInfo(witnessData)
+	if count < 0 && !indefinite {
+		return
+	}
+
+	// Use streaming decoder starting after the map header
+	dec, err := cbor.NewStreamDecoder(witnessData[headerSize:])
+	if err != nil {
+		return
+	}
+
+	// Process each key-value pair in CBOR order
+	for i := 0; indefinite || i < count; i++ {
+		// Check for break byte in indefinite maps
+		if indefinite {
+			pos := dec.Position()
+			if int(headerSize)+pos >= len(witnessData) || witnessData[int(headerSize)+pos] == 0xff {
+				break
+			}
+		}
+
+		// Decode the key
+		var key uint64
+		if _, _, err := dec.Decode(&key); err != nil {
+			return
+		}
+
+		// Get value position and bytes
+		valueOffset, valueBytes, err := dec.DecodeRaw(new(cbor.RawMessage))
+		if err != nil {
+			return
+		}
+
+		absOffset := baseOffset + headerSize + uint32(valueOffset) // #nosec G115
+
+		switch key {
+		case witnessKeyPlutusData:
+			extractDatumOffsets(valueBytes, absOffset, loc.Datums)
+
+		case witnessKeyRedeemers:
+			extractRedeemerOffsets(valueBytes, absOffset, loc.Redeemers)
+
+		case witnessKeyNativeScripts:
+			extractScriptArrayOffsets(valueBytes, absOffset, ScriptRefTypeNativeScript, loc.Scripts)
+
+		case witnessKeyPlutusV1Scripts:
+			extractScriptArrayOffsets(valueBytes, absOffset, ScriptRefTypePlutusV1, loc.Scripts)
+
+		case witnessKeyPlutusV2Scripts:
+			extractScriptArrayOffsets(valueBytes, absOffset, ScriptRefTypePlutusV2, loc.Scripts)
+
+		case witnessKeyPlutusV3Scripts:
+			extractScriptArrayOffsets(valueBytes, absOffset, ScriptRefTypePlutusV3, loc.Scripts)
+
+		case witnessKeyPlutusV4Scripts:
+			extractScriptArrayOffsets(valueBytes, absOffset, ScriptRefTypePlutusV4, loc.Scripts)
+		}
+	}
+}
+
+// extractDatumOffsets extracts datum hash -> offset mappings from a datum array using streaming decoding.
+// The datum structure is an array of datums: [ datum_cbor, datum_cbor, ... ]
+// Each datum's hash is computed via blake2b-256 of its CBOR encoding.
+func extractDatumOffsets(datumArrayData []byte, baseOffset uint32, result map[Blake2b256]ByteRange) {
+	if len(datumArrayData) < 1 {
+		return
+	}
+
+	// Get array info from header
+	count, headerSize, indefinite := cborArrayInfo(datumArrayData)
+	if count < 0 && !indefinite {
+		return // Invalid array header
+	}
+
+	// Use streaming decoder starting after the array header
+	dec, err := cbor.NewStreamDecoder(datumArrayData[headerSize:])
+	if err != nil {
+		return
+	}
+
+	// Process each datum in the array
+	for i := 0; indefinite || i < count; i++ {
+		// Check for break byte in indefinite arrays
+		if indefinite {
+			pos := dec.Position()
+			if int(headerSize)+pos >= len(datumArrayData) {
+				break
+			}
+			if datumArrayData[int(headerSize)+pos] == 0xff {
+				break
+			}
+		}
+
+		// Get datum position and raw bytes
+		datumOffset, datumBytes, err := dec.DecodeRaw(new(cbor.RawMessage))
+		if err != nil {
+			return
+		}
+
+		// Compute datum hash: blake2b-256 of the datum CBOR
+		computed := blake2b.Sum256(datumBytes)
+		var hash Blake2b256
+		copy(hash[:], computed[:])
+
+		result[hash] = ByteRange{
+			Offset: baseOffset + headerSize + uint32(datumOffset), // #nosec G115 -- Cardano block segments are <<4GiB
+			Length: uint32(len(datumBytes)),                       // #nosec G115 -- Cardano block segments are <<4GiB
+		}
+	}
+}
+
+// extractRedeemerOffsets extracts redeemer key -> offset mappings.
+// Redeemers can be either an array (Alonzo-Babbage) or map (Conway+).
+func extractRedeemerOffsets(redeemerData []byte, baseOffset uint32, result map[RedeemerKey]ByteRange) {
+	if len(redeemerData) < 1 {
+		return
+	}
+
+	// Check if it's a map or array by looking at the first byte (CBOR major type)
+	firstByte := redeemerData[0]
+	majorType := firstByte & 0xe0
+
+	switch majorType {
+	case 0x80:
+		// It's an array (Alonzo-Babbage format): [[purpose, index, data, exunits], ...]
+		// Major type 4 = 0x80-0x9f (including 0x9f for indefinite length)
+		extractRedeemerArrayOffsets(redeemerData, baseOffset, result)
+	case 0xa0:
+		// It's a map (Conway+ format): {[purpose, index]: [data, exunits], ...}
+		// Major type 5 = 0xa0-0xbf (including 0xbf for indefinite length)
+		extractRedeemerMapOffsets(redeemerData, baseOffset, result)
+	}
+}
+
+// extractRedeemerMapOffsets handles the map format for redeemers using streaming decoding.
+// Map format (Conway+): {[purpose, index]: [data, exunits], ...}
+func extractRedeemerMapOffsets(redeemerData []byte, baseOffset uint32, result map[RedeemerKey]ByteRange) {
+	count, headerSize, indefinite := cborMapInfo(redeemerData)
+	if count < 0 && !indefinite {
+		return
+	}
+
+	dec, err := cbor.NewStreamDecoder(redeemerData[headerSize:])
+	if err != nil {
+		return
+	}
+
+	for i := 0; indefinite || i < count; i++ {
+		// Check for break byte in indefinite maps
+		if indefinite {
+			pos := dec.Position()
+			if int(headerSize)+pos >= len(redeemerData) || redeemerData[int(headerSize)+pos] == 0xff {
+				break
+			}
+		}
+
+		// Decode key as [purpose, index]
+		var keyPair []uint64
+		if _, _, err := dec.Decode(&keyPair); err != nil || len(keyPair) < 2 {
+			return
+		}
+
+		key := RedeemerKey{
+			Tag:   RedeemerTag(keyPair[0]), // #nosec G115 -- redeemer tag is a small enum value
+			Index: uint32(keyPair[1]),      // #nosec G115 -- redeemer index bounded by transaction size
+		}
+
+		// Get value position and bytes: value is [data, exunits]
+		valueOffset, valueBytes, err := dec.DecodeRaw(new(cbor.RawMessage))
+		if err != nil {
+			return
+		}
+
+		// Parse the value array to find the data element's position within it
+		// Get array header size first, then create decoder starting after the header
+		_, valueHeaderSize, _ := cborArrayInfo(valueBytes)
+		if int(valueHeaderSize) >= len(valueBytes) {
+			continue
+		}
+		valueDec, err := cbor.NewStreamDecoder(valueBytes[valueHeaderSize:])
+		if err != nil {
+			continue
+		}
+
+		// Get first element (data) position - decoder now starts at the first element
+		dataOffset, dataLen, err := valueDec.Skip()
+		if err != nil {
+			continue
+		}
+
+		result[key] = ByteRange{
+			Offset: baseOffset + headerSize + uint32(valueOffset) + valueHeaderSize + uint32(dataOffset), // #nosec G115
+			Length: uint32(dataLen),                                                                      // #nosec G115
+		}
+	}
+}
+
+// extractRedeemerArrayOffsets handles the array format for redeemers (Alonzo-Babbage) using streaming decoding.
+// Array format: [[purpose, index, data, exunits], ...]
+func extractRedeemerArrayOffsets(redeemerData []byte, baseOffset uint32, result map[RedeemerKey]ByteRange) {
+	count, headerSize, indefinite := cborArrayInfo(redeemerData)
+	if count < 0 && !indefinite {
+		return
+	}
+
+	dec, err := cbor.NewStreamDecoder(redeemerData[headerSize:])
+	if err != nil {
+		return
+	}
+
+	for i := 0; indefinite || i < count; i++ {
+		// Check for break byte in indefinite arrays
+		if indefinite {
+			pos := dec.Position()
+			if int(headerSize)+pos >= len(redeemerData) || redeemerData[int(headerSize)+pos] == 0xff {
+				break
+			}
+		}
+
+		// Get the redeemer element's position and bytes
+		elemOffset, elemBytes, err := dec.DecodeRaw(new(cbor.RawMessage))
+		if err != nil {
+			return
+		}
+
+		// Parse the redeemer array [purpose, index, data, exunits] using streaming
+		// Get inner array header size first, then create decoder starting after the header
+		_, innerHeaderSize, _ := cborArrayInfo(elemBytes)
+		if int(innerHeaderSize) >= len(elemBytes) {
+			continue
+		}
+		elemDec, err := cbor.NewStreamDecoder(elemBytes[innerHeaderSize:])
+		if err != nil {
+			continue
+		}
+
+		// Decode purpose and index - decoder now starts at the first element
+		var purpose, index uint64
+		if _, _, err := elemDec.Decode(&purpose); err != nil {
+			continue
+		}
+		if _, _, err := elemDec.Decode(&index); err != nil {
+			continue
+		}
+
+		key := RedeemerKey{
+			Tag:   RedeemerTag(purpose), // #nosec G115 -- redeemer tag is a small enum value
+			Index: uint32(index),        // #nosec G115 -- redeemer index bounded by transaction size
+		}
+
+		// Get the data element's position (parts[2])
+		dataOffset, dataLen, err := elemDec.Skip()
+		if err != nil {
+			continue
+		}
+
+		result[key] = ByteRange{
+			Offset: baseOffset + headerSize + uint32(elemOffset) + innerHeaderSize + uint32(dataOffset), // #nosec G115
+			Length: uint32(dataLen),                                                                     // #nosec G115
+		}
+	}
+}
+
+// cborArrayInfo extracts array item count and header size from CBOR array data.
+// Returns (count, headerSize, isIndefinite). Count is -1 for invalid headers.
+func cborArrayInfo(data []byte) (int, uint32, bool) {
+	if len(data) == 0 {
+		return -1, 0, false
+	}
+	firstByte := data[0]
+
+	// Check it's an array (major type 4)
+	if firstByte&0xe0 != 0x80 {
+		return -1, 0, false
+	}
+
+	additional := firstByte & 0x1f
+	switch {
+	case additional <= 23:
+		return int(additional), 1, false
+	case additional == 24 && len(data) >= 2:
+		return int(data[1]), 2, false
+	case additional == 25 && len(data) >= 3:
+		return int(uint16(data[1])<<8 | uint16(data[2])), 3, false
+	case additional == 26 && len(data) >= 5:
+		// 4-byte length - check for overflow before converting to int
+		len32 := uint32(data[1])<<24 | uint32(data[2])<<16 | uint32(data[3])<<8 | uint32(data[4])
+		if len32 > uint32(math.MaxInt32) {
+			return -1, 0, false // Too large to handle
+		}
+		return int(len32), 5, false
+	case additional == 27 && len(data) >= 9:
+		// 8-byte length (unlikely for Cardano blocks but handle for completeness)
+		len64 := uint64(data[1])<<56 | uint64(data[2])<<48 |
+			uint64(data[3])<<40 | uint64(data[4])<<32 |
+			uint64(data[5])<<24 | uint64(data[6])<<16 |
+			uint64(data[7])<<8 | uint64(data[8])
+		if len64 > uint64(math.MaxInt32) {
+			return -1, 0, false // Too large to handle
+		}
+		return int(len64), 9, false
+	case additional == 31:
+		return 0, 1, true // Indefinite length
+	default:
+		return -1, 0, false
+	}
+}
+
+// extractScriptArrayOffsets extracts script hash -> offset mappings from a script array.
+// The scriptType parameter specifies the Cardano script type prefix used in hashing:
+// 0x00 = native script, 0x01 = PlutusV1, 0x02 = PlutusV2, 0x03 = PlutusV3
+func extractScriptArrayOffsets(scriptArrayData []byte, baseOffset uint32, scriptType byte, result map[ScriptHash]ByteRange) {
+	if len(scriptArrayData) < 1 {
+		return
+	}
+
+	var scripts []cbor.RawMessage
+	if _, err := cbor.Decode(scriptArrayData, &scripts); err != nil {
+		return
+	}
+
+	// Determine header size based on actual encoding
+	// 0x9f indicates indefinite-length array (header = 1 byte)
+	var arrayHeaderSize uint32
+	if scriptArrayData[0] == 0x9f {
+		arrayHeaderSize = 1
+	} else {
+		_, arrayHeaderSize, _ = cborArrayInfo(scriptArrayData)
+	}
+	pos := arrayHeaderSize
+
+	for _, scriptRaw := range scripts {
+		scriptBytes := []byte(scriptRaw)
+
+		// Compute script hash: blake2b-224(prefix || script_cbor)
+		// This matches the Hash() method on Script types
+		hashKey := Blake2b224Hash(slices.Concat([]byte{scriptType}, scriptBytes))
+
+		result[hashKey] = ByteRange{
+			Offset: baseOffset + pos,
+			Length: uint32(len(scriptBytes)), // #nosec G115 -- Cardano block segments are <<4GiB
+		}
+
+		pos += uint32(len(scriptBytes)) // #nosec G115 -- Cardano block segments are <<4GiB
+	}
+}
+
+// extractMetadataOffsets parses a CBOR map to extract value offsets using streaming decoding.
+// The metadata map has transaction indices as keys and metadata as values.
+func extractMetadataOffsets(
+	mapData []byte,
+	baseOffset uint32,
+	result map[uint32]struct {
+		offset uint32
+		length uint32
+	},
+) error {
+	if len(mapData) == 0 {
+		return nil
+	}
+
+	// Get map item count from header
+	count, headerSize, indefinite := cborMapInfo(mapData)
+	if count < 0 {
+		return nil // Invalid map header
+	}
+
+	// Use streaming decoder starting after the map header
+	dec, err := cbor.NewStreamDecoder(mapData[headerSize:])
+	if err != nil {
+		return err
+	}
+
+	// For indefinite maps, we don't know the count upfront
+	// Process until we hit the break byte (0xff) or run out of data
+	for i := 0; indefinite || i < count; i++ {
+		// Check for break byte in indefinite maps
+		if indefinite {
+			pos := dec.Position()
+			if int(headerSize)+pos >= len(mapData) {
+				break
+			}
+			if mapData[int(headerSize)+pos] == 0xff {
+				break // End of indefinite map
+			}
+		}
+
+		// Decode the key (transaction index)
+		var txIdx uint64
+		if _, _, err := dec.Decode(&txIdx); err != nil {
+			return err
+		}
+
+		// Get position and skip the value to get its byte range
+		valueOffset, valueLen, err := dec.Skip()
+		if err != nil {
+			return err
+		}
+
+		// #nosec G115 -- transaction index bounded by block size, Cardano block segments are <<4GiB
+		result[uint32(txIdx)] = struct {
+			offset uint32
+			length uint32
+		}{
+			offset: baseOffset + headerSize + uint32(valueOffset),
+			length: uint32(valueLen),
+		}
+	}
+
+	return nil
+}
+
+// cborMapInfo extracts map item count and header size from CBOR map data.
+// Returns (count, headerSize, isIndefinite). Count is -1 for invalid headers.
+func cborMapInfo(data []byte) (int, uint32, bool) {
+	if len(data) == 0 {
+		return -1, 0, false
+	}
+	firstByte := data[0]
+
+	// Check it's a map (major type 5)
+	if firstByte&0xe0 != 0xa0 {
+		return -1, 0, false
+	}
+
+	additional := firstByte & 0x1f
+	switch {
+	case additional <= 23:
+		return int(additional), 1, false
+	case additional == 24 && len(data) >= 2:
+		return int(data[1]), 2, false
+	case additional == 25 && len(data) >= 3:
+		return int(uint16(data[1])<<8 | uint16(data[2])), 3, false
+	case additional == 26 && len(data) >= 5:
+		// 4-byte length - check for overflow before converting to int
+		len32 := uint32(data[1])<<24 | uint32(data[2])<<16 | uint32(data[3])<<8 | uint32(data[4])
+		if len32 > uint32(math.MaxInt32) {
+			return -1, 0, false // Too large to handle
+		}
+		return int(len32), 5, false
+	case additional == 27 && len(data) >= 9:
+		// 8-byte length (unlikely for Cardano blocks but handle for completeness)
+		len64 := uint64(data[1])<<56 | uint64(data[2])<<48 |
+			uint64(data[3])<<40 | uint64(data[4])<<32 |
+			uint64(data[5])<<24 | uint64(data[6])<<16 |
+			uint64(data[7])<<8 | uint64(data[8])
+		if len64 > uint64(math.MaxInt32) {
+			return -1, 0, false // Too large to handle
+		}
+		return int(len64), 9, false
+	case additional == 31:
+		return 0, 1, true // Indefinite length
+	default:
+		return -1, 0, false
+	}
+}
+
+// AddInt64Checked adds two int64 values and returns the result with an overflow flag.
+// Returns (sum, true) on success, or (0, false) if the addition would overflow.
+func AddInt64Checked(a, b int64) (int64, bool) {
+	sum := a + b
+	if (b > 0 && sum < a) || (b < 0 && sum > a) {
+		return 0, false
+	}
+	return sum, true
+}
+
+type MissingTransactionMetadataError struct {
+	Hash Blake2b256
+}
+
+func (e MissingTransactionMetadataError) Error() string {
+	return fmt.Sprintf(
+		"missing transaction metadata: body declares hash %x but no metadata provided",
+		e.Hash,
+	)
+}
+
+type MissingTransactionAuxiliaryDataHashError struct {
+	Hash Blake2b256
+}
+
+func (e MissingTransactionAuxiliaryDataHashError) Error() string {
+	return fmt.Sprintf(
+		"missing transaction auxiliary data hash: metadata provided with hash %x but body has no hash",
+		e.Hash,
+	)
+}
+
+type ConflictingMetadataHashError struct {
+	Supplied Blake2b256
+	Expected Blake2b256
+}
+
+func (e ConflictingMetadataHashError) Error() string {
+	return fmt.Sprintf(
+		"conflicting metadata hash: body declares %x, actual metadata hash is %x",
+		e.Supplied,
+		e.Expected,
+	)
+}
+
+// NewGenesisRat creates a GenesisRat from numerator and denominator.
+// This is a helper for tests that need to construct genesis ratio values.
+func NewGenesisRat(num, denom int64) GenesisRat {
+	if denom == 0 {
+		panic("denominator cannot be zero")
+	}
+	var r GenesisRat
+	jsonData := fmt.Sprintf(`{"numerator": %d, "denominator": %d}`, num, denom)
+
+	if err := r.UnmarshalJSON([]byte(jsonData)); err != nil {
+		panic(fmt.Sprintf("failed to unmarshal GenesisRat JSON: %v", err))
+	}
+	return r
+}

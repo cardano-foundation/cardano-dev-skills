@@ -1,0 +1,49 @@
+---
+title: Installing PostgreSQL Database
+description: How to install and configure PostgreSQL database for Masumi
+icon: Database
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+
+
+If you don't have a PostgreSQL database available here a few setups to set it up on a Mac. For other systems see the [PostgreSQL download page](https://www.postgresql.org/download/) for instructions.
+
+<Steps>
+
+<Step>
+### Installing and Start PostgreSQL
+
+```bash
+brew install postgresql@15
+brew services start postgresql@15
+```
+</Step>
+
+<Step>
+### Adding PostgresSQL to your PATH
+
+```bash
+echo 'export PATH="/opt/homebrew/opt/postgresql@15/bin:$PATH"' >> ~/.bash_profile
+source ~/.bash_profile
+```
+</Step>
+
+<Step>
+### Creating a Masumi database
+
+```bash
+psql postgres
+create database masumi_payment
+\q
+```
+</Step>
+
+</Steps>
+
+<Callout type="warn">
+Make sure to configure the **DATABASE_URL** variable in the **.env** file accordingly. It needs to have the same database name and you will need to adjust the username according to your username:
+
+"postgresql://**&lt;USERNAME&gt;**@localhost:5432/masumi_payment?schema=public"
+</Callout>

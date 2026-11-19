@@ -1,0 +1,54 @@
+---
+title: Tx3 Language Guide
+sidebar:
+  label: Basic Concepts
+  order: 0
+---
+
+import { LinkCard } from "@astrojs/starlight/components"
+
+The Tx3 language is the source format you write to publish a protocol's interface. This guide tours that language: the keywords you write at the top level, the building blocks of a transaction template, and the expression forms you use to describe values.
+
+## Protocol
+
+A Tx3 file describes a UTxO protocol — the set of conventions that lets a user construct the transactions they need to interact with a chain to achieve some goal. Another common word for this is *dApp*, but Tx3 deliberately stops short of that: it does not build frontends. It does, however, take care of most of the boilerplate that a frontend would otherwise have to write to talk to the chain.
+
+## What you declare
+
+A Tx3 file is mostly a list of top-level declarations. Each declaration introduces a name that the rest of the file can use:
+
+<LinkCard title="Environment" href="language/env" description="External inputs supplied per network (script hashes, oracle UTxOs, etc.)" />
+
+<LinkCard title="Parties" href="language/parties" description="Named placeholders for the on-chain addresses your protocol interacts with" />
+
+<LinkCard title="Policies" href="language/policies" description="On-chain script credentials, declared by hash or by witness" />
+
+<LinkCard title="Types" href="language/types" description="Built-in types, lists, maps, records, variants, and aliases" />
+
+<LinkCard title="Assets" href="language/assets" description="The implicit `Ada` asset, named `asset` declarations, and ad-hoc `AnyAsset` values" />
+
+## What you compute
+
+The right-hand side of every Tx3 clause is a data expression — a literal, a constructor, a property access, or a small bit of arithmetic.
+
+<LinkCard title="Data Expressions" href="language/data" description="Literals, operators, constructors, property access, and built-in functions" />
+
+<LinkCard title="Functions" href="language/functions" description="Named, reusable data expressions — declared with `fn` and inlined at compile time" />
+
+## Transaction templates
+
+The core declaration in a Tx3 file is a `tx`: a parameterised template that the toolchain turns into a concrete, balanced transaction. A `tx` body is a collection of blocks — inputs, outputs, mints, witnesses, validity bounds, signers, metadata, locals, collateral — combined freely.
+
+<LinkCard title="Transactions" href="language/txs" description="Every block you can put inside a `tx` body and how they fit together" />
+
+## Chain-specific features
+
+A few constructs only make sense on one chain. Cardano-specific blocks live under the `cardano::` namespace — `cardano::withdrawal`, `cardano::plutus_witness`, `cardano::publish`, certificate blocks, and so on.
+
+<LinkCard title="Cardano Features" href="language/cardano" description="Stake operations, witnesses, treasury donations, reference-script publishing" />
+
+## Documenting your protocol
+
+Doc-comments (`///`) attach to a `party`, an `env` field, a `tx`, or a tx parameter and travel with the protocol all the way to the registry UI and generated bindings.
+
+<LinkCard title="Comments" href="language/comments" description="Line, block, and doc-comments — and where doc-comments end up" />

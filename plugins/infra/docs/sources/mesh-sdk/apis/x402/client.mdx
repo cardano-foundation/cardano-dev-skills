@@ -1,0 +1,92 @@
+---
+title: "x402 Client"
+description: "Pay for x402 resources with fetchWithPayment."
+---
+
+`fetchWithPayment` works like `fetch`. If the server answers `402`, it builds and signs a payment, retries, and returns the result.
+
+```ts
+import { MeshWallet } from "@meshsdk/wallet";
+import { BlockfrostProvider } from "@meshsdk/provider";
+import { chainStateFrom, fetchWithPayment } from "@meshsdk/x402";
+
+const provider = new BlockfrostProvider("<BLOCKFROST_PREPROD_KEY>");
+const wallet = new MeshWallet({
+  networkId: 0,
+  fetcher: provider,
+  submitter: provider,
+  key: { type: "mnemonic", words: ["..."] },
+});
+await wallet.init();
+
+// Read the chain fresh for every payment: the transaction expiry is based on the current slot.
+const { protocol, currentSlot } = await chainStateFrom(provider)();
+
+const { response, paymentResponse } = await fetchWithPayment(
+  "https://api.example.com/premium-data",
+  undefined,
+  wallet,
+  { fetcher: provider, protocol, currentSlot },
+);
+
+if (response.ok) console.log(await response.json(), paymentResponse?.transaction);
+```
+
+You get `response` (the final HTTP response) and `paymentResponse` (the decoded `PAYMENT-RESPONSE`: `success`, `transaction`, `extra.status`, `extra.confirmations`).
+
+## Options
+
+```ts
+await fetchWithPayment(url, init, wallet, chain, {
+  onChallenge: (challenge) => console.log("price:", challenge.accepts[0].amount),
+  onSigned: (payload) => console.log("signed tx for nonce", payload.payload.nonce),
+  selectRequirement: (accepts) => accepts.find((a) => a.asset === "lovelace"), // pick which offer to pay
+});
+```
+
+| Option | What it does |
+|---|---|
+| `onChallenge` | See the decoded `402` before paying |
+| `onSigned` | See the signed payload before it is sent |
+| `selectRequirement` | Choose among `accepts[]`. Default: first `exact` offer on the wallet's network. |
+| `fetch` | Use your own `fetch` |
+
+## What the client checks for you
+
+It will not sign if the offer is malformed, if a `script` offer's `payTo` isn't that script's address, or if a Masumi offer's seller signature, escrow address or deadlines don't check out. Failures throw an `X402Error` with a `code`:
+
+```ts
+import { X402Error } from "@meshsdk/x402";
+
+try {
+  await fetchWithPayment(url, undefined, wallet, chain);
+} catch (e) {
+  if (e instanceof X402Error) console.error(e.code, e.message); // e.g. INSUFFICIENT_UTXOS
+}
+```
+
+For Masumi offers, two hooks let your app stay in control:
+
+```ts
+const chain = {
+  fetcher: provider, protocol, currentSlot,
+  allowMasumiDeployment: (deployment, { weights }) => confirmWithUser(weights), // non-default escrow? ask first
+  validateRegistryClaim: async (claim) => myRegistryLookup(claim),  // registered agent? prove it
+};
+```
+
+Both default to "no". See [Masumi](/apis/x402/masumi).
+
+## Step by step
+
+If you want the pieces separately:
+
+```ts
+import { buildPaymentPayload, signPayment, encodePaymentSignatureHeader } from "@meshsdk/x402";
+
+const built = await buildPaymentPayload(offer, wallet, { url }, chain);
+const signed = await signPayment(wallet, built);
+const header = encodePaymentSignatureHeader(signed); // send as PAYMENT-SIGNATURE
+```
+
+If a server answers a paid request with `settlement_pending`, resend the **same** header. Never build a second payment.

@@ -1,0 +1,78 @@
+---
+title: "Smart Contracts"
+description: "Production-ready smart contracts for Cardano with complete documentation, TypeScript SDK, and live demos"
+icon: DocumentCheckIcon
+---
+
+import { linksSmartContracts } from "@/data/links-smart-contracts";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+Mesh provides a suite of open-source, audited smart contracts that you can deploy to Cardano mainnet or testnet. Each contract includes TypeScript bindings, comprehensive documentation, and working examples.
+
+## Available Contracts
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {linksSmartContracts.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## Quick Start
+
+Install the contracts package to get started:
+
+```bash
+npm install @meshsdk/contract @meshsdk/core
+```
+
+Every contract follows the same initialization pattern:
+
+```typescript
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+// 1. Set up your provider
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+// 2. Create a transaction builder
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+// 3. Initialize any contract with the same config
+const contract = new MeshContractName({
+  mesh: meshTxBuilder,
+  fetcher: provider,
+  wallet: wallet, // Your connected wallet
+  networkId: 0,   // 0 for testnet, 1 for mainnet
+});
+```
+
+## Contract Categories
+
+| Category | Contracts | Use Cases |
+|----------|-----------|-----------|
+| **Asset Management** | Hello World, Vesting, Giftcard | Lock and unlock assets with conditions |
+| **Trading** | Marketplace, Swap, Escrow | Buy, sell, and exchange assets |
+| **Payments** | Payment Splitter | Split payments among multiple recipients |
+| **NFTs** | Plutus NFT, Content Ownership | Mint NFTs with on-chain logic |
+
+## Network Support
+
+All contracts work on:
+- **Preprod Testnet** (networkId: 0) - For development and testing
+- **Mainnet** (networkId: 1) - For production deployments
+
+## Source Code
+
+All on-chain (Aiken) and off-chain (TypeScript) code is open-source and available on [GitHub](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src).

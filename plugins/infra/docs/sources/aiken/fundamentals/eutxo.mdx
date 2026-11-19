@@ -1,0 +1,518 @@
+---
+title: "EUTxO Crash Course"
+description: "Aiken is a functional programming language for writing smart contracts on Cardano, which uses the Extended Unspent Transaction Output (EUTxO) model. EUTxO extends the basic UTxO model with datums (data attached to outputs as contract state), redeemers (user-provided arguments to unlock funds), and scripts (predicate functions that return True or False). The foundational execution model that determines how all Aiken validators process transactions and enforce on-chain logic."
+difficulty: "beginner"
+keywords: ["EUTxO", "UTxO", "datum", "redeemer", "script", "transaction", "inputs", "outputs", "address", "script purpose", "spend", "mint", "withdraw", "publish", "vote", "propose"]
+topics: ["eutxo", "transactions", "datums", "redeemers", "script-purposes"]
+prerequisites: []
+related: ["getting-started", "validators", "common-design-patterns"]
+---
+
+import { Callout } from "nextra-theme-docs";
+
+<style>{`
+@font-face {
+  font-family: 'Menlo Regular';
+  font-style: normal;
+  font-weight: normal;
+  src: local('Menlo Regular'), url('/fonts/Menlo-Regular.woff') format('woff');
+}
+pre code {
+  line-height: 1rem !important;
+  font-family: "Menlo Regular" !important;
+}
+`}</style>
+
+# EUTxO crash course
+
+If you have absolutely no idea what developing on Cardano looks like, worry
+not. You just found the right piece to get started. Aiken is a language platform
+that makes on-chain programming easy. But what is _"on-chain programming"_ to
+begin with? While this succinct documentation piece has no ambition to be a
+complete course on blockchains, it should give you enough insights to build a
+basic understanding of the fundamentals.
+
+<Callout type="warning">
+  This course will reference cryptography concepts such as **hash digests** or
+  **digital signatures**. We, therefore, expect readers to be either familiar
+  with those concepts (at least a tiny bit) or to read up on them. There are
+  plenty of resources available in the wild regarding cryptography and this
+  crash course **isn't** one of them.
+
+  As a suggestion, if you want to learn more on those fundamentals, we
+  heartwarmingly recommend [Cardano Blockchain Certified Associate (CBCA)'s first
+  module](https://cardanofoundation.org/en/academy/course/cbca).
+</Callout>
+
+## Blocks & transactions
+
+Blockchains are made of blocks. And blocks are made of transactions. Without
+going into the details, you can think of blocks as being objects divided into
+two parts: a header and a body. The header contains information about the
+blocks, such as who produced them and when they were made. The body is nothing
+more than an ordered sequence of transactions.
+
+Note that the _"chain"_ of blockchain comes from how blocks reference one
+another. Indeed, each block header includes at least two things:
+
+- A hash digest of the block body
+- A hash digest of the previous block header
+
+```console filename="Block"
+┏━ Header ━━━━━━━━━━━━━━┳━ Body ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                       ┃                                           ┃
+┃  Body hash            ┃ ┌────────────────┬────────────────┬─────┐ ┃
+┃  Previous header hash ┃ │ Transaction #1 │ Transaction #2 │ ... │ ┃
+┃  Timestamp            ┃ └────────────────┴────────────────┴─────┘ ┃
+┃                       ┃                                           ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+```
+
+A hash digest is a tamper-proof mechanism that maps an input value to a
+fixed-sized output. Think of it as a way to assign an identifier to a piece of
+content, such that the identifier depends on the content itself: change the
+content, change the identifier.
+
+A chain is formed by including in every block header:
+
+- a hash of the block body; and
+- a header hash of the previous block.
+
+Changing any transaction in a block will change the block body hash, thus
+changing the block header hash, the header hash of the next block, and so on,
+invalidating the entire chain that follows.
+
+```
+        ____          ____          ____          ____          ____
+       /    /\       /    /\       /    /\       /    /\       /    /\
+o ❮❮  /____/  \ ❮❮  /____/  \ ❮❮  /____/  \ ❮❮  /____/  \ ❮❮  /____/  \ ...
+      \    \  /     \    \  /     \    \  /     \    \  /     \    \  /
+╿      \____\/       \____\/       \____\/       \____\/       \____\/
+│
+│                                     ╿
+│                                     │
+└ Genesis configuration               │
+                                      └ Block
+```
+
+A transaction is, therefore, the most fundamental primitive on blockchains.
+They are the mechanism whereby users (a.k.a you) can take actions to change the
+state of the blockchain. A chain starts from an initial state typically
+referred to as _genesis configuration_. And from there, transactions map a
+previous state into a new state. Finally, blocks are merely there to batch
+transactions together.
+
+## Unspent Transaction Outputs
+
+In the traditional database world, a _transaction_ is a means to bundle
+together a series of atomic operations so that all are successful or none
+happen. In the financial world, it is a way to transfer assets from one
+location to another.
+
+In the blockchain world, it is a bit of both.
+
+A transaction is, first and foremost, an object with an input from where it
+takes assets and an output to where it sends them. Often, as is the case in
+Cardano, transactions have many inputs and many outputs. And, in addition to
+inputs and outputs, blockchain protocols often include other elements that
+modify different parts of the blockchain state (e.g. delegation certificates,
+governance votes, user-defined assets definitions...)
+
+More so, like in the database world, a transaction is an all-or-nothing atomic
+series of commands. Either it is valid, and all its changes are applied, or it
+isn't, and none are applied.
+
+We'll talk more about other capabilities later. For now, let's focus on inputs
+and outputs, starting with the outputs.
+
+### Outputs
+
+In Cardano, an output is an object that describes at least two things:
+
+- a quantity of assets -- also known as, a _value_;
+- a condition for spending (and/or delegating) those assets -- also known as an _address_.
+
+In addition, a data payload can also be added to outputs but let's not bother
+with that just now. The role of the value is pretty transparent, and it
+indicates how many assets the output holds.
+
+Incidentally, Cardano supports two kinds of assets: the main protocol currency
+(a.k.a. Ada); and user-defined currencies. Both live side-by-side in values
+though slightly different rules apply to each.
+
+The address captures the logic that tells the protocol under what conditions
+one can utilize the assets at a particular output. It is what defines ownership
+of the assets. We'll explore this very soon. Bear with us a little more.
+
+```console filename="Output"
+┏━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┓
+┃         ┃           ┃                ┃
+┃  Value  ┃  Address  ┃  Data payload  ┃
+┃         ┃           ┃                ┃
+┗━━━━━━━━━┻━━━━━━━━━━━┻━━━━━━━━━━━━━━━━┛
+```
+
+### Inputs
+
+An input is a reference to a previous output. Think of outputs as post-it notes
+with a unique serial number and inputs as being this serial number.
+
+![](/post-it-notes.jpg)
+
+A transaction is a document indicating which post-it notes should be destroyed
+and which new ones should be pinned to the wall. Note that there are rules
+regarding the construction of transactions. For example, there must be as much
+value in as there's value out. Said differently, the total value should balance
+out but might be shuffled differently.
+
+An output that hasn't been spent yet (i.e. is still on the wall) is called --
+you guessed it -- an _unspent transaction output_, or UTxO in short. The
+blockchain state results from looking at the entire wall of remaining post-it
+notes. In addition to all of the available UTxOs, the state also includes any additional data
+defined by the protocol.
+
+Okay, back to inputs.
+
+Technically speaking, an input's _"serial number"_ is the hash digest of the
+transaction that emitted the output it refers to and the position of the output
+within that transaction. These two elements make each input unique. And because
+outputs are removed from the available set (the post-it note is destroyed) when
+spent, they can only be spent once. This is ensured by the blockchain
+protocol.
+
+```console filename="Input"
+┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┓
+┃                    ┃                ┃
+┃  Transaction hash  ┃  Output index  ┃
+┃                    ┃                ┃
+┗━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━┛
+```
+
+<Callout type="info">
+Where do the first outputs come from?
+
+If you've carefully followed the narrative we just went through, you might have
+realized that we have a chicken-and-egg situation. Inputs are references to
+outputs. And outputs are created by spending inputs.
+
+This is what the genesis configuration is for. It defines the starting point of
+the blockchain in the form of an agreed-upon initial list of outputs. Those
+outputs can be referred to using some special identifiers. For example, the
+genesis configuration hash digest and the output's position in the
+configuration.
+
+How the genesis configuration comes to be is also an interesting question but
+out of the scope of the current course. In the case of Cardano, the initial
+distribution resulted from an initial token vouchers sale where a portion of the
+total Ada supply was sold in the form of vouchers to stakeholders before the
+launch of the network.
+
+</Callout>
+
+### TL;DR
+
+Let's quickly recap what we've seen so far:
+
+- A blockchain has an initial state called a _genesis configuration_;
+- A _transaction_ captures instructions to modify that state (e.g. transfer of assets);
+- A _block_ batches transactions together and has a reference to a parent block;
+- Assets movement are expressed using _inputs_ and _outputs_ in transactions;
+- An _output_ is an object with at least an _address_ and a _value_;
+- An _address_ describes the conditions needed to use the _value_ associated with it;
+- An _input_ is a reference to a previous _output_.
+
+## Addresses
+
+### Overview
+
+It is now time to delve more into Cardano addresses. A typical address is made
+of 2 or 3 parts:
+
+```console filename="Address"
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃          ┃                       ┃                          ┃
+┃  Header  ┃  Payment credentials  ┃  Delegation credentials  ┃
+┃          ┃                       ┃                          ┃
+┗━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+```
+
+We said 2 or 3 because the last part -- the delegation credentials -- is
+optional. The first part is called the `Header`, and it describes the type of
+address (i.e. what comes next) and the network within which this address can be
+used. We call that last bit a _network discriminant_ and it prevents silly
+mistakes like sending real Mainnet funds to a test address. An address is
+represented as a sequence of bytes, usually encoded using
+[bech32](https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki#user-content-Introduction)
+or simply [base16](https://en.wikipedia.org/wiki/Hexadecimal) text strings.
+
+For example:
+
+```console filename="An address (bech32)"
+addr1x8phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gt7r0vd4msrxnuwnccdxlhdjar77j6lg0wypcc9uar5d2shskhj42g
+```
+
+or alternatively
+
+```console filename="The same address (base16)"
+31c37b1b5dc0669f1d3c61a6fddb2e8fde96be87b881c60bce8e8d542fc37b1b5dc0669f1d3c61a6fddb2e8fde96be87b881c60bce8e8d542f
+```
+
+We can dissect the latter text string to make the three parts mentioned above more apparent:
+
+```
+               Type = 3 ┐┌ Network = 1 (1 = mainnet, 0 = testnet)
+                        ││
+                        ╽╽
+Header:                 31
+Payment credentials:    c37b1b5dc0669f1d3c61a6fddb2e8fde96be87b881c60bce8e8d542f
+Delegation credentials: c37b1b5dc0669f1d3c61a6fddb2e8fde96be87b881c60bce8e8d542f
+```
+
+As we can see, this address is a type 3, is for mainnet and uses the same
+credentials for both the payment and the delegation part.
+
+<Callout type="info">
+  You will often need to convert back-and-forth between bech32-encoded strings
+  and hex-encoded strings. A great command-line tool for working with bech32 can
+  be found at
+  [input-output-hk/bech32](https://github.com/input-output-hk/bech32#bech32-command-line).
+  Use it!
+</Callout>
+
+### Payment credentials
+
+The next part is the _payment credentials_, also called the _payment part_.
+This is what describes the spending conditions for the address. Remember how
+UTxOs are like post-it notes on a wall? Well, you don't get to hang them or pick
+them up directly yourself. You have to hand over a _transaction_ to the network
+validators. Imagine an employee who's gatekeeping the wall of post-it notes and
+to whom you must give a form that describes what you want to do. Written on each post-it
+note are the conditions that must be met before it can be picked up and destroyed. That's what the payment credentials are for in the address. They come in
+one of two forms:
+
+- a verification key hash digest; or
+- a script hash digest.
+
+In the first form, the validator nodes -- or the employee -- will ask you to
+provide a digital signature from the signing key corresponding to the
+verification key. This approach relies on asymmetric cryptography, where one
+generates credentials as a public (verification) and private (signing) key
+pair. In the address, we store only a hash digest of the verification key for
+conciseness and to avoid revealing it too early (even though it is public
+material). When spending from such an address, one must reveal the public key
+and show a signature of the entire transaction as _witnesses_ (a.k.a proofs).
+This way of specifying spending conditions is relatively straightforward but
+also constrained because it doesn't allow for expressing any elaborate logic.
+
+This is where the second form gets more interesting. Cardano allows locking
+funds using a script representing the validation logic that must be satisfied
+to spend funds guarded by the address. We typically call such addresses
+"_script addresses_". Similarly to the first form, the entire script must be
+provided as a witness by any transaction spending from a script address, as
+well as any other elements required by the script. Scripts are like predicates.
+Said differently, they are functions that return a boolean value: `True` or
+`False`. To be considered valid, all scripts in a transaction must return
+`True`. We'll explore how this mechanism works in a short moment.
+
+### Delegation credentials
+
+Addresses may also contain _delegation credentials_, also called a _delegation
+part_. We will only go a little into the details here, but think of the delegation
+credentials as a way to control what can be done with the _stake_ associated with
+the address. The _stake_ corresponds to the Ada quantity in the output's value
+that the consensus protocol counts to elect block producers. In Cardano,
+the stake can be delegated to registered entities called stake pools. By
+delegating, one indicates that the stake associated with an output should be
+counted as if it belonged to the delegatee, increasing their chance of
+producing a block. In return, the delegatee agrees to share a portion of their
+block-producing rewards with the delegator.
+
+While the payment credentials control how to **spend** an output, delegation
+credentials control two separate operations:
+
+- how to **publish** a delegation certificate (e.g. to delegate stake to a stake pool);
+- how to **withdraw** rewards associated with the stake credentials.
+
+Like payment credentials, delegation credentials comes in two forms: as
+verification key hash digest or as script hash digest.
+
+<Callout type="info">
+  More information about addresses and how they work can be found in
+  [CIP-0019](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0019/#readme)
+</Callout>
+
+### TL;DR
+
+#
+
+```console filename="Address"
+                        ┌ For spending
+                        │
+                        ╽
+┏━ Header ━━━━━━━━━━━━━┳━ Payment credentials ━━━━━━━┳━ Delegation credentials ━━━━┓
+┃                      ┃                             ┃                             ┃
+┃                      ┃  ┌───────────────────────┐  ┃  ┌───────────────────────┐  ┃
+┃  ┌──────┬─────────┐  ┃  │ Verification key hash │  ┃  │ Verification key hash │  ┃
+┃  │ Type │ Network │  ┃  ├────────── OR ─────────┤  ┃  ├────────── OR ─────────┤  ┃
+┃  └──────┴─────────┘  ┃  │      Script hash      │  ┃  │      Script hash      │  ┃
+┃                      ┃  └───────────────────────┘  ┃  └───────────────────────┘  ┃
+┃                      ┃                             ┃                             ┃
+┗━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                                      ╿
+                                                      │
+                                                      └ For:
+                                                          - publishing certificates
+                                                          - withdrawing rewards
+```
+
+Before we move on, let's recap again:
+
+- An _address_ is made up of either 2 or 3 parts: it always contains a _header_ and _payment credentials_, and may optionally also contain _delegation credentials_;
+- The _header_ describes the _type_ of address and the _network_ it is for;
+- the _delegation credentials_ part, while optional, is still <u>highly recommended</u>;
+- Credentials (payment or delegation) take one of two forms:
+  - a verification key hash;
+  - a script hash;
+- Payment credentials control how to **spend** from an _address_;
+- Delegation credentials control how to **publish** certificates and how to **withdraw** rewards;
+- A script allows the definition of arbitrary validation logic.
+
+## Scripts, Datums and Redeemers
+
+### Overview
+
+Hang in there! We are almost at the end of this crash course. We've had a look at what
+UTxOs are and what addresses are made of, and we spoke a bit about scripts. In
+particular, we said that scripts are like predicates: that is, pure functions
+(in the mathematical sense) that take a transaction as an argument and return
+either `True` or `False`.
+
+Well, _not exactly_. We lied to you (but only a tiny bit).
+
+If we only had that, it would be hard to express more elaborate logic. In
+particular, capturing a state, which programs often require, would be
+infeasible. A state and transitions from that state. This is where the
+_extended UTxO_ model comes in. It adds two new components to what we've
+already seen: datums and redeemers.
+
+We mentioned the datum earlier without calling it a datum when we said that
+outputs contained a value, an address and a data payload. This is what the
+datum is, a free payload that developers can use to attach data to script
+execution. When a script is executed in a spending scenario, it receives not
+only the transaction as context but also the datum associated with the output
+being spent.
+
+The redeemer, on the other hand, is another piece of data that is also provided
+with the transaction for any script execution. Notice that the datum and
+redeemer intervene at two distinct moments. A datum is set when the output is
+created (i.e. when the post-it note is hung on the wall, it is part of the
+note). In contrast,  the redeemer is provided only when spending the output (i.e.
+provided along with the form as it is handed over to the employee).
+
+### Analogy
+
+Another way to look at scripts, datums and redeemers is to think of them together as forming
+parameterised mathematical functions.
+
+```console filename="Script, datum and redeemer"
+             Script
+          ╭─────────╮
+    f(x) = x * a + b  = true | false
+           ╿   ╿   ╿
+  Redeemer ┘   │   │
+               └─┬─┘
+               Datum
+```
+
+The script defines the function as a whole. It indicates how the parameters and
+arguments are combined to produce a boolean outcome. The datum corresponds to
+the parameters of the function. It allows _configuring the function_ and
+re-using a similar validation logic with different settings. Both the function
+and the parameters are defined when assets are locked in an output. Which
+leaves only the function argument to be later provided. That argument is the
+redeemer (as well as the rest of the transaction).
+
+This is why scripts are often referred to as _validators_. Unlike some other
+blockchain systems, they are also, therefore, fully deterministic. Their
+execution only depends on the transaction they're involved with, and evaluating
+the transaction's outcome is possible before sending it to the network. Datums
+act as local states, and redeemers are user inputs provided in the transaction
+itself.
+
+<Callout type="info">
+  If we take a step back and look at the typical public/private key procedure
+  for spending funds, we can see how eUTxO is merely a generalization of that.
+  Indeed, the public key (hash) can be seen as _the datum_, whereas the
+  signature is the _redeemer_. The script is the digital signature verification
+  algorithm that controls whether the signature is valid w.r.t. the provided key.
+</Callout>
+
+### Purposes
+
+So far, we've mostly talked about scripts in the context of validating whether
+an output can be spent. We've also briefly mentioned earlier how scripts can be
+used to control the publication of delegation certificates or how consensus
+rewards can be withdrawn.
+
+These different use cases are commonly referred to as script purposes. Until
+now, we've seen three purposes: `spend`, `publish` and `withdraw`. There are
+three more: `mint`, `vote` and `propose`
+
+Each purpose indicates _for what purpose_ a script is being executed. During
+validation, that information is passed to the script alongside the transaction
+and the redeemer. Note that only scripts executed with the `spend` purpose are
+given a datum. This is because they can leverage the data payload present in
+outputs, unlike the other purposes that do not get this opportunity.
+
+#### Mint
+
+The mint purpose refers to scripts that are executed to validate whether
+user-defined assets can be minted (i.e. created) or burned (i.e. destroyed).
+Cardano indeed supports user-defined assets which are used to represent both
+fungible quantities (like a protocol currency) or non-fungible quantities
+(a.k.a NFTs).
+
+The rules that govern the creation or destruction of an asset are defined as a
+script. We often refer to such scripts as _minting policies_, which correspond
+to the `mint` purpose above.
+
+#### Vote
+
+The vote purpose validates governance votes from script delegate
+representative. It is executed once per transaction per delegate credential,
+even if the transaction contains in fact multiple votes. This is handy to
+build more complex delegate representative than mere public keys; for example,
+to emulate a hot/cold key setup.
+
+#### Propose
+
+Finally, the propose purpose is a very unique one since there can only be one
+script in the entire ledger that may execute that purpose: the constitution
+guardrails script. That script is (optionally) defined with the on-chain
+constitution, and is executed by ledger for every transaction that is proposing
+a governance action. Its goal is to ensure that some proposals are rejected
+from the get-go to prevent spam with ill-advised proposals on the network -- in
+particular with regards to protocol parameters.
+
+For example, a proposal that would lower the block size from its current value
+to zero would completely incapacitate the chain and has little chance of being ever
+accepted anyway. The guardrails script can prevent that to even be submitted.
+In principle, it is a programmatic enforcement of the constitution.
+
+### TL;DR
+
+And we've reached the end of this crash course. Let's do a final recap
+regarding scripts, datums and redeemers.
+
+- _Scripts_ are akin to parameterized predicate functions, returning either true or false.
+- _Datums_ take the role of function parameters, whereas _redeemers_ the one of argument.
+- _Scripts_ are also called _validators_ and are completely deterministic.
+- _Scripts_ are used to validate specific operations in a transaction.
+- What a _script_ is used for is referred to as its _purpose_. There are 6 purposes:
+  - `mint` -- controls how to mint or burn assets;
+  - `spend` -- controls how to spend outputs;
+  - `withdraw` -- controls how to withdraw consensus rewards;
+  - `publish` -- controls how to publish delegation certificates;
+  - `vote` -- controls how to vote on proposal procedures;
+  - `propose` -- controls constitutionality of proposal procedures.
+- Only _spending scripts_ (i.e. purpose=spend) have access to a datum.

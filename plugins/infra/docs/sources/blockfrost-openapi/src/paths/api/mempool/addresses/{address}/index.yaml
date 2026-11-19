@@ -1,0 +1,67 @@
+get:
+  tags:
+    - Cardano » Mempool
+  summary: Mempool by address
+  description: |
+    List of mempool transactions where at least one of the transaction inputs or outputs belongs to the address.
+    Shows only transactions submitted via Blockfrost.io.
+
+    <p>
+      <span class="hosted">Hosted</span> Endpoint only available for hosted variant.
+    </p>
+  parameters:
+    - in: path
+      name: address
+      required: true
+      schema:
+        type: string
+        format: 64-character case-sensitive hexadecimal string.
+      description: Bech32 address.
+      example: "addr1qxqs59lphg8g6qndelq8xwqn60ag3aeyfcp33c2kdp46a09re5df3pzwwmyq946axfcejy5n4x0y99wqpgtp2gd0k09qsgy6pz"
+    - in: query
+      name: count
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 100
+      description: The number of results displayed on one page.
+    - in: query
+      name: page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 21474836
+        default: 1
+      description: The page number for listing the results.
+    - in: query
+      name: order
+      required: false
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: asc
+      description: |
+        Ordered by the time of transaction submission.
+        By default, we return oldest first, newest last.
+  responses:
+    "200":
+      description: Return the contents of the mempool
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../../schemas/mempool/mempool_addresses_content.yaml
+    "400":
+      $ref: ../../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../../responses/errors/500.yaml

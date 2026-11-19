@@ -1,0 +1,502 @@
+---
+title: "Wallet UI Components"
+description: "Pre-built React components for wallet connections, badges, and common Cardano dApp UI patterns."
+---
+
+import Link from "next/link";
+
+## Overview
+
+Mesh provides ready-to-use React components for common Cardano dApp patterns. These components handle wallet connections, display branding, and provide consistent UI across your application.
+
+**Available components:**
+
+- `CardanoWallet` - A complete wallet connection button with modal
+- `MeshBadge` - A "Powered by Mesh" badge for your app
+
+## Quick Start
+
+Add a wallet connection button to your app:
+
+```tsx
+import { MeshProvider, CardanoWallet } from "@meshsdk/react";
+import "@meshsdk/react/styles.css";
+
+export default function App() {
+  return (
+    <MeshProvider>
+      <CardanoWallet />
+    </MeshProvider>
+  );
+}
+```
+
+## Installation
+
+```bash
+npm install @meshsdk/react
+```
+
+Import the styles in your app root:
+
+```tsx
+import "@meshsdk/react/styles.css";
+```
+
+---
+
+## CardanoWallet
+
+A complete wallet connection component that displays available wallets and handles the connection flow.
+
+### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `label` | `string` | `"Connect Wallet"` | Button text when no wallet is connected |
+| `isDark` | `boolean` | `false` | Enable dark mode styling |
+| `persist` | `boolean` | `false` | Save wallet choice and auto-connect on return |
+| `onConnected` | `() => void` | `undefined` | Callback fired after successful connection |
+| `web3Services` | `Web3ServicesConfig` | `undefined` | Mesh Web3 Services integration |
+| `cardanoPeerConnect` | `CardanoPeerConnectConfig` | `undefined` | CIP-45 WebRTC configuration |
+| `burnerWallet` | `BurnerWalletConfig` | `undefined` | Enable temporary test wallets |
+| `injectFn` | `() => Promise<void>` | `undefined` | Custom wallet injection function |
+
+### Basic Usage
+
+```tsx
+import { CardanoWallet } from "@meshsdk/react";
+
+export default function Page() {
+  return <CardanoWallet />;
+}
+```
+
+### Dark Mode
+
+Apply dark theme styling:
+
+```tsx
+import { CardanoWallet } from "@meshsdk/react";
+
+export default function Page() {
+  return <CardanoWallet isDark={true} />;
+}
+```
+
+### Custom Label
+
+Change the button text:
+
+```tsx
+import { CardanoWallet } from "@meshsdk/react";
+
+export default function Page() {
+  return <CardanoWallet label="Sign In with Wallet" />;
+}
+```
+
+### Session Persistence
+
+Remember the user's wallet choice and automatically reconnect:
+
+```tsx
+import { CardanoWallet } from "@meshsdk/react";
+
+export default function Page() {
+  return <CardanoWallet persist={true} />;
+}
+```
+
+### Connection Callback
+
+Execute code after successful wallet connection:
+
+```tsx
+import { CardanoWallet } from "@meshsdk/react";
+
+export default function Page() {
+  const handleConnected = () => {
+    console.log("Wallet connected!");
+    // Fetch user data, redirect, etc.
+  };
+
+  return <CardanoWallet onConnected={handleConnected} />;
+}
+```
+
+### Mesh Web3 Services
+
+Integrate [Mesh Web3 Services](https://utxos.dev/) for enhanced features like transaction submission and data fetching:
+
+```tsx
+import { CardanoWallet } from "@meshsdk/react";
+import { BlockfrostProvider } from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_BLOCKFROST_API_KEY>");
+
+export default function Page() {
+  return (
+    <CardanoWallet
+      web3Services={{
+        networkId: 0, // 0 = preprod/preview, 1 = mainnet
+        fetcher: provider,
+        submitter: provider,
+      }}
+    />
+  );
+}
+```
+
+### CIP-45 WebRTC Connection
+
+Enable decentralized peer-to-peer wallet communication:
+
+```tsx
+import { CardanoWallet } from "@meshsdk/react";
+
+export default function Page() {
+  return (
+    <CardanoWallet
+      cardanoPeerConnect={{
+        dAppInfo: {
+          name: "My dApp",
+          url: "https://mydapp.com",
+        },
+        announce: [
+          "wss://dev.btt.cf-identity-wallet.metadata.dev.cf-deployments.org",
+        ],
+      }}
+    />
+  );
+}
+```
+
+### Burner Wallet
+
+Enable temporary wallets for development and testing. The private keys are generated and stored on the user's device:
+
+```tsx
+import { CardanoWallet } from "@meshsdk/react";
+import { BlockfrostProvider } from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_BLOCKFROST_API_KEY>");
+
+export default function Page() {
+  return (
+    <CardanoWallet
+      burnerWallet={{
+        networkId: 0,
+        provider: provider,
+      }}
+    />
+  );
+}
+```
+
+### MetaMask Snaps
+
+Inject custom wallet functionality for MetaMask Snaps integration:
+
+```tsx
+import { CardanoWallet } from "@meshsdk/react";
+import { checkIfMetamaskInstalled } from "./metamask-utils";
+
+export default function Page() {
+  return (
+    <CardanoWallet
+      injectFn={async () => await checkIfMetamaskInstalled("preprod")}
+    />
+  );
+}
+```
+
+### Complete Example with All Options
+
+```tsx
+import { CardanoWallet } from "@meshsdk/react";
+import { BlockfrostProvider } from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_BLOCKFROST_API_KEY>");
+
+export default function Page() {
+  const handleConnected = () => {
+    console.log("Wallet connected successfully");
+  };
+
+  return (
+    <CardanoWallet
+      label="Connect a Wallet"
+      isDark={true}
+      persist={true}
+      onConnected={handleConnected}
+      cardanoPeerConnect={{
+        dAppInfo: {
+          name: "Mesh SDK",
+          url: "https://meshjs.dev/",
+        },
+        announce: [
+          "wss://dev.btt.cf-identity-wallet.metadata.dev.cf-deployments.org",
+        ],
+      }}
+      burnerWallet={{
+        networkId: 0,
+        provider: provider,
+      }}
+    />
+  );
+}
+```
+
+### Building a Custom Wallet Component
+
+For advanced customization beyond what `CardanoWallet` provides, build your own component using the [wallet hooks](/docs/react/wallet-hooks):
+
+```tsx
+import { useWallet, useWalletList } from "@meshsdk/react";
+
+export default function CustomWalletConnect() {
+  const { connect, disconnect, connected, name } = useWallet();
+  const wallets = useWalletList();
+
+  if (connected) {
+    return (
+      <div>
+        <span>Connected: {name}</span>
+        <button onClick={disconnect}>Disconnect</button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {wallets.map((wallet) => (
+        <button
+          key={wallet.name}
+          onClick={() => connect(wallet.name)}
+        >
+          <img src={wallet.icon} alt={wallet.name} width={24} />
+          {wallet.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+See the [source code](https://github.com/MeshJS/mesh/blob/main/packages/mesh-react/src/cardano-wallet/index.tsx) for implementation details.
+
+---
+
+## MeshBadge
+
+Display a "Powered by Mesh" badge in your application to show your support.
+
+### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `isDark` | `boolean` | `false` | Enable dark mode styling |
+
+### Basic Usage
+
+```tsx
+import { MeshBadge } from "@meshsdk/react";
+
+export default function Footer() {
+  return (
+    <footer>
+      <MeshBadge />
+    </footer>
+  );
+}
+```
+
+### Dark Mode
+
+```tsx
+import { MeshBadge } from "@meshsdk/react";
+
+export default function Footer() {
+  return (
+    <footer>
+      <MeshBadge isDark={true} />
+    </footer>
+  );
+}
+```
+
+### Complete Footer Example
+
+```tsx
+import { MeshBadge } from "@meshsdk/react";
+
+export default function Footer() {
+  return (
+    <footer className="border-t py-8">
+      <div className="container mx-auto flex justify-between items-center">
+        <p>2024 My Cardano dApp</p>
+        <MeshBadge isDark={false} />
+      </div>
+    </footer>
+  );
+}
+```
+
+---
+
+## Complete Example
+
+A full application using all UI components:
+
+```tsx
+// pages/_app.tsx
+import "@meshsdk/react/styles.css";
+import { MeshProvider } from "@meshsdk/react";
+import type { AppProps } from "next/app";
+
+export default function App({ Component, pageProps }: AppProps) {
+  return (
+    <MeshProvider>
+      <Component {...pageProps} />
+    </MeshProvider>
+  );
+}
+```
+
+```tsx
+// pages/index.tsx
+import { CardanoWallet, MeshBadge, useWallet, useLovelace } from "@meshsdk/react";
+
+export default function Home() {
+  const { connected, name } = useWallet();
+  const lovelace = useLovelace();
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      {/* Header */}
+      <header className="border-b p-4 flex justify-between items-center">
+        <h1 className="text-xl font-bold">My Cardano dApp</h1>
+        <CardanoWallet
+          label="Connect"
+          isDark={true}
+          persist={true}
+        />
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 p-8">
+        {connected ? (
+          <div>
+            <h2>Welcome!</h2>
+            <p>Wallet: {name}</p>
+            <p>Balance: {lovelace ? (parseInt(lovelace) / 1_000_000).toFixed(2) : "0"} ADA</p>
+          </div>
+        ) : (
+          <div>
+            <h2>Connect your wallet to get started</h2>
+            <p>Click the button above to connect your Cardano wallet.</p>
+          </div>
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t p-4 flex justify-center">
+        <MeshBadge />
+      </footer>
+    </div>
+  );
+}
+```
+
+---
+
+## Troubleshooting
+
+### Components appear unstyled
+
+**Problem:** CardanoWallet or MeshBadge render without styling.
+
+**Solution:** Import the CSS file in your app root:
+
+```tsx
+// pages/_app.tsx or app/layout.tsx
+import "@meshsdk/react/styles.css";
+```
+
+### "Cannot find MeshProvider" error
+
+**Problem:** Components throw an error about missing context.
+
+**Solution:** Wrap your app with `MeshProvider`:
+
+```tsx
+import { MeshProvider } from "@meshsdk/react";
+
+export default function App({ Component, pageProps }) {
+  return (
+    <MeshProvider>
+      <Component {...pageProps} />
+    </MeshProvider>
+  );
+}
+```
+
+### Wallet modal doesn't open
+
+**Problem:** Clicking the wallet button does nothing.
+
+**Solutions:**
+1. Check browser console for JavaScript errors
+2. Ensure you have wallet extensions installed
+3. Verify the CSS is loaded (button should have hover effects)
+
+### Dark mode doesn't match my theme
+
+**Problem:** The component dark mode doesn't match your app's theme.
+
+**Solution:** Build a custom component using the [wallet hooks](/docs/react/wallet-hooks) for full control over styling:
+
+```tsx
+import { useWallet, useWalletList } from "@meshsdk/react";
+
+// Your fully custom styled component
+export function MyWalletButton() {
+  const { connect, connected } = useWallet();
+  const wallets = useWalletList();
+  // ... your custom implementation
+}
+```
+
+### onConnected fires before wallet is ready
+
+**Problem:** The callback fires but wallet methods aren't available yet.
+
+**Solution:** Use the `wallet` object from `useWallet()` which is available after `connected` becomes `true`:
+
+```tsx
+import { useWallet } from "@meshsdk/react";
+import { useEffect } from "react";
+
+export default function Page() {
+  const { connected, wallet } = useWallet();
+
+  useEffect(() => {
+    if (connected && wallet) {
+      // Wallet is ready to use
+      wallet.getBalance().then(console.log);
+    }
+  }, [connected, wallet]);
+
+  return <CardanoWallet />;
+}
+```
+
+---
+
+## Related Links
+
+- [Getting Started](/docs/react/getting-started) - Installation and setup
+- [Wallet Hooks](/docs/react/wallet-hooks) - React hooks for wallet data
+- [Browser Wallet API](/apis/wallets/browserwallet) - Full CIP-30 interface
+- [GitHub Source](https://github.com/MeshJS/mesh/tree/main/packages/mesh-react) - Component source code

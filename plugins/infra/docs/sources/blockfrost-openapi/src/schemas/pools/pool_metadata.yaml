@@ -1,0 +1,67 @@
+type: object
+properties:
+  pool_id:
+    type: string
+    example: "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy"
+    description: Bech32 pool ID
+  hex:
+    type: string
+    example: "0f292fcaa02b8b2f9b3c8f9fd8e0bb21abedb692a6d5058df3ef2735"
+    description: Hexadecimal pool ID
+  url:
+    type: string
+    nullable: true
+    example: "https://stakenuts.com/mainnet.json"
+    description: URL to the stake pool metadata
+  hash:
+    type: string
+    nullable: true
+    example: "47c0c68cb57f4a5b4a87bad896fc274678e7aea98e200fa14a1cb40c0cab1d8c"
+    description: Hash of the metadata file
+  error:
+    type: object
+    description: Present when metadata could not be fetched or validated.
+    properties:
+      code:
+        type: string
+        description: Stable machine-readable error code.
+        enum:
+          - HASH_MISMATCH
+          - CONNECTION_ERROR
+          - HTTP_RESPONSE_ERROR
+          - DECODE_ERROR
+          - SIZE_EXCEEDED
+          - UNKNOWN_ERROR
+      message:
+        type: string
+        description: Human-readable description of the error.
+    required: [code, message]
+  ticker:
+    type: string
+    nullable: true
+    example: "NUTS"
+    description: Ticker of the stake pool
+  name:
+    type: string
+    nullable: true
+    example: "Stake Nuts"
+    description: Name of the stake pool
+  description:
+    type: string
+    nullable: true
+    example: "The best pool ever"
+    description: Description of the stake pool
+  homepage:
+    type: string
+    nullable: true
+    example: "https://stakentus.com/"
+    description: Home page of the stake pool
+required:
+  - pool_id
+  - hex
+  - url
+  - hash
+  - ticker
+  - name
+  - description
+  - homepage

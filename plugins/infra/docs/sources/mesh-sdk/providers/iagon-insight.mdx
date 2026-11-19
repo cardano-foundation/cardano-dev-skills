@@ -1,0 +1,389 @@
+---
+title: "Iagon Insight Provider"
+description: "Cardano mainnet data, transaction submission and script evaluation from the Iagon Insight API"
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+<Link href="https://insight.iagon.com">Iagon Insight</Link> is a Cardano mainnet API with a native, a Blockfrost compatible and a Koios compatible surface behind one API key. The provider covers every Mesh provider interface: fetcher, submitter, evaluator and listener.
+
+**Use Iagon Insight when you need:**
+- Mainnet chain data, submission and Plutus script evaluation from one provider
+- Errors you can see: a failed request throws, a wallet never looks empty because a call failed
+- One key that also works with Blockfrost and Koios clients
+
+## Quick Start
+
+Install the MeshJS package:
+
+```bash
+npm install @meshsdk/core
+```
+
+Initialize the provider:
+
+```tsx
+import { IagonInsightProvider } from "@meshsdk/core";
+
+const provider = new IagonInsightProvider("<YOUR_API_KEY>");
+```
+
+Fetch blockchain data and submit a transaction:
+
+```tsx
+const utxos = await provider.fetchAddressUTxOs(
+  "addr1q87g244c2gdexqupxlxcqp53z4q5vt60uwsg8yum3dgvxfupw288a4x0xf8pxgcntelxmyclq83s0ykeehchz2wtspksurc6sw"
+);
+
+const txHash = await provider.submitTx(signedTx);
+```
+
+Get your API key from the <Link href="https://insight.iagon.com">Iagon Insight dashboard</Link>.
+
+## Configuration Options
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `apiKey` | `string` | Yes | Your Iagon Insight API key |
+| `baseUrl` | `string` | No | Defaults to `https://mainnet.insight.iagon.com`. The key is only sent over https |
+
+The provider serves Cardano mainnet.
+
+Keep the key on your server where you can: your backend uses the provider, your page talks to your backend. If a page has to call the API itself, give it a key of its own with a small daily limit and a list of the websites it runs on, both set in the dashboard.
+
+## API Reference
+
+### get
+
+Fetch data from any Iagon Insight endpoint. A path without a leading slash is the Blockfrost compatible surface, `/v1/...` and `/koios/v1/...` work too.
+
+```tsx
+await provider.get(url: string): Promise<any>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `url` | `string` | Yes | The endpoint path |
+
+**Example:**
+
+```tsx
+const block = await provider.get("blocks/latest");
+```
+
+---
+
+### fetchAccountInfo
+
+Retrieve information about a stake account.
+
+```tsx
+await provider.fetchAccountInfo(address: string): Promise<AccountInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | A stake address, or a payment address with a stake part |
+
+**Returns:** `AccountInfo` with balance, rewards, withdrawals and the delegated pool.
+
+**Example:**
+
+```tsx
+const account = await provider.fetchAccountInfo(
+  "stake1uxqh9rn76n8nynsnyvf4ulndjv0srcc8jtvumut3989cqmgjt49h6"
+);
+```
+
+---
+
+### fetchAddressUTxOs
+
+Fetch the UTxOs of an address, optionally only those holding an asset.
+
+```tsx
+await provider.fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | The address (bech32) |
+| `asset` | `string` | No | Policy ID and hex asset name run together |
+
+**Returns:** Array of `UTxO`, with inline datums and reference scripts. An address without UTxOs, or an asset it does not hold, gives `[]`. A failed request throws.
+
+**Example:**
+
+```tsx
+const utxos = await provider.fetchAddressUTxOs(
+  "addr1q87g244c2gdexqupxlxcqp53z4q5vt60uwsg8yum3dgvxfupw288a4x0xf8pxgcntelxmyclq83s0ykeehchz2wtspksurc6sw",
+  "a5039068cb2b3ebcf874c0a4b012f19409befcf99e38c34c080af9d552686f6469756d436f696e"
+);
+```
+
+---
+
+### fetchAddressTxs
+
+Fetch the transactions of an address.
+
+```tsx
+await provider.fetchAddressTxs(address: string, options?: IFetcherOptions): Promise<TransactionInfo[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | The address (bech32) |
+| `options` | `IFetcherOptions` | No | `maxPage` pages of 100, `order` `"asc"` or `"desc"` |
+
+**Example:**
+
+```tsx
+const txs = await provider.fetchAddressTxs("addr1...", { maxPage: 1, order: "desc" });
+```
+
+---
+
+### fetchAssetAddresses
+
+Fetch the addresses holding an asset, with their quantity.
+
+```tsx
+await provider.fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `asset` | `string` | Yes | Policy ID and hex asset name run together |
+
+---
+
+### fetchAssetMetadata
+
+Fetch the on-chain metadata of an asset, with fingerprint, total supply and mint count.
+
+```tsx
+await provider.fetchAssetMetadata(asset: string): Promise<AssetMetadata>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `asset` | `string` | Yes | Policy ID and hex asset name run together |
+
+---
+
+### fetchBlockInfo
+
+Fetch a block by hash or height.
+
+```tsx
+await provider.fetchBlockInfo(hash: string): Promise<BlockInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `hash` | `string` | Yes | Block hash or height |
+
+---
+
+### fetchCollectionAssets
+
+Fetch the assets of a policy, 100 per page.
+
+```tsx
+await provider.fetchCollectionAssets(policyId: string, cursor?: number | string): Promise<{ assets: Asset[]; next: number | null }>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `policyId` | `string` | Yes | The policy ID |
+| `cursor` | `number \| string` | No | Page to start at, `next` from the previous answer |
+
+---
+
+### fetchProtocolParameters
+
+Fetch the protocol parameters of the current or a given epoch.
+
+```tsx
+await provider.fetchProtocolParameters(epoch?: number): Promise<Protocol>
+```
+
+---
+
+### fetchCostModels
+
+Fetch the Plutus V1, V2 and V3 cost models of the current or a given epoch.
+
+```tsx
+await provider.fetchCostModels(epoch?: number): Promise<number[][]>
+```
+
+---
+
+### fetchTxInfo
+
+Fetch a transaction with its inputs and outputs.
+
+```tsx
+await provider.fetchTxInfo(hash: string): Promise<TransactionInfo>
+```
+
+---
+
+### fetchUTxOs
+
+Fetch the outputs of a transaction, optionally only one of them.
+
+```tsx
+await provider.fetchUTxOs(hash: string, index?: number): Promise<UTxO[]>
+```
+
+---
+
+### fetchGovernanceProposal
+
+Fetch a governance proposal with its metadata.
+
+```tsx
+await provider.fetchGovernanceProposal(txHash: string, certIndex: number): Promise<GovernanceProposalInfo>
+```
+
+---
+
+### evaluateTx
+
+Evaluate the scripts of a transaction and get the execution units of each redeemer. Evaluation runs on the Iagon Insight API, one at a time per account. A `429` or `503` with a short `Retry-After` is asked again, at most twice.
+
+```tsx
+await provider.evaluateTx(tx: string, additionalUtxos?: UTxO[], additionalTxs?: string[]): Promise<Omit<Action, "data">[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tx` | `string` | Yes | The transaction as CBOR hex |
+| `additionalUtxos` | `UTxO[]` | No | Outputs the transaction spends that are not on chain yet |
+| `additionalTxs` | `string[]` | No | Unconfirmed transactions whose outputs it spends, as CBOR hex |
+
+**Example:**
+
+```tsx
+import { MeshTxBuilder } from "@meshsdk/core";
+
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  evaluator: provider,
+});
+```
+
+---
+
+### submitTx
+
+Submit a signed transaction. It is never sent twice: a submit that timed out may already have reached the node.
+
+```tsx
+await provider.submitTx(tx: string): Promise<string>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tx` | `string` | Yes | The signed transaction as CBOR hex |
+
+**Returns:** The transaction hash.
+
+---
+
+### onTxConfirmed
+
+Call back once a transaction is in a block that has a block on top of it.
+
+```tsx
+provider.onTxConfirmed(txHash: string, callback: () => void, limit?: number): void
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `txHash` | `string` | Yes | The transaction hash |
+| `callback` | `() => void` | Yes | Called once confirmed |
+| `limit` | `number` | No | Attempts, 5 seconds apart. Default 100 |
+
+## Complete Example
+
+```tsx
+import { IagonInsightProvider, MeshTxBuilder, MeshWallet } from "@meshsdk/core";
+
+const provider = new IagonInsightProvider("<YOUR_API_KEY>");
+
+const wallet = new MeshWallet({
+  networkId: 1,
+  fetcher: provider,
+  submitter: provider,
+  key: { type: "mnemonic", words: ["..."] },
+});
+await wallet.init();
+
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  evaluator: provider,
+});
+
+const unsignedTx = await txBuilder
+  .txOut("addr1...", [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(await wallet.getChangeAddress())
+  .selectUtxosFrom(await wallet.getUtxos())
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await provider.submitTx(signedTx);
+
+provider.onTxConfirmed(txHash, () => {
+  console.log("Transaction confirmed");
+});
+```
+
+## Troubleshooting
+
+### Invalid API Key
+
+**Problem:** Requests fail with `401`, or `403` on the Blockfrost compatible paths.
+
+**Solution:** Check the key in the <Link href="https://insight.iagon.com">dashboard</Link>. A revoked key gets the same answer as an unknown one.
+
+### Key Not Allowed
+
+**Problem:** Requests fail with `403` and a message about the origin or website.
+
+**Solution:** The key is limited to IP addresses or websites in the dashboard. A key with a website list only answers browsers on those websites, so your backend needs a key of its own.
+
+### No Credits
+
+**Problem:** Requests fail with `402`.
+
+**Solution:** The account has no credits left. Add credits in the dashboard.
+
+### Rate Limiting
+
+**Problem:** Requests fail with `429`.
+
+**Solution:** A rate or daily limit was reached. The answer carries `Retry-After` in seconds.
+
+### Evaluation Fails
+
+**Problem:** `evaluateTx` fails with `422`.
+
+**Solution:** A script failed. The message says which redeemer and why.
+
+## References
+
+- [Iagon Insight](https://insight.iagon.com) - Dashboard, API keys and credits
+- [Iagon Insight API Reference](https://insight.iagon.com/docs/api) - Every endpoint on all three surfaces
+
+## Related Links
+
+- <Link href="https://insight.iagon.com">Iagon Insight Website</Link>
+- <Link href="https://insight.iagon.com/docs/api">Iagon Insight API Documentation</Link>
+- <Link href="/apis/txbuilder/basics">Transaction Builder</Link>
+- <Link href="/apis/wallets">Wallets</Link>

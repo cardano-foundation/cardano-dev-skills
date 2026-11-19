@@ -1,0 +1,82 @@
+---
+sidebar_label: Overview
+title: SanchoNet governance actions
+sidebar_position: 1
+slug: /actions
+---
+
+[CIP-1694](https://cips.cardano.org/cips/cip1694/) describes seven types of governance actions.
+
+| Action                                                              | Description |
+| :---                                                                | :--- |
+| 1. Motion of no-confidence                                          | A motion to create a _state of no-confidence_ in the current constitutional committee |
+| 2. New constitutional committee and/or threshold and/or term limits | Modifications to the members of the constitutional committee, signature threshold, or term limits|
+| 3. Updates to the constitution                                      | Modifications to the off-chain constitution, recorded as an on-chain hash of the text document |
+| 4. Hard fork initiation                                         | A non-backward compatible upgrade of the network, which requires a prior software upgrade |
+| 5. Protocol parameter changes                                       | Any change to **one or more** updatable protocol parameters, excluding changes to major protocol versions ('hard forks') |
+| 6. Treasury withdrawals                                             | Treasury withdrawals are sub-categorized into small, medium, or large and are determined by the amount of lovelace to be withdrawn. |
+| 7. Info                                                             | An action that doesn't have any on-chain impact except for being recorded on-chain. |
+
+Each type of governance action represents a distinct feature within cardano-node and cardano-cli. As such, they will be rolled out in phases, coinciding with the integration of each feature.
+
+## Governance Action Enactment Process
+
+Any ada holder can submit a governance action. Once on chain, specific governance groups need to vote on the action depending on its type. The following 
+table details the ratification requirements for each governance action scenario. The columns represent:
+
+* **Governance action type**<br/>
+  The type of governance action. Note that the protocol parameter updates are grouped into four categories.
+
+* **Constitutional committee (abbrev. CC)**<br/>
+  A value of ✓ indicates that the constitutional committee must approve this action.<br/>
+  A value of - means that constitutional committee votes do not apply.
+
+* **DReps**<br/>
+  The DRep vote threshold that must be met as a percentage of *active voting stake*.
+
+* **SPOs**<br/>
+  The SPO vote threshold which must be met as a percentage of the stake held by all stake pools.<br/>
+  A value of - means that SPO votes do not apply.
+
+| Governance action type                                               | CC | DReps    | SPOs     |
+|:---------------------------------------------------------------------|:---|:---------|:---------|
+| 1. Motion of no-confidence                                           | \- | $P_1$    | $Q_1$    |
+| 2<sub>a</sub>. Update committee/threshold (_normal state_)           | \- | $P_{2a}$ | $Q_{2a}$ |
+| 2<sub>b</sub>. Update committee/threshold (_state of no-confidence_) | \- | $P_{2b}$ | $Q_{2b}$ |
+| 3. New Constitution or Guardrails Script                             | ✓  | $P_3$    | \-       |
+| 4. Hard-fork initiation                                              | ✓  | $P_4$    | $Q_4$    |
+| 5<sub>a</sub>. Protocol parameter changes, network group             | ✓  | $P_{5a}$ | \-       |
+| 5<sub>b</sub>. Protocol parameter changes, economic group            | ✓  | $P_{5b}$ | \-       |
+| 5<sub>c</sub>. Protocol parameter changes, technical group           | ✓  | $P_{5c}$ | \-       |
+| 5<sub>d</sub>. Protocol parameter changes, governance group          | ✓  | $P_{5d}$ | \-       |
+| 6. Treasury withdrawal                                               | ✓  | $P_6$    | \-       |
+| 7. Info 
+
+Each of these thresholds is a governance parameter. There is one
+additional threshold, `Q5`, related to security relevant protocol
+parameters:
+
+The security relevant protocol parameters are:
+* `maxBlockBodySize`
+* `maxTxSize`
+* `maxBlockHeaderSize`
+* `maxValueSize`
+* `maxBlockExecutionUnits`
+* `txFeePerByte`
+* `txFeeFixed`
+* `utxoCostPerByte`
+* `govActionDeposit`
+* `minFeeRefScriptCostPerByte`
+
+To get *ratified*, a governance action needs to accumulate enough votes according to the specified thresholds. A governance action 
+**expires** if it does not receive enough votes during its governance action lifetime.
+
+Ratified governance actions are automatically **enacted** at the epoch boundary following their ratification.
+
+The only exception is when a "Motion of No Confidence" is enacted prior to the enactment of other actions. In that case, the ratified 
+but not yet enacted actions are not enacted. Instead, these actions are put back for voting for the remainder of their lifetime. If a new 
+committee is elected before these actions expire, they can still be ratified, but the new committee must approve them.
+
+![Governance action lifecycle](@site/static/img/gov-act-lifecycle.png)
+
+Check out the [Tutorials](../tutorials/actions.mdx) and [Voting on governance actions](../tutorials/vote-actions.mdx) to learn how to create and vote on governance actions.

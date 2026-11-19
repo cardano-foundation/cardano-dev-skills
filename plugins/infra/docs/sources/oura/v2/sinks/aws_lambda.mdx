@@ -1,0 +1,36 @@
+---
+title: AWS Lambda
+sidebar:
+  order: 41
+---
+
+Invokes an [AWS Lambda](https://aws.amazon.com/lambda/) function for each event, sending the
+json-encoded payload through the AWS API. Use it to trigger custom serverless logic — alerts,
+enrichment, downstream writes — whenever a matching event appears on chain.
+
+The sink processes events in sequence: it invokes the function, waits for the response, then
+moves on to the next event.
+
+:::note
+Authentication uses the standard AWS provider chain — no credentials go in the config. See
+[AWS credentials](/oura/v2/sinks/#aws-credentials) for the supported options.
+:::
+
+## Configuration
+
+```toml title="daemon.toml"
+[sink]
+type = "AwsLambda"
+region = "us-east-1"
+function_name = "my-lambda"
+```
+
+- `type` (required): the literal value `AwsLambda`.
+- `region` (required): the AWS region where the function lives.
+- `function_name` (required): the ARN of the function to invoke.
+
+:::caution[Retries cover dispatch, not execution]
+Oura retries failures to *dispatch* the call, but not failures *inside* the function. Whether
+the function succeeds or not, the sink advances to the next event — so the function itself must
+handle its own errors and idempotency.
+:::

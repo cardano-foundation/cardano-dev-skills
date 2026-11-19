@@ -1,0 +1,93 @@
+---
+title: "Yaci - Local Cardano Devnet"
+description: "Spin up a local Cardano development network in seconds. Build and test smart contracts without mainnet fees or delays."
+icon: "icons/yaci.png"
+---
+
+import { linksYaci } from "@/data/links-yaci";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+## Overview
+
+Yaci DevKit provides a customizable Cardano devnet that you can create, configure, and reset in seconds. It eliminates the friction of blockchain development by giving you a local environment optimized for rapid iteration.
+
+### When to use Yaci
+
+- **Smart contract development**: Test Plutus scripts without spending real ADA
+- **Integration testing**: Validate your dApp against a real Cardano environment
+- **CI/CD pipelines**: Automated testing with reproducible blockchain state
+- **Learning and prototyping**: Experiment with Cardano without consequences
+
+### Key benefits
+
+| Feature | Description |
+|---------|-------------|
+| **Instant setup** | Create a new devnet in seconds with a single command |
+| **Zero fees** | Configure fee-free transactions for rapid testing |
+| **Configurable** | Customize epochs, slots, protocol parameters, and more |
+| **Blockfrost-compatible** | Use the same API endpoints as production |
+| **Built-in tools** | Yaci Store indexer and Yaci Viewer included |
+
+## Quick start
+
+Connect to the Mesh-hosted Yaci devnet immediately - no setup required:
+
+```typescript
+import { YaciProvider } from "@meshsdk/core";
+
+// Connect to Mesh's hosted devnet
+const provider = new YaciProvider();
+
+// Fetch protocol parameters
+const params = await provider.fetchProtocolParameters();
+console.log("Connected to Yaci devnet:", params);
+
+// Fetch UTxOs for an address
+const utxos = await provider.fetchAddressUTxOs(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9"
+);
+```
+
+The hosted devnet is available at: `https://yaci-node.meshjs.dev/api/v1/`
+
+## Documentation
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {linksYaci.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## How Yaci works
+
+1. **Start DevKit**: Launch the Docker containers with a single command
+2. **Create devnet**: Configure your network parameters (era, fees, epoch length)
+3. **Fund wallets**: Use the built-in faucet to top up test addresses
+4. **Build transactions**: Use Mesh SDK with YaciProvider just like production
+5. **Reset and repeat**: Wipe the chain state and start fresh anytime
+
+## Architecture
+
+| Component | Purpose |
+|-----------|---------|
+| **Yaci CLI** | Command-line interface for managing devnets |
+| **Yaci Store** | Lightweight chain indexer with REST API |
+| **Yaci Viewer** | Browser-based block explorer (localhost:5173) |
+| **Cardano Node** | Local Cardano node running your devnet |
+
+## Related resources
+
+- [Getting Started](/docs/yaci/getting-started) - Install and configure Yaci DevKit
+- [Build Transactions](/docs/yaci/transactions) - Create and submit transactions
+- [Mesh Cloud Yaci](https://cloud.meshjs.dev/yaci) - Hosted Yaci devnet service
+- [Yaci DevKit GitHub](https://github.com/bloxbean/yaci-devkit) - Official repository

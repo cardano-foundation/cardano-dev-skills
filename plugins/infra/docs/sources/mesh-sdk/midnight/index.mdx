@@ -1,0 +1,73 @@
+---
+title: "Midnight"
+description: "Build privacy-preserving dApps with zero-knowledge proofs on the Midnight Network"
+icon: "icons/midnight.svg"
+---
+
+import { linksMidnight } from "@/data/links-midnight";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+Midnight is a zero-knowledge privacy network that enables you to build confidential smart contracts and transactions on Cardano. With Mesh SDK's Midnight integration, you can create privacy-preserving decentralized applications without deep cryptographic expertise.
+
+## Why Midnight?
+
+| Feature | Benefit |
+|---------|---------|
+| **Zero-knowledge proofs** | Verify data without revealing it |
+| **Confidential smart contracts** | Execute logic while keeping inputs private |
+| **Cardano integration** | Leverage Cardano's security and ecosystem |
+| **TypeScript SDK** | Full type safety and modern developer experience |
+
+## When to use Midnight
+
+Use Midnight when you need:
+
+- **Financial privacy**: Hide transaction amounts while proving validity
+- **Identity verification**: Prove attributes (age, citizenship) without revealing personal data
+- **Confidential voting**: Enable verifiable elections with secret ballots
+- **Private DeFi**: Build lending, staking, or trading with hidden positions
+
+## Quick start
+
+Install the Midnight setup package:
+
+```bash
+npm install @meshsdk/midnight-setup
+```
+
+Connect to a wallet and deploy a contract:
+
+```typescript
+import { MidnightSetupAPI } from '@meshsdk/midnight-setup';
+import { setupProviders } from './providers';
+
+const providers = await setupProviders();
+const api = await MidnightSetupAPI.deployContract(providers, contractInstance);
+
+console.log('Contract deployed at:', api.deployedContractAddress);
+```
+
+## Explore the documentation
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {linksMidnight.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## Related resources
+
+- [Midnight Network Documentation](https://docs.midnight.network/) - Official Midnight docs
+- [Mesh SDK Documentation](https://midnight.meshjs.dev/en) - Full SDK reference
+- [Lace Beta Wallet](https://chromewebstore.google.com/detail/lace-midnight-preview/hgeekaiplokcnmakghbdfbgnlfheichg) - Browser wallet for Midnight
+- [GitHub Repository](https://github.com/MeshJS/midnight-setup) - Source code and examples

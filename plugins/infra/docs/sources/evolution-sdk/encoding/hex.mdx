@@ -1,0 +1,55 @@
+---
+title: Hex
+description: Hexadecimal encoding for bytes, hashes, and binary data
+---
+
+# Hex Encoding
+
+Hexadecimal strings are used throughout Cardano for hashes, policy IDs, transaction IDs, and raw byte data. The `Bytes` module provides conversion between hex strings and byte arrays.
+
+## Hex to Bytes
+
+```typescript twoslash
+import { Bytes } from "@evolution-sdk/evolution"
+
+// Convert hex string to Uint8Array
+const txHash = Bytes.fromHex(
+  "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+)
+// Uint8Array(32) [161, 178, 195, ...]
+
+const policyId = Bytes.fromHex(
+  "abc123def456abc123def456abc123def456abc123def456abc123de"
+)
+// Uint8Array(28) [171, 193, 35, ...]
+```
+
+## Bytes to Hex
+
+```typescript twoslash
+import { Bytes } from "@evolution-sdk/evolution"
+
+const bytes = new Uint8Array([0xab, 0xcd, 0xef])
+const hex = Bytes.toHex(bytes)
+// "abcdef"
+```
+
+## Text to Bytes
+
+For human-readable strings (asset names, metadata values), use `Text.toBytes`:
+
+```typescript twoslash
+import { Text } from "@evolution-sdk/evolution"
+
+const tokenName = Text.toBytes("MyToken")
+// Uint8Array representing UTF-8 encoded "MyToken"
+```
+
+**When to use which:**
+- **`Bytes.fromHex`** — For hashes, policy IDs, credential hashes (data already in hex)
+- **`Text.toBytes`** — For asset names, metadata values (human-readable strings)
+
+## Next Steps
+
+- [Bech32](/docs/encoding/bech32) — Address encoding
+- [PlutusData](/docs/encoding/data) — On-chain data structures

@@ -1,0 +1,87 @@
+---
+title: EffectRuntime.ts
+nav_order: 58
+parent: Modules
+---
+
+## EffectRuntime overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [utilities](#utilities)
+  - [runEffect](#runeffect)
+  - [runEffectPromise](#runeffectpromise)
+
+---
+
+# utilities
+
+## runEffect
+
+Run an Effect synchronously, extracting the original error on failure.
+
+Uses `Cause.squash` to unwrap the Effect failure cause, preserving the
+original error identity (`instanceof`, `_tag`, etc.) instead of wrapping
+it in Effect's internal `FiberFailure`.
+
+**Signature**
+
+```ts
+export declare function runEffect<A, E>(effect: Effect.Effect<A, E>): A
+```
+
+**Example**
+
+```typescript
+import { Effect } from "effect"
+import { runEffect } from "@evolution-sdk/evolution/EffectRuntime"
+
+const myEffect = Effect.succeed(42)
+
+try {
+  const result = runEffect(myEffect)
+  console.log(result)
+} catch (error) {
+  // error is the original typed error — instanceof works
+  console.error(error)
+}
+```
+
+Added in v2.0.0
+
+## runEffectPromise
+
+Run an Effect asynchronously, extracting the original error on failure.
+
+Uses `Cause.squash` to unwrap the Effect failure cause, preserving the
+original error identity (`instanceof`, `_tag`, etc.) instead of wrapping
+it in Effect's internal `FiberFailure`.
+
+**Signature**
+
+```ts
+export async function runEffectPromise<A, E>(effect: Effect.Effect<A, E>): Promise<A>
+```
+
+**Example**
+
+```typescript
+import { Effect } from "effect"
+import { runEffectPromise } from "@evolution-sdk/evolution/EffectRuntime"
+
+const myEffect = Effect.succeed(42)
+
+async function example() {
+  try {
+    const result = await runEffectPromise(myEffect)
+    console.log(result)
+  } catch (error) {
+    // error is the original typed error — instanceof works
+    console.error(error)
+  }
+}
+```
+
+Added in v2.0.0

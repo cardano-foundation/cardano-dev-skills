@@ -1,0 +1,177 @@
+---
+title: "Mesh SDK API Reference"
+description: "Build Cardano applications with Mesh's comprehensive SDK for wallets, transactions, data handling, utilities, and x402 payments."
+---
+
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+import {linksApi} from "@/data/links-api";
+import Link from "next/link";
+
+## Overview
+
+The Mesh SDK provides everything you need to build Cardano applications: wallet integrations, transaction builders, data serialization, utility functions, and x402 payments. Choose the APIs that fit your use case.
+
+## Quick Start
+
+```bash
+npm install @meshsdk/core
+```
+
+```tsx
+import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+// Connect to a browser wallet
+const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+// Initialize provider and transaction builder
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+// Build and submit a transaction
+const utxos = await wallet.getUtxosMesh();
+const changeAddress = await wallet.getChangeAddressBech32();
+
+const unsignedTx = await txBuilder
+  .txOut("addr_test1...", [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, false);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+## API Categories
+
+| Category | Purpose | Key Classes |
+|----------|---------|-------------|
+| [Wallets](/apis/wallets) | Connect and interact with user wallets | `MeshCardanoBrowserWallet`, `MeshCardanoHeadlessWallet` |
+| [Transaction Builder](/apis/txbuilder) | Construct and customize transactions | `MeshTxBuilder` |
+| [Transaction Parser](/apis/txparser) | Parse and test transaction data | `MeshTxParser`, `TxTester` |
+| [Data](/apis/data) | Handle Cardano data types and conversions | `MeshValue`, JSON/Mesh formats |
+| [Utilities](/apis/utilities) | Serialize, deserialize, and resolve data | Serializers, deserializers, resolvers |
+| [x402 Payments](/apis/x402) | Charge for an HTTP resource with Cardano | `fetchWithPayment`, `createPaywall`, `createFacilitatorApp` |
+
+## Wallets
+
+Connect to browser extension wallets (CIP-30) or create server-side wallets for backend applications.
+
+```tsx
+// Browser wallet (frontend)
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+// Headless wallet (backend)
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+  networkId: 0,
+  walletAddressType: AddressType.Base,
+  fetcher: provider,
+  mnemonic: ["..."],
+});
+```
+
+[Learn more about Wallets →](/apis/wallets)
+
+## Transaction Builder
+
+Build any type of Cardano transaction with fine-grained control over inputs, outputs, metadata, and scripts.
+
+```tsx
+import { MeshTxBuilder } from "@meshsdk/core";
+
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+const unsignedTx = await txBuilder
+  .txOut(recipient, [{ unit: "lovelace", quantity: "5000000" }])
+  .mint("1", policyId, assetName)
+  .mintingScript(forgingScript)
+  .metadataValue(721, metadata)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+[Learn more about Transaction Builder →](/apis/txbuilder)
+
+## Data Handling
+
+Work with Cardano's data types and convert between different formats.
+
+```tsx
+import { MeshValue, mConStr0 } from "@meshsdk/core";
+
+// Work with multi-asset values
+const value = new MeshValue();
+value.addAsset({ unit: "lovelace", quantity: "5000000" });
+
+// Create Plutus data
+const datum = mConStr0([pubKeyHash]);
+```
+
+[Learn more about Data APIs →](/apis/data)
+
+## Utilities
+
+Serialize addresses, deserialize transactions, and resolve various Cardano identifiers.
+
+```tsx
+import {
+  deserializeAddress,
+  serializeNativeScript,
+  resolveScriptHash
+} from "@meshsdk/core";
+
+// Get key hash from address
+const { pubKeyHash } = deserializeAddress(address);
+
+// Create and serialize a native script
+const { address, scriptCbor } = serializeNativeScript(nativeScript);
+
+// Get policy ID from script
+const policyId = resolveScriptHash(forgingScript);
+```
+
+[Learn more about Utilities →](/apis/utilities)
+
+## x402 Payments
+
+Charge for an API or page with `@meshsdk/x402`. The server answers `402` with a price, the client signs a Cardano payment, and a facilitator settles it before the content is released.
+
+```tsx
+import { fetchWithPayment } from "@meshsdk/x402";
+
+const { response, paymentResponse } = await fetchWithPayment(
+  "http://localhost:3000/weather",
+  undefined,
+  wallet,
+  { fetcher: provider, protocol, currentSlot },
+);
+```
+
+[Learn more about x402 Payments →](/apis/x402)
+
+## Available APIs
+
+<div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
+  {linksApi.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## Related
+
+- [Providers](/providers) - Connect to blockchain data sources
+- [React Integration](/react) - UI components and hooks for React apps
+- [Smart Contracts](/smart-contracts) - Pre-built contract interactions
+- [Guides](/guides) - Step-by-step tutorials

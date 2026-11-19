@@ -1,0 +1,44 @@
+---
+title: From Source
+---
+
+The following instructions show how to build and install _Dolos_ from source code.
+
+## Pre-requisites
+
+You'll need to have the following components already available in your system.
+
+- [Rust toolchain](https://www.rust-lang.org/learn/get-started)
+- On Linux, a C compiler and `make`, used to build jemalloc
+
+## Clone the Repository
+
+Use `git` to clone Dolos source-code from our Github repository:
+
+```sh
+git clone https://github.com/txpipe/dolos.git
+```
+
+## Installation
+
+Use `cargo` to compile and install the generated binary for your user profile:
+
+```sh
+cargo install --all-features --path .
+```
+
+Once you completed the above steps, you should be able to call Dolos directly from the command line:
+
+```sh
+dolos --help
+```
+
+## Memory Allocator
+
+On Linux, Dolos uses [jemalloc](https://jemalloc.net) as its memory allocator, through the default `jemalloc` feature. Under serving load, glibc's default allocator holds on to freed memory and the process keeps growing. Other platforms use the system allocator.
+
+To build with the system allocator on Linux, leave the `jemalloc` feature out:
+
+```sh
+cargo install --path . --no-default-features --features mithril,utils,grpc,minibf,minikupo,trp
+```

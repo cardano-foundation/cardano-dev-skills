@@ -1,0 +1,328 @@
+---
+title: "For Beginners"
+description: "Build Cardano dApps without blockchain expertise using Mesh SDK's beginner-friendly APIs."
+---
+
+import Link from "next/link";
+import { HowToSchema, FAQSchema } from "@/components/seo";
+
+<HowToSchema
+  name="Start Cardano Development with Mesh SDK"
+  description="Build your first Cardano dApp without prior blockchain experience."
+  totalTime="PT15M"
+  steps={[
+    { name: "Install Mesh SDK", text: "Run npm install @meshsdk/core @meshsdk/react to add Cardano capabilities." },
+    { name: "Add wallet connection", text: "Use the CardanoWallet component for one-click wallet connectivity." },
+    { name: "Build your first transaction", text: "Use MeshTxBuilder to send ADA with just a few lines of code." },
+    { name: "Test on preprod", text: "Connect to Cardano preprod testnet to test with free test ADA." }
+  ]}
+/>
+
+<FAQSchema
+  faqs={[
+    {
+      question: "Can I build Cardano dApps without blockchain experience?",
+      answer: "Yes. Mesh SDK is designed for JavaScript developers without blockchain backgrounds. The APIs use familiar patterns like classes, async/await, and React hooks."
+    },
+    {
+      question: "What programming knowledge do I need?",
+      answer: "Basic JavaScript or TypeScript knowledge is sufficient. If you can build a React application, you can build Cardano dApps with Mesh."
+    },
+    {
+      question: "How long does it take to learn?",
+      answer: "Most developers can build their first transaction within an hour. The wallet connection takes minutes, and the transaction builder uses intuitive method chaining."
+    },
+    {
+      question: "Do I need to understand UTXOs?",
+      answer: "No. Mesh abstracts UTXO complexity. The SDK handles UTXO selection, change outputs, and transaction balancing automatically."
+    }
+  ]}
+/>
+
+Mesh SDK is designed for JavaScript developers new to Cardano. No blockchain expertise required. Use familiar patterns to build dApps in minutes.
+
+## Quick start
+
+### 1. Install Mesh
+
+```bash
+npm install @meshsdk/core @meshsdk/react
+```
+
+### 2. Add wallet connection
+
+```tsx
+import { MeshProvider, CardanoWallet } from "@meshsdk/react";
+
+function App() {
+  return (
+    <MeshProvider>
+      <CardanoWallet />
+    </MeshProvider>
+  );
+}
+```
+
+### 3. Send your first transaction
+
+```tsx
+import { useWallet } from "@meshsdk/react";
+import { MeshTxBuilder } from "@meshsdk/core";
+
+function SendADA() {
+  const { wallet, connected } = useWallet();
+
+  const sendADA = async () => {
+    const utxos = await wallet.getUtxos();
+    const changeAddress = await wallet.getChangeAddress();
+
+    const txBuilder = new MeshTxBuilder();
+    const unsignedTx = await txBuilder
+      .txOut("addr_test1...", [{ unit: "lovelace", quantity: "5000000" }])
+      .changeAddress(changeAddress)
+      .selectUtxosFrom(utxos)
+      .complete();
+
+    const signedTx = await wallet.signTx(unsignedTx);
+    const txHash = await wallet.submitTx(signedTx);
+    console.log("Transaction:", txHash);
+  };
+
+  return (
+    <button onClick={sendADA} disabled={!connected}>
+      Send 5 ADA
+    </button>
+  );
+}
+```
+
+---
+
+## What makes Mesh beginner-friendly
+
+| Feature | Benefit |
+|---------|---------|
+| Familiar patterns | JavaScript classes, async/await, React hooks |
+| Automatic complexity | Fee calculation, UTXO selection handled automatically |
+| Clear errors | Helpful messages explain what went wrong |
+| Minimal setup | No blockchain node, just npm install |
+| Full documentation | Guides and examples for every skill level |
+
+---
+
+## Common tasks
+
+### Connect a wallet
+
+```tsx
+import { CardanoWallet, useWallet } from "@meshsdk/react";
+
+<CardanoWallet />
+
+// Or use the hook
+const { connected, wallet, connect, disconnect } = useWallet();
+```
+
+### Build a transaction
+
+```typescript
+const txBuilder = new MeshTxBuilder();
+const unsignedTx = await txBuilder
+  .txOut("addr...", [{ unit: "lovelace", quantity: "10000000" }])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+### Read blockchain data
+
+```typescript
+import { BlockfrostProvider } from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("your-api-key");
+const utxos = await provider.fetchAddressUTxOs("addr...");
+```
+
+---
+
+## Recommended learning path
+
+### Step 1: Wallet integration
+
+```tsx
+import { MeshProvider, CardanoWallet, useWallet } from "@meshsdk/react";
+
+function App() {
+  return (
+    <MeshProvider>
+      <Header />
+    </MeshProvider>
+  );
+}
+
+function Header() {
+  const { connected, wallet } = useWallet();
+
+  return (
+    <header>
+      <CardanoWallet />
+      {connected && <WalletInfo wallet={wallet} />}
+    </header>
+  );
+}
+```
+
+Learn: React context, wallet state, connection handling.
+
+### Step 2: Simple transactions
+
+```typescript
+async function sendPayment(wallet, recipient, amount) {
+  const utxos = await wallet.getUtxos();
+  const changeAddress = await wallet.getChangeAddress();
+
+  const txBuilder = new MeshTxBuilder();
+  const unsigned = await txBuilder
+    .txOut(recipient, [{ unit: "lovelace", quantity: amount }])
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  const signed = await wallet.signTx(unsigned);
+  return await wallet.submitTx(signed);
+}
+```
+
+Learn: Transaction building, signing, submission.
+
+### Step 3: Token operations
+
+```typescript
+// Send existing tokens
+txBuilder.txOut(recipient, [
+  { unit: "policyId" + "tokenNameHex", quantity: "10" }
+]);
+
+// Mint new tokens
+txBuilder
+  .mint("1000", policyId, tokenNameHex)
+  .mintingScript(forgingScript);
+```
+
+Learn: Asset structure, minting, multi-asset transactions.
+
+### Step 4: Smart contracts
+
+```typescript
+import { mConStr0 } from "@meshsdk/core";
+
+// Lock funds at script
+txBuilder
+  .txOut(scriptAddress, [{ unit: "lovelace", quantity: "50000000" }])
+  .txOutInlineDatumValue(mConStr0([]));
+
+// Unlock funds
+txBuilder
+  .spendingPlutusScriptV2()
+  .txIn(utxo.input.txHash, utxo.input.outputIndex)
+  .txInInlineDatumPresent()
+  .txInRedeemerValue(mConStr0([]))
+  .txInScript(scriptCbor);
+```
+
+Learn: Datums, redeemers, script addresses.
+
+---
+
+## First projects
+
+### NFT gallery
+
+```tsx
+import { useAssets } from "@meshsdk/react";
+
+function NFTGallery() {
+  const assets = useAssets();
+  const nfts = assets?.filter(a => a.quantity === "1" && a.unit !== "lovelace");
+
+  return (
+    <div className="gallery">
+      {nfts?.map(nft => (
+        <NFTCard key={nft.unit} asset={nft} />
+      ))}
+    </div>
+  );
+}
+```
+
+### Payment button
+
+```tsx
+function PaymentButton({ amount, recipient }) {
+  const { wallet, connected } = useWallet();
+
+  const pay = async () => {
+    const utxos = await wallet.getUtxos();
+    const changeAddress = await wallet.getChangeAddress();
+
+    const txBuilder = new MeshTxBuilder();
+    const unsigned = await txBuilder
+      .txOut(recipient, [{ unit: "lovelace", quantity: amount }])
+      .changeAddress(changeAddress)
+      .selectUtxosFrom(utxos)
+      .complete();
+
+    const signed = await wallet.signTx(unsigned);
+    await wallet.submitTx(signed);
+  };
+
+  return (
+    <button onClick={pay} disabled={!connected}>
+      Pay {Number(amount) / 1_000_000} ADA
+    </button>
+  );
+}
+```
+
+---
+
+## Testing
+
+### Use preprod testnet
+
+1. Get test ADA from the [Cardano Testnet Faucet](https://docs.cardano.org/cardano-testnet/tools/faucet/)
+2. Switch your wallet to preprod network
+3. Test all functionality risk-free
+4. Move to mainnet when confident
+
+### Local development
+
+No blockchain node required. Mesh connects to public infrastructure.
+
+```bash
+npm run dev
+```
+
+---
+
+## Why beginners choose Mesh
+
+| Reason | Details |
+|--------|---------|
+| Skip the deep dive | Build first, learn concepts as needed |
+| Use familiar JavaScript | No new programming language |
+| Working examples | Copy, paste, modify |
+| Clear error messages | "Insufficient funds" not cryptographic dump |
+| Community support | Active Discord, no question too basic |
+
+---
+
+## Related resources
+
+| Resource | Link |
+|----------|------|
+| Wallet integration | [/resources/solutions/wallet-integration](/resources/solutions/wallet-integration) |
+| React components | [/resources/solutions/react-components](/resources/solutions/react-components) |
+| Transaction builder | [/resources/solutions/transaction-builder](/resources/solutions/transaction-builder) |
+| Learning curve challenge | [/resources/challenges/learning-curve](/resources/challenges/learning-curve) |
+| Getting started guide | [/guides](/guides) |

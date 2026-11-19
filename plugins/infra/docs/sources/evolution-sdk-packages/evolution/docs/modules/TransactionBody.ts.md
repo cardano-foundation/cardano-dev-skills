@@ -1,0 +1,348 @@
+---
+title: TransactionBody.ts
+nav_order: 170
+parent: Modules
+---
+
+## TransactionBody overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [conversion](#conversion)
+  - [fromCBORBytes](#fromcborbytes)
+  - [fromCBORBytesWithFormat](#fromcborbyteswithformat)
+  - [fromCBORHex](#fromcborhex)
+  - [fromCBORHexWithFormat](#fromcborhexwithformat)
+  - [toCBORBytes](#tocborbytes)
+  - [toCBORBytesWithFormat](#tocborbyteswithformat)
+  - [toCBORHex](#tocborhex)
+  - [toCBORHexWithFormat](#tocborhexwithformat)
+- [hashing](#hashing)
+  - [toHash](#tohash)
+  - [toHashFromBytes](#tohashfrombytes)
+- [model](#model)
+  - [TransactionBody (class)](#transactionbody-class)
+    - [toJSON (method)](#tojson-method)
+    - [toString (method)](#tostring-method)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method)
+    - [[Equal.symbol] (method)](#equalsymbol-method)
+    - [[Hash.symbol] (method)](#hashsymbol-method)
+- [schemas](#schemas)
+  - [CDDLSchema](#cddlschema)
+  - [FromCBORBytes](#fromcborbytes-1)
+  - [FromCBORHex](#fromcborhex-1)
+- [utils](#utils)
+  - [FromCDDL](#fromcddl)
+  - [arbitrary](#arbitrary)
+  - [isTransactionBody](#istransactionbody)
+
+---
+
+# conversion
+
+## fromCBORBytes
+
+Convert CBOR bytes to TransactionBody.
+
+**Signature**
+
+```ts
+export declare const fromCBORBytes: (bytes: Uint8Array, options?: CBOR.CodecOptions) => TransactionBody
+```
+
+Added in v2.0.0
+
+## fromCBORBytesWithFormat
+
+Parse a TransactionBody from CBOR bytes and return the root format tree.
+
+**Signature**
+
+```ts
+export declare const fromCBORBytesWithFormat: (bytes: Uint8Array) => CBOR.DecodedWithFormat<TransactionBody>
+```
+
+Added in v2.0.0
+
+## fromCBORHex
+
+Convert CBOR hex string to TransactionBody.
+
+**Signature**
+
+```ts
+export declare const fromCBORHex: (hex: string, options?: CBOR.CodecOptions) => TransactionBody
+```
+
+Added in v2.0.0
+
+## fromCBORHexWithFormat
+
+Parse a TransactionBody from CBOR hex string and return the root format tree.
+
+**Signature**
+
+```ts
+export declare const fromCBORHexWithFormat: (hex: string) => CBOR.DecodedWithFormat<TransactionBody>
+```
+
+Added in v2.0.0
+
+## toCBORBytes
+
+Convert TransactionBody to CBOR bytes.
+
+**Signature**
+
+```ts
+export declare const toCBORBytes: (data: TransactionBody, options?: CBOR.CodecOptions) => any
+```
+
+Added in v2.0.0
+
+## toCBORBytesWithFormat
+
+Convert a TransactionBody to CBOR bytes using an explicit root format tree.
+
+**Signature**
+
+```ts
+export declare const toCBORBytesWithFormat: (data: TransactionBody, format: CBOR.CBORFormat) => Uint8Array
+```
+
+Added in v2.0.0
+
+## toCBORHex
+
+Convert TransactionBody to CBOR hex string.
+
+**Signature**
+
+```ts
+export declare const toCBORHex: (data: TransactionBody, options?: CBOR.CodecOptions) => string
+```
+
+Added in v2.0.0
+
+## toCBORHexWithFormat
+
+Convert a TransactionBody to CBOR hex string using an explicit root format tree.
+
+**Signature**
+
+```ts
+export declare const toCBORHexWithFormat: (data: TransactionBody, format: CBOR.CBORFormat) => string
+```
+
+Added in v2.0.0
+
+# hashing
+
+## toHash
+
+Compute the transaction body hash (blake2b-256 over CBOR of body).
+
+**Signature**
+
+```ts
+export declare const toHash: (body: TransactionBody) => TransactionHash.TransactionHash
+```
+
+Added in v2.0.0
+
+## toHashFromBytes
+
+Compute the transaction body hash from raw CBOR bytes, preserving original encoding.
+
+**Signature**
+
+```ts
+export declare const toHashFromBytes: (bodyBytes: Uint8Array) => TransactionHash.TransactionHash
+```
+
+Added in v2.0.0
+
+# model
+
+## TransactionBody (class)
+
+TransactionBody
+
+```
+transaction_body =
+  {   0  : set<transaction_input>
+  ,   1  : [* transaction_output]
+  ,   2  : coin
+  , ? 3  : slot_no
+  , ? 4  : certificates
+  , ? 5  : withdrawals
+  , ? 7  : auxiliary_data_hash
+  , ? 8  : slot_no
+  , ? 9  : mint
+  , ? 11 : script_data_hash
+  , ? 13 : nonempty_set<transaction_input>
+  , ? 14 : required_signers
+  , ? 15 : network_id
+  , ? 16 : transaction_output
+  , ? 17 : coin
+  , ? 18 : nonempty_set<transaction_input>
+  , ? 19 : voting_procedures
+  , ? 20 : proposal_procedures
+  , ? 21 : coin
+  , ? 22 : positive_coin
+  }
+```
+
+**Signature**
+
+```ts
+export declare class TransactionBody
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+Custom hash implementation for TransactionBody.
+Only hashes frequently-changing fields for performance.
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+Added in v2.0.0
+
+# schemas
+
+## CDDLSchema
+
+CDDL schema for TransactionBody struct structure.
+
+**Signature**
+
+```ts
+export declare const CDDLSchema: Schema.declare<Map<bigint, CBOR.CBOR>, Map<bigint, CBOR.CBOR>, readonly [], never>
+```
+
+Added in v2.0.0
+
+## FromCBORBytes
+
+CBOR bytes transformation schema for TransactionBody.
+Transforms between CBOR bytes and TransactionBody using Conway CDDL specification.
+
+**Signature**
+
+```ts
+export declare const FromCBORBytes: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.transformOrFail<
+    typeof Schema.Uint8ArrayFromSelf,
+    Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+    never
+  >,
+  Schema.transformOrFail<
+    Schema.declare<Map<bigint, CBOR.CBOR>, Map<bigint, CBOR.CBOR>, readonly [], never>,
+    Schema.SchemaClass<TransactionBody, TransactionBody, never>,
+    never
+  >
+>
+```
+
+Added in v2.0.0
+
+## FromCBORHex
+
+CBOR hex transformation schema for TransactionBody.
+Transforms between CBOR hex string and TransactionBody using Conway CDDL specification.
+
+**Signature**
+
+```ts
+export declare const FromCBORHex: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.transform<
+    Schema.Schema<Uint8Array, string, never>,
+    Schema.transformOrFail<
+      typeof Schema.Uint8ArrayFromSelf,
+      Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+      never
+    >
+  >,
+  Schema.transformOrFail<
+    Schema.declare<Map<bigint, CBOR.CBOR>, Map<bigint, CBOR.CBOR>, readonly [], never>,
+    Schema.SchemaClass<TransactionBody, TransactionBody, never>,
+    never
+  >
+>
+```
+
+Added in v2.0.0
+
+# utils
+
+## FromCDDL
+
+**Signature**
+
+```ts
+export declare const FromCDDL: Schema.transformOrFail<
+  Schema.declare<Map<bigint, CBOR.CBOR>, Map<bigint, CBOR.CBOR>, readonly [], never>,
+  Schema.SchemaClass<TransactionBody, TransactionBody, never>,
+  never
+>
+```
+
+## arbitrary
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<TransactionBody>
+```
+
+## isTransactionBody
+
+**Signature**
+
+```ts
+export declare const isTransactionBody: (u: unknown, overrideOptions?: ParseOptions | number) => u is TransactionBody
+```

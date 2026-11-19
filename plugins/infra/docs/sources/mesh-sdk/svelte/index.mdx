@@ -1,0 +1,58 @@
+---
+title: "Cardano Svelte Components"
+description: "Production-ready Svelte UI components for Cardano wallet connections"
+icon: ComputerDesktopIcon
+---
+
+import { linksSvelte } from "@/data/links-svelte";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+## Overview
+
+Mesh provides a collection of Svelte 5 components for building Cardano dApps. Use these components to connect wallets, manage wallet state, and interact with the Cardano blockchain.
+
+**When to use Mesh Svelte:**
+- You need wallet connection UI for a Svelte application
+- You want reactive wallet state management with Svelte 5 runes
+- You prefer pre-built components over building from scratch
+
+## Quick Start
+
+Install the package and add a wallet connection button in under 2 minutes.
+
+```bash
+npm install @meshsdk/svelte
+```
+
+```svelte
+<script lang="ts">
+  import '@meshsdk/svelte/styles.css';
+  import { CardanoWallet } from "@meshsdk/svelte";
+</script>
+
+<CardanoWallet />
+```
+
+## What's Included
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {linksSvelte.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## Related Links
+
+- <Link href="/docs/svelte/getting-started">Getting Started Guide</Link> - Complete setup instructions
+- <Link href="/docs/svelte/ui-components">UI Components</Link> - All available components
+- <Link href="/apis/wallets/browserwallet">Browser Wallet API</Link> - Full CIP-30 wallet API reference

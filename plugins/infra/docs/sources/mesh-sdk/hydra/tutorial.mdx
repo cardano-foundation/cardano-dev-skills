@@ -1,0 +1,553 @@
+---
+title: "End-to-End Hydra Tutorial"
+description: "Learn how to open a Hydra Head between two participants, execute Layer 2 transactions, and settle back to Cardano mainnet."
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+This tutorial walks you through the complete lifecycle of a Hydra Head on Cardano's preprod testnet. You will learn how to:
+
+- Set up Hydra nodes for two participants
+- Open a Hydra Head and commit funds
+- Execute instant transactions on Layer 2
+- Close the Head and settle funds on Layer 1
+
+This tutorial is adapted from the <Link href="https://hydra.family/head-protocol/docs/tutorial">official Hydra documentation</Link>.
+
+## Prerequisites
+
+Before starting, ensure you have:
+
+| Requirement | Description |
+|-------------|-------------|
+| **Cardano node** | Running node with `cardano-cli` access |
+| **Hydra node** | Installed and configured `hydra-node` binary |
+| **Test ADA** | At least 100 tADA per participant on preprod |
+| **Network access** | Two machines or terminals that can communicate |
+| **Mesh SDK** | `@meshsdk/hydra` and `@meshsdk/core` packages |
+
+### Installation
+
+```bash
+npm install @meshsdk/hydra @meshsdk/core
+```
+
+For Hydra node setup, see the <Link href="https://hydra.family/head-protocol/docs/tutorial#step-0-installation">official installation guide</Link> or use the <Link href="https://github.com/cardano-scaling/hydra/tree/master/demo">Docker demo setup</Link>.
+
+## Quick start
+
+If you already have Hydra nodes running, connect to a Head with Mesh:
+
+```typescript
+import { HydraProvider, HydraInstance } from "@meshsdk/hydra";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+
+// Connect to Hydra
+const hydraProvider = new HydraProvider({
+  httpUrl: "http://localhost:4001",
+});
+
+const blockfrost = new BlockfrostProvider("<YOUR_BLOCKFROST_KEY>");
+
+const instance = new HydraInstance({
+  provider: hydraProvider,
+  fetcher: blockfrost,
+  submitter: blockfrost,
+});
+
+await hydraProvider.connect();
+```
+
+## Step 1: Generate keys and fund wallets
+
+Each Hydra participant needs two key pairs:
+
+1. **Cardano keys**: For Layer 1 operations and paying fees
+2. **Hydra keys**: For signing snapshots within the Head
+
+### Generate Cardano keys
+
+Create keys for Alice:
+
+```bash
+mkdir -p credentials
+
+# Node keys (for hydra-node identity and fees)
+cardano-cli address key-gen \
+  --verification-key-file credentials/alice-node.vk \
+  --signing-key-file credentials/alice-node.sk
+
+cardano-cli address build \
+  --payment-verification-key-file credentials/alice-node.vk \
+  --out-file credentials/alice-node.addr \
+  --testnet-magic 1
+
+# Funds keys (for committing to the Head)
+cardano-cli address key-gen \
+  --verification-key-file credentials/alice-funds.vk \
+  --signing-key-file credentials/alice-funds.sk
+
+cardano-cli address build \
+  --payment-verification-key-file credentials/alice-funds.vk \
+  --out-file credentials/alice-funds.addr \
+  --testnet-magic 1
+```
+
+Create keys for Bob:
+
+```bash
+# Node keys
+cardano-cli address key-gen \
+  --verification-key-file credentials/bob-node.vk \
+  --signing-key-file credentials/bob-node.sk
+
+cardano-cli address build \
+  --payment-verification-key-file credentials/bob-node.vk \
+  --out-file credentials/bob-node.addr \
+  --testnet-magic 1
+
+# Funds keys
+cardano-cli address key-gen \
+  --verification-key-file credentials/bob-funds.vk \
+  --signing-key-file credentials/bob-funds.sk
+
+cardano-cli address build \
+  --payment-verification-key-file credentials/bob-funds.vk \
+  --out-file credentials/bob-funds.addr \
+  --testnet-magic 1
+```
+
+### Generate Hydra keys
+
+```bash
+hydra-node gen-hydra-key --output-file credentials/alice-hydra
+hydra-node gen-hydra-key --output-file credentials/bob-hydra
+```
+
+### Fund the wallets
+
+Use the <Link href="https://docs.cardano.org/cardano-testnets/tools/faucet">Cardano testnet faucet</Link> to fund the addresses:
+
+| Address | Minimum Amount |
+|---------|---------------|
+| `alice-node.addr` | 30 tADA |
+| `bob-node.addr` | 30 tADA |
+| `alice-funds.addr` | Any amount |
+| `bob-funds.addr` | Any amount |
+
+### Configure protocol parameters
+
+Fetch and modify the protocol parameters to eliminate fees inside the Head:
+
+```bash
+cardano-cli query protocol-parameters \
+  --testnet-magic 1 \
+  --socket-path "${CARDANO_NODE_SOCKET_PATH}" \
+  --out-file protocol-parameters.json
+```
+
+Edit `protocol-parameters.json` and set these values to `0`:
+
+- `txFeeFixed`
+- `txFeePerByte`
+- `executionUnitPrices.priceMemory`
+- `executionUnitPrices.priceSteps`
+
+## Step 2: Configure Hydra nodes
+
+Start the Hydra node for each participant with the correct configuration.
+
+### Alice's node
+
+```bash
+hydra-node \
+  --node-id alice-node \
+  --api-host 0.0.0.0 \
+  --api-port 4001 \
+  --listen 172.16.239.10:5001 \
+  --monitoring-port 6001 \
+  --peer 172.16.239.20:5001 \
+  --hydra-scripts-tx-id <HYDRA_SCRIPTS_TX_ID> \
+  --cardano-signing-key credentials/alice-node.sk \
+  --cardano-verification-key credentials/bob-node.vk \
+  --hydra-signing-key credentials/alice-hydra.sk \
+  --hydra-verification-key credentials/bob-hydra.vk \
+  --ledger-protocol-parameters protocol-parameters.json \
+  --testnet-magic 1 \
+  --node-socket "${CARDANO_NODE_SOCKET_PATH}" \
+  --contestation-period 300s
+```
+
+### Bob's node
+
+```bash
+hydra-node \
+  --node-id bob-node \
+  --api-host 0.0.0.0 \
+  --api-port 4002 \
+  --listen 172.16.239.20:5001 \
+  --monitoring-port 6001 \
+  --peer 172.16.239.10:5001 \
+  --hydra-scripts-tx-id <HYDRA_SCRIPTS_TX_ID> \
+  --cardano-signing-key credentials/bob-node.sk \
+  --cardano-verification-key credentials/alice-node.vk \
+  --hydra-signing-key credentials/bob-hydra.sk \
+  --hydra-verification-key credentials/alice-hydra.vk \
+  --ledger-protocol-parameters protocol-parameters.json \
+  --testnet-magic 1 \
+  --node-socket "${CARDANO_NODE_SOCKET_PATH}" \
+  --contestation-period 300s
+```
+
+### Configuration reference
+
+| Parameter | Description |
+|-----------|-------------|
+| `--node-id` | Unique identifier for the node |
+| `--api-port` | Port for the HTTP/WebSocket API |
+| `--listen` | Address for peer-to-peer communication |
+| `--peer` | Other participant's listen address |
+| `--hydra-scripts-tx-id` | Reference to published Hydra scripts (<Link href="https://github.com/cardano-scaling/hydra/blob/master/hydra-node/networks.json">see networks.json</Link>) |
+| `--contestation-period` | Time window for contesting the final state |
+
+For complete configuration options, see the <Link href="https://hydra.family/head-protocol/docs/configuration">Hydra configuration documentation</Link>.
+
+## Step 3: Open a Hydra Head
+
+### Connect with Mesh
+
+```typescript
+import { HydraProvider, HydraInstance } from "@meshsdk/hydra";
+import { BlockfrostProvider } from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+
+const blockfrost = new BlockfrostProvider("<YOUR_BLOCKFROST_KEY>");
+
+const hydraProvider = new HydraProvider({
+  httpUrl: "http://localhost:4001", // Alice's API
+});
+
+const instance = new HydraInstance({
+  provider: hydraProvider,
+  fetcher: blockfrost,
+  submitter: blockfrost,
+});
+
+// Connect to the Hydra node
+await hydraProvider.connect();
+```
+
+### Initialize the Head
+
+```typescript
+await hydraProvider.init();
+```
+
+### Commit funds
+
+Set up your wallet and commit funds when the Head is initializing:
+
+```typescript
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+
+const wallet = await MeshCardanoHeadlessWallet.fromCliKeys({
+  networkId: 0, // testnet
+  walletAddressType: AddressType.Base,
+  fetcher: blockfrost,
+  submitter: blockfrost,
+  paymentSkey: "credentials/alice-funds.sk",
+});
+
+// Listen for Head status changes
+hydraProvider.onMessage(async (message) => {
+  const status =
+    message.tag === "Greetings"
+      ? { headStatus: message.headStatus }
+      : { tag: message.tag };
+
+  if (
+    status.tag === "HeadIsInitializing" ||
+    status.headStatus === "Initializing"
+  ) {
+    // Get UTxOs to commit
+    const utxos = await wallet.getUtxosMesh();
+    const utxo = utxos[0];
+
+    // Commit funds
+    const commitTx = await instance.commitFunds(
+      utxo.input.txHash,
+      utxo.input.outputIndex
+    );
+    const signedTx = await wallet.signTx(commitTx, true, false);
+    const txHash = await wallet.submitTx(signedTx);
+
+    console.log("Committed funds:", txHash);
+  }
+
+  if (status.tag === "HeadIsOpen") {
+    console.log("Head is open! Ready for L2 transactions.");
+  }
+});
+```
+
+### Head status flow
+
+| Status | Description |
+|--------|-------------|
+| `HeadIsInitializing` | Head creation in progress |
+| `Committed` | Participant has committed funds |
+| `HeadIsOpen` | Head is open for transactions |
+
+When all participants commit, the Head opens automatically.
+
+## Step 4: Transact on Layer 2
+
+With the Head open, you can execute transactions instantly with zero fees.
+
+### Fetch UTxOs in the Head
+
+```typescript
+// Get all UTxOs in the Head
+const allUtxos = await hydraProvider.fetchUTxOs();
+
+// Get UTxOs for a specific address
+const aliceUtxos = await hydraProvider.fetchAddressUTxOs(aliceAddress);
+```
+
+### Build and submit a transaction
+
+Send ADA from Alice to Bob inside the Head:
+
+```typescript
+import { MeshTxBuilder } from "@meshsdk/core";
+
+// Fetch protocol parameters from the Head
+const protocolParams = await hydraProvider.fetchProtocolParameters();
+
+// Get Alice's UTxOs
+const aliceAddress = await wallet.getChangeAddressBech32();
+const utxos = await hydraProvider.fetchAddressUTxOs(aliceAddress);
+
+// Build the transaction
+const txBuilder = new MeshTxBuilder({
+  fetcher: hydraProvider,
+  submitter: hydraProvider,
+  isHydra: true,
+  params: protocolParams,
+});
+
+const unsignedTx = await txBuilder
+  .txOut(bobAddress, [{ unit: "lovelace", quantity: "3000000" }])
+  .changeAddress(aliceAddress)
+  .selectUtxosFrom(utxos)
+  .setNetwork("preprod")
+  .complete();
+
+// Sign and submit
+const signedTx = await wallet.signTx(unsignedTx, false);
+const txHash = await hydraProvider.submitTx(signedTx);
+
+console.log("L2 transaction submitted:", txHash);
+```
+
+### Transaction status flow
+
+| Status | Description |
+|--------|-------------|
+| `NewTx` | Transaction submitted to the Head |
+| `TxValid` | All nodes validated the transaction |
+| `SnapshotConfirmed` | New state confirmed by all participants |
+
+If validation fails, you receive a `TxInvalid` message with the reason.
+
+## Step 5: Close the Head
+
+When you are done transacting, close the Head to settle funds on Layer 1.
+
+### Initiate close
+
+Any participant can close the Head:
+
+```typescript
+await hydraProvider.close();
+```
+
+### Contestation period
+
+After closing, there is a contestation period (configured with `--contestation-period`) during which:
+
+- Participants can contest with a more recent snapshot
+- No new transactions can be submitted
+- The final state is locked for settlement
+
+### Fanout to Layer 1
+
+After the contestation deadline, distribute the final state to Layer 1:
+
+```typescript
+await hydraProvider.fanout();
+```
+
+### Verify final balances
+
+Check that funds are back on Layer 1:
+
+```typescript
+const aliceBalance = await blockfrost.fetchAddressUTxOs(aliceAddress);
+const bobBalance = await blockfrost.fetchAddressUTxOs(bobAddress);
+
+console.log("Alice L1 UTxOs:", aliceBalance);
+console.log("Bob L1 UTxOs:", bobBalance);
+```
+
+## Complete example
+
+Here is the full workflow in a single script:
+
+```typescript
+import { HydraProvider, HydraInstance } from "@meshsdk/hydra";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+
+async function main() {
+  // Setup providers
+  const blockfrost = new BlockfrostProvider("<YOUR_BLOCKFROST_KEY>");
+
+  const hydraProvider = new HydraProvider({
+    httpUrl: "http://localhost:4001",
+  });
+
+  const instance = new HydraInstance({
+    provider: hydraProvider,
+    fetcher: blockfrost,
+    submitter: blockfrost,
+  });
+
+  // Setup wallet
+  const wallet = await MeshCardanoHeadlessWallet.fromCliKeys({
+    networkId: 0,
+    walletAddressType: AddressType.Base,
+    fetcher: blockfrost,
+    submitter: blockfrost,
+    paymentSkey: "credentials/alice-funds.sk",
+  });
+
+  const aliceAddress = await wallet.getChangeAddressBech32();
+  const bobAddress = "addr_test1..."; // Bob's address
+
+  // Connect to Hydra
+  await hydraProvider.connect();
+
+  // Handle Head lifecycle
+  hydraProvider.onMessage(async (message) => {
+    switch (message.tag) {
+      case "HeadIsInitializing":
+        console.log("Head initializing, committing funds...");
+        const utxos = await wallet.getUtxosMesh();
+        const commitTx = await instance.commitFunds(
+          utxos[0].input.txHash,
+          utxos[0].input.outputIndex
+        );
+        const signedCommit = await wallet.signTx(commitTx, true, false);
+        await wallet.submitTx(signedCommit);
+        break;
+
+      case "HeadIsOpen":
+        console.log("Head is open, sending transaction...");
+
+        const pp = await hydraProvider.fetchProtocolParameters();
+        const l2Utxos = await hydraProvider.fetchAddressUTxOs(aliceAddress);
+
+        const txBuilder = new MeshTxBuilder({
+          fetcher: hydraProvider,
+          submitter: hydraProvider,
+          isHydra: true,
+          params: pp,
+        });
+
+        const unsignedTx = await txBuilder
+          .txOut(bobAddress, [{ unit: "lovelace", quantity: "5000000" }])
+          .changeAddress(aliceAddress)
+          .selectUtxosFrom(l2Utxos)
+          .setNetwork("preprod")
+          .complete();
+
+        const signedTx = await wallet.signTx(unsignedTx, false);
+        await hydraProvider.submitTx(signedTx);
+        break;
+
+      case "SnapshotConfirmed":
+        console.log("Transaction confirmed, closing Head...");
+        await hydraProvider.close();
+        break;
+
+      case "ReadyToFanout":
+        console.log("Contestation period ended, fanning out...");
+        await hydraProvider.fanout();
+        break;
+
+      case "HeadIsFinalized":
+        console.log("Head finalized! Funds are back on L1.");
+        break;
+    }
+  });
+
+  // Initialize the Head
+  await hydraProvider.init();
+}
+
+main().catch(console.error);
+```
+
+## Head lifecycle reference
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Initialize | `HeadIsInitializing` | Head creation started |
+| Commit | `Committed` | Funds committed by participant |
+| Open | `HeadIsOpen` | Head open for transactions |
+| Transact | `SnapshotConfirmed` | L2 transaction confirmed |
+| Close | `HeadIsClosed` | Head closing initiated |
+| Contest | `ReadyToFanout` | Contestation period ended |
+| Fanout | `HeadIsFinalized` | Funds settled on L1 |
+
+## Troubleshooting
+
+### Hydra node won't start
+
+Check that the Cardano node socket path is correct and the node is synced:
+
+```bash
+cardano-cli query tip --testnet-magic 1 --socket-path "${CARDANO_NODE_SOCKET_PATH}"
+```
+
+### Nodes can't connect to each other
+
+Ensure firewall rules allow traffic on the listen ports (5001 in the examples) and verify the peer IP addresses are correct.
+
+### Commit transaction rejected
+
+Verify that:
+- The UTxO exists and has not been spent
+- The address matches your signing key
+- You have enough ADA to cover the L1 transaction fee
+
+### Transaction rejected in Head
+
+Common reasons:
+- Insufficient funds in the Head
+- Invalid transaction format
+- UTxO already spent in a previous transaction
+
+Check the `TxInvalid` message for specific error details.
+
+## Related resources
+
+- [Hydra Instance API](/docs/hydra/instance) - Detailed API reference
+- [Hydra Overview](/docs/hydra) - Introduction and architecture
+- [Official Hydra Tutorial](https://hydra.family/head-protocol/docs/tutorial) - Full setup guide
+- [Hydra Configuration](https://hydra.family/head-protocol/docs/configuration) - All node options
+- [Cardano Providers](/providers) - Configure blockchain providers

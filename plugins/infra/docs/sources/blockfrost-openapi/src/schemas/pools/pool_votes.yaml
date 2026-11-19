@@ -1,0 +1,23 @@
+type: array
+items:
+  type: object
+  properties:
+    tx_hash:
+      type: string
+      description: Hash of the proposal transaction.
+    cert_index:
+      type: integer
+      description: Index of the certificate within the proposal transaction.
+    vote:
+      type: string
+      enum: [yes, no, abstain]
+      description: The Vote. Can be one of yes, no, abstain.
+
+  required:
+    - tx_hash
+    - cert_index
+    - vote
+example:
+  - tx_hash: "b302de601defdf11a5261ed31a263804dac4a582a888c998ce24dec5"
+    cert_index: 2
+    vote: "yes"

@@ -1,0 +1,144 @@
+type: object
+properties:
+  pool_id:
+    type: string
+    example: "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy"
+    description: Bech32 pool ID
+  hex:
+    type: string
+    example: "0f292fcaa02b8b2f9b3c8f9fd8e0bb21abedb692a6d5058df3ef2735"
+    description: Hexadecimal pool ID.
+  vrf_key:
+    type: string
+    example: "0b5245f9934ec2151116fb8ec00f35fd00e0aa3b075c4ed12cce440f999d8233"
+    description: VRF key hash
+  blocks_minted:
+    type: integer
+    example: 69
+    description: Total minted blocks
+  blocks_epoch:
+    type: integer
+    example: 4
+    description: Number of blocks minted in the current epoch
+  live_stake:
+    type: string
+    example: "6900000000"
+  live_size:
+    type: number
+    example: 0.42
+  live_saturation:
+    type: number
+    example: 0.93
+  live_delegators:
+    type: number
+    example: 127
+  active_stake:
+    type: string
+    example: "4200000000"
+  active_size:
+    type: number
+    example: 0.43
+  declared_pledge:
+    type: string
+    example: "5000000000"
+    description: Stake pool certificate pledge
+  live_pledge:
+    type: string
+    example: "5000000001"
+    description: Stake pool current pledge
+  margin_cost:
+    type: number
+    example: 0.05
+    description: Margin tax cost of the stake pool
+  fixed_cost:
+    type: string
+    example: "340000000"
+    description: Fixed tax cost of the stake pool
+  reward_account:
+    type: string
+    example: "stake1uxkptsa4lkr55jleztw43t37vgdn88l6ghclfwuxld2eykgpgvg3f"
+    description: Bech32 reward account of the stake pool
+  owners:
+    type: array
+    items:
+      type: string
+      description: Bech32 accounts of the pool owners
+    example:
+      - "stake1u98nnlkvkk23vtvf9273uq7cph5ww6u2yq2389psuqet90sv4xv9v"
+  registration:
+    type: array
+    items:
+      type: string
+      description: Hash of the transaction including registration
+    example:
+      - "9f83e5484f543e05b52e99988272a31da373f3aab4c064c76db96643a355d9dc"
+      - "7ce3b8c433bf401a190d58c8c483d8e3564dfd29ae8633c8b1b3e6c814403e95"
+      - "3e6e1200ce92977c3fe5996bd4d7d7e192bcb7e231bc762f9f240c76766535b9"
+  retirement:
+    type: array
+    items:
+      type: string
+      description: Hash of the transaction including retirement
+      example: "252f622976d39e646815db75a77289cf16df4ad2b287dd8e3a889ce14c13d1a8"
+  calidus_key:
+    type: object
+    nullable: true
+    description: Last valid Calidus key for the pool
+    properties:
+      id:
+        type: string
+        example: "calidus15yt3nqapz799tvp2lt8adttt29k6xa2xnltahn655tu4sgcph42p7"
+        description: A Bech32-encoded identifier derived from the calidus public key
+      pub_key:
+        type: string
+        example: "57758911253f6b31df2a87c10eb08a2c9b8450768cb8dd0d378d93f7c2e220f0"
+        description: The raw hexadecimal-encoded calidus public key used for verification purposes
+      nonce:
+        type: integer
+        example: 149292000
+        description: A unique number used once to prevent replay attacks and ensure the uniqueness of the key registration
+      tx_hash:
+        type: string
+        example: "f45ed21c6bc1832cf7f11f4bd6ee47ca9684b4f6f8ff8a398aa2df065eac0ba8"
+        description: The transaction hash that submitted the Calidus key registration
+      block_height:
+        type: integer
+        example: 11548408
+        description: The block height at which this key registration was recorded
+      block_time:
+        type: integer
+        example: 1740858988
+        description: Block time of the key registration
+      epoch:
+        type: integer
+        example: 543
+        description: Epoch number of the key registration
+    required:
+      - id
+      - pub_key
+      - nonce
+      - tx_hash
+      - block_height
+      - block_time
+      - epoch
+required:
+  - pool_id
+  - hex
+  - vrf_key
+  - blocks_minted
+  - blocks_epoch
+  - live_stake
+  - live_size
+  - live_saturation
+  - live_delegators
+  - active_stake
+  - active_size
+  - declared_pledge
+  - live_pledge
+  - margin_cost
+  - fixed_cost
+  - reward_account
+  - owners
+  - registration
+  - retirement
+  - calidus_key

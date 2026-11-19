@@ -1,0 +1,436 @@
+---
+title: NativeScripts.ts
+nav_order: 79
+parent: Modules
+---
+
+## NativeScripts overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [constructors](#constructors)
+  - [makeInvalidBefore](#makeinvalidbefore)
+  - [makeInvalidHereafter](#makeinvalidhereafter)
+  - [makeScriptAll](#makescriptall)
+  - [makeScriptAny](#makescriptany)
+  - [makeScriptNOfK](#makescriptnofk)
+  - [makeScriptPubKey](#makescriptpubkey)
+- [conversion](#conversion)
+  - [toJSON](#tojson)
+- [encoding](#encoding)
+  - [toCBORBytes](#tocborbytes)
+  - [toCBORHex](#tocborhex)
+- [errors](#errors)
+  - [NativeScriptError (class)](#nativescripterror-class)
+- [model](#model)
+  - [NativeScriptCDDL (type alias)](#nativescriptcddl-type-alias)
+  - [NativeScriptEncoded (type alias)](#nativescriptencoded-type-alias)
+  - [NativeScriptVariants (type alias)](#nativescriptvariants-type-alias)
+- [parsing](#parsing)
+  - [fromCBORBytes](#fromcborbytes)
+  - [fromCBORHex](#fromcborhex)
+- [predicates](#predicates)
+  - [is](#is)
+- [schemas](#schemas)
+  - [FromCDDL](#fromcddl)
+  - [NativeScript (class)](#nativescript-class)
+    - [[Equal.symbol] (method)](#equalsymbol-method)
+    - [[Hash.symbol] (method)](#hashsymbol-method)
+  - [NativeScriptVariants](#nativescriptvariants)
+- [testing](#testing)
+  - [arbitrary](#arbitrary)
+- [utilities](#utilities)
+  - [countRequiredSigners](#countrequiredsigners)
+  - [extractKeyHashes](#extractkeyhashes)
+- [utils](#utils)
+  - [CDDLSchema](#cddlschema)
+  - [FromCBORBytes](#fromcborbytes-1)
+  - [FromCBORHex](#fromcborhex-1)
+
+---
+
+# constructors
+
+## makeInvalidBefore
+
+Create a time-based script that is invalid before a slot
+
+**Signature**
+
+```ts
+export declare const makeInvalidBefore: (slot: bigint) => NativeScript
+```
+
+Added in v2.0.0
+
+## makeInvalidHereafter
+
+Create a time-based script that is invalid after a slot
+
+**Signature**
+
+```ts
+export declare const makeInvalidHereafter: (slot: bigint) => NativeScript
+```
+
+Added in v2.0.0
+
+## makeScriptAll
+
+Create a script that requires all nested scripts
+
+**Signature**
+
+```ts
+export declare const makeScriptAll: (scripts: ReadonlyArray<NativeScriptVariants>) => NativeScript
+```
+
+Added in v2.0.0
+
+## makeScriptAny
+
+Create a script that requires any one nested script
+
+**Signature**
+
+```ts
+export declare const makeScriptAny: (scripts: ReadonlyArray<NativeScriptVariants>) => NativeScript
+```
+
+Added in v2.0.0
+
+## makeScriptNOfK
+
+Create a script that requires at least N nested scripts
+
+**Signature**
+
+```ts
+export declare const makeScriptNOfK: (required: bigint, scripts: ReadonlyArray<NativeScriptVariants>) => NativeScript
+```
+
+Added in v2.0.0
+
+## makeScriptPubKey
+
+Create a signature script for a specific key hash
+
+**Signature**
+
+```ts
+export declare const makeScriptPubKey: (keyHash: Uint8Array) => NativeScript
+```
+
+Added in v2.0.0
+
+# conversion
+
+## toJSON
+
+Convert a NativeScript to JSON representation matching cardano-cli format
+
+**Signature**
+
+```ts
+export declare const toJSON: (script: NativeScriptVariants) => any
+```
+
+Added in v2.0.0
+
+# encoding
+
+## toCBORBytes
+
+Convert a NativeScript to CBOR bytes.
+
+**Signature**
+
+```ts
+export declare const toCBORBytes: (nativeScript: NativeScript, options?: CBOR.CodecOptions) => Uint8Array
+```
+
+Added in v2.0.0
+
+## toCBORHex
+
+Convert a NativeScript to CBOR hex string.
+
+**Signature**
+
+```ts
+export declare const toCBORHex: (nativeScript: NativeScript, options?: CBOR.CodecOptions) => string
+```
+
+Added in v2.0.0
+
+# errors
+
+## NativeScriptError (class)
+
+Error class for Native script related operations.
+
+**Signature**
+
+```ts
+export declare class NativeScriptError
+```
+
+Added in v2.0.0
+
+# model
+
+## NativeScriptCDDL (type alias)
+
+CDDL representation following Cardano specification
+
+native_script =
+[ script_pubkey // 0
+// script_all // 1
+// script_any // 2
+// script_n_of_k // 3
+// invalid_before // 4
+// invalid_hereafter // 5
+]
+
+**Signature**
+
+```ts
+export type NativeScriptCDDL =
+  | readonly [0n, Uint8Array] // script_pubkey
+  | readonly [1n, ReadonlyArray<NativeScriptCDDL>] // script_all
+  | readonly [2n, ReadonlyArray<NativeScriptCDDL>] // script_any
+  | readonly [3n, bigint, ReadonlyArray<NativeScriptCDDL>] // script_n_of_k
+  | readonly [4n, bigint] // invalid_before
+  | readonly [5n, bigint]
+```
+
+Added in v2.0.0
+
+## NativeScriptEncoded (type alias)
+
+Native script encoded type definition (wire format)
+
+**Signature**
+
+```ts
+export type NativeScriptEncoded =
+  | { readonly _tag: "ScriptPubKey"; readonly keyHash: string }
+  | { readonly _tag: "InvalidBefore"; readonly slot: string }
+  | { readonly _tag: "InvalidHereafter"; readonly slot: string }
+  | { readonly _tag: "ScriptAll"; readonly scripts: ReadonlyArray<NativeScriptEncoded> }
+  | { readonly _tag: "ScriptAny"; readonly scripts: ReadonlyArray<NativeScriptEncoded> }
+  | { readonly _tag: "ScriptNOfK"; readonly required: string; readonly scripts: ReadonlyArray<NativeScriptEncoded> }
+```
+
+Added in v2.0.0
+
+## NativeScriptVariants (type alias)
+
+Native script type definition (runtime representation)
+
+**Signature**
+
+```ts
+export type NativeScriptVariants =
+  | { readonly _tag: "ScriptPubKey"; readonly keyHash: Uint8Array }
+  | { readonly _tag: "InvalidBefore"; readonly slot: bigint }
+  | { readonly _tag: "InvalidHereafter"; readonly slot: bigint }
+  | { readonly _tag: "ScriptAll"; readonly scripts: ReadonlyArray<NativeScriptVariants> }
+  | { readonly _tag: "ScriptAny"; readonly scripts: ReadonlyArray<NativeScriptVariants> }
+  | { readonly _tag: "ScriptNOfK"; readonly required: bigint; readonly scripts: ReadonlyArray<NativeScriptVariants> }
+```
+
+Added in v2.0.0
+
+# parsing
+
+## fromCBORBytes
+
+Parse a NativeScript from CBOR bytes.
+
+**Signature**
+
+```ts
+export declare const fromCBORBytes: (bytes: Uint8Array, options?: CBOR.CodecOptions) => NativeScript
+```
+
+Added in v2.0.0
+
+## fromCBORHex
+
+Parse a NativeScript from CBOR hex string.
+
+**Signature**
+
+```ts
+export declare const fromCBORHex: (hex: string, options?: CBOR.CodecOptions) => NativeScript
+```
+
+Added in v2.0.0
+
+# predicates
+
+## is
+
+Check if the given value is a valid NativeScript
+
+**Signature**
+
+```ts
+export declare const is: (u: unknown, overrideOptions?: ParseOptions | number) => u is NativeScriptVariants
+```
+
+Added in v2.0.0
+
+# schemas
+
+## FromCDDL
+
+Transform between NativeScript and CDDL representation
+
+**Signature**
+
+```ts
+export declare const FromCDDL: Schema.Schema<NativeScript, NativeScriptCDDL, never>
+```
+
+Added in v2.0.0
+
+## NativeScript (class)
+
+TaggedClass schema for native scripts containing the Union
+
+**Signature**
+
+```ts
+export declare class NativeScript
+```
+
+Added in v2.0.0
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## NativeScriptVariants
+
+Internal Union schema for the actual native script variants
+
+**Signature**
+
+```ts
+export declare const NativeScriptVariants: Schema.Schema<NativeScriptVariants, NativeScriptEncoded, never>
+```
+
+Added in v2.0.0
+
+# testing
+
+## arbitrary
+
+FastCheck arbitrary for generating random NativeScript instances
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<NativeScript>
+```
+
+Added in v2.0.0
+
+# utilities
+
+## countRequiredSigners
+
+Count the maximum number of key hashes (signers) required to satisfy a native script.
+This is used for fee calculation to ensure the fake witness set has the correct size.
+
+Algorithm:
+
+- ScriptPubKey: 1 signer required
+- ScriptAll: sum of all nested scripts (all must be satisfied)
+- ScriptAny: maximum of nested scripts (pessimistic - assume most expensive path)
+- ScriptNOfK: sum of top N most expensive nested scripts
+- InvalidBefore/InvalidHereafter: 0 signers (time-based only)
+
+**Signature**
+
+```ts
+export declare const countRequiredSigners: (script: NativeScriptVariants) => number
+```
+
+Added in v2.0.0
+
+## extractKeyHashes
+
+Extract all key hashes from a native script.
+Recursively traverses nested scripts to find all ScriptPubKey key hashes.
+
+**Signature**
+
+```ts
+export declare const extractKeyHashes: (script: NativeScriptVariants) => ReadonlyArray<Uint8Array>
+```
+
+Added in v2.0.0
+
+# utils
+
+## CDDLSchema
+
+**Signature**
+
+```ts
+export declare const CDDLSchema: Schema.Schema<NativeScriptCDDL, NativeScriptCDDL, never>
+```
+
+## FromCBORBytes
+
+**Signature**
+
+```ts
+export declare const FromCBORBytes: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.transformOrFail<
+    typeof Schema.Uint8ArrayFromSelf,
+    Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+    never
+  >,
+  Schema.Schema<NativeScript, NativeScriptCDDL, never>
+>
+```
+
+## FromCBORHex
+
+**Signature**
+
+```ts
+export declare const FromCBORHex: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.Schema<Uint8Array, string, never>,
+  Schema.transform<
+    Schema.transformOrFail<
+      typeof Schema.Uint8ArrayFromSelf,
+      Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+      never
+    >,
+    Schema.Schema<NativeScript, NativeScriptCDDL, never>
+  >
+>
+```

@@ -1,0 +1,76 @@
+---
+title: sdk/Type.ts
+nav_order: 158
+parent: Modules
+---
+
+## Type overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [utils](#utils)
+  - [EffectToPromise (type alias)](#effecttopromise-type-alias)
+  - [EffectToPromiseAPI (type alias)](#effecttopromiseapi-type-alias)
+  - [SelectivePromiseAPI (type alias)](#selectivepromiseapi-type-alias)
+  - [SelectiveSyncAPI (type alias)](#selectivesyncapi-type-alias)
+
+---
+
+# utils
+
+## EffectToPromise (type alias)
+
+**Signature**
+
+```ts
+export type EffectToPromise<T> =
+  T extends Effect.Effect<infer Return, infer _Error, infer _Context>
+    ? Promise<Return>
+    : T extends (...args: Array<any>) => Effect.Effect<infer Return, infer _Error, infer _Context>
+      ? (...args: Parameters<T>) => Promise<Return>
+      : never
+```
+
+## EffectToPromiseAPI (type alias)
+
+**Signature**
+
+```ts
+export type EffectToPromiseAPI<T> = Expand<{
+  readonly [K in keyof T]: EffectToPromise<T[K]>
+}>
+```
+
+## SelectivePromiseAPI (type alias)
+
+Selective Promise conversion - specify which Effects become Promises, rest become sync
+
+**Signature**
+
+```ts
+export type SelectivePromiseAPI<T, PromiseKeys extends keyof T = never> = {
+  // Promise-converted methods (explicitly specified)
+  readonly [K in PromiseKeys]: EffectToPromise<T[K]>
+} & {
+  // Direct sync access for all other keys
+  readonly [K in Exclude<keyof T, PromiseKeys>]: T[K] extends Effect.Effect<infer Return, any, any> ? Return : T[K]
+}
+```
+
+## SelectiveSyncAPI (type alias)
+
+Selective Sync conversion - specify which Effects become sync, rest become Promises
+
+**Signature**
+
+```ts
+export type SelectiveSyncAPI<T, SyncKeys extends keyof T = never> = {
+  // Direct sync access (explicitly specified)
+  readonly [K in SyncKeys]: T[K] extends Effect.Effect<infer Return, any, any> ? Return : T[K]
+} & {
+  // Promise-converted methods for all other keys
+  readonly [K in Exclude<keyof T, SyncKeys>]: EffectToPromise<T[K]>
+}
+```

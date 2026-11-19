@@ -1,0 +1,122 @@
+import { Callout } from "nextra-theme-docs";
+
+# Command-line utilities
+
+## Evaluation
+
+Let's consider the following basic program:
+
+<p align="right">
+  <strong>program_1.uplc</strong>
+</p>
+
+```uplc
+(program
+  1.0.0
+  [ [ (builtin addInteger) (con integer 16) ] (con integer 26) ]
+)
+```
+
+We can evaluate this program using Aiken's cli via:
+
+```sh
+aiken uplc eval program_1.uplc
+```
+
+```json
+{
+  "result": "(con integer 42)",
+  "cpu": 321577,
+  "mem": 602
+}
+```
+
+The output indicates the result of the evaluation (`42`) as well as the
+execution cost of that program, both in terms of CPU and memory usage.
+
+Note that the command also accepts arguments. So, for example, if we modify our
+program into a function that accepts an argument as follows:
+
+<p align="right">
+  <strong>program_2.uplc</strong>
+</p>
+
+```uplc
+(program
+  1.0.0
+  (lam x [ [ (builtin addInteger) (con integer 16) ] x ])
+)
+```
+
+You can then instrument Aiken to provide arguments upon calling the program by
+simply appending them to the `eval` command:
+
+```sh
+aiken uplc eval program_2.uplc "(con integer 26)"
+```
+
+```json
+{
+  "result": "(con integer 42)",
+  "cpu": 390577,
+  "mem": 902
+}
+```
+
+## Formatting
+
+Because writing UPLC by hand can be a tedious task, Aiken provides a quick way to automatically format
+a UPLC program via the `fmt` command. By default, the command override the file given as input, but you
+can also simply prints the result to stdout using `--print`. For example:
+
+```sh
+aiken uplc fmt program_2.uplc --print
+```
+
+```uplc
+(program
+  1.0.0
+  (lam x [ [ (builtin addInteger) (con integer 16) ] x ])
+)
+```
+
+## Converting to/from binary encoding
+
+So far, we've been representing UPLC programs using a high-level syntax. In
+practice, however, UPLC programs are encoded into compact binary strings when
+submitted on-chain (using [flat](http://quid2.org/docs/Flat.pdf)).
+
+Aiken provides utilities to convert a high-level UPLC program into a low-level flat
+encoding − and vice-versa, via the `encode` and `decode` commands. For example:
+
+```sh
+aiken uplc encode program_1.uplc --hex
+```
+
+```
+01000023370090100009
+```
+
+The `encode` command prints everything on stdout and `--hex` turns the bytes into
+a hex encoded string so that we can read it.
+
+<Callout type="info">
+ `aiken uplc encode program_1.uplc > program_1.flat`
+
+sends the raw "flat" bytes to a file named `program_1.flat`
+
+</Callout>
+
+From there, one can recover a UPLC high-level syntax from a flat program using
+`unflat` as such:
+
+```sh
+aiken uplc decode program_1.flat
+```
+
+```uplc
+(program
+  1.0.0
+  [ [ (builtin addInteger) (con integer 16) ] (con integer 26) ]
+)
+```

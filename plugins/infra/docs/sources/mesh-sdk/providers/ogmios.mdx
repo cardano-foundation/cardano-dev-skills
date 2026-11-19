@@ -1,0 +1,290 @@
+---
+title: "Ogmios Provider"
+description: "Connect to your cardano-node using Ogmios WebSocket API for transaction evaluation and submission."
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+<Link href="https://ogmios.dev/">Ogmios</Link> is a lightweight bridge interface for cardano-node that provides a WebSocket API enabling local clients to speak Ouroboros mini-protocols via JSON/RPC.
+
+**When to use Ogmios:**
+- You run your own cardano-node and want direct access
+- You need low-latency transaction submission
+- You require self-hosted infrastructure without third-party dependencies
+- You want to evaluate Plutus script execution costs locally
+
+Ogmios is fast, lightweight, and deploys alongside relay nodes to create entry points on the Cardano network for various types of applications.
+
+## Quick Start
+
+Install the MeshJS package:
+
+```bash
+npm install @meshsdk/core
+```
+
+Initialize the provider:
+
+```tsx
+import { OgmiosProvider } from "@meshsdk/core";
+
+const provider = new OgmiosProvider("http://localhost:1337");
+```
+
+Evaluate and submit transactions:
+
+```tsx
+import { OgmiosProvider } from "@meshsdk/core";
+
+const provider = new OgmiosProvider("http://localhost:1337");
+
+// Evaluate a smart contract transaction
+const evaluation = await provider.evaluateTx(unsignedTx);
+
+// Submit a signed transaction
+const txHash = await provider.submitTx(signedTx);
+```
+
+## Configuration Options
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `url` | `string` | Yes | The Ogmios server URL (WebSocket endpoint) |
+
+### Running Ogmios
+
+Ogmios requires a running cardano-node. Start Ogmios with:
+
+```bash
+ogmios --node-socket /path/to/node.socket --node-config /path/to/config.json
+```
+
+Or use Docker:
+
+```bash
+docker run -it \
+  -v /path/to/node:/node \
+  -p 1337:1337 \
+  cardanosolutions/ogmios:latest \
+  --node-socket /node/node.socket \
+  --node-config /node/config.json
+```
+
+## API Reference
+
+### evaluateTx
+
+Evaluate a transaction to determine script execution costs. Use this to calculate the exact memory and CPU budget required for Plutus scripts.
+
+```tsx
+await provider.evaluateTx(tx: string): Promise<Omit<Action, "data">[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tx` | `string` | Yes | The unsigned transaction CBOR hex |
+
+**Returns:** Array of execution cost estimates for each script in the transaction.
+
+```tsx
+[
+  {
+    index: 0,       // The redeemer index
+    tag: "SPEND",   // The redeemer tag (SPEND, MINT, CERT, REWARD)
+    budget: {
+      mem: 1700,    // Memory units required
+      steps: 368100 // CPU steps required
+    }
+  }
+]
+```
+
+**Example:**
+
+```tsx
+import { OgmiosProvider, MeshTxBuilder } from "@meshsdk/core";
+
+const provider = new OgmiosProvider("http://localhost:1337");
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+// Build a transaction that interacts with a smart contract
+const unsignedTx = await txBuilder
+  // ... transaction building code
+  .complete();
+
+// Evaluate to get execution costs
+const evaluation = await provider.evaluateTx(unsignedTx);
+
+console.log(evaluation);
+// [
+//   {
+//     index: 0,
+//     tag: "SPEND",
+//     budget: { mem: 1700, steps: 368100 }
+//   }
+// ]
+```
+
+Use the evaluation results to set precise redeemer budgets:
+
+```tsx
+const redeemer = {
+  data: { alternative: 0, fields: [] },
+  budget: {
+    mem: evaluation[0].budget.mem,
+    steps: evaluation[0].budget.steps,
+  },
+};
+```
+
+---
+
+### submitTx
+
+Submit a signed transaction to the Cardano network.
+
+```tsx
+await provider.submitTx(tx: string): Promise<string>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tx` | `string` | Yes | The signed transaction CBOR hex |
+
+**Returns:** The transaction hash.
+
+**Example:**
+
+```tsx
+import { OgmiosProvider } from "@meshsdk/core";
+
+const provider = new OgmiosProvider("http://localhost:1337");
+
+const txHash = await provider.submitTx(signedTx);
+console.log(`Transaction submitted: ${txHash}`);
+```
+
+## Complete Example
+
+This example shows how to build, evaluate, and submit a smart contract transaction using Ogmios for evaluation and submission, combined with another provider for data fetching:
+
+```tsx
+import { OgmiosProvider, MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+
+async function interactWithSmartContract() {
+  // Use Ogmios for evaluation and submission
+  const ogmios = new OgmiosProvider("http://localhost:1337");
+
+  // Use another provider for data fetching (Ogmios doesn't support queries)
+  const fetcher = new BlockfrostProvider("<YOUR_API_KEY>");
+
+  // Initialize wallet
+  const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+    networkId: 0,
+    walletAddressType: AddressType.Base,
+    fetcher: fetcher,
+    submitter: ogmios,
+    mnemonic: ["your", "mnemonic", "phrase", "..."],
+  });
+
+  // Get wallet data
+  const utxos = await wallet.getUtxosMesh();
+  const changeAddress = await wallet.getChangeAddressBech32();
+
+  // Build transaction
+  const txBuilder = new MeshTxBuilder({
+    fetcher: fetcher,
+    evaluator: ogmios,
+  });
+
+  const unsignedTx = await txBuilder
+    .spendingPlutusScript("V3")
+    .txIn(scriptUtxo.input.txHash, scriptUtxo.input.outputIndex)
+    .txInInlineDatumPresent()
+    .txInRedeemerValue({ alternative: 0, fields: [] })
+    .txInScript(scriptCbor)
+    .txOut(changeAddress, [{ unit: "lovelace", quantity: "5000000" }])
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  // Evaluate to get precise script costs
+  const evaluation = await ogmios.evaluateTx(unsignedTx);
+  console.log("Script execution costs:", evaluation);
+
+  // Sign and submit
+  const signedTx = await wallet.signTx(unsignedTx, false);
+  const txHash = await ogmios.submitTx(signedTx);
+
+  console.log(`Transaction submitted: ${txHash}`);
+}
+```
+
+## Troubleshooting
+
+### Connection refused
+
+**Problem:** Cannot connect to Ogmios server.
+
+**Solution:**
+1. Verify Ogmios is running: `curl http://localhost:1337/health`
+2. Check the URL and port are correct
+3. Ensure your firewall allows connections to the Ogmios port
+4. Verify Ogmios has a working connection to the cardano-node socket
+
+### Node not synced
+
+**Problem:** Transaction evaluation fails with "node not synced" error.
+
+**Solution:** Wait for your cardano-node to fully sync with the network. Check sync progress:
+
+```bash
+cardano-cli query tip --mainnet
+```
+
+### Invalid transaction
+
+**Problem:** `submitTx` fails with validation errors.
+
+**Solution:**
+1. Ensure the transaction is properly signed
+2. Verify all inputs exist and are unspent
+3. Check that fees are sufficient
+4. For script transactions, ensure redeemer budgets are adequate
+
+### Evaluation failures
+
+**Problem:** `evaluateTx` returns errors for smart contract transactions.
+
+**Solution:**
+1. Ensure all referenced UTxOs exist on-chain
+2. Verify the script CBOR is correct
+3. Check that datum and redeemer are properly formatted
+4. Ensure the transaction structure matches what the script expects
+
+### WebSocket timeout
+
+**Problem:** Requests timeout without response.
+
+**Solution:**
+1. Check if cardano-node is responsive
+2. Verify Ogmios has a working connection to the node socket
+3. Increase client timeout settings if evaluating complex scripts
+
+## References
+
+- [Ogmios Documentation](https://ogmios.dev/) - Official Ogmios bridge interface documentation and API reference
+- [Ogmios Getting Started](https://ogmios.dev/getting-started/) - Installation and setup guides for Ogmios
+- [Cardano Developer Portal](https://developers.cardano.org) - Official Cardano development resources
+- [Cardano eUTXO Model](https://docs.cardano.org/about-cardano/learn/eutxo-explainer/) - Understanding the transaction model for script evaluation
+
+## Related
+
+- <Link href="https://ogmios.dev/">Ogmios Documentation</Link>
+- <Link href="https://ogmios.dev/getting-started/">Ogmios Getting Started</Link>
+- <Link href="https://ogmios.dev/api/">Ogmios API Reference</Link>
+- <Link href="/providers">All Providers</Link> - Compare with other providers
+- <Link href="/apis/txbuilder/basics">Transaction Builder</Link> - Build transactions

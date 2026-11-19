@@ -1,0 +1,145 @@
+import { Callout } from 'nextra/components'
+
+# Known Issues / FAQ
+
+This page documents known issues, workarounds, and frequently asked questions about Yaci DevKit.
+
+## Known Issues
+
+### Ogmios / Kupo Platform Availability
+
+<Callout type="info">
+Ogmios `v7.0.0` and Kupo `v2.12.0` are published for Linux (x86_64, arm64) and macOS arm64 only.
+</Callout>
+
+#### Current Behavior
+
+- **Docker (linux/amd64 and linux/arm64)**: Fully supported. Both images bundle **native**, statically linked binaries — no emulation required.
+- **Native CLI on Linux (x86_64 and arm64)**: Both supported.
+- **Native CLI on macOS arm64**: Both supported. The macOS builds link only against system libraries and run standalone.
+- **Native CLI on macOS x86_64 / Windows**: Neither component is published. `download -c ogmios` fails fast with an explanatory message instead of attempting a 404 download.
+
+#### Workaround
+
+On an unsupported platform, use the DevKit Docker image, or set a custom `ogmios.url` / `kupo.url` in `config/download.properties`.
+
+When Ogmios is unavailable, Yaci Store automatically falls back to the embedded `scalus` transaction evaluator, so transaction evaluation keeps working.
+
+---
+
+### Yaci Store Tx Evaluator Mode
+
+<Callout type="info">
+Yaci Store uses the `ogmios` transaction evaluator by default in the Docker distribution, and falls back to the embedded `scalus` evaluator when Ogmios is unavailable.
+</Callout>
+
+DevKit selects the evaluator at devnet start:
+
+- If Ogmios is enabled **and** responds on its health endpoint, the mode is `ogmios`.
+- Otherwise DevKit logs a warning and uses `scalus`. No transaction evaluation is lost either way.
+
+To force the Scalus evaluator, set `ogmios_enabled=false` in `config/env` (Docker) or `ogmios.enabled=false` in `config/application.properties` (zip distribution).
+
+Check the active mode in the Yaci CLI startup output:
+
+```text
+Yaci Store tx evaluator mode: ogmios
+```
+
+---
+
+### Plutus V2 Script Data Hash Mismatch (v0.11.0-beta1+)
+
+<Callout type="warning">
+**Issue**: Plutus V2 transactions may fail with "script data hash mismatch" exception when using Lucid Evolution or other off-chain SDKs.
+</Callout>
+
+#### Background
+
+In Yaci DevKit v0.11.0-beta1 and later, two configuration flags are commented out by default in `config/node.properties`:
+
+```properties
+# conwayHardForkAtEpoch=1
+# shiftStartTimeBehind=true
+```
+
+These flags were previously used as a workaround to avoid extra cost model entries in Plutus V2 when the Conway hard fork happens at epoch 0. The workaround manipulated the devnet start time to move to epoch 1, avoiding 10 extra entries in the Plutus V2 cost model in protocol parameters.
+
+#### Current Behavior With Default Configuration
+
+- **Plutus V3 transactions**: Work perfectly ✅
+- **Regular transactions**: Work perfectly ✅
+- **Plutus V2 with Cardano Client Lib**: Works perfectly ✅
+- **Plutus V2 with Lucid Evolution**: May fail with script data hash mismatch ❌
+
+#### Root Cause
+
+The **default configuration works fine with Cardano Client Lib** for all Plutus versions (including Plutus V2) because Cardano Client Lib fetches the cost model directly from the node to calculate script data hash for script transactions.
+
+However, **Plutus V2 scripts fail with Lucid Evolution** using the default configuration. The issue appears to be related to hardcoded cost models that don't match the current protocol parameters when Conway hard fork occurs at epoch 0.
+
+#### Workaround
+
+If you need to use **Plutus V2** with Lucid Evolution or other off-chain SDKs, enable the workaround flags:
+
+1. **Edit your node configuration file**:
+   - **Docker distribution**: `config/node.properties`
+   - **Zip distribution**: `config/node.properties`
+
+2. **Uncomment and enable the flags**:
+   ```properties
+   conwayHardForkAtEpoch=1
+   shiftStartTimeBehind=true
+   ```
+
+3. **Restart your devnet** to apply the changes
+
+<Callout type="info">
+**Trade-off**: Enabling these flags may cause issues with rewards or AdaPot calculations, but allows Plutus V2 transactions to work correctly.
+</Callout>
+
+#### More Information
+
+For technical details about this issue, see: [GitHub Issue #65](https://github.com/bloxbean/yaci-devkit/issues/65#issuecomment-2318155838)
+
+---
+
+### Devnet node does not start while another cardano-node runs
+
+Applies to the zip, npm, Homebrew and native/JAR distributions. Docker is not affected: the devnet node runs in the container's own network, and its Prometheus port is not published to the host.
+
+#### Current Behavior
+
+`create-node --start`, `start` or `yaci-devkit up` stops with:
+
+```
+Prometheus Port 12798 is not available. The devnet node needs it; another cardano-node on this machine (e.g. a mainnet node) may be using it.
+```
+
+#### Root Cause
+
+The devnet's cardano-node serves Prometheus metrics on port 12798, the same default a mainnet or testnet cardano-node uses. cardano-node exits at startup when it cannot open that port.
+
+#### Workaround
+
+Stop the other node, or give the devnet a free port. The port is written into the devnet when it is created, so re-create the devnet (`-o`) after changing it.
+
+| Distribution | Once | Every time |
+|---|---|---|
+| Zip / native binary | `create-node -o --prometheus-port 12799` | `prometheus.port=12799` in `config/application.properties`, or `./yaci-cli -Dprometheus.port=12799` |
+| JAR | `create-node -o --prometheus-port 12799` | `java -Dprometheus.port=12799 -jar yaci-cli.jar` |
+| NPM / Homebrew | `yaci-devkit up --prometheus-port 12799` | `PROMETHEUS_PORT=12799 yaci-devkit up` |
+| Zip / NPM / Homebrew (v0.12.0+) | | `prometheus.port=12799` in `$HOME/.yaci-cli/devkit.properties` (see [User Settings](/user-settings)) |
+
+The `PROMETHEUS_PORT=12799` environment variable works with every distribution. Use one of the "Every time" forms if you also create devnets through the admin API or Yaci Viewer, which use the `prometheus.port` property.
+
+---
+
+## Getting Help
+
+If you encounter issues not covered here:
+
+1. **Check the documentation**: Verify you're following the correct setup for your distribution
+2. **Search existing issues**: [GitHub Issues](https://github.com/bloxbean/yaci-devkit/issues)
+3. **Join the community**: [Discord](https://discord.gg/JtQ54MSw6p)
+4. **Report a bug**: [Create new issue](https://github.com/bloxbean/yaci-devkit/issues/new)

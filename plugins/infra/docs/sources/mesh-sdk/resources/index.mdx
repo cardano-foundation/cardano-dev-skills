@@ -1,0 +1,44 @@
+---
+title: "Resources"
+description: "Comprehensive courses, tutorials, and resources for Cardano developers."
+icon: AcademicCapIcon
+---
+import {linksLearn} from "@/data/links-course";
+import {metaGuides} from "@/data/links-guides";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+Find everything you need to build on Cardano with Mesh. Access courses, tutorials, developer tools, and community resources to accelerate your development journey.
+
+## Learning paths
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {[...linksLearn, metaGuides].map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## Quick links
+
+| Resource | Description |
+|----------|-------------|
+| [Getting Started](/guides) | Set up Mesh and build your first transaction |
+| [API Reference](/apis) | Complete API documentation |
+| [Smart Contracts](/smart-contracts) | Build with Plutus and Aiken |
+| [FAQ](/resources/faq) | Common questions answered |
+| [Developer Resources](/resources/developer-resources) | Tools, communities, and ecosystem |
+
+## Need help?
+
+- **[Discord](https://discord.gg/dH48jH3BKa)** - Real-time community support
+- **[GitHub](https://github.com/MeshJS/mesh)** - Report issues and contribute
+- **[Twitter](https://twitter.com/meshsdk)** - Latest updates and announcements

@@ -1,0 +1,342 @@
+---
+title: "Data Formats Overview"
+description: "Understand how MeshJS handles Cardano data formats and conversions"
+---
+
+Cardano uses specific data representations for on-chain operations. This guide explains the different data formats and how to work with them in MeshJS.
+
+## Overview
+
+Cardano data flows through three representation formats:
+
+1. **CBOR** - The on-chain binary encoding format
+2. **JSON** - Human-readable format for debugging and APIs
+3. **Mesh Data** - Simplified JavaScript-native format
+
+MeshJS lets you work with any of these formats and converts between them automatically when needed.
+
+## CBOR Format
+
+CBOR (Concise Binary Object Representation) is the native format for Cardano on-chain data. All data stored on the blockchain uses CBOR encoding.
+
+### When to Use CBOR
+
+- Receiving data from external blockchain tools
+- Integrating with other Cardano serialization libraries
+- Working with raw transaction data
+
+### Example: Working with CBOR
+
+```tsx
+import { deserializeDatum } from "@meshsdk/core";
+
+// Decode CBOR data from the blockchain
+const cborDatum = "d8799f581caa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b61a000f4240ff";
+const decodedDatum = deserializeDatum(cborDatum);
+
+console.log("Decoded:", decodedDatum);
+// { constructor: 0, fields: ["aa048e4c...", 1000000] }
+```
+
+---
+
+## JSON Data Format
+
+The JSON format provides a structured representation of Cardano data with explicit type wrappers. This format is ideal for web applications that need strong type validation.
+
+### Structure
+
+JSON data uses wrapper objects to indicate types:
+
+```tsx
+// Integer
+{ "int": 1000000 }
+
+// ByteString
+{ "bytes": "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6" }
+
+// Constructor
+{
+  "constructor": 0,
+  "fields": [
+    { "bytes": "aa048e4c..." },
+    { "int": 1000000 }
+  ]
+}
+```
+
+### Example: Building JSON Data
+
+```tsx
+import { conStr0, byteString, integer, list } from "@meshsdk/core";
+
+// Build a constructor with typed fields
+const datum = conStr0([
+  byteString("aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6"),
+  integer(1000000),
+]);
+
+// Build a list
+const items = list([
+  integer(100),
+  integer(200),
+  integer(300),
+]);
+```
+
+For complete JSON data utilities, see [JSON Data](/apis/data/json).
+
+---
+
+## Mesh Data Format
+
+The Mesh Data format uses native JavaScript primitives with minimal wrappers. This is the simplest way to work with Cardano data.
+
+### Structure
+
+Mesh data maps directly to JavaScript types:
+
+```tsx
+// Integer -> number or bigint
+1000000n
+
+// ByteString -> string
+"aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6"
+
+// List -> Array
+[100n, 200n, 300n]
+
+// Map -> Map
+new Map([["key", "value"]])
+
+// Constructor -> MConstr object
+{ alternative: 0, fields: ["aa048e4c...", 1000000n] }
+```
+
+### Example: Building Mesh Data
+
+```tsx
+import { mConStr0, mConStr1, mBool } from "@meshsdk/core";
+
+// Build a constructor with native values
+const datum = mConStr0([
+  "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+  1000000n,
+]);
+
+// Build a boolean
+const flag = mBool(true);
+
+// Build with nested structures
+const complexDatum = mConStr0([
+  "owner-hash",
+  [100n, 200n, 300n], // Native array as list
+  new Map([["token", 500n]]), // Native Map
+]);
+```
+
+For complete Mesh data utilities, see [Mesh Data](/apis/data/mesh).
+
+---
+
+## Format Comparison
+
+| Feature | CBOR | JSON Data | Mesh Data |
+|---------|------|-----------|-----------|
+| Type safety | Manual | Automatic | Manual |
+| Verbosity | Compact | Verbose | Minimal |
+| Validation | None | Built-in | None |
+| Debugging | Difficult | Easy | Easy |
+| Performance | Fastest | Good | Good |
+
+---
+
+## Converting Between Formats
+
+### JSON to CBOR
+
+Use the transaction builder to automatically convert JSON data to CBOR:
+
+```tsx
+import { MeshTxBuilder, conStr0, byteString, integer } from "@meshsdk/core";
+
+const datum = conStr0([
+  byteString("aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6"),
+  integer(1000000),
+]);
+
+const txBuilder = new MeshTxBuilder();
+await txBuilder
+  .txOut(scriptAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .txOutInlineDatumValue(datum, "JSON")
+  .complete();
+```
+
+### Mesh Data to CBOR
+
+```tsx
+import { MeshTxBuilder, mConStr0 } from "@meshsdk/core";
+
+const datum = mConStr0([
+  "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+  1000000n,
+]);
+
+const txBuilder = new MeshTxBuilder();
+await txBuilder
+  .txOut(scriptAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .txOutInlineDatumValue(datum, "Mesh")
+  .complete();
+```
+
+### CBOR to JSON/Mesh
+
+```tsx
+import { deserializeDatum } from "@meshsdk/core";
+
+const cborDatum = "d8799f581caa048e4c...";
+const decoded = deserializeDatum(cborDatum);
+
+// Result is a JavaScript object representing the datum structure
+console.log(decoded);
+```
+
+---
+
+## Common Data Patterns
+
+### Lock Datum (Owner + Deadline)
+
+```tsx
+// JSON format
+import { conStr0, byteString, integer } from "@meshsdk/core";
+
+const lockDatum = conStr0([
+  byteString("owner-pub-key-hash"),
+  integer(1704067200000), // Unix timestamp
+]);
+
+// Mesh format
+import { mConStr0 } from "@meshsdk/core";
+
+const lockDatum = mConStr0([
+  "owner-pub-key-hash",
+  1704067200000n,
+]);
+```
+
+### NFT Metadata Reference
+
+```tsx
+// JSON format
+import { conStr0, byteString } from "@meshsdk/core";
+
+const metadataRef = conStr0([
+  byteString("tx-hash"),
+  integer(0), // output index
+]);
+
+// Mesh format
+import { mConStr0 } from "@meshsdk/core";
+
+const metadataRef = mConStr0([
+  "tx-hash",
+  0n,
+]);
+```
+
+### Swap Datum (Asset Pair + Amounts)
+
+```tsx
+// JSON format
+import { conStr0, byteString, integer, list } from "@meshsdk/core";
+
+const swapDatum = conStr0([
+  byteString("offered-policy-id"),
+  byteString("offered-asset-name"),
+  integer(100),
+  byteString("requested-policy-id"),
+  byteString("requested-asset-name"),
+  integer(200),
+]);
+
+// Mesh format
+import { mConStr0 } from "@meshsdk/core";
+
+const swapDatum = mConStr0([
+  "offered-policy-id",
+  "offered-asset-name",
+  100n,
+  "requested-policy-id",
+  "requested-asset-name",
+  200n,
+]);
+```
+
+---
+
+## Complete Example
+
+This example shows using both data formats in a complete smart contract interaction:
+
+```tsx
+import {
+  MeshTxBuilder,
+  conStr0,
+  byteString,
+  integer,
+  mConStr0,
+  deserializeDatum,
+} from "@meshsdk/core";
+
+// 1. Create datum in JSON format (for validation)
+const jsonDatum = conStr0([
+  byteString("aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6"),
+  integer(1000000),
+]);
+
+// 2. Create redeemer in Mesh format (for simplicity)
+const redeemer = mConStr0(["unlock"]);
+
+// 3. Build transaction with both formats
+const txBuilder = new MeshTxBuilder();
+
+await txBuilder
+  .spendingPlutusScript("V2")
+  .txIn(utxo.txHash, utxo.outputIndex)
+  .txInScript(scriptCbor)
+  .txInDatumValue(jsonDatum, "JSON")
+  .txInRedeemerValue(redeemer, "Mesh")
+  .txOut(walletAddress, utxo.output.amount)
+  .changeAddress(walletAddress)
+  .complete();
+
+// 4. Decode datum from blockchain (returns CBOR-decoded structure)
+const onChainDatum = deserializeDatum(utxo.output.plutusData);
+console.log("On-chain datum:", onChainDatum);
+```
+
+---
+
+## Troubleshooting
+
+### Type mismatch errors
+
+Ensure you specify the correct format when providing data to transaction builders. Use `"JSON"` for JSON format data and `"Mesh"` for Mesh format data.
+
+### Integer precision issues
+
+For large numbers, always use `bigint` (e.g., `1000000n`) to avoid JavaScript number precision limitations.
+
+### ByteString validation fails
+
+Byte strings must be valid hexadecimal. If you have a bech32 address, use `deserializeAddress` to extract the key hash first.
+
+---
+
+## Related
+
+- [JSON Data](/apis/data/json) - Build data with JSON utilities
+- [Mesh Data](/apis/data/mesh) - Build data with Mesh utilities
+- [Value](/apis/data/value) - Work with multi-asset values
+- [Deserializers](/apis/utilities/deserializers) - Parse on-chain data

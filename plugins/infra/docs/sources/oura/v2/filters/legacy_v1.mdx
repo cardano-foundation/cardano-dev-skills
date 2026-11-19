@@ -1,0 +1,65 @@
+---
+title: Legacy V1 filter
+sidebar:
+  label: Legacy V1
+  order: 5
+---
+
+The `LegacyV1` filter reshapes records into the Oura **v1** event schema. It's the easy path
+for systems already built against Oura v1: point them at v2 and add this filter, and they keep
+receiving the events they expect. For the full v1 event catalog, see
+[Legacy V1 events](/oura/v2/reference/legacy_v1_events).
+
+## Configuration
+
+```toml title="daemon.toml"
+[[filters]]
+type = "LegacyV1"
+include_block_end_events = false
+include_transaction_details = false
+include_transaction_end_events = false
+include_block_details = false
+include_block_cbor = false
+```
+
+- `type` (required): the literal value `LegacyV1`.
+- `include_block_end_events` (optional, default = `false`): emit an event marking the end of a
+  block, duplicating the data already sent in the block-start event.
+- `include_transaction_details` (optional, default = `false`): nest the full transaction
+  details (inputs, outputs, mint, assets, metadata, …) inside each transaction event. Useful
+  when you want to process a tx as a single unit rather than as separate sub-events.
+- `include_transaction_end_events` (optional, default = `false`): emit an event marking the end
+  of a transaction, duplicating the data already sent in the transaction-start event.
+- `include_block_details` (optional, default = `false`): include the basic details of each
+  transaction in the block event.
+- `include_block_cbor` (optional, default = `false`): include the raw, unaltered block CBOR as
+  a hex string. Useful when you need to do custom CBOR decoding.
+
+## Examples
+
+With every option disabled, the next stage receives events like this:
+
+```json
+{
+  "event": "apply",
+  "point": {
+    "slot": 100110525,
+    "hash": "c808fc4142c5f10a2a6d0922edbd23972100d7d22e2255206bd05e968cc045f1"
+  },
+  "record": {
+    "context": {
+      "block_hash": "c808fc4142c5f10a2a6d0922edbd23972100d7d22e2255206bd05e968cc045f1",
+      "block_number": 9142145,
+      "slot": 100110525,
+      "timestamp": 1691676816,
+      "tx_idx": 6,
+      "tx_hash": "4329140c6711f2197c8c81bfff4b75fb95892375050dafda30ba146476ca3d65",
+      "input_idx": null,
+      "output_idx": null,
+      "output_address": null,
+      "certificate_idx": null
+    },
+    ...
+  }
+}
+```

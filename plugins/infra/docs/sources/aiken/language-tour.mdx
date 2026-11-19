@@ -1,0 +1,246 @@
+# Learn Aiken in 5 minutes!
+
+The following excerpt gives you a quick tour of Aiken as a language. It's a good cheatsheet if you are already familiar with similar languages or if you need to remind yourself about Aiken. For details, do not hesitate to look at the other sections of the language tour which explain in more depth all the features of the language.
+
+```aiken
+// ## Variables & Constants
+
+// Constants are defined using 'const'
+// Constants may be used at the top level of a module
+const my_constant: Int = 42
+
+// Values assigned to let-bindings are immutable
+// New bindings can shadow previous bindings
+let x = 1
+let y = x
+let x = 2
+// y + x == 3
+
+// ## Functions
+
+// Functions are defined using 'fn' and can be named
+fn add(a: Int, b: Int) -> Int {
+  a + b
+}
+
+// Annotations are often optional (albeit recommended), as they can be inferred.
+fn add_inferred(a, b) {
+  a + b
+}
+
+// Functions are private by default. They can be exported with the 'pub' keyword.
+pub fn public_function(x: Int) -> Int {
+  x * 2
+}
+
+// Functions can accept functions as arguments
+fn apply_function_twice(x, f: fn(t) -> t) {
+  f(f(x))
+}
+
+// We can achieve the same outcome as above with pipelining using '|>'
+fn apply_function_with_pipe_twice(x, f: fn(t) -> t) {
+  x
+    |> f
+    |> f
+}
+
+// Function can be partially applied to create new functions. This behavior is also referred to as 'function captures'.
+fn capture_demonstration() {
+  let add_one = add(_, 1)
+  apply_function_twice(2, add_one) // Evaluates to 4
+}
+
+// ### Validators
+
+// Validators are special functions in Aiken for smart contracts
+validator my_validator {
+  mint(redeemer: Data, policy_id: PolicyId, self: Transaction) {
+    todo @"smart contract logic goes here"
+  }
+
+  spend(datum: Option<Data>, redeemer: Data, utxo: OutputReference, self: Transaction) {
+    todo @"smart contract logic goes here"
+  }
+}
+
+// ### Backpassing
+
+// Functions that take callbacks can leverage backpassing using `<-`
+fn cubed_backpassing(n) {
+  let total <- apply_function_twice(n)
+  total * n
+}
+
+// which is equivalent to writing:
+fn cubed_callback(n) {
+  apply_function_twice(n, fn(total) {
+    total * n
+  })
+}
+
+// ## Data Types
+
+// Aiken has several primitive types:
+const my_int: Int = 10
+const my_bool: Bool = True
+const my_string: ByteArray = "Hello, Aiken!"
+const my_hex_string: ByteArray = #"666f6f"
+const my_utf8_string: String = @"Hello, Aiken!"
+
+// Lists
+const my_list: List<Int> = [1, 2, 3, 4, 5]
+
+// Tuples
+const my_tuple: (Int, ByteArray) = (1, "one")
+
+// ### Custom Types
+
+// Records can be defined using 'type', a constructor and typed fields.
+type RGB {
+  red: Int,
+  green: Int,
+  blue: Int,
+}
+
+// Updating some of the fields of a custom type record.
+fn set_red_255(rgb: RGB) {
+  RGB {..rgb, red: 255}
+}
+
+// Enums are also supported, as well as full algebraic data-types, with (or
+// without) generic arguments.
+pub type Option<a> {
+  None
+  Some(a)
+}
+
+// Types can also be aliased
+type CartesianCoordinates = (Int, Int)
+
+// ### Data
+
+// Any serialisable type can be upcast to `Data`
+const anything_int: Data = 10
+const anything_bytes: Data = "Hello, Aiken!"
+const anything_list: Data = [True, False, False]
+
+
+// Downcasting from `Data` is no guaranteed, but can be achieved with `expect`
+fn downcast(data: Data) -> RGB {
+    expect d: RGB = data // fails if datum doesn't fit as an `RGB`
+    d
+}
+
+// Serialisable values can be implicitly upcast to Data during calls
+fn serialise(data: Data) -> ByteArray {}
+let color: RGB = RGB { red: 255, green: 255, blue: 255 }
+serialise(color) // RGB is implicitly passed as `Data`
+
+// ## Control Flow
+
+// If expressions
+fn abs(x: Int) -> Int {
+  if x < 0 {
+    -x
+  } else {
+    x
+  }
+}
+
+// When expressions (pattern matching)
+fn describe_list(list: List<Int>) -> String {
+  when list is {
+    [] -> @"The list is empty"
+    [x] -> @"The list has one element"
+    [x, y, ..] -> @"The list has multiple elements"
+  }
+}
+
+// This syntax can be used instead of when to check a single case and fail otherwise.
+expect Some(foo) = my_optional_value
+
+// When the left-hand side pattern is `True`, it can be omitted for conciseness.
+fn positive_add(a, b) {
+  // Error if the sum is negative, return it otherwise
+  let sum = add(abs(a), abs(b))
+  expect sum >= 0
+  sum
+}
+
+// 'and' and 'or' boolean operators come with their own syntactic sugar
+fn my_validation_logic() -> Bool {
+  (should_satisfy_condition_1 && should_satisfy_condition_2) || should_satisfy_condition_3 || should_satisfy_condition_4
+}
+
+fn my_more_readable_validation_logic() -> Bool {
+  or {
+    and {
+      should_satisfy_condition_1,
+      should_satisfy_condition_2,
+    },
+    should_satisfy_condition_3,
+    should_satisfy_condition_4,
+  }
+}
+
+// Sometimes it is useful to have an unfinished function which still allows compilation
+// The 'todo' key word will always fail, and provide a warning upon compilation.
+fn favourite_number() -> Int {
+  // The type annotations says this returns an Int, but we don't need
+  // to implement it yet.
+  todo @"An optional message to the user"
+}
+
+// The fail keyword works similarly, but without any warning on compilation.
+fn expect_some_value(opt: Option<a>) -> a {
+  when opt is {
+    Some(a) -> a
+    None -> fail @"An optional message to the user"
+    // We want this to fail when we encounter 'None'.
+  }
+}
+
+// Trace for debugging
+fn debug_function(x: Int) -> Int {
+  trace @"We can trace using this syntax."
+  (x * 2 < 10)? // This will trace if false.
+}
+
+// Trace is variadic and can display any number of serialisable values
+let color = RGB(140, 49, 224)
+trace @"Color": color, True
+
+// ## Modules and Imports
+
+// Importing modules
+use aiken/collection/list
+
+// Using imported functions
+fn use_imports() {
+  let numbers = [1, 2, 3, 4, 5]
+  list.at(numbers, 2) // evaluates to 3
+}
+
+// Importing values to use as unqualified identifiers
+use aiken/collection/list.{at}
+
+fn use_unqualified_imports() {
+  let numbers = [1, 2, 3, 4, 5]
+  at(numbers, 2) // still 3
+}
+
+// ## Testing
+
+// Tests are defined using the 'test' keyword
+test simple_addition() {
+  let result = add(2, 3)
+  result == 5
+}
+
+// Tests can also be properties!
+use aiken/fuzz
+test prop_commutative((a, b) via fuzz.both(fuzz.int(), fuzz.int())) {
+  add(a, b) == add(b, a)
+}
+```

@@ -1,0 +1,108 @@
+---
+description: Tools and resources"
+title: 'Tools and resources'
+sidebar_position: 1
+---
+
+*Last update: 2024-08-26*
+
+### Voltaire GovTool
+
+* [SanchoNet GovTool beta site](https://sanchogov.tools)
+* [Voltaire GovTool on Preview](https://preview.gov.tools)
+* [Voltaire GovTool on Mainnet](https://gov.tools)
+
+* [SanchoNet documentation site](https://docs.sanchogov.tools/)
+* [Voltaire documentation site](https://docs.gov.tools/)
+
+* [GovTool Repository](https://github.com/IntersectMBO/govtool)
+
+### Node
+
+* [Latest node releases](https://github.com/IntersectMBO/cardano-node/releases)
+
+### Ledger
+
+* [CIP-1694 | A first step towards on-chain decentralized governance](https://github.com/cardano-foundation/CIPs/blob/master/CIP-1694/README.md)
+* [Conway design CDDL](https://github.com/IntersectMBO/cardano-ledger/blob/master/eras/conway/impl/cddl-files/conway.cddl)
+* [Conway ledger backlog](https://github.com/IntersectMBO/cardano-ledger/issues?q=is%3Aissue+is%3Aopen+label%3Aconway)
+
+### DB Sync
+
+* [Cardano DB-Sync 13.4.0.0](https://github.com/IntersectMBO/cardano-db-sync/releases/tag/13.4.0.0)
+* [Note on naming scheme](https://gist.github.com/kderme/2ab2f79fcdc159be3465bae9b7df78e7)
+* [Blog post on speeding up DB-Sync](https://github.com/IntersectMBO/cardano-db-sync/blob/blog/blog/blog.pdf)
+
+### Wallets/CIP-95
+
+CIP-95 is the governance extension to the CIP-30 wallet-DApp bridge.
+For list of supported wallets please check [docs.sanchogov.tools](https://docs.sanchogov.tools/how-to-use-the-govtool/getting-started/get-a-compatible-wallet).
+
+* [CIP-0095 | Web-wallet bridge – governance](https://github.com/cardano-foundation/CIPs/blob/master/CIP-0095/README.md)
+* [demos CIP-95 test DApp hosted](https://ryun1.github.io/cip95-cardano-wallet-connector/)
+* [demos DApp source code](https://github.com/Ryun1/cip95-cardano-wallet-connector)
+* [demos CIP-95 prototype wallet](https://github.com/Ryun1/cip95-demos-wallet)
+* [demos CIP-95 wallet build](https://drive.google.com/file/d/1751xFA1TSN7taNs2blTMeFwE6-xL3wKt/)
+* [CIP-0105 | Conway era key chains for HD wallets](https://github.com/cardano-foundation/CIPs/blob/master/CIP-0105/README.md)
+
+### Cardano Serialization Library (Conway beta) - Emurgo
+
+This is an Alpha build and the team are keen to hear feedback via [Github Issues](https://github.com/Emurgo/cardano-serialization-lib/issues).
+* https://www.npmjs.com/package/@emurgo/cardano-serialization-lib-browser/v/12.0.0-beta.2
+* https://www.npmjs.com/package/@emurgo/cardano-serialization-lib-nodejs/v/12.0.0-beta.2
+* https://www.npmjs.com/package/@emurgo/cardano-serialization-lib-asmjs/v/12.0.0-beta.2
+* https://crates.io/crates/cardano-serialization-lib/12.0.0-beta.2
+
+### Cardano SDK
+
+[Cardano SDK](https://github.com/input-output-hk/cardano-js-sdk) is a comprehensive suite of Typescript packages suitable for both Node.js and browser-based development,
+used by [Lace](https://www.lace.io) at its core for everything relating to the Cardano blockchain.
+
+The [core/Serialization](https://github.com/input-output-hk/cardano-js-sdk/tree/master/packages/core/src/Serialization) package has support for serialization and deserialization,
+developed from the ground up in Typescript.
+* https://www.npmjs.com/package/@cardano-sdk/core
+* [Usage examples](https://github.com/input-output-hk/cardano-js-sdk/tree/master/packages/core/test/Serialization)
+
+### Governance Metadata Standards
+
+The Conway ledger era ushers in on-chain governance for Cardano via [CIP-1694 | A First Step Towards On-Chain Decentralized Governance](https://github.com/cardano-foundation/CIPs/blob/master/CIP-1694/README.md), with the addition of many new on-chain governance artifacts.
+Some of these artifacts support the linking off-chain metadata, as a way to provide context.
+
+There have been three governance metadata standards developed, so far, to define what the off-chain contextual data can look like.
+
+* [CIP-100 | Governance Metadata](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0100) Base standard, providing a framework for future more specific standards.
+* [CIP-108 | Governance Metadata - Governance actions](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0108) This proposal aims to provide a specification for off-chain metadata vocabulary that can be used to give context to governance actions.
+* [CIP-119 | Governance Metadata - DReps](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0119) This proposal aims to provide a specification for off-chain metadata vocabulary that can be used to give context to CIP-100 for DRep registration and updates.
+
+Two further standard is around the technical form of the constitution.
+
+* [CIP-0120 | Constitution specification](https://github.com/cardano-foundation/CIPs/pull/796) This proposal aims to describe a standardized technical form for the Cardano constitution. Hoping to enhance the accessibility and safety of the document.
+* [CIP-???? | Governance metadata - Constitutional Committee vote rationale](https://github.com/cardano-foundation/CIPs/pull/878) This proposal aims to provide a specification for off-chain metadata vocabulary that can be used to give context to constitutional committee votes.
+
+## Built by the community
+
+Disclaimer: These tools and guides are created by the community and are not supported directly. Please refer any issues to the author.
+
+### Tools from the community:
+
+* [Blockfrost.io](https://blockfrost.io): the leading Cardano API-as-a-Service, which also provides access to the SanchoNet testing network.
+* [NuFi Wallet CIP-95/ SanchoNet Compatible Build](https://assets.nu.fi/extension/sanchonet/nufi-cwe-sanchonet-latest.zip): the first community CIP-95 wallet build.
+* [Ogmios Conway Releases](https://github.com/CardanoSolutions/ogmios/releases): is a lightweight bridge interface for cardano-node. It provides an HTTP / WebSocket API that enables applications to interact with a local cardano-node via JSON+RPC-2.0.
+* [Cardano-Signer](https://github.com/gitmachtl/cardano-signer): Open-Source multifunction tool, which can sign&verify data. Can also be used for Key-Generation, like dRep-Keys, CCM-Cold/Hot-Keys with Mnemonic-Support.
+* [SPO Scripts](https://github.com/gitmachtl/scripts): Open-Source collection of CLI-Scripts to perform all kinds of transactions, key-generation, etc. on the CLI. Now with full Conway Governance support.
+* [Adanordic.com](https://adanordic.com): A work-in-progress rudimentary governance related explorer.
+* [Cardano Multiplatform Library](https://github.com/dcSpark/cardano-multiplatform-lib/releases/tag/5.0.0) A standard multifunctional library for serialization & deserialization of core data structures and useful utility functions.
+* [Cexplorer.io SanchoNet](https://sancho.cexplorer.io/): The biggest and oldest Cardano explorer, supporting the SanchoNet testing network.
+* [cardano-wallet Conway release](https://github.com/cardano-foundation/cardano-wallet/releases/tag/v2024-03-01): Cardano wallet is command line based software wallet.
+* [drep.tools](https://drep.tools/): A very early version of a site to help DReps.
+* [Plutarch](https://github.com/Plutonomicon/plutarch-plutus): A Haskell eDSL designed for writing fast and fine-tunable on-chain scripts. Currently supports PlutusLedger V1 and V2, with [V3 on its way](https://github.com/Plutonomicon/plutarch-plutus/issues/655).
+* [carp 3.2.0](https://github.com/dcSpark/carp/releases/tag/3.2.0) This project is designed to sync data from the Cardano blockchain and store it into a Postgres database.
+* [Parameter Proposal Guardrails Checker](http://ec2-16-171-11-232.eu-north-1.compute.amazonaws.com:8080/) The Parameter Proposal Guardrails Checker is a web-based tool that checks the constitutionality of a Parameter Update Proposal. It implements checks for the guardrails from the [Constitution](https://raw.githubusercontent.com/IntersectMBO/interim-constitution/main/cardano-constitution-0.txt).
+
+### Guides from the community:
+
+| Author                        | Title                                                                                                                        | Date       |                                                                                                                                                                      |
+|-------------------------------|------------------------------------------------------------------------------------------------------------------------------|------------|
+|Eysteinh (NBX)                 | [Sancho Panza: Navigating Cardano's Testnet Frontier](https://www.youtube.com/watch?v=9CR8c9ZIVEE)                           | 2023-08-14 |
+|Mike Hornan (ABLE)             | [Sancho Testnet Guides and Command Line Interface](https://www.youtube.com/playlist?list=PLWYf5eQbRdbWa5n21tyy8xWpTS6zjm3Mj) | 2023-10-02 |
+|Nicolas Cerny (CF)             | [How to become a delegated representative (DRep) on SanchoNet](https://youtu.be/frkgK1VGhZU?si=-i1zird99sNdnDKq)             | 2024-01-10 |

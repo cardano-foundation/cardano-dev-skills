@@ -1,0 +1,19 @@
+description: Usage limit reached
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 429
+        error:
+          type: string
+          example: "Project Over Limit"
+        message:
+          type: string
+          example: "Usage is over limit."
+      required:
+        - error
+        - message
+        - status_code

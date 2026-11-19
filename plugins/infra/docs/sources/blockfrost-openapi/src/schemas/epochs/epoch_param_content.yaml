@@ -1,0 +1,373 @@
+type: object
+properties:
+  epoch:
+    type: integer
+    example: 225
+    description: Epoch number
+  min_fee_a:
+    type: integer
+    example: 44
+    description: The linear factor for the minimum fee calculation for given epoch
+  min_fee_b:
+    type: integer
+    example: 155381
+    description: The constant factor for the minimum fee calculation
+  max_block_size:
+    type: integer
+    example: 65536
+    description: Maximum block body size in Bytes
+  max_tx_size:
+    type: integer
+    example: 16384
+    description: Maximum transaction size
+  max_block_header_size:
+    type: integer
+    example: 1100
+    description: Maximum block header size
+  key_deposit:
+    type: string
+    example: "2000000"
+    description: The amount of a key registration deposit in Lovelaces
+  pool_deposit:
+    type: string
+    example: "500000000"
+    description: The amount of a pool registration deposit in Lovelaces
+  e_max:
+    type: integer
+    example: 18
+    description: Epoch bound on pool retirement
+  n_opt:
+    type: integer
+    example: 150
+    description: Desired number of pools
+  a0:
+    type: number
+    example: 0.3
+    description: Pool pledge influence
+  rho:
+    type: number
+    example: 0.003
+    description: Monetary expansion
+  tau:
+    type: number
+    example: 0.2
+    description: Treasury expansion
+  decentralisation_param:
+    type: number
+    example: 0.5
+    description: Percentage of blocks produced by federated nodes
+  extra_entropy:
+    type: string
+    nullable: true
+    example: null
+    description: Seed for extra entropy
+  protocol_major_ver:
+    type: integer
+    example: 2
+    description: Accepted protocol major version
+  protocol_minor_ver:
+    type: integer
+    example: 0
+    description: Accepted protocol minor version
+  min_utxo:
+    type: string
+    example: "1000000"
+    description: Minimum UTXO value. Use `coins_per_utxo_size` for Alonzo and later eras
+    deprecated: true
+  min_pool_cost:
+    type: string
+    example: "340000000"
+    description: Minimum stake cost forced on the pool
+  nonce:
+    type: string
+    example: "1a3be38bcbb7911969283716ad7aa550250226b76a61fc51cc9a9a35d9276d81"
+    description: Epoch number only used once
+  cost_models:
+    additionalProperties: true
+    type: object
+    nullable: true
+    deprecated: true
+    example:
+      PlutusV1:
+        addInteger-cpu-arguments-intercept: 197209
+        addInteger-cpu-arguments-slope: 0
+      PlutusV2:
+        addInteger-cpu-arguments-intercept: 197209
+        addInteger-cpu-arguments-slope: 0
+    description: Cost models parameters for Plutus Core scripts. Deprecated, use
+      `cost_models_raw` instead.
+  cost_models_raw:
+    additionalProperties: true
+    type: object
+    nullable: true
+    example:
+      PlutusV1:
+        [
+          100788,
+          420,
+          1,
+          1,
+          1000,
+          173,
+          0,
+          1,
+          1000,
+          59957,
+          4,
+          1,
+          11183,
+          32,
+          201305,
+          8356,
+          "...",
+        ]
+      PlutusV2:
+        [
+          100788,
+          420,
+          1,
+          1,
+          1000,
+          173,
+          0,
+          1,
+          1000,
+          59957,
+          4,
+          1,
+          11183,
+          32,
+          201305,
+          8356,
+          "...",
+        ]
+      PlutusV3:
+        [
+          100788,
+          420,
+          1,
+          1,
+          1000,
+          173,
+          0,
+          1,
+          1000,
+          59957,
+          4,
+          1,
+          11183,
+          32,
+          201305,
+          8356,
+          "...",
+        ]
+    description: Cost models parameters for Plutus Core scripts in raw list form
+  price_mem:
+    type: number
+    nullable: true
+    example: 0.0577
+    description: The per word cost of script memory usage
+  price_step:
+    type: number
+    nullable: true
+    example: 0.0000721
+    description: The cost of script execution step usage
+  max_tx_ex_mem:
+    type: string
+    nullable: true
+    example: "10000000"
+    description: The maximum number of execution memory allowed to be used in a
+      single transaction
+  max_tx_ex_steps:
+    type: string
+    nullable: true
+    example: "10000000000"
+    description: The maximum number of execution steps allowed to be used in a
+      single transaction
+  max_block_ex_mem:
+    type: string
+    nullable: true
+    example: "50000000"
+    description: The maximum number of execution memory allowed to be used in a single block
+  max_block_ex_steps:
+    type: string
+    nullable: true
+    example: "40000000000"
+    description: The maximum number of execution steps allowed to be used in a single block
+  max_val_size:
+    type: string
+    nullable: true
+    example: "5000"
+    description: The maximum Val size
+  collateral_percent:
+    type: integer
+    nullable: true
+    example: 150
+    description: The percentage of the transactions fee which must be provided as
+      collateral when including non-native scripts
+  max_collateral_inputs:
+    type: integer
+    nullable: true
+    example: 3
+    description: The maximum number of collateral inputs allowed in a transaction
+  coins_per_utxo_size:
+    type: string
+    nullable: true
+    example: "34482"
+    description: Cost per UTxO word for Alonzo. Cost per UTxO byte for Babbage and later.
+  coins_per_utxo_word:
+    type: string
+    nullable: true
+    example: "34482"
+    deprecated: true
+    description: Cost per UTxO word for Alonzo. Cost per UTxO byte for Babbage and later.
+  pvt_motion_no_confidence:
+    type: number
+    nullable: true
+    description: Pool Voting threshold for motion of no-confidence.
+  pvt_committee_normal:
+    nullable: true
+    type: number
+    description: Pool Voting threshold for new committee/threshold (normal state).
+  pvt_committee_no_confidence:
+    nullable: true
+    type: number
+    description: Pool Voting threshold for new committee/threshold (state of no-confidence).
+  pvt_hard_fork_initiation:
+    nullable: true
+    type: number
+    description: Pool Voting threshold for hard-fork initiation.
+  dvt_motion_no_confidence:
+    nullable: true
+    type: number
+    description: DRep Vote threshold for motion of no-confidence.
+  dvt_committee_normal:
+    nullable: true
+    type: number
+    description: DRep Vote threshold for new committee/threshold (normal state).
+  dvt_committee_no_confidence:
+    nullable: true
+    type: number
+    description: DRep Vote threshold for new committee/threshold (state of no-confidence).
+  dvt_update_to_constitution:
+    nullable: true
+    type: number
+    description: DRep Vote threshold for update to the Constitution.
+  dvt_hard_fork_initiation:
+    nullable: true
+    type: number
+    description: DRep Vote threshold for hard-fork initiation.
+  dvt_p_p_network_group:
+    nullable: true
+    type: number
+    description: DRep Vote threshold for protocol parameter changes, network group.
+  dvt_p_p_economic_group:
+    nullable: true
+    type: number
+    description: DRep Vote threshold for protocol parameter changes, economic group.
+  dvt_p_p_technical_group:
+    nullable: true
+    type: number
+    description: DRep Vote threshold for protocol parameter changes, technical group.
+  dvt_p_p_gov_group:
+    nullable: true
+    type: number
+    description: DRep Vote threshold for protocol parameter changes, governance group.
+  dvt_treasury_withdrawal:
+    nullable: true
+    type: number
+    description: DRep Vote threshold for treasury withdrawal.
+  committee_min_size:
+    type: string
+    nullable: true
+    description: Minimal constitutional committee size.
+  committee_max_term_length:
+    type: string
+    nullable: true
+    description: Constitutional committee term limits.
+  gov_action_lifetime:
+    type: string
+    nullable: true
+    description: Governance action expiration.
+  gov_action_deposit:
+    type: string
+    nullable: true
+    description: Governance action deposit.
+  drep_deposit:
+    type: string
+    nullable: true
+    description: DRep deposit amount.
+  drep_activity:
+    type: string
+    nullable: true
+    description: DRep activity period.
+  pvtpp_security_group:
+    type: number
+    nullable: true
+    deprecated: true
+    description: Pool Voting threshold for security-relevant protocol parameters
+      changes. Renamed to pvt_p_p_security_group.
+  pvt_p_p_security_group:
+    type: number
+    nullable: true
+    description: Pool Voting threshold for security-relevant protocol parameters changes.
+  min_fee_ref_script_cost_per_byte:
+    type: number
+    nullable: true
+
+required:
+  - epoch
+  - min_fee_a
+  - min_fee_b
+  - max_block_size
+  - max_tx_size
+  - max_block_header_size
+  - key_deposit
+  - pool_deposit
+  - e_max
+  - n_opt
+  - a0
+  - rho
+  - tau
+  - decentralisation_param
+  - extra_entropy
+  - protocol_major_ver
+  - protocol_minor_ver
+  - min_utxo
+  - min_pool_cost
+  - nonce
+  - cost_models
+  - price_mem
+  - price_step
+  - max_tx_ex_mem
+  - max_tx_ex_steps
+  - max_block_ex_mem
+  - max_block_ex_steps
+  - max_val_size
+  - collateral_percent
+  - max_collateral_inputs
+  - coins_per_utxo_size
+  - coins_per_utxo_word
+  - pvt_motion_no_confidence
+  - pvt_committee_normal
+  - pvt_committee_no_confidence
+  - pvt_hard_fork_initiation
+  - dvt_motion_no_confidence
+  - dvt_committee_normal
+  - dvt_committee_no_confidence
+  - dvt_update_to_constitution
+  - dvt_hard_fork_initiation
+  - dvt_p_p_network_group
+  - dvt_p_p_economic_group
+  - dvt_p_p_technical_group
+  - dvt_p_p_gov_group
+  - dvt_treasury_withdrawal
+  - committee_min_size
+  - committee_max_term_length
+  - gov_action_lifetime
+  - gov_action_deposit
+  - drep_deposit
+  - drep_activity
+  - pvtpp_security_group
+  - pvt_p_p_security_group
+  - min_fee_ref_script_cost_per_byte

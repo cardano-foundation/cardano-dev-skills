@@ -1,0 +1,33 @@
+get:
+  tags:
+    - Cardano » Transactions
+  summary: Transaction CBOR
+  description: Obtain the CBOR serialized transaction
+  parameters:
+    - in: path
+      name: hash
+      required: true
+      schema:
+        type: string
+        format: 64-character case-sensitive hexadecimal string.
+      description: Hash of the transaction
+      example: "6e5f825c82c1c6d6b77f2a14092f3b78c8f1b66db6f4cf8caec1555b6f967b3b"
+  responses:
+    "200":
+      description: Query transaction CBOR
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../schemas/txs/tx_content_cbor.yaml
+    "400":
+      $ref: ../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../responses/errors/500.yaml

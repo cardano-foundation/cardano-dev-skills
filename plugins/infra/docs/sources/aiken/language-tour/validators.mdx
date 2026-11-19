@@ -1,0 +1,261 @@
+---
+title: "Validators"
+description: "Aiken is a functional programming language for Cardano smart contracts. Validators are named blocks defined with the validator keyword that contain one or more handlers (spend, mint, withdraw, publish, vote, propose) — each a predicate function returning True or False to authorize on-chain actions. Validators support parameters for configuration, multi-purpose handlers via fallback (else), and can be invoked as standalone functions for testing. The core construct for implementing all smart contract business logic on Cardano."
+difficulty: "intermediate"
+keywords: ["validator", "handlers", "spend", "mint", "withdraw", "publish", "vote", "propose", "datum", "redeemer", "Transaction", "ScriptContext", "parameters", "fallback", "else", "multi-purpose", "predicate", "fail", "expect", "plutus.json", "CIP-0057", "blueprint"]
+topics: ["validators", "handlers", "script-purposes", "parameters", "multi-purpose-validators"]
+prerequisites: ["functions", "custom-types", "control-flow", "eutxo"]
+related: ["tests", "modules", "common-design-patterns", "troubleshooting"]
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Validators
+
+## Handlers
+
+In Aiken, you can promote some functions to _validator handlers_ using the keyword
+`validator`.
+
+```ak
+use cardano/assets.{PolicyId}
+use cardano/transaction.{Transaction}
+
+validator my_script {
+  mint(redeemer: MyRedeemer, policy_id: PolicyId, self: Transaction) {
+    todo @"validator logic goes here"
+  }
+}
+```
+
+As you can see, a validator is a named block that contains one or more handlers. The handler name must match Cardano's well-known purposes:
+
+- `mint`, `spend`, `withdraw`, `publish`, `vote` or `propose`.
+
+Every handler is a predicate function: they must return `True` or `False`. When
+`True`, they authorize the action they are validating. Alternatively, to
+return false, they can instead halt using the [`fail{:ak}`](/language-tour/control-flow#fail--todo) keyword or via an
+invalid [`expect{:ak}`](/language-tour/control-flow#non-exhaustive-pattern-matching) assignment.
+
+With the exception of the `spend` handler, each handler is a function with exactly three arguments:
+
+- A **redeemer**, which is a user-defined type and value.
+- A **target**, whose type depends on the purpose.
+- A **transaction**, which represents the script execution context.
+
+The `spend` handler takes an additional first argument which is an optional datum, which is also a user-defined type. More on that in the section below.
+
+<Callout type="info">
+Datum? Redeemer? If you aren't yet familiar with the eUTxO model yet, we recommend reading through the [eUTxO Crash Course](/fundamentals/eutxo).
+</Callout>
+
+In fact, handlers act in a similar manner to pattern-matching on a [`ScriptContext{:ak}`](https://aiken-lang.github.io/stdlib/cardano/script_context.html#ScriptContext); they pull out elements for you while also ensuring safety around your validator boundaries. For convenience, here's a table that summarizes the different target types with their corresponding definitions from the standard library:
+
+| Purpose    | Target                                                                                                    | What for                                                               |
+| ---        | ---                                                                                                       | ---                                                                    |
+| `mint`     | [`PolicyId{:ak}`](https://aiken-lang.github.io/stdlib/cardano/assets.html#PolicyId)                       | minting / burning of assets                                            |
+| `spend`    | [`OutputReference{:ak}`](https://aiken-lang.github.io/stdlib/cardano/transaction.html#OutputReference)    | spending of transaction outputs                                        |
+| `withdraw` | [`Credential{:ak}`](https://aiken-lang.github.io/stdlib/cardano/address.html#Credential)                  | withdrawing staking rewards                                            |
+| `publish`  | [`Certificate{:ak}`](https://aiken-lang.github.io/stdlib/cardano/certificate.html#Certificate)            | publishing of delegation certificates                                  |
+| `vote`     | [`Voter{:ak}`](https://aiken-lang.github.io/stdlib/cardano/governance.html#Voter)                         | voting on governance proposals                                         |
+| `propose`  | [`ProposalProcedure{:ak}`](https://aiken-lang.github.io/stdlib/cardano/governance.html#ProposalProcedure) | Constitution guardrails, executed when submitting governance proposals |
+
+Or, seen in action:
+
+```ak
+use cardano/address.{Credential}
+use cardano/assets.{PolicyId}
+use cardano/certificate.{Certificate}
+use cardano/governance.{ProposalProcedure, Voter}
+use cardano/transaction.{Transaction, OutputReference}
+
+validator my_script {
+  mint(redeemer: MyMintRedeemer, policy_id: PolicyId, self: Transaction) {
+    todo @"mint logic goes here"
+  }
+
+  spend(datum: Option<MyDatum>, redeemer: MySpendRedeemer, utxo: OutputReference, self: Transaction) {
+    todo @"spend logic goes here"
+  }
+
+  withdraw(redeemer: MyWithdrawRedeemer, account: Credential, self: Transaction) {
+    todo @"withdraw logic goes here"
+  }
+
+  publish(redeemer: MyPublishRedeemer, certificate: Certificate, self: Transaction) {
+    todo @"publish logic goes here"
+  }
+
+  vote(redeemer: MyVoteRedeemer, voter: Voter, self: Transaction) {
+    todo @"vote logic goes here"
+  }
+
+  propose(redeemer: MyProposeRedeemer, proposal: ProposalProcedure, self: Transaction) {
+    todo @"propose logic goes here"
+  }
+}
+```
+
+<Callout type="info">
+Notice how every handler can take a different redeemer type and all take a `Transaction` as last argument.
+</Callout>
+
+### Managing (Optional) Datum
+
+Spend handlers contain an extra argument: the (optional) datum which may be set
+with the output when assets get initially locked. Because there's no way to
+enforce that the datum is present (you cannot prevent anyone from sending/locking assets
+to/in your validator), it always produces an `Option<T>` where `T` is a
+user-defined type that depends on the contract.
+
+Nevertheless, should your contract require a datum to be present, then it is
+straightforward to enforce this constraint using [`expect{:ak}`](/language-tour/control-flow#non-exhaustive-pattern-matching)
+and halt the execution of the validator when the datum is missing.
+
+```ak
+use cardano/transaction.{Transaction, OutputReference}
+
+validator my_script {
+  spend(datum_opt: Option<MyDatum>, redeemer: MyRedeemer, input: OutputReference, self: Transaction) {
+    expect Some(datum) = datum_opt
+    todo @"validator logic goes here"
+  }
+}
+```
+
+### Fallback handler
+
+The keen reader would have noticed that the example validators above are
+_non-exhaustive_ and only cover one of the six purposes. It may be cumbersome
+to always define a handler for all purposes, especially if your application
+isn't expected to work in those contexts.
+
+A special handler can thus serve as a fallback / catch-all with one notable
+difference: the fallback handler takes a single argument of type
+[`ScriptContext{:ak}`](https://aiken-lang.github.io/stdlib/cardano/script_context.html#ScriptContext).
+It is then your responsibility as a smart contract developer to assert the
+script purposes and recover your redeemer and/or datum.
+
+```ak
+use cardano/assets.{PolicyId}
+use cardano/transaction.{Transaction, OutputReference}
+use cardano/script_context.{ScriptContext}
+
+validator my_multi_purpose_script {
+  mint(redeemer: MyRedeemer, policy_id: PolicyId, self: Transaction) {
+    todo @"validator logic goes here"
+  }
+
+  spend(datum_opt: Option<MyDatum>, redeemer: MyRedeemer, input: OutputReference, self: Transaction) {
+    expect Some(datum) = datum_opt
+    todo @"validator logic goes here"
+  }
+
+  else(_ctx: ScriptContext) {
+    fail @"unsupported purpose"
+  }
+}
+```
+
+<Callout type="info">
+There are also scenarios where you might not want the granularity and
+guardrails offered by Aiken. A typical use-case for example is writing a
+validator on a layer-2 system that uses the Plutus Virtual Machine (e.g.
+Hydra) but may have different purpose(s) and/or script context.
+
+The fallback handler comes in handy for those situations and allows you to
+define and use arbitrary script contexts to match any environment. In the long
+run, a dedicated syntax might be introduced to declare handlers based on some
+type definition.
+</Callout>
+
+
+#### Default fallback
+
+When no fallback is explicitly specified, Aiken defaults to a validator that is
+always rejecting.
+
+```ak
+validator my_script {
+  else(_) {
+    fail
+  }
+}
+```
+
+## Parameters
+
+Validators themselves can take _parameters_, which represent configuration
+elements that must be provided to create an instance of the validator. Once
+provided, parameters are embedded within the compiled validator and part of the
+generated code. Hence they must be provided before any address can be
+calculated for the corresponding validator.
+
+Parameters are accessible to all handlers from within the validator and can be
+any serialisable (non-opaque) data-type. For example, it is common to parameterize the validator with
+a UTxO reference, in order to ensure the
+uniqueness of execution of a minting policy . In the mint handler, one can then check that the referenced
+UTxO is spent, which ensures the 
+uniqueness of execution for the mint handler (since by definition UTxOs can only be spent once). Handy!
+
+```ak filename="validators/my_script.ak"
+use aiken/collection/list
+use cardano/assets.{PolicyId}
+use cardano/transaction.{Transaction, OutputReference}
+
+validator my_script(utxo_ref: OutputReference) {
+  mint(redeemer: Data, policy_id: PolicyId, self: Transaction) {
+    expect list.any(
+      self.inputs,
+      fn (input) { input.output_reference == utxo_ref }
+    )
+    todo @"rest of the logic goes here"
+  }
+}
+```
+
+## Calling handlers
+
+Handlers are your smart contract's interface with the rest of the world. However,
+there are situations where you may want to invoke a handler as a standalone
+function (e.g. for testing).
+
+Aiken provides a convenient syntax, akin to calling functions from a
+module:
+
+`{validator_name}.{handler_name}`
+
+The result is a function that takes the same arguments as the handler,
+prepended with any parameter from the validator. For example:
+
+```ak
+test return_true_when_utxo_ref_match() {
+  let utxo_ref = todo @"OutputReference"
+  let redeemer = todo @"Redeemer"
+  let policy_id = todo @"OutputReference"
+  let transaction = todo @"Transaction"
+  my_script.mint(utxo_ref, redeemer, policy_id, transaction)
+}
+```
+
+### Importing validators
+
+Should you need to split tests into a different module, Aiken allows the import
+of _validators_ with a few restrictions:
+
+1. Only _test modules_ can import validators. A module is considered a _test module_ if it doesn't export any public definitions.
+2. Validators cannot be imported as unqualified objects. They must be used as qualified imports.
+
+So, assuming the validator above, we could imagine writing a test module like:
+
+```ak
+use my_script
+
+test return_true_when_utxo_ref_match() {
+  let utxo_ref = todo @"OutputReference"
+  let redeemer = todo @"Redeemer"
+  let policy_id = todo @"OutputReference"
+  let transaction = todo @"Transaction"
+  my_script.my_script.mint(utxo_ref, redeemer, policy_id, transaction)
+}
+```

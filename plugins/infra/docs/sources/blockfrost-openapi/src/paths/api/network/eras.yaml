@@ -1,0 +1,28 @@
+get:
+  tags:
+    - Cardano » Network
+  summary: Query summary of blockchain eras
+  description: |
+    Returns start and end of each era along with
+    parameters that can vary between hard forks.
+  responses:
+    "200":
+      description: Returns era summaries content.
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/network-eras.yaml
+    "400":
+      $ref: ../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../responses/errors/404.yaml
+    "418":
+      $ref: ../../../responses/errors/418.yaml
+    "425":
+      $ref: ../../../responses/errors/425.yaml
+    "429":
+      $ref: ../../../responses/errors/429.yaml
+    "500":
+      $ref: ../../../responses/errors/500.yaml

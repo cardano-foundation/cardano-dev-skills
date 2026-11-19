@@ -1,0 +1,28 @@
+---
+title: "Bitcoin Wallets"
+description: "APIs for connecting to Bitcoin browser extension wallets and running self-custodial HD wallets in Node.js or the browser."
+icon: BanknotesIcon
+full: true
+---
+
+import Link from "next/link";
+import { Card, CardDescription, CardTitle } from "@/components/ui/card";
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  <Link href="/apis/wallets/bitcoin/browser-wallet" className="no-underline">
+    <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+      <CardTitle className="font-heading">Bitcoin Browser Wallet</CardTitle>
+      <CardDescription>
+        Connect to Xverse and other Bitcoin browser extensions via a unified Sats Connect API.
+      </CardDescription>
+    </Card>
+  </Link>
+  <Link href="/apis/wallets/bitcoin/headless-wallet" className="no-underline">
+    <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+      <CardTitle className="font-heading">Bitcoin Headless Wallet</CardTitle>
+      <CardDescription>
+        A fully self-custodial BIP-39 HD wallet for Node.js and browser — no extension required.
+      </CardDescription>
+    </Card>
+  </Link>
+</div>

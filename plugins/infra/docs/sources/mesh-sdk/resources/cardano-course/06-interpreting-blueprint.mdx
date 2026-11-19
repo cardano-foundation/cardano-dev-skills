@@ -1,0 +1,485 @@
+---
+title: "Lesson 6: Interpreting Blueprint"
+description: "Understand CIP-57 blueprints and generate TypeScript off-chain code from Aiken contracts."
+---
+import Link from "fumadocs-core/link";
+
+## Learning Objectives
+
+By the end of this lesson, you will be able to:
+
+- Understand the CIP-57 blueprint standard
+- Read and interpret the `preamble`, `validators`, and `definitions` sections
+- Extract script hashes, datums, and redeemers from blueprints
+- Generate TypeScript off-chain code automatically
+- Apply parameters to compiled scripts
+
+## Prerequisites
+
+Before starting this lesson, ensure you have:
+
+- Completed <Link href="/resources/cardano-course/05-avoid-redundant-validation">Lesson 5: Avoid Redundant Validation</Link>
+- An Aiken project with compiled validators
+- VS Code with the Cardano-Bar extension (optional but recommended)
+
+## Key Concepts
+
+### What is a Blueprint?
+
+A blueprint is a standardized JSON file defined by <Link href="https://cips.cardano.org/cip/CIP-57">CIP-57</Link>. It serves as the output artifact of Cardano smart contract development, providing everything needed to interact with the contracts off-chain.
+
+Regardless of the development method (Aiken, PlutusTx, etc.), blueprints contain:
+
+| Section | Contents |
+|---------|----------|
+| `preamble` | Meta-information about the contract (name, version, Plutus version) |
+| `validators` | Named validators with type definitions and compiled code |
+| `definitions` | Reusable type definitions referenced across the specification |
+
+### Why Blueprints Matter
+
+Blueprints bridge on-chain and off-chain development:
+
+1. **Type safety**: TypeScript types can be generated from blueprint definitions
+2. **Script access**: Compiled code is readily available for transactions
+3. **Documentation**: Self-documenting contract interface
+4. **Interoperability**: Standard format works across toolchains
+
+## Step 1: Generate a Blueprint
+
+Build your Aiken project to generate the blueprint:
+
+```bash
+aiken build
+```
+
+This creates a `plutus.json` file in your project root.
+
+## Step 2: Understand the Preamble
+
+The `preamble` section contains metadata about your contract:
+
+```json
+{
+  "preamble": {
+    "title": "meshsdk/aiken-template",
+    "description": "Aiken contracts for project 'meshsdk/aiken-template'",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.16+23061c0"
+    },
+    "license": "Apache-2.0"
+  }
+}
+```
+
+### Key Fields
+
+| Field | Description |
+|-------|-------------|
+| `title` | Project identifier |
+| `plutusVersion` | Plutus version (v1, v2, or v3) - critical for off-chain code |
+| `compiler` | Tool and version that generated the blueprint |
+| `version` | Your project's semantic version |
+
+The `plutusVersion` is particularly important - it determines how you construct transactions and evaluate scripts.
+
+## Step 3: Understand Validators
+
+The `validators` section lists each validator with its complete specification:
+
+```json
+{
+  "validators": [
+    {
+      "title": "spend.spending_logics_delegated.spend",
+      "datum": {
+        "title": "_datum_opt",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "redeemer": {
+        "title": "_redeemer",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "parameters": [
+        {
+          "title": "delegated_withdrawal_script_hash",
+          "schema": {
+            "$ref": "#/definitions/aiken~1crypto~1ScriptHash"
+          }
+        }
+      ],
+      "compiledCode": "58ac010100229800aba2aba1aba0aab9faab9eaab9dab9a9bae002488...",
+      "hash": "9c9666ddc12fc42f0151cd029c150c7d410ede9fe3885c248c8c26a0"
+    }
+  ]
+}
+```
+
+### Validator Fields
+
+| Field | Description |
+|-------|-------------|
+| `title` | Unique identifier: `file.validator_name.purpose` |
+| `datum` | Expected datum type (for spending scripts) |
+| `redeemer` | Expected redeemer type |
+| `parameters` | Script parameters that must be applied before use |
+| `compiledCode` | Hex-encoded CBOR of the compiled script |
+| `hash` | Script hash (28 bytes, hex-encoded) |
+
+### Multi-Purpose Validators
+
+When a validator handles multiple purposes (spend, mint, etc.), each purpose appears as a separate entry but shares the same `hash`:
+
+```json
+{
+  "title": "spend.spending_logics_delegated.spend",
+  "hash": "9c9666ddc12fc42f0151cd029c150c7d410ede9fe3885c248c8c26a0"
+},
+{
+  "title": "spend.spending_logics_delegated.else",
+  "hash": "9c9666ddc12fc42f0151cd029c150c7d410ede9fe3885c248c8c26a0"
+}
+```
+
+Same script, different entry points.
+
+## Step 4: Understand Definitions
+
+The `definitions` section provides reusable type schemas:
+
+```json
+{
+  "definitions": {
+    "Data": {
+      "title": "Data",
+      "description": "Any Plutus data."
+    },
+    "aiken/crypto/ScriptHash": {
+      "title": "ScriptHash",
+      "dataType": "bytes"
+    },
+    "cardano/assets/PolicyId": {
+      "title": "PolicyId",
+      "dataType": "bytes"
+    },
+    "withdraw/MyRedeemer": {
+      "title": "MyRedeemer",
+      "anyOf": [
+        {
+          "title": "ContinueCounting",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "StopCounting",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    }
+  }
+}
+```
+
+### Common Definition Types
+
+| Type | JSON Representation | Description |
+|------|---------------------|-------------|
+| Bytes | `"dataType": "bytes"` | Raw byte arrays (hashes, keys) |
+| Integer | `"dataType": "integer"` | Arbitrary precision integers |
+| String | `"dataType": "string"` | UTF-8 strings |
+| List | `"dataType": "list"` | Ordered collections |
+| Constructor | `"dataType": "constructor"` | ADT variant with fields |
+| Union | `"anyOf": [...]` | Sum type with multiple variants |
+
+### Constructor Indices
+
+For redeemers with multiple variants, the `index` determines the constructor number:
+
+```json
+{
+  "title": "ContinueCounting",
+  "dataType": "constructor",
+  "index": 0,           // ConStr0
+  "fields": []
+},
+{
+  "title": "StopCounting",
+  "dataType": "constructor",
+  "index": 1,           // ConStr1
+  "fields": []
+}
+```
+
+When building transactions, use `mConStr0([])` for `ContinueCounting` and `mConStr1([])` for `StopCounting`.
+
+## Step 5: Generate TypeScript Code
+
+### Option 1: VS Code Extension (Recommended)
+
+Use the <Link href="https://marketplace.visualstudio.com/items/?itemName=sidan-lab.cardano-bar-vscode">Cardano-Bar VS Code extension</Link>:
+
+1. Create a new TypeScript file (e.g., `offchain.ts`)
+2. Open the command palette (`Ctrl+Shift+P` or `Cmd+Shift+P`)
+3. Type `Parse blueprint to Typescript - Mesh` and select it
+4. Select your `plutus.json` file
+
+The extension generates a complete TypeScript module with:
+
+- Type definitions for datums and redeemers
+- Functions to get script code and addresses
+- Parameter application helpers
+
+### Option 2: Manual Implementation
+
+Extract information directly from the blueprint:
+
+```ts
+import {
+  applyParamsToScript,
+  resolveScriptHash,
+  serializePlutusScript,
+} from "@meshsdk/core";
+
+// Load the blueprint
+import blueprint from "./plutus.json";
+
+// Get the validator entry
+const spendValidator = blueprint.validators.find(
+  (v) => v.title === "spend.spending_logics_delegated.spend"
+);
+
+// Extract compiled code
+const compiledCode = spendValidator.compiledCode;
+
+// Apply parameters if needed
+const withdrawalScriptHash = "9c9666ddc12fc42f0151cd029c150c7d410ede9fe3885c248c8c26a0";
+const parameterizedScript = applyParamsToScript(compiledCode, [
+  withdrawalScriptHash,
+]);
+
+// Get the script hash (policy ID for minting scripts)
+const scriptHash = resolveScriptHash(parameterizedScript, "V3");
+
+// Get the script address (for spending scripts)
+const { address } = serializePlutusScript(
+  { code: parameterizedScript, version: "V3" },
+  undefined,  // stake credential
+  "preprod"   // network
+);
+```
+
+## Step 6: Use Generated Code in Transactions
+
+### Building Datums
+
+Construct datums matching the blueprint schema:
+
+```ts
+import { mConStr0, integer, byteString } from "@meshsdk/core";
+
+// For a datum with count field
+const spendingDatum = mConStr0([
+  integer(0),  // count
+]);
+
+// For a complex oracle datum
+const oracleDatum = mConStr0([
+  byteString(appOwnerKeyHash),      // app_owner
+  integer(1000),                     // app_expiry
+  mPubKeyAddress(keyHash, stakeHash), // spending_validator_address
+  byteString(policyId),              // state_thread_token_policy_id
+]);
+```
+
+### Building Redeemers
+
+Match the constructor index from definitions:
+
+```ts
+// ContinueCounting (index 0)
+const continueRedeemer = mConStr0([]);
+
+// StopCounting (index 1)
+const stopRedeemer = mConStr1([]);
+```
+
+### Complete Transaction Example
+
+```ts
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+import { getScript, getScriptHash, getDatum, getRedeemer } from "./offchain";
+
+const provider = new BlockfrostProvider("YOUR_API_KEY");
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+// Get script information
+const script = getScript("spend.spending_logics_delegated");
+const scriptAddress = getScriptAddress("spend.spending_logics_delegated");
+
+// Build transaction
+const unsignedTx = await txBuilder
+  .spendingPlutusScriptV3()
+  .txIn(utxo.input.txHash, utxo.input.outputIndex)
+  .txInInlineDatumPresent()
+  .txInRedeemerValue(getRedeemer("ContinueCounting"))
+  .txInScript(script.code)
+  .txOut(outputAddress, outputValue)
+  .changeAddress(walletAddress)
+  .selectUtxosFrom(wallets)
+  .complete();
+```
+
+## Complete Working Example
+
+### Generated offchain.ts
+
+```ts
+import {
+  applyParamsToScript,
+  resolveScriptHash,
+  serializePlutusScript,
+  mConStr0,
+  mConStr1,
+  integer,
+} from "@meshsdk/core";
+
+// Import your blueprint
+import blueprint from "./plutus.json";
+
+// Type definitions
+export type SpendingValidatorDatum = {
+  count: number;
+};
+
+export type MyRedeemer = "ContinueCounting" | "StopCounting";
+
+// Get validator by title
+function findValidator(title: string) {
+  const validator = blueprint.validators.find((v) => v.title.startsWith(title));
+  if (!validator) throw new Error(`Validator ${title} not found`);
+  return validator;
+}
+
+// Get parameterized script
+export function getScript(validatorName: string, params: string[] = []) {
+  const validator = findValidator(validatorName);
+  let code = validator.compiledCode;
+
+  if (params.length > 0) {
+    code = applyParamsToScript(code, params);
+  }
+
+  return {
+    code,
+    hash: resolveScriptHash(code, "V3"),
+  };
+}
+
+// Get script address
+export function getScriptAddress(
+  validatorName: string,
+  params: string[] = [],
+  network: "mainnet" | "preprod" = "preprod"
+) {
+  const script = getScript(validatorName, params);
+  const { address } = serializePlutusScript(
+    { code: script.code, version: "V3" },
+    undefined,
+    network
+  );
+  return address;
+}
+
+// Build datum
+export function buildDatum(datum: SpendingValidatorDatum) {
+  return mConStr0([integer(datum.count)]);
+}
+
+// Build redeemer
+export function buildRedeemer(action: MyRedeemer) {
+  switch (action) {
+    case "ContinueCounting":
+      return mConStr0([]);
+    case "StopCounting":
+      return mConStr1([]);
+  }
+}
+```
+
+### Usage in Application
+
+```ts
+import { getScript, getScriptAddress, buildDatum, buildRedeemer } from "./offchain";
+
+// Get script with parameter
+const withdrawalScriptHash = "abc123...";
+const script = getScript("spend.delegating_spend", [withdrawalScriptHash]);
+
+// Get address
+const address = getScriptAddress("spend.delegating_spend", [withdrawalScriptHash]);
+
+// Build datum and redeemer for transaction
+const datum = buildDatum({ count: 0 });
+const redeemer = buildRedeemer("ContinueCounting");
+```
+
+## Key Concepts Explained
+
+### Parameter Application
+
+Scripts with parameters in the blueprint require values before use:
+
+```ts
+// Blueprint shows parameter:
+// "parameters": [{ "title": "oracle_nft", "schema": { "$ref": "#/definitions/PolicyId" }}]
+
+// Apply the parameter
+const parameterizedScript = applyParamsToScript(compiledCode, [oracleNftPolicyId]);
+```
+
+Applying parameters creates a new script with a new hash.
+
+### Schema References
+
+The `$ref` syntax points to definitions:
+
+```json
+"schema": { "$ref": "#/definitions/aiken~1crypto~1ScriptHash" }
+```
+
+The `~1` is JSON Pointer encoding for `/`, so this references `definitions["aiken/crypto/ScriptHash"]`.
+
+## Exercises
+
+1. **Parse a complex blueprint**: Create a vesting contract with owner and beneficiary fields. Generate the TypeScript types and verify they match.
+
+2. **Multi-validator project**: Build a project with minting and spending validators. Use the blueprint to coordinate them in a single transaction.
+
+3. **Automated testing**: Write a script that validates your off-chain code matches the blueprint definitions.
+
+## Next Steps
+
+You have learned:
+
+- The structure of CIP-57 blueprints
+- How to read preamble, validators, and definitions
+- How to generate TypeScript code from blueprints
+- How to use generated code in transactions
+
+In the next lesson, you build a <Link href="/resources/cardano-course/07-vesting">vesting contract</Link> that locks funds until a specified time.
+
+## Related Links
+
+- <Link href="https://cips.cardano.org/cip/CIP-57">CIP-57: Plutus Blueprint</Link>
+- <Link href="https://marketplace.visualstudio.com/items/?itemName=sidan-lab.cardano-bar-vscode">Cardano-Bar VS Code Extension</Link>
+- <Link href="/apis/utilities/blueprints">Mesh SDK Blueprint Utilities</Link>

@@ -1,0 +1,20 @@
+type: array
+items:
+  type: object
+  description: The sum of all assets of all addresses associated with a given account
+  properties:
+    unit:
+      type: string
+      format: Concatenation of asset policy_id and hex-encoded asset_name
+      description: The unit of the value
+    quantity:
+      type: string
+      description: The quantity of the unit
+  required:
+    - unit
+    - quantity
+example:
+  - unit: "d5e6bf0500378d4f0da4e8dde6becec7621cd8cbf5cbb9b87013d4cc537061636542756433343132"
+    quantity: "1"
+  - unit: "b0d07d45fe9514f80213f4020e5a61241458be626841cde717cb38a76e7574636f696e"
+    quantity: "125"

@@ -1,0 +1,33 @@
+get:
+  tags:
+    - Cardano » Accounts
+  summary: Specific account address
+  description: |
+    Obtain information about a specific stake account.
+  parameters:
+    - in: path
+      name: stake_address
+      required: true
+      schema:
+        type: string
+      description: Bech32 stake address.
+      example: "stake1u9ylzsgxaa6xctf4juup682ar3juj85n8tx3hthnljg47zctvm3rc"
+  responses:
+    "200":
+      description: Return the account content.
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../schemas/accounts/account_content.yaml
+    "400":
+      $ref: ../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../responses/errors/500.yaml

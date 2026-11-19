@@ -1,0 +1,9 @@
+type: object
+properties:
+  cbor:
+    type: string
+    description: CBOR serialized datum
+required:
+  - cbor
+example:
+  cbor: "19a6aa"

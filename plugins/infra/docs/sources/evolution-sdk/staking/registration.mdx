@@ -1,0 +1,131 @@
+---
+title: Stake Key Registration
+description: Register stake credentials on the Cardano blockchain
+---
+
+# Stake Key Registration
+
+Before you can delegate or earn rewards, your stake credential must be registered on-chain. Registration requires a deposit (currently 2 ADA on mainnet) which is refunded when you deregister.
+
+## Basic Registration
+
+```typescript twoslash
+import { Credential, preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
+
+// Get your stake credential from your wallet address
+const address = await client.address()
+const stakeCredential = address.stakingCredential!
+// stakeCredential is a Credential (KeyHash for seed wallets, ScriptHash for script-controlled)
+
+const tx = await client.newTx().registerStake({ stakeCredential }).build()
+
+const signed = await tx.sign()
+await signed.submit()
+```
+
+The deposit amount (currently 2 ADA) is fetched automatically from protocol parameters.
+
+## Register and Delegate Together
+
+The Conway era introduced combined certificates that register and delegate in one step, saving a certificate fee:
+
+```typescript twoslash
+import { Credential, preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
+
+declare const stakeCredential: Credential.Credential
+declare const poolKeyHash: any // pool key hash from a stake pool (e.g. from a pool explorer)
+declare const drep: any // DRep to delegate voting power to (e.g. DRep.fromKeyHash(...))
+
+// Register + delegate to pool in one certificate
+const tx = await client
+  .newTx()
+  .registerAndDelegateTo({
+    stakeCredential,
+    poolKeyHash
+  })
+  .build()
+
+const signed = await tx.sign()
+await signed.submit()
+```
+
+You can also combine registration with DRep delegation or both:
+
+```typescript twoslash
+import { Credential, preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
+
+declare const stakeCredential: Credential.Credential
+declare const poolKeyHash: any // pool key hash from a stake pool (e.g. from a pool explorer)
+declare const drep: any // DRep to delegate voting power to (e.g. DRep.fromKeyHash(...))
+
+// Register + delegate to both pool and DRep
+const tx = await client
+  .newTx()
+  .registerAndDelegateTo({
+    stakeCredential,
+    poolKeyHash,
+    drep
+  })
+  .build()
+
+const signed = await tx.sign()
+await signed.submit()
+```
+
+## Script-Controlled Registration
+
+For stake credentials controlled by Plutus scripts, provide a redeemer:
+
+```typescript twoslash
+import { Credential, Data, preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
+
+declare const scriptStakeCredential: Credential.Credential
+declare const stakeScript: any // compiled Plutus staking script (from Aiken build or Blueprint codegen)
+
+const tx = await client
+  .newTx()
+  .registerStake({
+    stakeCredential: scriptStakeCredential,
+    redeemer: Data.constr(0n, []),
+    label: "register-script-stake"
+  })
+  .attachScript({ script: stakeScript })
+  .build()
+
+const signed = await tx.sign()
+await signed.submit()
+```
+
+## Next Steps
+
+- [Delegation](/docs/staking/delegation) — Delegate your registered stake
+- [Withdrawal](/docs/staking/withdrawal) — Claim accumulated rewards
+- [Deregistration](/docs/staking/deregistration) — Remove credential and reclaim deposit

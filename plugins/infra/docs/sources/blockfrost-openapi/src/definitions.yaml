@@ -1,0 +1,794 @@
+openapi: 3.0.0
+info:
+  version: 0.1.93
+  title: Blockfrost.io ~ API Documentation
+  x-logo:
+    url: https://staging.blockfrost.io/images/logo.svg
+    altText: Blockfrost
+  contact:
+    name: Blockfrost Team
+    url: "https://blockfrost.io"
+    email: contact@blockfrost.io
+  license:
+    name: MIT
+    url: "https://opensource.org/licenses/MIT"
+  termsOfService: "https://blockfrost.io/terms"
+  description: |
+    Blockfrost is an API as a service that allows users to interact with the Cardano blockchain, Midnight blockchain, and parts of their ecosystems.
+
+    ## Tokens
+
+    After signing up on https://blockfrost.io, a `project_id` token is automatically generated for each project.
+    HTTP header of your request MUST include this `project_id` in order to authenticate against Blockfrost servers.
+
+    ## Available networks
+
+    At the moment, you can use the following networks. Please, note that each network has its own `project_id`.
+
+    <table>
+      <tbody>
+        <tr>
+          <td>
+              <b>Network</b>
+          </td>
+          <td>
+              <b>Endpoint</b>
+          </td>
+        </tr>
+        <tr>
+            <td>Cardano mainnet</td>
+            <td>
+                <code>https://cardano-mainnet.blockfrost.io/api/v0</code>
+            </td>
+        </tr>
+        <tr>
+            <td>Cardano preprod</td>
+            <td>
+                <code>https://cardano-preprod.blockfrost.io/api/v0</code>
+            </td>
+        </tr>
+        <tr>
+            <td>Cardano preview</td>
+            <td>
+                <code>https://cardano-preview.blockfrost.io/api/v0</code>
+            </td>
+        </tr>
+        <tr>
+            <td>Midnight mainnet</td>
+            <td>
+                <code>https://midnight-mainnet.blockfrost.io/api/v0</code>
+            </td>
+        </tr>
+        <tr>
+            <td>InterPlanetary File System</td>
+            <td>
+                <code>https://ipfs.blockfrost.io/api/v0</code>
+            </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ## Concepts
+
+    * All endpoints return either a JSON object or an array.
+    * Data is returned in *ascending* (oldest first, newest last) order, if not stated otherwise.
+      * You might use the `?order=desc` query parameter to reverse this order.
+    * By default, we return 100 results at a time. You have to use `?page=2` to list through the results.
+    * All time and timestamp related fields (except `server_time`) are in seconds of UNIX time.
+    * All amounts are returned in Lovelaces, where 1 ADA = 1 000 000 Lovelaces.
+    * Addresses, accounts and pool IDs are in Bech32 format.
+    * All values are case sensitive.
+    * All hex encoded values are lower case.
+    * Examples are not based on real data. Any resemblance to actual events is purely coincidental.
+    * We allow to upload files up to 100MB of size to IPFS. This might increase in the future.
+    * Only pinned IPFS files are counted towards the IPFS quota.
+    * Non-pinned IPFS files are subject to regular garbage collection and will be removed unless pinned.
+    * We allow maximum of 100 queued pins per IPFS user.
+
+    ## Errors
+
+    ### HTTP Status codes
+
+    The following are HTTP status code your application might receive when reaching Blockfrost endpoints and
+    it should handle all of these cases.
+
+    * HTTP `400` return code is used when the request is not valid.
+    * HTTP `402` return code is used when the projects exceed their daily request limit.
+    * HTTP `403` return code is used when the request is not authenticated.
+    * HTTP `404` return code is used when the resource doesn't exist.
+    * HTTP `418` return code is used when the user has been auto-banned for flooding too much after previously receiving error code `402` or `429`.
+    * HTTP `425` return code is used in Cardano networks, when the user has submitted a transaction when the mempool is already full, not accepting new txs straight away.
+    * HTTP `425` return code is used in IPFS network, when the user has submitted a pin when the pin queue is already full, not accepting new pins straight away.
+    * HTTP `429` return code is used when the user has sent too many requests in a given amount of time and therefore has been rate-limited.
+    * HTTP `500` return code is used when our endpoints are having a problem.
+
+    ### Error codes
+
+    An internal error code number is used for better indication of the error in question. It is passed using the following payload.
+
+    ```json
+    {
+      "status_code": 403,
+      "error": "Forbidden",
+      "message": "Invalid project token."
+    }
+    ```
+    ## Limits
+
+    There are two types of limits we are enforcing:
+
+    The first depends on your plan and is the number of request we allow per day. We defined the day from midnight to midnight of UTC time.
+
+    The second is rate limiting. We limit an end user, distinguished by IP address, to 10 requests per second. On top of that, we allow
+    each user to send burst of 500 requests, which cools off at rate of 10 requests per second. In essence, a user is allowed to make another
+    whole burst after (currently) 500/10 = 50 seconds. E.g. if a user attempts to make a call 3 seconds after whole burst, 30 requests will be processed.
+    We believe this should be sufficient for most of the use cases. If it is not and you have a specific use case, please get in touch with us, and
+    we will make sure to take it into account as much as we can.
+
+    ## SDKs
+
+    We support a number of SDKs that will help you in developing your application on top of Blockfrost.
+
+    <table>
+      <tbody>
+        <tr>
+            <td><b>Programming language</b></td>
+            <td><b>SDK</b></td>
+        </tr>
+        <tr>
+            <td>JavaScript</td>
+            <td>
+                <a href="https://github.com/blockfrost/blockfrost-js">blockfrost-js</a>
+            </td>
+        </tr>
+        <tr>
+            <td>Haskell</td>
+            <td>
+                <a href="https://github.com/blockfrost/blockfrost-haskell">blockfrost-haskell</a>
+            </td>
+        </tr>
+        <tr>
+            <td>Python</td>
+            <td>
+                <a href="https://github.com/blockfrost/blockfrost-python">blockfrost-python</a>
+            </td>
+        </tr>
+        <tr>
+            <td>Rust</td>
+            <td>
+                <a href="https://github.com/blockfrost/blockfrost-rust">blockfrost-rust</a>
+            </td>
+        </tr>
+        <tr>
+            <td>Golang</td>
+            <td>
+                <a href="https://github.com/blockfrost/blockfrost-go">blockfrost-go</a>
+            </td>
+        </tr>
+        <tr>
+            <td>Ruby</td>
+            <td>
+                <a href="https://github.com/blockfrost/blockfrost-ruby">blockfrost-ruby</a>
+            </td>
+        </tr>
+        <tr>
+            <td>Java</td>
+            <td>
+                <a href="https://github.com/blockfrost/blockfrost-java">blockfrost-java</a>
+            </td>
+        </tr>
+        <tr>
+            <td>Scala</td>
+            <td>
+                <a href="https://github.com/blockfrost/blockfrost-scala">blockfrost-scala</a>
+            </td>
+        </tr>
+        <tr>
+            <td>Swift</td>
+            <td>
+                <a href="https://github.com/blockfrost/blockfrost-swift">blockfrost-swift</a>
+            </td>
+        </tr>
+        <tr>
+            <td>Kotlin</td>
+            <td>
+                <a href="https://github.com/blockfrost/blockfrost-kotlin">blockfrost-kotlin</a>
+            </td>
+        </tr>
+        <tr>
+            <td>Elixir</td>
+            <td>
+                <a href="https://github.com/blockfrost/blockfrost-elixir">blockfrost-elixir</a>
+            </td>
+        </tr>
+        <tr>
+            <td>.NET</td>
+            <td>
+                <a href="https://github.com/blockfrost/blockfrost-dotnet">blockfrost-dotnet</a>
+            </td>
+        </tr>
+        <tr>
+            <td>Arduino</td>
+            <td>
+                <a href="https://github.com/blockfrost/blockfrost-arduino">blockfrost-arduino</a>
+            </td>
+        </tr>
+        <tr>
+            <td>PHP</td>
+            <td>
+                <a href="https://github.com/blockfrost/blockfrost-php">blockfrost-php</a>
+            </td>
+        </tr>
+        <tr>
+            <td>Crystal</td>
+            <td>
+                <a href="https://github.com/blockfrost/blockfrost-crystal">blockfrost-crystal</a>
+            </td>
+        </tr>
+      </tbody>
+    </table>
+
+
+    ## Midnight API
+
+
+    The Midnight Indexer API exposes a GraphQL API that enables clients to query and subscribe to blockchain data — blocks, transactions, contracts, and wallet-related events — indexed from the Midnight blockchain.
+
+    Available networks: `mainnet`, `preprod`, `preview`
+
+    | Service | URL | Protocol |
+    |---------|-----|----------|
+    | **Indexer HTTP API** | `https://midnight-{network}.blockfrost.io/api/v0` | HTTP POST (GraphQL) |
+    | **Indexer Subscriptions API** | `wss://midnight-{network}.blockfrost.io/api/v0/ws` | WebSocket |
+    | **Node RPC** | `https://rpc.midnight-{network}.blockfrost.io` | JSON-RPC |
+
+
+    For the full documentation — queries, mutations, subscriptions, authentication options, and examples — see the Midnight GraphQL API Reference:
+
+    [![Explore the Midnight API →](https://img.shields.io/badge/Explore_the_Midnight_API_→-0033AD?style=for-the-badge)](./midnight/)
+
+servers:
+  - url: https://cardano-mainnet.blockfrost.io/api/v0
+    description: Cardano Mainnet network
+  - url: https://cardano-preprod.blockfrost.io/api/v0
+    description: Cardano Preprod network
+  - url: https://cardano-preview.blockfrost.io/api/v0
+    description: Cardano Preview network
+  - url: https://localhost:3000
+    description: local
+
+security:
+  - project_id: []
+
+tags:
+  - name: Health
+  - name: Metrics
+  - name: Cardano » Accounts
+  - name: Cardano » Addresses
+  - name: Cardano » Assets
+  - name: Cardano » Blocks
+  - name: Cardano » Epochs
+  - name: Cardano » Governance
+  - name: Cardano » Ledger
+  - name: Cardano » Mempool
+  - name: Cardano » Metadata
+  # - name: Cardano » Mithril
+  #   description: |
+  #     Mithril integration allows you to leverage the capabilities of the Mithril Aggregator API without needing to interact with multiple APIs, simplifying the development process and enhancing usability.
+
+  #     > **Please note that the integration of Mithril is experimental. Blockfrost acts as a proxy for the subset of Mithril API endpoints. The format of the Mithril API may change independently of the core Blockfrost API.**
+
+  #     All Mithril endpoints are accessible under the <code>/mithril</code> path.
+
+  #     > For example, to retrieve a snapshot artifact of the cardano mainnet, you would use:
+  #     `https://cardano-mainnet.blockfrost.io/api/v0/mithril/artifact/snapshot/{digest}`
+
+  #     In addition to error responses listed in Mithril endpoints (such as `404`, `412` and `500`), the API may also return error responses related to Blockfrost (e.g. `400` for invalid path or `403` for unauthenticated request). For the full list of Blockfrost error status codes, please see [Blockfrost Errors](#section/Errors).
+
+  #     For more information about how to use Mithril API, please see the <a href="https://mithril.network/doc/">Mithril docs</a>.
+
+  - name: Cardano » Network
+  - name: Cardano » Pools
+  - name: Cardano » Scripts
+  - name: Cardano » Transactions
+  - name: Cardano » Utilities
+  - name: IPFS » Add
+  - name: IPFS » Gateway
+  - name: IPFS » Pins
+  # - name: Midnight » Queries
+  #   description: |
+  #     Query data from the Midnight blockchain using the Midnight Indexer GraphQL API.
+
+  #     All queries are sent as POST requests to the `/` endpoint with the GraphQL query in the request body.
+  # - name: Midnight » Mutations
+  #   description: |
+  #     Execute mutations on the Midnight Indexer GraphQL API.
+
+  #     All mutations are sent as POST requests to the `/` endpoint with the GraphQL mutation in the request body.
+  # - name: Midnight » Subscriptions
+  #   description: |
+  #     Subscribe to real-time updates from the Midnight blockchain via WebSocket.
+
+  #     Connect to `wss://midnight-{network}.blockfrost.io/api/v0/ws` using the `graphql-transport-ws` protocol.
+
+  #     **Available subscriptions:**
+  #     * `blocks` - Subscribe to new blocks
+  #     * `contractActions` - Subscribe to contract actions for a specific address
+  #     * `dustLedgerEvents` - Subscribe to DUST ledger events
+  #     * `shieldedTransactions` - Subscribe to shielded transaction events for a wallet session
+  #     * `unshieldedTransactions` - Subscribe to unshielded transaction events for an address
+  #     * `zswapLedgerEvents` - Subscribe to zswap ledger events
+
+  #     **WebSocket Authentication:**
+  #     ```javascript
+  #     new WebSocket("wss://midnight-mainnet.blockfrost.io/api/v0/ws", [
+  #       "graphql-transport-ws",
+  #       "project_id_YOUR_PROJECT_ID"
+  #     ]);
+  #     ```
+
+paths:
+  /:
+    $ref: ./paths/api/root/index.yaml
+
+  # health
+
+  /health:
+    $ref: ./paths/api/health/index.yaml
+
+  /health/clock:
+    $ref: ./paths/api/health/clock.yaml
+
+  # blocks
+
+  /blocks/latest:
+    $ref: ./paths/api/blocks/latest/index.yaml
+
+  /blocks/latest/txs:
+    $ref: ./paths/api/blocks/latest/txs/index.yaml
+
+  /blocks/latest/txs/cbor:
+    $ref: ./paths/api/blocks/latest/txs/cbor.yaml
+
+  /blocks/{hash_or_number}:
+    $ref: ./paths/api/blocks/{hash_or_number}/index.yaml
+
+  /blocks/{hash_or_number}/next:
+    $ref: ./paths/api/blocks/{hash_or_number}/next.yaml
+
+  /blocks/{hash_or_number}/previous:
+    $ref: ./paths/api/blocks/{hash_or_number}/previous.yaml
+
+  /blocks/slot/{slot_number}:
+    $ref: ./paths/api/blocks/slot/{slot_number}/index.yaml
+
+  /blocks/epoch/{epoch_number}/slot/{slot_number}:
+    $ref: ./paths/api/blocks/epoch/{epoch_number}/slot/{slot_number}/index.yaml
+
+  /blocks/{hash_or_number}/txs:
+    $ref: ./paths/api/blocks/{hash_or_number}/txs/index.yaml
+
+  /blocks/{hash_or_number}/txs/cbor:
+    $ref: ./paths/api/blocks/{hash_or_number}/txs/cbor.yaml
+
+  /blocks/{hash_or_number}/addresses:
+    $ref: ./paths/api/blocks/addresses/index.yaml
+
+  # genesis
+
+  /genesis:
+    $ref: ./paths/api/genesis/index.yaml
+
+  # governance
+
+  /governance/committee:
+    $ref: ./paths/api/governance/committee/index.yaml
+
+  /governance/committee/votes:
+    $ref: ./paths/api/governance/committee/votes.yaml
+
+  /governance/committee/{cc_id}/votes:
+    $ref: ./paths/api/governance/committee/{cc_id}/votes.yaml
+
+  /governance/dreps:
+    $ref: ./paths/api/governance/dreps/index.yaml
+
+  /governance/dreps/{drep_id}:
+    $ref: ./paths/api/governance/dreps/{drep_id}/index.yaml
+
+  /governance/dreps/{drep_id}/delegators:
+    $ref: ./paths/api/governance/dreps/{drep_id}/delegators.yaml
+
+  /governance/dreps/{drep_id}/metadata:
+    $ref: ./paths/api/governance/dreps/{drep_id}/metadata.yaml
+
+  /governance/dreps/{drep_id}/updates:
+    $ref: ./paths/api/governance/dreps/{drep_id}/updates.yaml
+
+  /governance/dreps/{drep_id}/votes:
+    $ref: ./paths/api/governance/dreps/{drep_id}/votes.yaml
+
+  /governance/proposals:
+    $ref: ./paths/api/governance/proposals/index.yaml
+
+  /governance/proposals/{tx_hash}/{cert_index}:
+    $ref: ./paths/api/governance/proposals/{tx_hash}/{cert_index}/index.yaml
+
+  /governance/proposals/{tx_hash}/{cert_index}/parameters:
+    $ref: ./paths/api/governance/proposals/{tx_hash}/{cert_index}/parameters.yaml
+
+  /governance/proposals/{tx_hash}/{cert_index}/withdrawals:
+    $ref: ./paths/api/governance/proposals/{tx_hash}/{cert_index}/withdrawals.yaml
+
+  /governance/proposals/{tx_hash}/{cert_index}/votes:
+    $ref: ./paths/api/governance/proposals/{tx_hash}/{cert_index}/votes.yaml
+
+  /governance/proposals/{tx_hash}/{cert_index}/metadata:
+    $ref: ./paths/api/governance/proposals/{tx_hash}/{cert_index}/metadata.yaml
+
+  /governance/proposals/{gov_action_id}:
+    $ref: ./paths/api/governance/proposals/{gov_action_id}/index.yaml
+
+  /governance/proposals/{gov_action_id}/parameters:
+    $ref: ./paths/api/governance/proposals/{gov_action_id}/parameters.yaml
+
+  /governance/proposals/{gov_action_id}/withdrawals:
+    $ref: ./paths/api/governance/proposals/{gov_action_id}/withdrawals.yaml
+
+  /governance/proposals/{gov_action_id}/votes:
+    $ref: ./paths/api/governance/proposals/{gov_action_id}/votes.yaml
+
+  /governance/proposals/{gov_action_id}/metadata:
+    $ref: ./paths/api/governance/proposals/{gov_action_id}/metadata.yaml
+
+  # epochs
+
+  /epochs/latest:
+    $ref: ./paths/api/epochs/latest/index.yaml
+
+  /epochs/latest/parameters:
+    $ref: ./paths/api/epochs/latest/parameters.yaml
+
+  /epochs/{number}:
+    $ref: ./paths/api/epochs/{number}/index.yaml
+
+  /epochs/{number}/next:
+    $ref: ./paths/api/epochs/{number}/next.yaml
+
+  /epochs/{number}/previous:
+    $ref: ./paths/api/epochs/{number}/previous.yaml
+
+  /epochs/{number}/stakes:
+    $ref: ./paths/api/epochs/{number}/stakes.yaml
+
+  /epochs/{number}/stakes/{pool_id}:
+    $ref: ./paths/api/epochs/{number}/stakes/{pool_id}/index.yaml
+
+  /epochs/{number}/blocks:
+    $ref: ./paths/api/epochs/{number}/blocks/index.yaml
+
+  /epochs/{number}/blocks/{pool_id}:
+    $ref: ./paths/api/epochs/{number}/{pool_id}/index.yaml
+
+  /epochs/{number}/parameters:
+    $ref: ./paths/api/epochs/{number}/parameters.yaml
+
+  # transactions
+
+  /txs/{hash}:
+    $ref: ./paths/api/txs/{hash}/index.yaml
+
+  /txs/{hash}/utxos:
+    $ref: ./paths/api/txs/{hash}/utxos.yaml
+
+  /txs/{hash}/stakes:
+    $ref: ./paths/api/txs/{hash}/stakes.yaml
+
+  /txs/{hash}/delegations:
+    $ref: ./paths/api/txs/{hash}/delegations.yaml
+
+  /txs/{hash}/withdrawals:
+    $ref: ./paths/api/txs/{hash}/withdrawals.yaml
+
+  /txs/{hash}/mirs:
+    $ref: ./paths/api/txs/{hash}/mirs.yaml
+
+  /txs/{hash}/pool_updates:
+    $ref: ./paths/api/txs/{hash}/pool_updates.yaml
+
+  /txs/{hash}/pool_retires:
+    $ref: ./paths/api/txs/{hash}/pool_retires.yaml
+
+  /txs/{hash}/metadata:
+    $ref: ./paths/api/txs/{hash}/metadata/index.yaml
+
+  /txs/{hash}/metadata/cbor:
+    $ref: ./paths/api/txs/{hash}/metadata/cbor.yaml
+
+  /txs/{hash}/redeemers:
+    $ref: ./paths/api/txs/{hash}/redeemers.yaml
+
+  /txs/{hash}/required_signers:
+    $ref: ./paths/api/txs/{hash}/required_signers.yaml
+
+  /txs/{hash}/cbor:
+    $ref: ./paths/api/txs/{hash}/cbor.yaml
+
+  /tx/submit:
+    $ref: ./paths/api/tx/submit.yaml
+
+  # accounts
+
+  /accounts/{stake_address}:
+    $ref: ./paths/api/accounts/{stake_address}/index.yaml
+
+  /accounts/{stake_address}/rewards:
+    $ref: ./paths/api/accounts/{stake_address}/rewards.yaml
+
+  /accounts/{stake_address}/history:
+    $ref: ./paths/api/accounts/{stake_address}/history.yaml
+
+  /accounts/{stake_address}/delegations:
+    $ref: ./paths/api/accounts/{stake_address}/delegations.yaml
+
+  /accounts/{stake_address}/registrations:
+    $ref: ./paths/api/accounts/{stake_address}/registrations.yaml
+
+  /accounts/{stake_address}/withdrawals:
+    $ref: ./paths/api/accounts/{stake_address}/withdrawals.yaml
+
+  /accounts/{stake_address}/mirs:
+    $ref: ./paths/api/accounts/{stake_address}/mirs.yaml
+
+  /accounts/{stake_address}/addresses:
+    $ref: ./paths/api/accounts/{stake_address}/addresses.yaml
+
+  /accounts/{stake_address}/addresses/assets:
+    $ref: ./paths/api/accounts/{stake_address}/assets/index.yaml
+
+  /accounts/{stake_address}/addresses/total:
+    $ref: ./paths/api/accounts/{stake_address}/addresses/total.yaml
+
+  /accounts/{stake_address}/utxos:
+    $ref: ./paths/api/accounts/{stake_address}/utxos.yaml
+
+  /accounts/{stake_address}/transactions:
+    $ref: ./paths/api/accounts/{stake_address}/transactions.yaml
+
+  # mempool
+
+  /mempool:
+    $ref: ./paths/api/mempool/index.yaml
+
+  /mempool/{hash}:
+    $ref: ./paths/api/mempool/{hash}/index.yaml
+
+  /mempool/addresses/{address}:
+    $ref: ./paths/api/mempool/addresses/{address}/index.yaml
+
+  # metadata
+
+  /metadata/txs/labels:
+    $ref: ./paths/api/metadata/txs/labels/index.yaml
+
+  /metadata/txs/labels/{label}:
+    $ref: ./paths/api/metadata/txs/labels/{label}/index.yaml
+
+  # /mithril:
+  #   $ref: ./paths/api/mithril/index.yaml
+
+  /metadata/txs/labels/{label}/cbor:
+    $ref: ./paths/api/metadata/txs/labels/{label}/cbor.yaml
+
+  # addresses
+
+  /addresses/{address}:
+    $ref: ./paths/api/addresses/{address}/index.yaml
+
+  /addresses/{address}/extended:
+    $ref: ./paths/api/addresses/{address}/extended.yaml
+
+  /addresses/{address}/total:
+    $ref: ./paths/api/addresses/{address}/total.yaml
+
+  /addresses/{address}/utxos:
+    $ref: ./paths/api/addresses/{address}/utxos/index.yaml
+
+  /addresses/{address}/utxos/{asset}:
+    $ref: ./paths/api/addresses/{address}/utxos/{asset}/index.yaml
+
+  /addresses/{address}/txs:
+    $ref: ./paths/api/addresses/{address}/txs.yaml
+
+  /addresses/{address}/transactions:
+    $ref: ./paths/api/addresses/{address}/transactions.yaml
+
+  # pools
+
+  /pools:
+    $ref: ./paths/api/pools/index.yaml
+
+  /pools/extended:
+    $ref: ./paths/api/pools/extended.yaml
+
+  /pools/retired:
+    $ref: ./paths/api/pools/retired.yaml
+
+  /pools/retiring:
+    $ref: ./paths/api/pools/retiring.yaml
+
+  /pools/{pool_id}:
+    $ref: ./paths/api/pools/{pool_id}/index.yaml
+
+  /pools/{pool_id}/history:
+    $ref: ./paths/api/pools/{pool_id}/history.yaml
+
+  /pools/{pool_id}/metadata:
+    $ref: ./paths/api/pools/{pool_id}/metadata.yaml
+
+  /pools/{pool_id}/relays:
+    $ref: ./paths/api/pools/{pool_id}/relays.yaml
+
+  /pools/{pool_id}/delegators:
+    $ref: ./paths/api/pools/{pool_id}/delegators.yaml
+
+  /pools/{pool_id}/blocks:
+    $ref: ./paths/api/pools/{pool_id}/blocks.yaml
+
+  /pools/{pool_id}/updates:
+    $ref: ./paths/api/pools/{pool_id}/updates.yaml
+
+  /pools/{pool_id}/votes:
+    $ref: ./paths/api/pools/{pool_id}/votes.yaml
+
+  # assets
+
+  /assets:
+    $ref: ./paths/api/assets/index.yaml
+
+  /assets/{asset}:
+    $ref: ./paths/api/assets/{asset}/index.yaml
+
+  /assets/{asset}/history:
+    $ref: ./paths/api/assets/{asset}/history.yaml
+
+  /assets/{asset}/txs:
+    $ref: ./paths/api/assets/{asset}/txs.yaml
+
+  /assets/{asset}/transactions:
+    $ref: ./paths/api/assets/{asset}/transactions.yaml
+
+  /assets/{asset}/addresses:
+    $ref: ./paths/api/assets/{asset}/addresses.yaml
+
+  /assets/{asset}/utxos:
+    $ref: ./paths/api/assets/{asset}/utxos.yaml
+
+  /assets/policy/{policy_id}:
+    $ref: ./paths/api/assets/policy/{policy_id}/index.yaml
+
+  # swaps
+
+  # /swaps/{asset}:
+  #   $ref: ./paths/api/swaps/{asset}/index.yaml
+
+  # scripts
+
+  /scripts:
+    $ref: ./paths/api/scripts/index.yaml
+
+  /scripts/{script_hash}:
+    $ref: ./paths/api/scripts/{script_hash}/index.yaml
+
+  /scripts/{script_hash}/json:
+    $ref: ./paths/api/scripts/{script_hash}/json.yaml
+
+  /scripts/{script_hash}/cbor:
+    $ref: ./paths/api/scripts/{script_hash}/cbor.yaml
+
+  /scripts/{script_hash}/redeemers:
+    $ref: ./paths/api/scripts/{script_hash}/redeemers.yaml
+
+  /scripts/{script_hash}/utxos:
+    $ref: ./paths/api/scripts/{script_hash}/utxos.yaml
+
+  /scripts/datum/{datum_hash}:
+    $ref: ./paths/api/scripts/datum/{datum_hash}/index.yaml
+
+  /scripts/datum/{datum_hash}/cbor:
+    $ref: ./paths/api/scripts/datum/{datum_hash}/cbor.yaml
+
+  # utils
+
+  /utils/addresses/xpub/{xpub}/{role}/{index}:
+    $ref: ./paths/api/utils/addresses/xpub/{xpub}/{role}/{index}/index.yaml
+
+  /utils/txs/evaluate:
+    $ref: ./paths/api/utils/txs/evaluate/index.yaml
+
+  /utils/txs/evaluate/utxos:
+    $ref: ./paths/api/utils/txs/evaluate/utxos.yaml
+
+  # ipfs
+
+  /ipfs/add:
+    $ref: ./paths/ipfs/add.yaml
+
+  /ipfs/gateway/{IPFS_path}:
+    $ref: ./paths/ipfs/gateway/{IPFS_path}/index.yaml
+
+  /ipfs/pin/add/{IPFS_path}:
+    $ref: ./paths/ipfs/pin/add/{IPFS_path}/index.yaml
+
+  /ipfs/pin/list:
+    $ref: ./paths/ipfs/pin/list/index.yaml
+
+  /ipfs/pin/list/{IPFS_path}:
+    $ref: ./paths/ipfs/pin/list/{IPFS_path}/index.yaml
+
+  /ipfs/pin/remove/{IPFS_path}:
+    $ref: ./paths/ipfs/pin/remove/{IPFS_path}/index.yaml
+
+  # metrics
+
+  /metrics:
+    $ref: ./paths/api/metrics/index.yaml
+
+  /metrics/endpoints:
+    $ref: ./paths/api/metrics/endpoints.yaml
+
+  # network
+
+  /network:
+    $ref: ./paths/api/network/index.yaml
+
+  /network/eras:
+    $ref: ./paths/api/network/eras.yaml
+
+components:
+  schemas:
+    onchain_metadata_cip25:
+      $ref: ./schemas/assets/asset_onchain_metadata_cip25.yaml
+    onchain_metadata_cip68_ft_333:
+      $ref: ./schemas/assets/asset_onchain_metadata_cip68_ft_333.yaml
+    onchain_metadata_cip68_nft_222:
+      $ref: ./schemas/assets/asset_onchain_metadata_cip68_nft_222.yaml
+    onchain_metadata_cip68_rft_444:
+      $ref: ./schemas/assets/asset_onchain_metadata_cip68_rft_444.yaml
+
+  # TODO: these below break OpenAPI 3.1.0 types gen
+  # Not sure if there are used tho
+  # responses:
+  #   overusage_limit:
+  #     $ref: ./responses/errors/429.yaml
+
+  #   mempool_full:
+  #     $ref: ./responses/errors/425.yaml
+
+  #   pin_queue_full:
+  #     $ref: ./responses/errors/425-2.yaml
+
+  #   autobanned:
+  #     $ref: ./responses/errors/418.yaml
+
+  #   not_found:
+  #     $ref: ./responses/errors/404.yaml
+
+  #   internal_server_error:
+  #     $ref: ./responses/errors/500.yaml
+
+  #   unauthorized_error:
+  #     $ref: ./responses/errors/403.yaml
+
+  #   bad_request:
+  #     $ref: ./responses/errors/400.yaml
+
+  securitySchemes:
+    project_id:
+      type: apiKey
+      in: header
+      name: project_id
+      description: |
+        There are multiple token types available based on network you choose
+        when creating a Blockfrost a project, for a list of token types
+        see available networks.

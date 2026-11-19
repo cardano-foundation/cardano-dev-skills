@@ -1,0 +1,141 @@
+---
+title: Kubernetes
+sidebar:
+  order: 4
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Oura runs well in Kubernetes in `daemon` mode. There are two common ways to deploy it,
+depending on where your Cardano node lives:
+
+- **Sidecar** — run Oura in the same pod as your node, sharing the unix socket. Simplest when
+  the node is already in your cluster.
+- **Standalone** — run Oura as its own `Deployment`. Use this when the node lives outside the
+  cluster, or when you want to keep it isolated from sidecar access.
+
+<Tabs syncKey="k8s-approach">
+  <TabItem label="Sidecar">
+Load Oura as a second container in your node's pod. Because containers in a pod share a
+file-system layer, Oura can read the node's unix socket directly.
+
+The example below is a redacted Cardano node `StatefulSet`. Note the extra container and the
+volume mounts that share the unix socket.
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cardano-node
+spec:
+
+  # REDACTED: here goes your normal cardano node sts / deployment spec
+
+  template:
+    spec:
+
+      # REDACTED: here goes your normal cardano node pod specs
+
+      containers:
+      - name: main
+
+        # REDACTED: here goes your normal cardano node container properties
+
+        # add a new volume mount to enable the socket to be
+        # consumed by the 2nd container in the pod (Oura)
+        volumeMounts:
+        - mountPath: /opt/cardano/cnode/sockets/node0.socket
+          name: unix-socket
+
+      # add a 2nd container pointing to the _Oura_ image
+      - name: oura
+        image: ghcr.io/txpipe/oura:latest
+
+        # we mount the same volume that the main container uses as the source
+        # for the Cardano node unix socket.
+        volumeMounts:
+        - mountPath: /opt/cardano/cnode/sockets/node0.socket
+          name: unix-socket
+        - mountPath: /etc/oura
+          name: oura-config
+
+      volumes:
+
+      # REDACTED: here goes any required volume for your normal cardano node setup
+
+      # empty-dir volume to share the unix socket between containers
+      - name: unix-socket
+        emptyDir: {}
+
+      # a config map resource with Oura's config particular for your requirements
+      - name: oura-config
+        configMap:
+          name: oura-config
+```
+  </TabItem>
+  <TabItem label="Standalone">
+Run Oura as its own `Deployment`, with its config supplied by a `ConfigMap`. Use this when the
+node isn't part of your cluster, or you want it isolated from sidecar access.
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oura
+data:
+  daemon.toml: |-
+    [source]
+    # REDACTED: here goes your `source` configuration options
+
+    [[filters]]
+    # REDACTED: here goes your `filters` configuration options
+
+    [sink]
+    # REDACTED: here goes your `sink` configuration options
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oura
+  labels:
+    app: oura
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oura
+  template:
+    metadata:
+      labels:
+        app: oura
+    spec:
+      containers:
+      - name: main
+        image: ghcr.io/txpipe/oura:latest
+        env:
+          - name: "RUST_LOG"
+            value: "info"
+        resources:
+          requests:
+            memory: 50Mi
+            cpu: 50m
+          limits:
+            memory: 200Mi
+            cpu: 200m
+        args:
+          - "daemon"
+        volumeMounts:
+          - mountPath: /etc/oura
+            name: config
+      volumes:
+      - name: config
+        configMap:
+          name: oura
+```
+  </TabItem>
+</Tabs>
+
+:::caution[Keep replicas at 1]
+Oura instances don't coordinate with each other. Running more than one replica just creates
+parallel pipelines duplicating the same work — keep `replicas: 1`.
+:::

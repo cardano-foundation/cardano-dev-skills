@@ -1,0 +1,59 @@
+---
+title: POSIX Time
+description: Unix timestamp handling for Cardano transactions
+---
+
+# POSIX Time
+
+Evolution SDK uses Unix timestamps in milliseconds (bigint) for all time-related operations. The `UnixTime` type represents milliseconds since the Unix epoch (January 1, 1970).
+
+## Getting Current Time
+
+```typescript twoslash
+// Current time as bigint milliseconds
+const now = BigInt(Date.now())
+
+// From a specific date
+const deadline = BigInt(new Date("2025-12-31T23:59:59Z").getTime())
+```
+
+## Common Conversions
+
+```typescript twoslash
+// ADA amounts in time
+const fiveMinutes = 5n * 60n * 1000n // 300,000ms
+const oneHour = 60n * 60n * 1000n // 3,600,000ms
+const oneDay = 24n * 60n * 60n * 1000n // 86,400,000ms
+
+// Future deadline
+const now = BigInt(Date.now())
+const expiresIn5Min = now + fiveMinutes
+const expiresIn1Hour = now + oneHour
+```
+
+## Usage in Transactions
+
+Time values are passed to `.setValidity()` as Unix milliseconds. The builder converts them to slots automatically:
+
+```typescript twoslash
+import { preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: process.env.BLOCKFROST_API_KEY!
+  })
+  .withSeed({ mnemonic: process.env.WALLET_MNEMONIC!, accountIndex: 0 })
+
+const now = BigInt(Date.now())
+
+// Transaction valid for the next 10 minutes
+// const tx = await client.newTx()
+//   .setValidity({ from: now, to: now + 600_000n })
+//   ...
+```
+
+## Next Steps
+
+- [Slots](/docs/time/slots) — How Unix time maps to slots
+- [Validity Ranges](/docs/time/validity-ranges) — Setting time constraints on transactions

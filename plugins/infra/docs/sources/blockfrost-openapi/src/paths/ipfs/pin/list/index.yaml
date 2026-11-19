@@ -1,0 +1,109 @@
+servers:
+  - url: https://ipfs.blockfrost.io/api/v0
+get:
+  tags:
+    - IPFS » Pins
+  summary: List pinned objects
+  description: |
+    List objects pinned to local storage
+
+    <p>
+      <span class="hosted">Hosted</span> Endpoint only available for hosted variant.
+    </p>
+  parameters:
+    - in: query
+      name: count
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 100
+      description: The number of results displayed on one page.
+    - in: query
+      name: page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 21474836
+        default: 1
+      description: The page number for listing the results.
+    - in: query
+      name: order
+      required: false
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: asc
+      description: |
+        The ordering of items from the point of view of the blockchain,
+        not the page listing itself. By default, we return oldest first, newest last.
+  x-codeSamples:
+    - lang: "Shell"
+      label: "cURL"
+      source: |
+        curl "https://ipfs.blockfrost.io/api/v0/ipfs/pin/list/" \
+          -H "project_id: $PROJECT_ID" \
+  responses:
+    "200":
+      description: Returns pinned objects
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              type: object
+              properties:
+                time_created:
+                  type: integer
+                  description: Creation time of the IPFS object on our backends
+                  example: 1615551024
+                time_pinned:
+                  type: integer
+                  description: Pin time of the IPFS object on our backends
+                  example: 1615551024
+                ipfs_hash:
+                  type: string
+                  description: IPFS hash of the pinned object
+                  example: "QmdVMnULrY95mth2XkwjxDtMHvzuzmvUPTotKE1tgqKbCx"
+                size:
+                  type: string
+                  description: Size of the object in Bytes
+                  example: "1615551024"
+                state:
+                  type: string
+                  enum:
+                    - queued
+                    - pinned
+                    - unpinned
+                    - failed
+                    - gc
+                  description: |
+                    State of the pinned object, which is `queued` when we are retriving object. If this
+                    is successful the state is changed to `pinned` or `failed` if not. The state `gc` means the
+                    pinned item has been garbage collected due to account being over storage quota or after it has
+                    been moved to `unpinned` state by removing the object pin.
+                  example: "pinned"
+                filecoin:
+                  type: boolean
+                  description: Whether filecoin was used to pin the resource.
+              required:
+                - time_created
+                - time_pinned
+                - ipfs_hash
+                - size
+                - state
+                - filecoin
+    "400":
+      $ref: ../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../responses/errors/500.yaml

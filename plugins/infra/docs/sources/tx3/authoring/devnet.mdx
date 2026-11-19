@@ -1,0 +1,172 @@
+---
+title: Devnet
+sidebar:
+    order: 3
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+This guide explains how to run the Devnet network for testing purposes.
+
+## Overview
+
+Devnet is a custom Cardano test network powered by [Dolos](https://docs.txpipe.io/dolos). It allows you to define initial wallet funds, execute transactions, test your Tx3 protocols in an isolated environment, etc. To set up the environment, you must run [tx3up](../tooling/tx3up). It launches Dolos using custom genesis files for the Devnet network.
+
+Devnet is used both for manual testing and automated testing:
+- **Manual testing**: You can start Devnet manually using `trix devnet` and interact with it using `trix invoke` and `trix explore`
+- **Automated testing**: The `trix test` command automatically creates and manages its own Devnet instance to execute test scenarios defined in test configuration files
+
+For information about automated testing with Devnet, see the [Testing Guide](./testing) and the [`trix test` command documentation](../tooling/trix#trix-test).
+
+## Usage
+
+Before running Devnet manually, use [trix init](../tooling/trix#trix-init) to initialize a tx3 project. This will generate a default Devnet configuration in the `trix.toml` file, including default wallets.  
+After initializing the project, run [trix devnet](../tooling/trix#trix-devnet) to start the Devnet.
+
+```sh
+trix devnet
+```
+
+> **Note:** The password for each Devnet wallet is the same as the wallet name defined in `trix.toml` (e.g., if the name is `bob`, the password is `bob`).
+
+When using the `trix test` command, Devnet is automatically managed for you - it creates a temporary Devnet instance, runs your tests, and cleans up afterward. See the [Testing Guide](./testing) for more details on automated testing.
+
+## Configuring Initial UTXOs
+
+You can define the initial UTXOs available on the Devnet by editing the `devnet.toml` file in your project root. This file allows you to specify which addresses should have funds when the Devnet starts.
+
+### Structure
+
+The `devnet.toml` file uses the following structure:
+
+```toml
+[[utxos]]
+address = "@alice"
+value = 1000000
+
+[[utxos]]
+address = "@bob"
+value = 2000000
+
+[[utxos]]
+address = "@charlie"
+value = 3000000
+
+[[utxos]]
+address = "001122aabbcc"
+value = 4000000
+```
+
+### Configuration Options
+
+#### Value UTXOs
+
+- **address**: The recipient address for the UTXO. This can be:
+  - A wallet name prefixed with `@` (e.g., `@alice`) - references a wallet defined in `trix.toml`
+  - A direct Cardano address in hex format (e.g., `001122aabbcc...`) - bech32 format support coming soon
+- **value**: The amount of lovelace (ADA × 1,000,000) that the address will receive
+
+#### Deps UTXOs
+
+- **ref**: The UTXO reference in the format `txid#index` (e.g., `abcd1234...#0`)
+- **raw_bytes**: The raw bytes of the UTXO in hex CBOR format
+
+### Example
+
+Here's a complete example of a `devnet.toml` file:
+
+```toml
+# Fund named wallets from trix.toml
+[[utxos]]
+address = "@alice"
+value = 10000000  # 10 ADA
+
+[[utxos]]
+address = "@bob"
+value = 5000000   # 5 ADA
+
+# Fund a specific address directly (hex format)
+[[utxos]]
+address = "001122aabbccddee334455667788990011223344556677889900"
+value = 2000000   # 2 ADA
+
+# Dep UTXO
+[[utxos]]
+ref = "001122aabbccddee334455667788990011223344556677889900#0"
+raw_bytes = "001122aabbccddee334455667788990011223344556677889900..."
+```
+
+When you start the Devnet with `trix devnet`, these UTXOs will be available at the specified addresses with the configured amounts.
+
+## Getting Wallet Information
+
+You can retrieve detailed information about any wallet defined in your `trix.toml` file using the `trix wallet` command:
+
+```sh
+trix wallet [name]
+```
+
+This command returns a JSON structure containing the wallet's public key and addresses for both mainnet and testnet:
+
+```json
+{
+  "name": "alice",
+  "public_key": "9b1622919b3a74c037599d67d065f10c46c047801efe024a80344e79be4d9c0b2edb662977726943b63e8c9c5ee761c77f682ee31ef28e74fcab8a54bf692438",
+  "addresses": {
+    "mainnet": "addr1vyn7k6gfllvhauxkzw478ds2f9axmu4qw78pm86dtyd40yqnz6dv9",
+    "testnet": "addr_test1vqn7k6gfllvhauxkzw478ds2f9axmu4qw78pm86dtyd40yqg2w3rq"
+  }
+}
+```
+
+This is particularly useful when you need to execute transactions using tx3 bindgen code or when working with specific addresses in your development workflow.
+
+## Common Workflows
+
+Here are some common workflows you might follow when you are running devnet:
+
+<Steps>
+
+1. Initialize a New Project:
+
+   ```sh
+   trix init
+   ```
+
+   This will create a `trix.toml` file with a default Devnet configuration and wallets.
+
+2. (Optional) Sync devnet with a tx utxo deps:
+   ```sh
+   trix devnet copy --profile <profile> --utxo-deps <tx-hash>
+   ```
+
+   This creates the `devnet.toml` file with the necessary UTXO deps.
+
+3. Start the Devnet:
+   ```sh
+   trix devnet
+   ```
+
+   This launches a local Cardano test network powered by Dolos.
+
+4. (Optional) Run Devnet in the Background:
+   ```sh
+   trix devnet -b
+   ```
+
+   Use this if you want Devnet to run as a background process.
+
+5. Explore the Network:
+
+   Invoke a transaction:
+   ```sh
+   trix invoke
+   ```
+
+   Explore the devnet to monitor the transaction:
+   ```sh
+   trix explore
+   ```
+
+</Steps>
+

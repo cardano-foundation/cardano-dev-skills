@@ -1,0 +1,47 @@
+type: array
+items:
+  type: object
+  properties:
+    tx_index:
+      type: integer
+      example: 0
+      description: Index of the redeemer within the transaction
+    purpose:
+      type: string
+      enum: [spend, mint, cert, reward, vote, propose]
+      example: "spend"
+      description: Validation purpose
+    script_hash:
+      type: string
+      example: "ec26b89af41bef0f7585353831cb5da42b5b37185e0c8a526143b824"
+      description: Script hash
+    redeemer_data_hash:
+      type: string
+      example: "923918e403bf43c34b4ef6b48eb2ee04babed17320d8d1b9ff9ad086e86f44ec"
+      description: Redeemer data hash
+    datum_hash:
+      type: string
+      example: "923918e403bf43c34b4ef6b48eb2ee04babed17320d8d1b9ff9ad086e86f44ec"
+      deprecated: true
+      description: Datum hash
+    unit_mem:
+      type: string
+      example: "1700"
+      description: The budget in Memory to run a script
+    unit_steps:
+      type: string
+      example: "476468"
+      description: The budget in CPU steps to run a script
+    fee:
+      type: string
+      example: "172033"
+      description: The fee consumed to run the script
+  required:
+    - tx_index
+    - purpose
+    - unit_mem
+    - unit_steps
+    - script_hash
+    - redeemer_data_hash
+    - datum_hash
+    - fee

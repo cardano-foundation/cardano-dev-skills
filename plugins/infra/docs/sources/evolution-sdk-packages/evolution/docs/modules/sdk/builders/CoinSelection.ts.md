@@ -1,0 +1,98 @@
+---
+title: sdk/builders/CoinSelection.ts
+nav_order: 118
+parent: Modules
+---
+
+## CoinSelection overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [coin-selection](#coin-selection)
+  - [largestFirstSelection](#largestfirstselection)
+- [utils](#utils)
+  - [CoinSelectionAlgorithm (type alias)](#coinselectionalgorithm-type-alias)
+  - [CoinSelectionError (class)](#coinselectionerror-class)
+  - [CoinSelectionFunction (type alias)](#coinselectionfunction-type-alias)
+  - [CoinSelectionResult (interface)](#coinselectionresult-interface)
+
+---
+
+# coin-selection
+
+## largestFirstSelection
+
+Largest-first coin selection algorithm.
+
+Strategy:
+
+1. Sort UTxOs by total lovelace value (descending)
+2. Select UTxOs one by one until all required assets are covered
+3. Return selected UTxOs
+
+Advantages:
+
+- Simple and predictable
+- Minimizes number of inputs (uses largest UTxOs first)
+- Fast execution
+
+Disadvantages:
+
+- May select more value than needed (more change)
+- Doesn't optimize for minimum fee
+- Doesn't consider UTxO fragmentation
+
+Use cases:
+
+- Default algorithm for simple transactions
+- When minimizing input count is priority
+- When speed is more important than optimization
+
+**Signature**
+
+```ts
+export declare const largestFirstSelection: CoinSelectionFunction
+```
+
+Added in v2.0.0
+
+# utils
+
+## CoinSelectionAlgorithm (type alias)
+
+**Signature**
+
+```ts
+export type CoinSelectionAlgorithm = "largest-first" | "random-improve" | "optimal"
+```
+
+## CoinSelectionError (class)
+
+**Signature**
+
+```ts
+export declare class CoinSelectionError
+```
+
+## CoinSelectionFunction (type alias)
+
+**Signature**
+
+```ts
+export type CoinSelectionFunction = (
+  availableUtxos: ReadonlyArray<UTxO.UTxO>,
+  requiredAssets: CoreAssets.Assets
+) => CoinSelectionResult
+```
+
+## CoinSelectionResult (interface)
+
+**Signature**
+
+```ts
+export interface CoinSelectionResult {
+  readonly selectedUtxos: ReadonlyArray<UTxO.UTxO>
+}
+```

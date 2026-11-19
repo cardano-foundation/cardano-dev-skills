@@ -1,0 +1,20 @@
+type: array
+items:
+  type: object
+  properties:
+    cert_index:
+      type: integer
+      example: 0
+      description: Index of the certificate within the transaction
+    address:
+      type: string
+      example: "stake1u9t3a0tcwune5xrnfjg4q7cpvjlgx9lcv0cuqf5mhfjwrvcwrulda"
+      description: Delegation stake address
+    registration:
+      type: boolean
+      example: true
+      description: Registration boolean, false if deregistration
+  required:
+    - cert_index
+    - address
+    - registration

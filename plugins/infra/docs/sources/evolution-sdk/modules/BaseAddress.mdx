@@ -1,0 +1,172 @@
+---
+title: BaseAddress.ts
+nav_order: 9
+parent: Modules
+---
+
+## BaseAddress overview
+
+---
+
+<h2 className="text-delta">Table of contents</h2>
+
+- [arbitrary](#arbitrary)
+  - [arbitrary](#arbitrary-1)
+- [encoding](#encoding)
+  - [toBytes](#tobytes)
+  - [toHex](#tohex)
+- [parsing](#parsing)
+  - [fromBytes](#frombytes)
+  - [fromHex](#fromhex)
+- [schemas](#schemas)
+  - [BaseAddress (class)](#baseaddress-class)
+    - [toJSON (method)](#tojson-method)
+    - [toString (method)](#tostring-method)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method)
+    - [[Equal.symbol] (method)](#equalsymbol-method)
+- [utils](#utils)
+  - [FromBytes](#frombytes-1)
+  - [FromHex](#fromhex-1)
+
+---
+
+# arbitrary
+
+## arbitrary
+
+FastCheck arbitrary for BaseAddress instances.
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<BaseAddress>
+```
+
+Added in v2.0.0
+
+# encoding
+
+## toBytes
+
+Convert a BaseAddress to bytes.
+
+**Signature**
+
+```ts
+export declare const toBytes: (data: BaseAddress) => Uint8Array
+```
+
+Added in v2.0.0
+
+## toHex
+
+Convert a BaseAddress to hex string.
+
+**Signature**
+
+```ts
+export declare const toHex: (data: BaseAddress) => string
+```
+
+Added in v2.0.0
+
+# parsing
+
+## fromBytes
+
+Parse a BaseAddress from bytes.
+
+**Signature**
+
+```ts
+export declare const fromBytes: (bytes: Uint8Array) => BaseAddress
+```
+
+Added in v2.0.0
+
+## fromHex
+
+Parse a BaseAddress from hex string.
+
+**Signature**
+
+```ts
+export declare const fromHex: (hex: string) => BaseAddress
+```
+
+Added in v2.0.0
+
+# schemas
+
+## BaseAddress (class)
+
+Base address with both payment and staking credentials
+
+**Signature**
+
+```ts
+export declare class BaseAddress
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+# utils
+
+## FromBytes
+
+**Signature**
+
+```ts
+export declare const FromBytes: Schema.transformOrFail<
+  Schema.SchemaClass<Uint8Array, Uint8Array, never>,
+  Schema.SchemaClass<BaseAddress, BaseAddress, never>,
+  never
+>
+```
+
+## FromHex
+
+**Signature**
+
+```ts
+export declare const FromHex: Schema.transform<
+  Schema.Schema<Uint8Array, string, never>,
+  Schema.transformOrFail<
+    Schema.SchemaClass<Uint8Array, Uint8Array, never>,
+    Schema.SchemaClass<BaseAddress, BaseAddress, never>,
+    never
+  >
+>
+```

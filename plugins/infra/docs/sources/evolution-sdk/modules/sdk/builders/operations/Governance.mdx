@@ -1,0 +1,104 @@
+---
+title: sdk/builders/operations/Governance.ts
+nav_order: 124
+parent: Modules
+---
+
+## Governance overview
+
+Governance operations - DRep registration/update/deregistration and Constitutional Committee actions.
+
+Added in v2.0.0
+
+---
+
+<h2 className="text-delta">Table of contents</h2>
+
+- [programs](#programs)
+  - [createAuthCommitteeHotProgram](#createauthcommitteehotprogram)
+  - [createDeregisterDRepProgram](#createderegisterdrepprogram)
+  - [createRegisterDRepProgram](#createregisterdrepprogram)
+  - [createResignCommitteeColdProgram](#createresigncommitteecoldprogram)
+  - [createUpdateDRepProgram](#createupdatedrepprogram)
+
+---
+
+# programs
+
+## createAuthCommitteeHotProgram
+
+Creates a ProgramStep for authCommitteeHot operation.
+Adds an AuthCommitteeHotCert certificate to the transaction.
+Authorizes a hot credential to act on behalf of a cold committee credential.
+
+**Signature**
+
+```ts
+export declare const createAuthCommitteeHotProgram: (
+  params: AuthCommitteeHotParams
+) => Effect.Effect<void, TransactionBuilderError, TxContext>
+```
+
+Added in v2.0.0
+
+## createDeregisterDRepProgram
+
+Creates a ProgramStep for deregisterDRep operation.
+Adds an UnregDrepCert certificate to the transaction and reclaims the deposit.
+
+**Signature**
+
+```ts
+export declare const createDeregisterDRepProgram: (
+  params: DeregisterDRepParams
+) => Effect.Effect<void, TransactionBuilderError, TxContext | TxBuilderConfigTag>
+```
+
+Added in v2.0.0
+
+## createRegisterDRepProgram
+
+Creates a ProgramStep for registerDRep operation.
+Adds a RegDrepCert certificate to the transaction.
+Requires drepDeposit from protocol parameters.
+
+**Signature**
+
+```ts
+export declare const createRegisterDRepProgram: (
+  params: RegisterDRepParams
+) => Effect.Effect<void, TransactionBuilderError, TxContext | TxBuilderConfigTag>
+```
+
+Added in v2.0.0
+
+## createResignCommitteeColdProgram
+
+Creates a ProgramStep for resignCommitteeCold operation.
+Adds a ResignCommitteeColdCert certificate to the transaction.
+Submits resignation from constitutional committee membership.
+
+**Signature**
+
+```ts
+export declare const createResignCommitteeColdProgram: (
+  params: ResignCommitteeColdParams
+) => Effect.Effect<void, TransactionBuilderError, TxContext>
+```
+
+Added in v2.0.0
+
+## createUpdateDRepProgram
+
+Creates a ProgramStep for updateDRep operation.
+Adds an UpdateDrepCert certificate to the transaction.
+
+**Signature**
+
+```ts
+export declare const createUpdateDRepProgram: (
+  params: UpdateDRepParams
+) => Effect.Effect<void, TransactionBuilderError, TxContext | TxBuilderConfigTag>
+```
+
+Added in v2.0.0

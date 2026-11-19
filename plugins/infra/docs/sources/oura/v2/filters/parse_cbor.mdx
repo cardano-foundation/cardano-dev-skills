@@ -1,0 +1,64 @@
+---
+title: Parse CBOR filter
+sidebar:
+  label: Parse CBOR
+  order: 2
+---
+
+The `ParseCbor` filter decodes raw CBOR into structured records, so downstream stages get
+something far easier to work with than a hex blob. It's a prerequisite for most real
+processing — notably the [Select](/oura/v2/filters/select) filter. The records follow the
+[UTxORPC](https://utxorpc.org/cardano) schema.
+
+It adapts to whatever it receives:
+
+- a **CborBlock** is decoded into a structured `Block`.
+- a **CborTx** is decoded into a structured `Tx`. This requires the
+  [SplitBlock](/oura/v2/filters/split_block) filter earlier in the chain to produce the
+  `CborTx` records.
+- anything else is passed through untouched.
+
+## Configuration
+
+```toml title="daemon.toml"
+[[filters]]
+type = "ParseCbor"
+```
+
+This filter takes no additional options.
+
+## Examples
+
+From a `CborBlock`, the next stage receives a structured block:
+
+```json
+{
+  "event": "apply",
+  "point": {
+    "slot": 0,
+    "hash": ""
+  },
+  "record": {
+    "header": {},
+    "body": {}
+  }
+}
+```
+
+From a `CborTx` (when `SplitBlock` ran first), it receives one structured transaction per
+event:
+
+```json
+{
+  "event": "apply",
+  "point": {
+    "slot": 0,
+    "hash": ""
+  },
+  "record": {
+    "inputs": [],
+    "outputs": [],
+    ...
+  }
+}
+```

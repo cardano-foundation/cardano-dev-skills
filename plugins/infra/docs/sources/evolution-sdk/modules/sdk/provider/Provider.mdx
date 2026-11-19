@@ -1,0 +1,190 @@
+---
+title: sdk/provider/Provider.ts
+nav_order: 157
+parent: Modules
+---
+
+## Provider overview
+
+---
+
+<h2 className="text-delta">Table of contents</h2>
+
+- [errors](#errors)
+  - [ProviderError (class)](#providererror-class)
+- [model](#model)
+  - [Delegation (interface)](#delegation-interface)
+  - [ProtocolParameters (type alias)](#protocolparameters-type-alias)
+  - [Provider (interface)](#provider-interface)
+  - [ProviderEffect](#providereffect)
+  - [ProviderEffect (interface)](#providereffect-interface)
+
+---
+
+# errors
+
+## ProviderError (class)
+
+Error class for provider-related operations.
+Represents failures when communicating with blockchain providers or fetching data.
+
+**Signature**
+
+```ts
+export declare class ProviderError
+```
+
+Added in v2.0.0
+
+# model
+
+## Delegation (interface)
+
+Delegation information including pool ID and rewards.
+
+**Signature**
+
+```ts
+export interface Delegation {
+  readonly poolId: PoolKeyHash.PoolKeyHash | null
+  readonly rewards: bigint
+}
+```
+
+Added in v2.0.0
+
+## ProtocolParameters (type alias)
+
+Protocol Parameters for the Cardano network.
+Defines operational rules and limits used by providers.
+
+**Signature**
+
+```ts
+export type ProtocolParameters = {
+  readonly minFeeA: number
+  readonly minFeeB: number
+  readonly maxTxSize: number
+  readonly maxValSize: number
+  readonly keyDeposit: bigint
+  readonly poolDeposit: bigint
+  readonly drepDeposit: bigint
+  readonly govActionDeposit: bigint
+  readonly priceMem: number
+  readonly priceStep: number
+  readonly maxTxExMem: bigint
+  readonly maxTxExSteps: bigint
+  readonly coinsPerUtxoByte: bigint
+  readonly collateralPercentage: number
+  readonly maxCollateralInputs: number
+  readonly minFeeRefScriptCostPerByte: number
+  readonly costModels: {
+    readonly PlutusV1: Record<string, number>
+    readonly PlutusV2: Record<string, number>
+    readonly PlutusV3: Record<string, number>
+  }
+}
+```
+
+Added in v2.0.0
+
+## Provider (interface)
+
+Promise-based provider interface for blockchain data access and submission.
+Auto-generated wrapper around ProviderEffect with promise-based methods.
+
+**Signature**
+
+```ts
+export interface Provider extends EffectToPromiseAPI<ProviderEffect> {
+  readonly effect: ProviderEffect
+}
+```
+
+Added in v2.0.0
+
+## ProviderEffect
+
+Context tag for ProviderEffect dependency injection.
+Use this to require a provider in your Effect computations.
+
+**Signature**
+
+```ts
+export declare const ProviderEffect: Context.Tag<ProviderEffect, ProviderEffect>
+```
+
+Added in v2.0.0
+
+## ProviderEffect (interface)
+
+Effect-based provider interface for blockchain data access and submission.
+Provides methods to query UTxOs, protocol parameters, delegation info, and submit transactions.
+
+**Signature**
+
+```ts
+export interface ProviderEffect {
+  /**
+   * Retrieve current protocol parameters from the blockchain.
+   */
+  readonly getProtocolParameters: () => Effect.Effect<ProtocolParameters, ProviderError>
+  /**
+   * Query UTxOs at a given address or by credential.
+   */
+  readonly getUtxos: (
+    addressOrCredential: CoreAddress.Address | Credential.Credential
+  ) => Effect.Effect<Array<CoreUTxO.UTxO>, ProviderError>
+  /**
+   * Query UTxOs at a given address or credential filtered by specific unit.
+   */
+  readonly getUtxosWithUnit: (
+    addressOrCredential: CoreAddress.Address | Credential.Credential,
+    unit: string
+  ) => Effect.Effect<Array<CoreUTxO.UTxO>, ProviderError>
+  /**
+   * Query a single UTxO by its unit identifier.
+   * Unit format: policyId (56 hex chars) + assetName (0-64 hex chars)
+   */
+  readonly getUtxoByUnit: (unit: string) => Effect.Effect<CoreUTxO.UTxO, ProviderError>
+  /**
+   * Query UTxOs by their transaction inputs (output references).
+   */
+  readonly getUtxosByOutRef: (
+    inputs: ReadonlyArray<TransactionInput.TransactionInput>
+  ) => Effect.Effect<Array<CoreUTxO.UTxO>, ProviderError>
+  /**
+   * Query delegation info for a reward address.
+   */
+  readonly getDelegation: (rewardAddress: RewardAddress.RewardAddress) => Effect.Effect<Delegation, ProviderError>
+  /**
+   * Query a datum by its hash.
+   * Returns the parsed PlutusData structure.
+   */
+  readonly getDatum: (datumHash: DatumHash.DatumHash) => Effect.Effect<PlutusData.Data, ProviderError>
+  /**
+   * Wait for a transaction to be confirmed on the blockchain.
+   */
+  readonly awaitTx: (
+    txHash: TransactionHash.TransactionHash,
+    checkInterval?: number,
+    timeout?: number
+  ) => Effect.Effect<boolean, ProviderError>
+  /**
+   * Submit a signed transaction to the blockchain.
+   * @param tx - Signed transaction to submit
+   */
+  readonly submitTx: (tx: Transaction.Transaction) => Effect.Effect<TransactionHash.TransactionHash, ProviderError>
+  /**
+   * Evaluate a transaction to determine script execution costs.
+   * @param tx - Transaction to evaluate
+   * @param additionalUTxOs - Additional UTxOs to include in evaluation context
+   */
+  readonly evaluateTx: (
+    tx: Transaction.Transaction,
+    additionalUTxOs?: Array<CoreUTxO.UTxO>
+  ) => Effect.Effect<Array<EvalRedeemer>, ProviderError>
+}
+```
+
+Added in v2.0.0

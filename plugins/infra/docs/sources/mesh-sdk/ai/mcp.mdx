@@ -1,0 +1,167 @@
+---
+title: "MCP Server"
+description: "Access Mesh documentation and get coding assistance directly in your editor"
+---
+import Link from "fumadocs-core/link";
+
+The Mesh MCP (Model Context Protocol) server provides real-time access to Mesh documentation and AI-powered coding assistance directly in VS Code, Cursor, or Claude Desktop.
+
+## Overview
+
+MCP is an open protocol that connects AI assistants to external data sources. The Mesh MCP server gives your AI assistant:
+
+- Full access to Mesh SDK documentation
+- Context-aware code generation for Cardano transactions
+- Debugging assistance with Mesh-specific error handling
+- Up-to-date API reference without relying on training data
+
+## Use Cases
+
+- **Code completion** - Get accurate Mesh method suggestions as you type
+- **Transaction building** - Generate complete transaction code from natural language
+- **Error debugging** - Paste errors and receive Mesh-specific solutions
+- **API exploration** - Ask about available methods and their parameters
+
+## Quick Start
+
+### Cursor (One-Click Install)
+
+Click the button below to install Mesh MCP in Cursor:
+
+<a href="https://cursor.com/en-US/install-mcp?name=mesh-mcp&config=eyJuYW1lIjoibWVzaC1tY3Atc2VydmVyIiwiZW52Ijp7IkFQSV9LRVkiOiJ5b3VyLWFwaS1rZXkiLCJNT0RFTCI6InlvdXItcHJlZmVycmVkLW1vZGVsIn0sImNvbW1hbmQiOiJucHggLXkgbWVzaGpzLW1jcCJ9" className="dark:hidden inline-block" style={{ margin: 0, padding: 0, lineHeight: 0 }}>
+  <img src="https://cursor.com/deeplink/mcp-install-light.svg" alt="Add mesh-mcp MCP server to Cursor" style={{ height: '36px', margin: 0, padding: 0, display: 'block' }} />
+</a>
+<a href="https://cursor.com/en-US/install-mcp?name=mesh-mcp&config=eyJuYW1lIjoibWVzaC1tY3Atc2VydmVyIiwiZW52Ijp7IkFQSV9LRVkiOiJ5b3VyLWFwaS1rZXkiLCJNT0RFTCI6InlvdXItcHJlZmVycmVkLW1vZGVsIn0sImNvbW1hbmQiOiJucHggLXkgbWVzaGpzLW1jcCJ9" className="hidden dark:inline-block" style={{ margin: 0, padding: 0, lineHeight: 0 }}>
+  <img src="https://cursor.com/deeplink/mcp-install-dark.svg" alt="Add mesh-mcp MCP server to Cursor" style={{ height: '36px', margin: 0, padding: 0, display: 'block' }} />
+</a>
+
+After clicking, configure your `API_KEY` and `MODEL` in Cursor's MCP settings.
+
+### Claude Desktop (CLI)
+
+If you have the `claude` CLI installed:
+
+```bash
+claude mcp add-json mesh-mcp '{
+  "command": "npx",
+  "args": ["-y", "meshjs-mcp"],
+  "env": {
+    "API_KEY": "your-api-key",
+    "MODEL": "your-preferred-model"
+  }
+}'
+```
+
+### VS Code / Manual Setup
+
+Add this configuration to your MCP server settings file:
+
+```json
+{
+  "servers": {
+    "mesh-mcp": {
+      "name": "mesh-mcp-server",
+      "command": "npx",
+      "args": ["-y", "meshjs-mcp"],
+      "env": {
+        "API_KEY": "your-api-key",
+        "MODEL": "your-preferred-model"
+      }
+    }
+  }
+}
+```
+
+## Configuration
+
+### Required Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `API_KEY` | Your API key from OpenAI, Anthropic, or Google | `sk-...` or `your-key` |
+| `MODEL` | The model to use for responses | `gpt-4o`, `claude-sonnet-4-20250514`, `gemini-pro` |
+
+### Supported Providers
+
+The MCP server works with any of these AI providers:
+
+- **OpenAI** - Use models like `gpt-4o`, `gpt-4-turbo`
+- **Anthropic** - Use models like `claude-sonnet-4-20250514`, `claude-3-haiku`
+- **Google** - Use models like `gemini-pro`, `gemini-1.5-pro`
+
+## Starting the Server
+
+After saving your configuration, you must start the server manually:
+
+### VS Code
+
+1. Open Command Palette (`Cmd+Shift+P` on macOS, `Ctrl+Shift+P` on Windows/Linux)
+2. Search for "MCP: List Servers"
+3. Select "mesh-mcp"
+4. Choose "Run Server"
+
+### Cursor
+
+1. Open Command Palette
+2. Search for "MCP: List Servers"
+3. Select "mesh-mcp" and run it
+
+### Claude Desktop
+
+The server starts automatically on launch if configured correctly. Check MCP logs if issues arise.
+
+## Usage Examples
+
+Once the server is running, ask your AI assistant Mesh-related questions:
+
+**Build a transaction:**
+```
+Create a transaction that sends 10 ADA to addr1qy...
+```
+
+**Debug an error:**
+```
+I'm getting "missing required signer" - what does this mean?
+```
+
+**Explore the API:**
+```
+What methods does MeshTxBuilder have for Plutus scripts?
+```
+
+## Complete Example
+
+<img src="ai/mcp-example.png" alt="MCP server example showing code generation in Cursor" />
+
+In this example, the AI generates a complete transaction with proper imports, UTxO selection, and signing flow.
+
+## Troubleshooting
+
+### Server not starting
+
+- Verify Node.js is installed: `node --version`
+- Check that npx works: `npx --version`
+- Ensure your API key is valid
+
+### "Connection refused" error
+
+- The server may not be running. Follow the [Starting the Server](#starting-the-server) steps.
+- Check for port conflicts with other services
+
+### Responses are slow or incomplete
+
+- Try a faster model (e.g., `gpt-4o-mini` instead of `gpt-4o`)
+- Check your API provider's rate limits
+- Ensure stable internet connection
+
+### API key errors
+
+- Verify your key is correct and has available credits
+- Check the key matches your chosen provider (OpenAI key for OpenAI models, etc.)
+
+## Related Resources
+
+- [Agent Skills](/docs/ai/skills) - Deep Mesh knowledge for AI coding assistants
+- [llms.txt](/docs/ai/llms-txt) - AI-friendly documentation for any tool
+- [MeshAI Chatbot](/docs/ai/chatbot) - Browser-based AI assistant
+- [MCP Protocol Specification](https://modelcontextprotocol.io/) - Learn more about MCP

@@ -1,0 +1,1417 @@
+// Copyright 2026 Blink Labs Software
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package common
+
+import (
+	"bytes"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math"
+	"math/big"
+	"sort"
+
+	"github.com/blinklabs-io/gouroboros/cbor"
+	"github.com/blinklabs-io/plutigo/data"
+	"github.com/btcsuite/btcd/btcutil/bech32"
+)
+
+// VotingProcedures is a convenience type to avoid needing to duplicate the full type definition everywhere
+type VotingProcedures map[*Voter]map[*GovActionId]VotingProcedure
+
+// MarshalCBOR follows cardano-ledger's ordering of voter constructors and
+// hashes, then governance action transaction IDs and indices.
+func (vps VotingProcedures) MarshalCBOR() ([]byte, error) {
+	if vps == nil {
+		return []byte{0xf6}, nil
+	}
+	voters := make([]*Voter, 0, len(vps))
+	for voter := range vps {
+		voters = append(voters, voter)
+	}
+	sort.Slice(voters, func(i, j int) bool {
+		if voters[i] == nil {
+			return voters[j] != nil
+		}
+		if voters[j] == nil {
+			return false
+		}
+		leftOrder := voterLedgerOrder(voters[i].Type)
+		rightOrder := voterLedgerOrder(voters[j].Type)
+		if leftOrder != rightOrder {
+			return leftOrder < rightOrder
+		}
+		return bytes.Compare(voters[i].Hash[:], voters[j].Hash[:]) < 0
+	})
+	ret := appendLedgerMapHeader(nil, uint64(len(voters)))
+	for _, voter := range voters {
+		actions := vps[voter]
+		encodedVoter, err := cbor.Encode(voter)
+		if err != nil {
+			return nil, fmt.Errorf("encode voting procedure voter: %w", err)
+		}
+		ret = append(ret, encodedVoter...)
+		if actions == nil {
+			ret = append(ret, 0xf6)
+			continue
+		}
+		actionIds := make([]*GovActionId, 0, len(actions))
+		for actionId := range actions {
+			actionIds = append(actionIds, actionId)
+		}
+		sort.Slice(actionIds, func(i, j int) bool {
+			left, right := actionIds[i], actionIds[j]
+			if left == nil {
+				return right != nil
+			}
+			if right == nil {
+				return false
+			}
+			if comparison := bytes.Compare(
+				left.TransactionId[:],
+				right.TransactionId[:],
+			); comparison != 0 {
+				return comparison < 0
+			}
+			return left.GovActionIdx < right.GovActionIdx
+		})
+		ret = appendLedgerMapHeader(ret, uint64(len(actionIds)))
+		for _, actionId := range actionIds {
+			encodedActionId, err := cbor.Encode(actionId)
+			if err != nil {
+				return nil, fmt.Errorf("encode voting procedure action id: %w", err)
+			}
+			encodedProcedure, err := cbor.Encode(actions[actionId])
+			if err != nil {
+				return nil, fmt.Errorf("encode voting procedure: %w", err)
+			}
+			ret = append(ret, encodedActionId...)
+			ret = append(ret, encodedProcedure...)
+		}
+		ret = appendLedgerMapBreak(ret, uint64(len(actionIds)))
+	}
+	ret = appendLedgerMapBreak(ret, uint64(len(voters)))
+	return ret, nil
+}
+
+func voterLedgerOrder(voterType uint8) int {
+	switch voterType {
+	case VoterTypeConstitutionalCommitteeHotScriptHash:
+		return 0
+	case VoterTypeConstitutionalCommitteeHotKeyHash:
+		return 1
+	case VoterTypeDRepScriptHash:
+		return 2
+	case VoterTypeDRepKeyHash:
+		return 3
+	case VoterTypeStakingPoolKeyHash:
+		return 4
+	default:
+		return 5 + int(voterType)
+	}
+}
+
+func (vps *VotingProcedures) UnmarshalCBOR(cborData []byte) error {
+	if len(cborData) == 1 && (cborData[0] == 0xf6 || cborData[0] == 0xf7) {
+		return errors.New("voting procedures cannot be CBOR null or undefined")
+	}
+	type tVotingProcedures VotingProcedures
+	var tmp tVotingProcedures
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	if len(tmp) == 0 {
+		return errors.New("voting procedures cannot be empty")
+	}
+	for voter, procedures := range tmp {
+		if voter == nil {
+			return errors.New("voting procedures contain a nil voter")
+		}
+		if len(procedures) == 0 {
+			return errors.New("voting procedures contain an empty action map")
+		}
+		for actionId := range procedures {
+			if actionId == nil {
+				return errors.New("voting procedures contain a nil action id")
+			}
+		}
+		if err := validateLogicalMapKeys(
+			procedures,
+			"voting procedure action map",
+			govActionIdLogicalKey,
+		); err != nil {
+			return err
+		}
+	}
+	if err := validateLogicalMapKeys(
+		map[*Voter]map[*GovActionId]VotingProcedure(tmp),
+		"voting procedures",
+		voterLogicalKey,
+	); err != nil {
+		return err
+	}
+	*vps = VotingProcedures(tmp)
+	return nil
+}
+
+// AddOrReplace adds or replaces a vote using Voter and GovActionId value
+// equality. It returns the map so callers can assign the result when adding to
+// a nil VotingProcedures value.
+func (vps VotingProcedures) AddOrReplace(
+	voter Voter,
+	govActionId GovActionId,
+	votingProcedure VotingProcedure,
+) VotingProcedures {
+	if vps == nil {
+		vps = VotingProcedures{}
+	}
+
+	voterKey, actions, ok := vps.LookupVoter(voter)
+	if !ok {
+		voterCopy := voter
+		voterKey = &voterCopy
+		actions = map[*GovActionId]VotingProcedure{}
+		vps[voterKey] = actions
+	} else if actions == nil {
+		actions = map[*GovActionId]VotingProcedure{}
+		vps[voterKey] = actions
+	}
+
+	actionKey, _, ok := lookupGovActionId(actions, govActionId)
+	if !ok {
+		actionCopy := govActionId
+		actionKey = &actionCopy
+	}
+	actions[actionKey] = cloneVotingProcedure(votingProcedure)
+	return vps
+}
+
+// Lookup returns the vote for the logical voter/action pair.
+func (vps VotingProcedures) Lookup(
+	voter Voter,
+	govActionId GovActionId,
+) (VotingProcedure, bool) {
+	_, procedure, ok := vps.LookupGovActionId(voter, govActionId)
+	return procedure, ok
+}
+
+// LookupVoter returns the existing voter key and vote map for a logically
+// equal voter.
+func (vps VotingProcedures) LookupVoter(
+	voter Voter,
+) (*Voter, map[*GovActionId]VotingProcedure, bool) {
+	for voterKey, actions := range vps {
+		if voterKey != nil && voterKey.Equal(voter) {
+			return voterKey, actions, true
+		}
+	}
+	return nil, nil, false
+}
+
+// LookupGovActionId returns the existing action key and vote for a logical
+// voter/action pair.
+func (vps VotingProcedures) LookupGovActionId(
+	voter Voter,
+	govActionId GovActionId,
+) (*GovActionId, VotingProcedure, bool) {
+	_, actions, ok := vps.LookupVoter(voter)
+	if !ok {
+		return nil, VotingProcedure{}, false
+	}
+	return lookupGovActionId(actions, govActionId)
+}
+
+// Clone returns a deep copy of the voting procedures map, including copied map
+// keys and voting procedure anchors.
+func (vps VotingProcedures) Clone() VotingProcedures {
+	if vps == nil {
+		return nil
+	}
+	ret := make(VotingProcedures, len(vps))
+	for voterKey, actions := range vps {
+		var voterCopy *Voter
+		if voterKey != nil {
+			voter := *voterKey
+			voterCopy = &voter
+		}
+
+		var actionCopies map[*GovActionId]VotingProcedure
+		if actions != nil {
+			actionCopies = make(
+				map[*GovActionId]VotingProcedure,
+				len(actions),
+			)
+			for actionKey, procedure := range actions {
+				var actionCopy *GovActionId
+				if actionKey != nil {
+					action := *actionKey
+					actionCopy = &action
+				}
+				actionCopies[actionCopy] = cloneVotingProcedure(procedure)
+			}
+		}
+		ret[voterCopy] = actionCopies
+	}
+	return ret
+}
+
+func lookupGovActionId(
+	actions map[*GovActionId]VotingProcedure,
+	govActionId GovActionId,
+) (*GovActionId, VotingProcedure, bool) {
+	for actionKey, procedure := range actions {
+		if actionKey != nil && actionKey.Equal(govActionId) {
+			return actionKey, procedure, true
+		}
+	}
+	return nil, VotingProcedure{}, false
+}
+
+const (
+	VoterTypeConstitutionalCommitteeHotKeyHash    uint8 = 0
+	VoterTypeConstitutionalCommitteeHotScriptHash uint8 = 1
+	VoterTypeDRepKeyHash                          uint8 = 2
+	VoterTypeDRepScriptHash                       uint8 = 3
+	VoterTypeStakingPoolKeyHash                   uint8 = 4
+)
+
+type Voter struct {
+	cbor.StructAsArray
+	Type uint8
+	Hash [28]byte
+}
+
+func (v *Voter) UnmarshalCBOR(cborData []byte) error {
+	if v == nil {
+		return errors.New("nil Voter receiver")
+	}
+	if len(cborData) == 1 && (cborData[0] == 0xf6 || cborData[0] == 0xf7) {
+		return errors.New("voter cannot be CBOR null or undefined")
+	}
+	var decoded struct {
+		cbor.StructAsArray
+		Type uint8
+		Hash Blake2b224
+	}
+	if _, err := cbor.Decode(cborData, &decoded); err != nil {
+		return fmt.Errorf("decode voter: %w", err)
+	}
+	if decoded.Type > VoterTypeStakingPoolKeyHash {
+		return fmt.Errorf("invalid voter type: %d", decoded.Type)
+	}
+	v.Type = decoded.Type
+	copy(v.Hash[:], decoded.Hash[:])
+	return nil
+}
+
+// Equal reports whether two voters have the same logical value.
+func (v Voter) Equal(other Voter) bool {
+	return v.Type == other.Type && v.Hash == other.Hash
+}
+
+func encodeCip129Voter(
+	prefix string,
+	keyType uint8,
+	credentialType uint8,
+	hash []byte,
+) string {
+	// Header packs the 4-bit key type (per CIP-129) in the high nibble and the credential semantics in the low nibble.
+	// Since CIP-129 reserves values 0 and 1, we offset the existing credential constants (0 = key hash, 1 = script hash) by 2
+	// so the output nibble matches the spec's 0x2/0x3 tags.
+	header := byte((keyType << 4) | ((credentialType + 2) & 0x0f))
+	data := make([]byte, 1+len(hash))
+	data[0] = header
+	copy(data[1:], hash)
+	convData, err := bech32.ConvertBits(data, 8, 5, true)
+	if err != nil {
+		panic(
+			fmt.Sprintf(
+				"unexpected error converting voter data to base32: %s",
+				err,
+			),
+		)
+	}
+	encoded, err := bech32.Encode(prefix, convData)
+	if err != nil {
+		panic(
+			fmt.Sprintf(
+				"unexpected error encoding voter data as bech32: %s",
+				err,
+			),
+		)
+	}
+	return encoded
+}
+
+// encodeCip129Credential encodes a credential hash with CIP-0129 format.
+// The header byte uses the credential type (0x22 for key hash, 0x23 for script hash)
+// following CIP-0129 specification where the low nibble encodes 0x2 for key hash
+// and 0x3 for script hash.
+func encodeCip129Credential(
+	prefix string,
+	credentialType uint8,
+	hash []byte,
+) string {
+	// CIP-0129: low nibble encodes credential type offset by 2
+	// (0x2 for key hash, 0x3 for script hash)
+	header := byte(0x20 | ((credentialType + 2) & 0x0f))
+	data := make([]byte, 1+len(hash))
+	data[0] = header
+	copy(data[1:], hash)
+	convData, err := bech32.ConvertBits(data, 8, 5, true)
+	if err != nil {
+		panic(
+			fmt.Sprintf(
+				"unexpected error converting credential data to base32: %s",
+				err,
+			),
+		)
+	}
+	encoded, err := bech32.Encode(prefix, convData)
+	if err != nil {
+		panic(
+			fmt.Sprintf(
+				"unexpected error encoding credential data as bech32: %s",
+				err,
+			),
+		)
+	}
+	return encoded
+}
+
+// Generates bech32-encoded identifier for the voter credential.
+func (v Voter) String() string {
+	switch v.Type {
+	case VoterTypeConstitutionalCommitteeHotKeyHash:
+		return encodeCip129Voter(
+			"cc_hot",
+			VoterTypeConstitutionalCommitteeHotKeyHash,
+			CredentialTypeAddrKeyHash,
+			v.Hash[:],
+		)
+	case VoterTypeConstitutionalCommitteeHotScriptHash:
+		return encodeCip129Voter(
+			"cc_hot",
+			VoterTypeConstitutionalCommitteeHotScriptHash,
+			CredentialTypeScriptHash,
+			v.Hash[:],
+		)
+	case VoterTypeDRepKeyHash:
+		return encodeCip129Voter(
+			"drep",
+			VoterTypeDRepKeyHash,
+			CredentialTypeAddrKeyHash,
+			v.Hash[:],
+		)
+	case VoterTypeDRepScriptHash:
+		return encodeCip129Voter(
+			"drep",
+			VoterTypeDRepScriptHash,
+			CredentialTypeScriptHash,
+			v.Hash[:],
+		)
+	case VoterTypeStakingPoolKeyHash:
+		poolId := PoolId(v.Hash)
+		return poolId.String()
+	default:
+		return fmt.Sprintf("voter_unknown_%d", v.Type)
+	}
+}
+
+func (v Voter) MarshalText() ([]byte, error) {
+	if v.Type > VoterTypeStakingPoolKeyHash {
+		return nil, fmt.Errorf("unsupported voter type: %d", v.Type)
+	}
+	return []byte(v.String()), nil
+}
+
+func (v *Voter) UnmarshalText(text []byte) error {
+	s := string(text)
+	prefix, rawData, err := bech32.DecodeNoLimit(s)
+	if err != nil {
+		return fmt.Errorf("invalid voter bech32: %w", err)
+	}
+	decoded, err := bech32.ConvertBits(rawData, 5, 8, false)
+	if err != nil {
+		return fmt.Errorf("invalid voter bech32 data: %w", err)
+	}
+	switch prefix {
+	case "pool":
+		if len(decoded) != 28 {
+			return fmt.Errorf("invalid pool voter hash length: %d", len(decoded))
+		}
+		v.Type = VoterTypeStakingPoolKeyHash
+		copy(v.Hash[:], decoded)
+	case "cc_hot", "drep":
+		if len(decoded) != 29 {
+			return fmt.Errorf("invalid %s voter data length: %d", prefix, len(decoded))
+		}
+		header := decoded[0]
+		v.Type = header >> 4
+		// Validate CIP-129 credential type nibble (0x2 = key hash, 0x3 = script hash)
+		credNibble := header & 0x0f
+		switch v.Type {
+		case VoterTypeConstitutionalCommitteeHotKeyHash, VoterTypeDRepKeyHash:
+			if credNibble != 0x2 {
+				return fmt.Errorf("invalid CIP-129 credential type nibble 0x%x for key hash voter type %d", credNibble, v.Type)
+			}
+		case VoterTypeConstitutionalCommitteeHotScriptHash, VoterTypeDRepScriptHash:
+			if credNibble != 0x3 {
+				return fmt.Errorf("invalid CIP-129 credential type nibble 0x%x for script hash voter type %d", credNibble, v.Type)
+			}
+		}
+		switch prefix {
+		case "cc_hot":
+			if v.Type != VoterTypeConstitutionalCommitteeHotKeyHash && v.Type != VoterTypeConstitutionalCommitteeHotScriptHash {
+				return fmt.Errorf("invalid voter type %d for prefix %s", v.Type, prefix)
+			}
+		case "drep":
+			if v.Type != VoterTypeDRepKeyHash && v.Type != VoterTypeDRepScriptHash {
+				return fmt.Errorf("invalid voter type %d for prefix %s", v.Type, prefix)
+			}
+		}
+		copy(v.Hash[:], decoded[1:])
+	default:
+		return fmt.Errorf("unknown voter bech32 prefix: %s", prefix)
+	}
+	return nil
+}
+
+func (v Voter) ToPlutusData() data.PlutusData {
+	switch v.Type {
+	case VoterTypeConstitutionalCommitteeHotScriptHash:
+		cred := &Credential{
+			CredType:   CredentialTypeScriptHash,
+			Credential: NewBlake2b224(v.Hash[:]),
+		}
+		return data.NewConstr(0, cred.ToPlutusData())
+	case VoterTypeConstitutionalCommitteeHotKeyHash:
+		cred := &Credential{
+			CredType:   CredentialTypeAddrKeyHash,
+			Credential: NewBlake2b224(v.Hash[:]),
+		}
+		return data.NewConstr(0, cred.ToPlutusData())
+	case VoterTypeDRepScriptHash:
+		cred := &Credential{
+			CredType:   CredentialTypeScriptHash,
+			Credential: NewBlake2b224(v.Hash[:]),
+		}
+		return data.NewConstr(1, cred.ToPlutusData())
+	case VoterTypeDRepKeyHash:
+		cred := &Credential{
+			CredType:   CredentialTypeAddrKeyHash,
+			Credential: NewBlake2b224(v.Hash[:]),
+		}
+		return data.NewConstr(1, cred.ToPlutusData())
+	case VoterTypeStakingPoolKeyHash:
+		return data.NewConstr(2, data.NewByteString(v.Hash[:]))
+	default:
+		panic(fmt.Sprintf("unsupported voter type: %d", v.Type))
+	}
+}
+
+const (
+	GovVoteNo      uint8 = 0
+	GovVoteYes     uint8 = 1
+	GovVoteAbstain uint8 = 2
+)
+
+type Vote uint8
+
+func (v Vote) ToPlutusData() data.PlutusData {
+	switch v {
+	case Vote(GovVoteNo):
+		return data.NewConstr(0)
+	case Vote(GovVoteYes):
+		return data.NewConstr(1)
+	case Vote(GovVoteAbstain):
+		return data.NewConstr(2)
+	default:
+		panic(fmt.Sprintf("unsupported vote type: %d", v))
+	}
+}
+
+type VotingProcedure struct {
+	cbor.StructAsArray
+	Vote   uint8
+	Anchor *GovAnchor
+}
+
+func (vp *VotingProcedure) UnmarshalCBOR(cborData []byte) error {
+	if len(cborData) == 1 && (cborData[0] == 0xf6 || cborData[0] == 0xf7) {
+		return errors.New("voting procedure cannot be CBOR null or undefined")
+	}
+	if err := ValidateCBORArrayLength(
+		cborData,
+		2,
+		"voting procedure",
+	); err != nil {
+		return err
+	}
+	type tVotingProcedure VotingProcedure
+	var tmp tVotingProcedure
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	if tmp.Vote > GovVoteAbstain {
+		return fmt.Errorf("invalid vote type: %d", tmp.Vote)
+	}
+	*vp = VotingProcedure(tmp)
+	return nil
+}
+
+func cloneVotingProcedure(vp VotingProcedure) VotingProcedure {
+	if vp.Anchor != nil {
+		anchor := *vp.Anchor
+		vp.Anchor = &anchor
+	}
+	return vp
+}
+
+func (vp VotingProcedure) ToPlutusData() data.PlutusData {
+	return Vote(vp.Vote).ToPlutusData()
+}
+
+// ErrGovAnchorURLTooLong identifies a governance anchor URL that exceeds the
+// protocol's 128-byte bound.
+var ErrGovAnchorURLTooLong = errors.New(
+	"governance anchor URL exceeds the protocol length limit",
+)
+
+type GovAnchor struct {
+	cbor.StructAsArray
+	Url      string
+	DataHash [32]byte
+}
+
+func (a *GovAnchor) UnmarshalJSON(data []byte) error {
+	tmpData := struct {
+		Url      string `json:"url"`
+		DataHash string `json:"dataHash"`
+	}{}
+	if err := json.Unmarshal(data, &tmpData); err != nil {
+		return fmt.Errorf("decode gov anchor: %w", err)
+	}
+	dataHash, err := hex.DecodeString(tmpData.DataHash)
+	if err != nil {
+		return fmt.Errorf("decode gov anchor data hash: %w", err)
+	}
+	if len(dataHash) != 32 {
+		return errors.New("invalid gov anchor data hash length")
+	}
+	a.Url = tmpData.Url
+	a.DataHash = [32]byte(dataHash)
+	return nil
+}
+
+func (a GovAnchor) MarshalCBOR() ([]byte, error) {
+	if err := validateGovAnchorURL(a.Url); err != nil {
+		return nil, err
+	}
+	return cbor.Encode([]any{a.Url, a.DataHash[:]})
+}
+
+func (a *GovAnchor) ToPlutusData() data.PlutusData {
+	return data.NewConstr(0,
+		data.NewByteString([]byte(a.Url)),
+		data.NewByteString(a.DataHash[:]),
+	)
+}
+
+// NewGovAnchor builds a GovAnchor from a URL and a 32-byte data hash.
+func NewGovAnchor(url string, dataHash []byte) (GovAnchor, error) {
+	if err := validateGovAnchorURL(url); err != nil {
+		return GovAnchor{}, err
+	}
+	if len(dataHash) != 32 {
+		return GovAnchor{}, fmt.Errorf(
+			"invalid gov anchor data hash length: expected 32 bytes, got %d",
+			len(dataHash),
+		)
+	}
+	return GovAnchor{
+		Url:      url,
+		DataHash: [32]byte(dataHash),
+	}, nil
+}
+
+func validateGovAnchorURL(url string) error {
+	if len(url) <= urlMaxLength {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: maximum %d bytes, got %d",
+		ErrGovAnchorURLTooLong,
+		urlMaxLength,
+		len(url),
+	)
+}
+
+// MaxGovActionIdx is the largest governance action index the wire format
+// admits. The Conway and Dijkstra CDDL both type the field as
+// `gov_action_index : uint .size 2`, and cardano-ledger holds it in
+// `newtype GovActionIx = GovActionIx Word16`, whose derived decoder fails
+// above this value.
+//
+// GovActionIdx stays a uint32 to match TransactionInput.Index(), which this
+// repository types the same way for the equally 2-byte `index : uint .size
+// 2`. The bound is therefore enforced at decode rather than by the field's
+// type.
+const MaxGovActionIdx = math.MaxUint16
+
+type GovActionId struct {
+	cbor.StructAsArray
+	TransactionId [32]byte
+	GovActionIdx  uint32
+}
+
+// Equal reports whether two governance action IDs have the same logical value.
+func (id GovActionId) Equal(other GovActionId) bool {
+	return id.TransactionId == other.TransactionId &&
+		id.GovActionIdx == other.GovActionIdx
+}
+
+func (id GovActionId) ToPlutusData() data.PlutusData {
+	return data.NewConstr(0,
+		data.NewByteString(id.TransactionId[:]),
+		data.NewInteger(big.NewInt(int64(id.GovActionIdx))),
+	)
+}
+
+// MaxCip0129GovActionIdx is the largest governance action index CIP-0129's
+// bech32 form can carry: its payload is a 32-byte transaction ID followed by
+// a single index byte.
+//
+// The Conway CDDL types the wire field as `uint .size 2`, so a decoded
+// GovActionId may legitimately exceed this. Rejecting such an index at decode
+// would refuse data the ledger accepts, so the excess is handled at
+// rendering instead.
+const MaxCip0129GovActionIdx = 255
+
+// String returns a CIP-0129 bech32-encoded representation of the governance
+// action ID: the gov_action prefix over tx_id (32 bytes) + action_index
+// (1 byte).
+//
+// An index above MaxCip0129GovActionIdx has no CIP-0129 representation, and
+// String has no way to report that, so it renders "<tx_id>#<index>" instead.
+// That form is not valid bech32 and will not round-trip through
+// UnmarshalText. Callers that need the difference reported must use
+// MarshalText, which returns an error for the same values.
+func (id GovActionId) String() string {
+	if id.GovActionIdx > MaxCip0129GovActionIdx {
+		return fmt.Sprintf("%x#%d", id.TransactionId, id.GovActionIdx)
+	}
+
+	// Build payload: 32-byte transaction ID followed by 1-byte action index
+	payload := append(id.TransactionId[:], byte(id.GovActionIdx))
+
+	convData, err := bech32.ConvertBits(payload, 8, 5, true)
+	if err != nil {
+		panic(
+			fmt.Sprintf(
+				"unexpected error converting gov action ID to base32: %s",
+				err,
+			),
+		)
+	}
+	encoded, err := bech32.Encode("gov_action", convData)
+	if err != nil {
+		panic(
+			fmt.Sprintf(
+				"unexpected error encoding gov action ID as bech32: %s",
+				err,
+			),
+		)
+	}
+	return encoded
+}
+
+func (id *GovActionId) MarshalText() ([]byte, error) {
+	if id == nil {
+		return nil, errors.New("nil GovActionId")
+	}
+	if id.GovActionIdx > MaxCip0129GovActionIdx {
+		return nil, fmt.Errorf(
+			"gov action index %d exceeds maximum value %d allowed by CIP-0129",
+			id.GovActionIdx,
+			MaxCip0129GovActionIdx,
+		)
+	}
+	return []byte(id.String()), nil
+}
+
+func (id *GovActionId) UnmarshalText(text []byte) error {
+	s := string(text)
+	prefix, rawData, err := bech32.DecodeNoLimit(s)
+	if err != nil {
+		return fmt.Errorf("invalid gov action ID bech32: %w", err)
+	}
+	if prefix != "gov_action" {
+		return fmt.Errorf("invalid gov action ID prefix: %s", prefix)
+	}
+	decoded, err := bech32.ConvertBits(rawData, 5, 8, false)
+	if err != nil {
+		return fmt.Errorf("invalid gov action ID bech32 data: %w", err)
+	}
+	if len(decoded) != 33 {
+		return fmt.Errorf(
+			"invalid gov action ID data length: expected 33, got %d",
+			len(decoded),
+		)
+	}
+	copy(id.TransactionId[:], decoded[:32])
+	id.GovActionIdx = uint32(decoded[32])
+	return nil
+}
+
+// NewGovActionId builds a GovActionId from a 32-byte transaction id and an index.
+func NewGovActionId(txId []byte, idx uint32) (GovActionId, error) {
+	if len(txId) != 32 {
+		return GovActionId{}, fmt.Errorf(
+			"invalid gov action id transaction id length: expected 32 bytes, got %d",
+			len(txId),
+		)
+	}
+	if idx > MaxGovActionIdx {
+		return GovActionId{}, fmt.Errorf(
+			"invalid gov action index: %d exceeds the maximum of %d",
+			idx,
+			MaxGovActionIdx,
+		)
+	}
+	return GovActionId{
+		TransactionId: [32]byte(txId),
+		GovActionIdx:  idx,
+	}, nil
+}
+
+type ProposalProcedure interface {
+	isProposalProcedure()
+	ToPlutusData() data.PlutusData
+	Deposit() uint64
+	RewardAccount() Address
+	GovAction() GovAction
+	Anchor() GovAnchor
+}
+
+type ProposalProcedureBase struct{}
+
+//nolint:unused
+func (ProposalProcedureBase) isProposalProcedure() {}
+
+// GovActionType represents the type of a governance action
+type GovActionType uint
+
+const (
+	GovActionTypeParameterChange    GovActionType = 0
+	GovActionTypeHardForkInitiation GovActionType = 1
+	GovActionTypeTreasuryWithdrawal GovActionType = 2
+	GovActionTypeNoConfidence       GovActionType = 3
+	GovActionTypeUpdateCommittee    GovActionType = 4
+	GovActionTypeNewConstitution    GovActionType = 5
+	GovActionTypeInfo               GovActionType = 6
+)
+
+type GovAction interface {
+	isGovAction()
+	ToPlutusData() data.PlutusData
+}
+
+// GovActionWithPolicy is an optional interface for governance actions that have a policy script
+type GovActionWithPolicy interface {
+	GetPolicyHash() []byte
+}
+
+// ParameterChangeGovAction describes the era-independent parts of a
+// parameter-change governance action needed by shared validation rules.
+type ParameterChangeGovAction interface {
+	GovAction
+	PreviousGovActionId() *GovActionId
+	SecurityGroupFields() []string
+}
+
+type GovActionBase struct{}
+
+//nolint:unused
+func (GovActionBase) isGovAction() {}
+
+type HardForkInitiationGovAction struct {
+	cbor.StructAsArray
+	Type            uint
+	ActionId        *GovActionId
+	ProtocolVersion struct {
+		cbor.StructAsArray
+		Major uint
+		Minor uint
+	}
+}
+
+func (a HardForkInitiationGovAction) ToPlutusData() data.PlutusData {
+	actionId := data.NewConstr(1)
+	if a.ActionId != nil {
+		actionId = data.NewConstr(0, a.ActionId.ToPlutusData())
+	}
+	return data.NewConstr(1,
+		actionId,
+		data.NewConstr(
+			0,
+			data.NewInteger(
+				new(big.Int).SetUint64(uint64(a.ProtocolVersion.Major)),
+			),
+			data.NewInteger(
+				new(big.Int).SetUint64(uint64(a.ProtocolVersion.Minor)),
+			),
+		),
+	)
+}
+
+func (a HardForkInitiationGovAction) isGovAction() {}
+
+// NewHardForkInitiationGovAction builds a hard fork initiation governance
+// action. actionId is optional (nil means no parent action).
+func NewHardForkInitiationGovAction(
+	actionId *GovActionId,
+	major uint,
+	minor uint,
+) (*HardForkInitiationGovAction, error) {
+	a := &HardForkInitiationGovAction{
+		Type:     uint(GovActionTypeHardForkInitiation),
+		ActionId: actionId,
+	}
+	a.ProtocolVersion.Major = major
+	a.ProtocolVersion.Minor = minor
+	return a, nil
+}
+
+type TreasuryWithdrawalGovAction struct {
+	cbor.StructAsArray
+	Type        uint
+	Withdrawals map[*Address]uint64
+	PolicyHash  []byte
+}
+
+func (a *TreasuryWithdrawalGovAction) UnmarshalCBOR(cborData []byte) error {
+	if err := ValidateCBORArrayLength(
+		cborData,
+		3,
+		"treasury withdrawal governance action",
+	); err != nil {
+		return err
+	}
+	fields := make([]cbor.RawMessage, 3)
+	if _, err := cbor.Decode(cborData, &fields); err != nil {
+		return err
+	}
+	var rawWithdrawals map[*Address]cbor.RawMessage
+	if _, err := cbor.Decode(fields[1], &rawWithdrawals); err != nil {
+		return fmt.Errorf("decode treasury withdrawals: %w", err)
+	}
+	for address, amountCBOR := range rawWithdrawals {
+		if address == nil {
+			return errors.New("nil withdrawal address")
+		}
+		if len(amountCBOR) == 0 || amountCBOR[0]&cbor.CborTypeMask != 0 {
+			return errors.New("treasury withdrawal amount must be an unsigned integer")
+		}
+		var amount uint64
+		if _, err := cbor.DecodeExact(amountCBOR, &amount); err != nil {
+			return fmt.Errorf("decode treasury withdrawal amount: %w", err)
+		}
+	}
+	if err := ValidateNullOrFixedLengthByteStringCBOR(
+		fields[2],
+		Blake2b224Size,
+		"treasury withdrawal policy hash",
+	); err != nil {
+		return err
+	}
+	type tTreasuryWithdrawalGovAction TreasuryWithdrawalGovAction
+	var tmp tTreasuryWithdrawalGovAction
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	if err := ValidateWithdrawalAddresses(tmp.Withdrawals); err != nil {
+		return fmt.Errorf("treasury withdrawal: %w", err)
+	}
+	if tmp.PolicyHash != nil && len(tmp.PolicyHash) != Blake2b224Size {
+		return fmt.Errorf(
+			"treasury withdrawal policy hash must be %d bytes, got %d",
+			Blake2b224Size,
+			len(tmp.PolicyHash),
+		)
+	}
+	*a = TreasuryWithdrawalGovAction(tmp)
+	return nil
+}
+
+func (a TreasuryWithdrawalGovAction) MarshalCBOR() ([]byte, error) {
+	if err := ValidateWithdrawalAddresses(a.Withdrawals); err != nil {
+		return nil, fmt.Errorf("treasury withdrawal: %w", err)
+	}
+	if a.PolicyHash != nil && len(a.PolicyHash) != Blake2b224Size {
+		return nil, fmt.Errorf(
+			"treasury withdrawal policy hash must be %d bytes, got %d",
+			Blake2b224Size,
+			len(a.PolicyHash),
+		)
+	}
+	withdrawals, err := EncodeRewardAccountMap(a.Withdrawals)
+	if err != nil {
+		return nil, fmt.Errorf("encode treasury withdrawals: %w", err)
+	}
+	return cbor.Encode([]any{
+		a.Type,
+		cbor.RawMessage(withdrawals),
+		a.PolicyHash,
+	})
+}
+
+func (a TreasuryWithdrawalGovAction) ToPlutusData() data.PlutusData {
+	pairs := make([][2]data.PlutusData, 0, len(a.Withdrawals))
+	for _, addr := range SortRewardAccountAddresses(a.Withdrawals) {
+		amount := a.Withdrawals[addr]
+		pairs = append(pairs, [2]data.PlutusData{
+			addr.ToPlutusData(),
+			data.NewInteger(new(big.Int).SetUint64(amount)),
+		})
+	}
+	policyHash := data.NewConstr(1)
+	if a.PolicyHash != nil {
+		policyHash = data.NewConstr(
+			0,
+			data.NewByteString(a.PolicyHash),
+		)
+	}
+	return data.NewConstr(2,
+		data.NewMap(pairs),
+		policyHash,
+	)
+}
+
+func (a TreasuryWithdrawalGovAction) isGovAction() {}
+
+// GetPolicyHash returns the policy script hash for this governance action
+func (a TreasuryWithdrawalGovAction) GetPolicyHash() []byte {
+	return a.PolicyHash
+}
+
+// NewTreasuryWithdrawalGovAction builds a treasury withdrawal governance
+// action. policyHash is optional, but when provided must be a 28-byte script
+// hash.
+func NewTreasuryWithdrawalGovAction(
+	withdrawals map[*Address]uint64,
+	policyHash []byte,
+) (*TreasuryWithdrawalGovAction, error) {
+	if len(withdrawals) == 0 {
+		return nil, errors.New(
+			"treasury withdrawal requires at least one withdrawal",
+		)
+	}
+	// Nil address keys panic when the action is rendered to PlutusData.
+	for addr := range withdrawals {
+		if addr == nil {
+			return nil, errors.New(
+				"treasury withdrawal contains a nil address",
+			)
+		}
+	}
+	if policyHash != nil && len(policyHash) != Blake2b224Size {
+		return nil, fmt.Errorf(
+			"invalid policy hash length: expected %d bytes, got %d",
+			Blake2b224Size,
+			len(policyHash),
+		)
+	}
+	return &TreasuryWithdrawalGovAction{
+		Type:        uint(GovActionTypeTreasuryWithdrawal),
+		Withdrawals: withdrawals,
+		PolicyHash:  policyHash,
+	}, nil
+}
+
+type NoConfidenceGovAction struct {
+	cbor.StructAsArray
+	Type     uint
+	ActionId *GovActionId
+}
+
+func (a NoConfidenceGovAction) ToPlutusData() data.PlutusData {
+	actionId := data.NewConstr(1)
+	if a.ActionId != nil {
+		actionId = data.NewConstr(0, a.ActionId.ToPlutusData())
+	}
+	return data.NewConstr(3,
+		actionId,
+	)
+}
+
+func (a NoConfidenceGovAction) isGovAction() {}
+
+// NewNoConfidenceGovAction builds a no confidence governance action. actionId
+// is optional (nil means no parent action).
+func NewNoConfidenceGovAction(
+	actionId *GovActionId,
+) (*NoConfidenceGovAction, error) {
+	return &NoConfidenceGovAction{
+		Type:     uint(GovActionTypeNoConfidence),
+		ActionId: actionId,
+	}, nil
+}
+
+type UpdateCommitteeGovAction struct {
+	cbor.StructAsArray
+	Type        uint
+	ActionId    *GovActionId
+	Credentials []Credential
+	CredEpochs  map[*Credential]uint64
+	Quorum      cbor.Rat
+}
+
+// MarshalCBOR encodes committee removals as a tag-258 set in ledger order.
+func (a UpdateCommitteeGovAction) MarshalCBOR() ([]byte, error) {
+	credentials := append([]Credential(nil), a.Credentials...)
+	sort.Slice(credentials, func(i, j int) bool {
+		return committeeCredentialLess(credentials[i], credentials[j])
+	})
+	credentialSet := cbor.NewSetType(credentials, true)
+	epochCredentials := make([]*Credential, 0, len(a.CredEpochs))
+	for credential := range a.CredEpochs {
+		epochCredentials = append(epochCredentials, credential)
+	}
+	sort.Slice(epochCredentials, func(i, j int) bool {
+		left, right := epochCredentials[i], epochCredentials[j]
+		if left == nil {
+			return right != nil
+		}
+		if right == nil {
+			return false
+		}
+		return committeeCredentialLess(*left, *right)
+	})
+	epochMap := appendLedgerMapHeader(nil, uint64(len(epochCredentials)))
+	for _, credential := range epochCredentials {
+		var encodedCredential []byte
+		if credential == nil {
+			encodedCredential = []byte{0xf6}
+		} else {
+			var err error
+			encodedCredential, err = cbor.Encode(credential)
+			if err != nil {
+				return nil, fmt.Errorf("encode update committee credential: %w", err)
+			}
+		}
+		encodedEpoch, err := cbor.Encode(a.CredEpochs[credential])
+		if err != nil {
+			return nil, fmt.Errorf("encode update committee epoch: %w", err)
+		}
+		epochMap = append(epochMap, encodedCredential...)
+		epochMap = append(epochMap, encodedEpoch...)
+	}
+	epochMap = appendLedgerMapBreak(epochMap, uint64(len(epochCredentials)))
+	return cbor.Encode([]any{
+		a.Type,
+		a.ActionId,
+		&credentialSet,
+		cbor.RawMessage(epochMap),
+		a.Quorum,
+	})
+}
+
+func (a *UpdateCommitteeGovAction) UnmarshalCBOR(cborData []byte) error {
+	if err := ValidateCBORArrayLength(
+		cborData,
+		5,
+		"update committee governance action",
+	); err != nil {
+		return err
+	}
+	type tUpdateCommitteeGovAction UpdateCommitteeGovAction
+	var tmp tUpdateCommitteeGovAction
+	if _, err := cbor.Decode(cborData, &tmp); err != nil {
+		return err
+	}
+	decoded := UpdateCommitteeGovAction(tmp)
+	if err := decoded.Validate(); err != nil {
+		return err
+	}
+	*a = decoded
+	return nil
+}
+
+// Validate checks the value domains and logical set identities carried by an
+// UpdateCommittee action. It is called while decoding and by ledger validation
+// for actions built directly by callers.
+func (a *UpdateCommitteeGovAction) Validate() error {
+	if a == nil {
+		return errors.New("update committee action cannot be nil")
+	}
+	for credential := range a.CredEpochs {
+		if credential == nil {
+			return errors.New("update committee contains a nil credential")
+		}
+	}
+	if err := validateCredentialMapKeys(
+		a.CredEpochs,
+		"update committee credential epochs",
+	); err != nil {
+		return err
+	}
+	seen := make(map[string]struct{}, len(a.Credentials))
+	for _, credential := range a.Credentials {
+		key, err := credentialLogicalKey(&credential)
+		if err != nil {
+			return err
+		}
+		if _, exists := seen[key]; exists {
+			return fmt.Errorf(
+				"update committee contains duplicate removal credential %x",
+				credential.Credential,
+			)
+		}
+		seen[key] = struct{}{}
+	}
+	quorum := a.Quorum.ToBigRat()
+	if quorum == nil {
+		return errors.New("update committee quorum is required")
+	}
+	if quorum.Sign() < 0 || quorum.Cmp(big.NewRat(1, 1)) > 0 {
+		return fmt.Errorf("update committee quorum %s is outside [0,1]", quorum)
+	}
+	return nil
+}
+
+func (a UpdateCommitteeGovAction) ToPlutusData() data.PlutusData {
+	actionId := data.NewConstr(1)
+	if a.ActionId != nil {
+		actionId = data.NewConstr(0, a.ActionId.ToPlutusData())
+	}
+	removedCredentials := append([]Credential(nil), a.Credentials...)
+	sort.Slice(removedCredentials, func(i, j int) bool {
+		return committeeCredentialLess(removedCredentials[i], removedCredentials[j])
+	})
+	removedItems := make([]data.PlutusData, 0, len(removedCredentials))
+	for _, cred := range removedCredentials {
+		removedItems = append(removedItems, cred.ToPlutusData())
+	}
+
+	type credentialEpoch struct {
+		credential Credential
+		epoch      uint64
+	}
+	addedCredentials := make([]credentialEpoch, 0, len(a.CredEpochs))
+	for cred, epoch := range a.CredEpochs {
+		addedCredentials = append(addedCredentials, credentialEpoch{
+			credential: *cred,
+			epoch:      epoch,
+		})
+	}
+	sort.Slice(addedCredentials, func(i, j int) bool {
+		return committeeCredentialLess(
+			addedCredentials[i].credential,
+			addedCredentials[j].credential,
+		)
+	})
+	addedPairs := make([][2]data.PlutusData, 0, len(addedCredentials))
+	for _, entry := range addedCredentials {
+		addedPairs = append(addedPairs, [2]data.PlutusData{
+			entry.credential.ToPlutusData(),
+			data.NewInteger(new(big.Int).SetUint64(entry.epoch)),
+		})
+	}
+
+	// Get numerator and denominator using Rat methods
+	var num, den *big.Int
+	if a.Quorum != (cbor.Rat{}) {
+		num = a.Quorum.Num()
+		den = a.Quorum.Denom()
+	} else {
+		num = big.NewInt(0)
+		den = big.NewInt(1)
+	}
+
+	return data.NewConstr(4,
+		actionId,
+		data.NewList(removedItems...),
+		data.NewMap(addedPairs),
+		data.NewConstr(
+			0,
+			data.NewInteger(num),
+			data.NewInteger(den),
+		),
+	)
+}
+
+func committeeCredentialLess(a, b Credential) bool {
+	if a.CredType != b.CredType {
+		return a.CredType == CredentialTypeScriptHash
+	}
+	return bytes.Compare(a.Credential[:], b.Credential[:]) < 0
+}
+
+func (a UpdateCommitteeGovAction) isGovAction() {}
+
+// NewUpdateCommitteeGovAction builds an update committee governance action.
+// actionId is optional (nil means no parent action). credentials are the
+// members to remove and credEpochs maps members to add to their expiration
+// epoch.
+func NewUpdateCommitteeGovAction(
+	actionId *GovActionId,
+	credentials []Credential,
+	credEpochs map[*Credential]uint64,
+	quorum cbor.Rat,
+) (*UpdateCommitteeGovAction, error) {
+	// A zero-value cbor.Rat has a nil inner *big.Rat and panics when CBOR
+	// encoded, so require a populated quorum.
+	if quorum.Rat == nil {
+		return nil, errors.New("update committee requires a quorum")
+	}
+	// Nil credential keys panic when the action is rendered to PlutusData.
+	for cred := range credEpochs {
+		if cred == nil {
+			return nil, errors.New(
+				"update committee contains a nil credential",
+			)
+		}
+	}
+	action := &UpdateCommitteeGovAction{
+		Type:        uint(GovActionTypeUpdateCommittee),
+		ActionId:    actionId,
+		Credentials: credentials,
+		CredEpochs:  credEpochs,
+		Quorum:      quorum,
+	}
+	if err := action.Validate(); err != nil {
+		return nil, err
+	}
+	return action, nil
+}
+
+type NewConstitutionGovAction struct {
+	cbor.StructAsArray
+	Type         uint
+	ActionId     *GovActionId
+	Constitution struct {
+		cbor.StructAsArray
+		Anchor     GovAnchor
+		ScriptHash []byte
+	}
+}
+
+func (a *NewConstitutionGovAction) UnmarshalCBOR(cborData []byte) error {
+	if err := ValidateCBORArrayLength(
+		cborData,
+		3,
+		"new constitution governance action",
+	); err != nil {
+		return err
+	}
+	fields := make([]cbor.RawMessage, 3)
+	if _, err := cbor.Decode(cborData, &fields); err != nil {
+		return err
+	}
+	if len(fields[1]) == 1 && fields[1][0] == 0xf7 {
+		return errors.New("new constitution previous action ID cannot be CBOR undefined")
+	}
+	if err := ValidateDefiniteCBORArrayLength(
+		fields[2],
+		2,
+		"constitution",
+	); err != nil {
+		return err
+	}
+	constitution := make([]cbor.RawMessage, 2)
+	if _, err := cbor.Decode(fields[2], &constitution); err != nil {
+		return err
+	}
+	if err := ValidateNullOrFixedLengthByteStringCBOR(
+		constitution[1],
+		Blake2b224Size,
+		"constitution script hash",
+	); err != nil {
+		return err
+	}
+	type tNewConstitutionGovAction NewConstitutionGovAction
+	var decoded tNewConstitutionGovAction
+	if _, err := cbor.Decode(cborData, &decoded); err != nil {
+		return err
+	}
+	*a = NewConstitutionGovAction(decoded)
+	return nil
+}
+
+func (a NewConstitutionGovAction) ToPlutusData() data.PlutusData {
+	actionId := data.NewConstr(1)
+	if a.ActionId != nil {
+		actionId = data.NewConstr(0, a.ActionId.ToPlutusData())
+	}
+	scriptHash := data.NewConstr(1)
+	if a.Constitution.ScriptHash != nil {
+		scriptHash = data.NewConstr(
+			0,
+			data.NewByteString(a.Constitution.ScriptHash),
+		)
+	}
+	return data.NewConstr(5,
+		actionId,
+		data.NewConstr(0,
+			scriptHash,
+		),
+	)
+}
+
+func (a NewConstitutionGovAction) isGovAction() {}
+
+// NewNewConstitutionGovAction builds a new constitution governance action.
+// actionId is optional (nil means no parent action). scriptHash is optional,
+// but when provided must be a 28-byte guardrail script hash.
+func NewNewConstitutionGovAction(
+	actionId *GovActionId,
+	anchor GovAnchor,
+	scriptHash []byte,
+) (*NewConstitutionGovAction, error) {
+	if scriptHash != nil && len(scriptHash) != Blake2b224Size {
+		return nil, fmt.Errorf(
+			"invalid script hash length: expected %d bytes, got %d",
+			Blake2b224Size,
+			len(scriptHash),
+		)
+	}
+	a := &NewConstitutionGovAction{
+		Type:     uint(GovActionTypeNewConstitution),
+		ActionId: actionId,
+	}
+	a.Constitution.Anchor = anchor
+	a.Constitution.ScriptHash = scriptHash
+	return a, nil
+}
+
+type InfoGovAction struct {
+	cbor.StructAsArray
+	Type uint
+}
+
+func (a InfoGovAction) ToPlutusData() data.PlutusData {
+	return data.NewConstr(6)
+}
+
+func (a InfoGovAction) isGovAction() {}
+
+// NewInfoGovAction builds an info governance action.
+func NewInfoGovAction() (*InfoGovAction, error) {
+	return &InfoGovAction{
+		Type: uint(GovActionTypeInfo),
+	}, nil
+}

@@ -1,0 +1,543 @@
+import { Callout } from "nextra-theme-docs";
+
+# Vesting
+
+Armed with our recently acquired knowledge from the _Hello, World!_ contract,
+let's increase the difficulty and write a slightly more challenging one.
+
+A vesting contract is a common type of contract that allows funds to be locked for a period of time and unlocked later—once a specified time has passed. 
+Typically, a vesting contract defines a beneficiary who may be different from the original owner.
+
+## Covered in this tutorial
+
+<br/>
+
+- [x] Writing non-trivial Aiken validators, with complex datums.
+- [x] Using more advanced Aiken features (type-aliases, pattern-matches).
+- [x] Writing unit tests with Aiken and mocktail.
+- [x] Managing time on-chain through transaction validity ranges.
+
+<Callout type="info" emoji="📘">
+  When encountering an unfamiliar syntax or concept, do not hesitate to refer to
+  the [language-tour](/language-tour) for details and extra examples.
+</Callout>
+
+## Setup
+
+In a similar fashion to what we did for the _Hello, World!_ contract, we'll
+need some credentials (and funds) to play around with. Here, we define an extra
+key for the beneficiary. Again, use the [Cardano
+faucet](https://docs.cardano.org/cardano-testnet/tools/faucet) to receive test
+funds. Refer to [Hello, World! :: Getting
+Funds](/example--hello-world/end-to-end/lucid#getting-funds) in case you have any doubts
+on the procedure.
+
+
+```js filename="generate-credentials.mjs"
+import fs from 'node:fs';
+import {
+  MeshWallet,
+} from "@meshsdk/core";
+
+
+// Generate a secret key for the owner wallet and beneficiary wallet
+const owner_secret_key = MeshWallet.brew(true);
+const beneficiary_secret_key = MeshWallet.brew(true);
+
+//Save secret keys to files
+fs.writeFileSync('owner.sk', owner_secret_key);
+fs.writeFileSync('beneficiary.sk', beneficiary_secret_key);
+
+const owner_wallet = new MeshWallet({
+  networkId: 0,
+  key: {
+    type: 'root',
+    bech32: owner_secret_key,
+  },
+});
+
+const beneficiary_wallet = new MeshWallet({
+  networkId: 0,
+  key: {
+    type: 'root',
+    bech32: beneficiary_secret_key,
+  },
+});
+
+// Save unused addresses to files 
+fs.writeFileSync('owner.addr', (await owner_wallet.getUnusedAddresses())[0]);
+fs.writeFileSync('beneficiary.addr', (await beneficiary_wallet.getUnusedAddresses())[0]);
+```
+## On-Chain code
+
+Let's write our time lock validator as `validators/vesting.ak`, starting with
+the definition of its interface (i.e. its datum's shape).
+
+```aiken filename="validators/vesting.ak"
+use aiken/crypto.{VerificationKeyHash}
+
+pub type VestingDatum {
+  /// POSIX time in milliseconds, e.g. 1672843961000
+  lock_until: Int,
+  /// Owner's credentials
+  owner: VerificationKeyHash,
+  /// Beneficiary's credentials
+  beneficiary: VerificationKeyHash,
+}
+```
+## Dependency
+An additional dependency we will add to this project is [vodka](https://github.com/sidan-lab/vodka).
+To include vodka in our Aiken project, lets update our aiken.toml file to specify it as a dependency.
+
+```aiken filename="aiken.toml"
+[[dependencies]]
+name = "sidan-lab/vodka"
+version = "0.1.1-beta"
+source = "github"
+
+```
+Using vodka as a dependency provides access to several utility functions designed for common contract validation needs. 
+In our vesting.ak file, we will use two specific functions from vodka:
+
+- **`key_signed`**: Verifies that a specific key has signed the transaction. This ensures only authorized users can interact with the contract.
+
+- **`valid_after`**: Checks that a transaction is only valid after a designated time. This is useful for setting time-based constraints within your contract logic.
+
+As we can see the script's datum serves as configuration and contains the
+different parameters of our vesting operation. Remember that these elements are
+set when locking funds in the contract; combined with the script they define
+the conditions by which the funds can be released.
+
+From there, lets define the `spend` validator itself.
+
+```aiken filename="validators/vesting.ak"
+use cardano/transaction.{OutputReference, Transaction}
+use vodka_extra_signatories.{key_signed}
+use vodka_validity_range.{valid_after}
+use aiken/crypto.{VerificationKeyHash}
+
+pub type VestingDatum {
+  /// POSIX time in milliseconds, e.g. 1672843961000
+  lock_until: Int,
+  /// Owner's credentials
+  owner: VerificationKeyHash,
+  /// Beneficiary's credentials
+  beneficiary: VerificationKeyHash,
+}
+
+validator vesting {
+  // In principle, scripts can be used for different purpose (e.g. minting
+  // assets). Here we make sure it's only used when 'spending' from a eUTxO
+  spend(
+    datum_opt: Option<VestingDatum>,
+    _redeemer: Data,
+    _input: OutputReference,
+    tx: Transaction,
+  ) {
+    expect Some(datum) = datum_opt
+    or {
+      key_signed(tx.extra_signatories, datum.owner),
+      and {
+        key_signed(tx.extra_signatories, datum.beneficiary),
+        valid_after(tx.validity_range, datum.lock_until),
+      },
+    }
+  }
+
+  else(_) {
+    fail
+  }
+}
+```
+
+The key feature here is the time-based check, which is abstracted by 
+the valid_after function. In fact, transactions can have validity intervals that define from when
+and until the transaction is considered valid. Validity bounds are checked by the ledger
+prior to executing a script and only does so if the bounds are legit.
+
+This is meant to give scripts a notion of time, while preserving determinism
+from within the context of a script. For example, in this scenario, given a
+lower bound `A` on the transaction, we can deduce that the current time is _at
+least_ `A`.
+
+Note that because we don't control the upper-bound, it could very much be that
+this transaction is executed 30 years after the vesting delay. Yet, from the
+perspective of the vesting script, this is perfectly okay.
+
+In Aiken, values that are not used directly can be prefixed with an underscore (`_`)
+to indicate they are intentionally ignored. In this validator, `_redeemer` and `_input` 
+are marked as unused inputs, making the intent clear and improving readability.  
+
+This practice is particularly helpful in contracts that may require multiple 
+parameters for different purposes, such as minting or spending, while not all
+parameters are always relevant to the current logic.
+
+
+### Testing
+
+Okay, now before deploying our contract in the wild and risking collapsing the
+economy with some unforeseen bug, let's write a simple test. Aiken has builtin
+support for tests, which are very much like functions that takes no argument
+and must return a `Bool{:ak}`.
+
+In the test below, we also leverage the **mocktail** module provided by the **vodka** dependency. 
+This module offers various utility functions that simplify unit testing for our smart contracts. 
+
+
+Tests can use any function, constant or types defines in our module but beware,
+they cannot reference other tests!
+
+```aiken filename="validators/vesting.ak"
+
+// ^^^ Code above is unchanged. ^^^
+
+// The mocktail module comes from the vodka dependency.
+// These dependencies should be added at the top of the file with the other imported modules. 
+use mocktail.{complete, invalid_before, mocktail_tx, required_signer_hash}
+use mocktail/virgin_key_hash.{mock_pub_key_hash}
+use mocktail/virgin_output_reference.{mock_utxo_ref}
+
+type TestCase {
+  is_owner_signed: Bool,
+  is_beneficiary_signed: Bool,
+  is_lock_time_passed: Bool,
+}
+
+fn get_test_tx(test_case: TestCase) {
+  let TestCase { is_owner_signed, is_beneficiary_signed, is_lock_time_passed } =
+    test_case
+
+  mocktail_tx()
+    |> required_signer_hash(is_owner_signed, mock_pub_key_hash(1))
+    |> required_signer_hash(is_beneficiary_signed, mock_pub_key_hash(2))
+    |> invalid_before(is_lock_time_passed, 1672843961001)
+    |> complete()
+}
+
+fn vesting_datum() {
+  VestingDatum {
+    lock_until: 1672843961000,
+    owner: mock_pub_key_hash(1),
+    beneficiary: mock_pub_key_hash(2),
+  }
+}
+
+test success_unlocking() {
+  let output_reference = mock_utxo_ref(0, 1)
+  let datum = Some(vesting_datum())
+  let test_case =
+    TestCase {
+      is_owner_signed: True,
+      is_beneficiary_signed: True,
+      is_lock_time_passed: True,
+    }
+
+  let tx = get_test_tx(test_case)
+  vesting.spend(datum, Void, output_reference, tx)
+}
+```
+
+<Callout>
+  You can run tests with `aiken check`; Aiken will collect and run all tests
+  found in your modules, and give you some statistics about the execution units
+  (CPU and memory) required by the test.
+</Callout>
+
+### Building
+
+It's now time to build our on-chain contract! Simply do:
+
+```
+aiken build
+```
+
+This generate a [CIP-0057 Plutus blueprint](https://github.com/cardano-foundation/CIPs/pull/258) as `plutus.json` at the root of your project. This blueprint describes your on-chain contract and its binary interface. In particular, it contains the generated on-chain code that will be executed by the ledger, and a hash of your validator(s) that can be used to construct addresses.
+
+Let's see the validator in action!
+
+## Off-Chain code
+
+### Setup
+First, let's install the dotenv package(https://www.npmjs.com/package/dotenv), which allows us to import our API key from a .env file. Next, we'll create a directory called common and, within it, a file named common.mjs. 
+This file will house utility functions used for both locking and unlocking assets. In this setup, we will import our [BLOCKFROST_API](https://blockfrost.dev/overview/getting-started ) key from the .env file. 
+
+
+
+```js filename="common/common.mjs"
+import 'dotenv/config';
+import {
+  MeshWallet,
+  BlockfrostProvider,
+  MeshTxBuilder,
+  serializePlutusScript,
+} from "@meshsdk/core";
+import { applyParamsToScript } from "@meshsdk/core-csl";
+import fs, { read } from 'fs';
+
+
+export const blockchainProvider = new BlockfrostProvider(process.env.BLOCKFROST_API);
+
+
+export const owner_wallet = new MeshWallet({
+  networkId: 0,
+  fetcher: blockchainProvider,
+  submitter: blockchainProvider,
+  key: {
+    type: "root",
+    bech32: fs.readFileSync("owner.sk").toString(),
+  },
+});
+
+export const beneficiary_wallet = new MeshWallet({
+  networkId: 0,
+  fetcher: blockchainProvider,
+  submitter: blockchainProvider,
+  key: {
+    type: "root",
+    bech32: fs.readFileSync("beneficiary.sk").toString(),
+  },
+});
+
+export function getTxBuilder() {
+  return new MeshTxBuilder({
+    fetcher: blockchainProvider,
+    submitter: blockchainProvider,
+    verbose: true, // <-- you can remove this if you dont want to see logs
+
+  });
+}
+
+const blueprint = JSON.parse(fs.readFileSync("./plutus.json"));
+export const scriptCbor = applyParamsToScript(blueprint.validators[0].compiledCode, []);
+export const scriptAddr = serializePlutusScript(
+  { code: scriptCbor, version: "V3" },
+  undefined,
+  0
+).address;
+
+
+```
+### Locking funds into the contract
+
+First, we will set up the depositFundTx function.
+This function will encapsulate the core logic for locking funds into the smart contract, ensuring that the deposit process is handled efficiently and securely.
+
+```js filename="vesting_lock.mjs"
+import { mConStr0 } from "@meshsdk/common";
+import { deserializeAddress } from "@meshsdk/core";
+import {
+  getTxBuilder,
+  owner_wallet,
+  beneficiary_wallet,
+  scriptAddr,
+} from "./common/common.mjs";
+
+async function depositFundTx(amount, lockUntilTimeStampMs) {
+  const utxos = await owner_wallet.getUtxos();
+  const { pubKeyHash: ownerPubKeyHash } = deserializeAddress(
+    owner_wallet.addresses.baseAddressBech32
+  );
+  const { pubKeyHash: beneficiaryPubKeyHash } = deserializeAddress(
+    beneficiary_wallet.addresses.baseAddressBech32
+  );
+
+  const txBuilder = getTxBuilder();
+  await txBuilder
+    .txOut(scriptAddr, amount)
+    .txOutInlineDatumValue(
+      mConStr0([lockUntilTimeStampMs, ownerPubKeyHash, beneficiaryPubKeyHash])
+    )
+    .changeAddress(owner_wallet.addresses.baseAddressBech32)
+    .selectUtxosFrom(utxos)
+    .complete();
+  return txBuilder.txHex;
+}
+```
+
+Now that we have built the core logic let's setup the main function that will handle signing and submitting the transaction. 
+It will also call depositFundTx with the arguments it expects. 
+
+```js filename="vesting_lock.mjs"
+
+// ^^^ Code above is unchanged. ^^^
+
+async function main() {
+  const assets = [
+    {
+      unit: "lovelace",
+      quantity: "3000000",
+    },
+  ];
+
+  const lockUntilTimeStamp = new Date();
+  lockUntilTimeStamp.setMinutes(lockUntilTimeStamp.getMinutes() + 1);
+
+  const unsignedTx = await depositFundTx(assets, lockUntilTimeStamp.getTime());
+
+  const signedTx = await owner_wallet.signTx(unsignedTx);
+  const txHash = await owner_wallet.submitTx(signedTx);
+
+  //Copy this txHash. You will need this hash in vesting_unlock.mjs
+  console.log("txHash", txHash);
+}
+
+main();
+```
+
+<Callout>
+  You can run the instructions above using Node via:
+```console
+node vesting_lock.mjs
+```
+</Callout>
+
+If all went according to plan, you should see the transaction identifier in the console.
+Make sure you copy this hash, you will need it in vesting_unlock.mjs file. 
+
+
+### Unlocking funds from the contract
+
+Now want to spend the UTxO that is locked by our
+`vesting` contract.
+
+To be valid, our transaction must meet one of two conditions:
+
+- it must be signed by the owner referenced as "owner" in the datum; or
+- It must be signed by the beneficiary, who is referenced as "beneficiary" in the datum, and the transaction must occur after a specific time threshold. 
+  This threshold is defined as one minute beyond the current time when the lock condition is set.
+
+Let's make a new file `vesting_unlock.mjs` and add the bits to unlock the funds in the contract.
+This file contains the function withdrawFundTx, which allows the beneficiary to unlock funds from a vesting contract.
+The function handles the necessary transaction construction and ensures that the funds can only be accessed after the specified conditions are met.
+
+```js filename="vesting_unlock.mjs"
+import {
+  deserializeAddress,
+  deserializeDatum,
+  unixTimeToEnclosingSlot,
+  SLOT_CONFIG_NETWORK,
+} from "@meshsdk/core";
+
+import {
+  getTxBuilder,
+  beneficiary_wallet,
+  scriptAddr,
+  scriptCbor,
+  blockchainProvider,
+} from "./common/common.mjs";
+
+async function withdrawFundTx(vestingUtxo) {
+  const utxos = await beneficiary_wallet.getUtxos();
+  const beneficiaryAddress = beneficiary_wallet.addresses.baseAddressBech32;
+  const collateral = await beneficiary_wallet.getCollateral();
+  const collateralInput = collateral[0].input;
+  const collateralOutput = collateral[0].output;
+
+  const { pubKeyHash: beneficiaryPubKeyHash } = deserializeAddress(
+    beneficiary_wallet.addresses.baseAddressBech32
+  );
+
+  const datum = deserializeDatum(vestingUtxo.output.plutusData);
+
+  const invalidBefore =
+    unixTimeToEnclosingSlot(
+      Math.min(datum.fields[0].int, Date.now() - 19000),
+      SLOT_CONFIG_NETWORK.preview
+    ) + 1;
+
+  const txBuilder = getTxBuilder();
+  await txBuilder
+    .spendingPlutusScript("V3")
+    .txIn(
+      vestingUtxo.input.txHash,
+      vestingUtxo.input.outputIndex,
+      vestingUtxo.output.amount,
+      scriptAddr
+    )
+    .spendingReferenceTxInInlineDatumPresent()
+    .spendingReferenceTxInRedeemerValue("")
+    .txInScript(scriptCbor)
+    .txOut(beneficiaryAddress, vestingUtxo.output.amount)
+    .txInCollateral(
+      collateralInput.txHash,
+      collateralInput.outputIndex,
+      collateralOutput.amount,
+      collateralOutput.address
+    )
+    .invalidBefore(invalidBefore)
+    .requiredSignerHash(beneficiaryPubKeyHash)
+    .changeAddress(beneficiaryAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+  return txBuilder.txHex;
+}
+```
+
+In this section, we define a `main` function that retrieves the transaction hash generated when we executed the `vesting_lock.mjs` file. 
+This hash will be used to fetch the corresponding UTxO (Unspent Transaction Output) for withdrawal.
+
+```js filename="vesting_unlock.mjs"
+// ^^^ Code above is unchanged. ^^^
+
+async function main() {
+  const txHashFromDesposit =
+    //This is the hash that we generated in the locking file when we submitted the transaction.
+    "ed7559c7aa5a8bfcba9ec8d75fb2ee1902da8b909722ca4726261d35e8250645";
+
+  const utxo = await getUtxoByTxHash(txHashFromDesposit);
+
+  if (utxo === undefined) throw new Error("UTxO not found");
+
+  const unsignedTx = await withdrawFundTx(utxo);
+
+  const signedTx = await beneficiary_wallet.signTx(unsignedTx);
+
+  const txHash = await beneficiary_wallet.submitTx(signedTx);
+  console.log("txHash", txHash);
+}
+
+async function getUtxoByTxHash(txHash) {
+  const utxos = await blockchainProvider.fetchUTxOs(txHash);
+  if (utxos.length === 0) {
+    throw new Error("UTxO not found");
+  }
+  return utxos[0];
+}
+
+main();
+```
+
+<Callout>
+  As you imagine, we can run this script with the following incantation:
+```
+node vesting_unlock.mjs
+```
+
+ </Callout>
+
+<Callout type="info">
+```
+This should be the projects structure. 
+./vesting
+│
+├── README.md
+├── aiken.toml
+└── common
+    └── common.mjs
+├── beneficiary.addr
+├── beneficiary.sk
+├── .env
+├── owner.addr
+├── owner.sk
+├── node_modules
+├── package.json
+├── package-lock.json
+├── plutus.json
+└── validators
+    └── vesting.ak
+├── vesting_lock.mjs
+├── vesting_unlock.mjs
+```
+</Callout>
+
+Assuming everything went well... congratulations 🎉!

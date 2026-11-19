@@ -1,0 +1,260 @@
+---
+title: "Transaction Failures"
+description: "Fix Cardano transaction failures with Mesh SDK's automatic UTXO selection and fee calculation."
+---
+
+import Link from "next/link";
+import { HowToSchema, FAQSchema } from "@/components/seo";
+
+<HowToSchema
+  name="Fix Cardano Transaction Failures with Mesh SDK"
+  description="Resolve common Cardano transaction failures using Mesh SDK for automatic UTXO selection and fee calculation."
+  totalTime="PT10M"
+  steps={[
+    { name: "Install Mesh SDK", text: "Run npm install @meshsdk/core @meshsdk/react to add the Cardano SDK." },
+    { name: "Configure a provider", text: "Set up a blockchain provider like Blockfrost to fetch UTXOs and submit transactions." },
+    { name: "Use MeshTxBuilder", text: "Replace manual transaction construction with MeshTxBuilder for automatic handling." }
+  ]}
+/>
+
+<FAQSchema
+  faqs={[
+    {
+      question: "Why does my transaction fail with 'insufficient funds' when I have enough ADA?",
+      answer: "Your ADA may be spread across UTXOs that cannot be efficiently combined, or some UTXOs may be used in pending transactions. Mesh's automatic UTXO selection handles this."
+    },
+    {
+      question: "What causes 'UTXO already spent' errors?",
+      answer: "This occurs when a UTXO was consumed by another transaction. This is common when multiple transactions are built from stale wallet state. Fetch fresh UTXOs before building."
+    },
+    {
+      question: "How do I fix 'transaction too large' errors?",
+      answer: "Cardano has a 16KB transaction size limit. Large transactions with many inputs can exceed this. Mesh optimizes UTXO selection to minimize transaction size."
+    },
+    {
+      question: "Can I prevent transaction failures?",
+      answer: "Yes. Use proper UTXO management, fetch fresh wallet state before building, implement retry logic, and use Mesh SDK's automatic handling."
+    }
+  ]}
+/>
+
+Cardano transactions fail due to UTXO conflicts, insufficient inputs, incorrect fees, or size limits. Mesh eliminates most failures by automatically handling UTXO selection, fee estimation, and change calculation.
+
+## Common failure causes
+
+| Cause | Description |
+|-------|-------------|
+| UTXO conflicts | Another transaction consumed the UTXO you selected |
+| Insufficient funds | UTXOs don't sum to required value |
+| Transaction too large | Exceeds 16KB size limit |
+| Fee miscalculation | Change output doesn't account for correct fee |
+| Invalid change | Change output below minimum UTXO value |
+| Token entanglement | ADA locked with tokens you can't move |
+
+---
+
+## Why transactions fail
+
+### UTXO conflicts
+
+When you build a transaction, you select specific UTXOs. If another transaction consumes one first, your transaction becomes invalid.
+
+Common scenarios:
+
+- User clicks submit multiple times
+- Backend processes concurrent requests
+- Multiple browser tabs share the same wallet
+
+### Insufficient funds with adequate balance
+
+| Cause | Why it happens |
+|-------|---------------|
+| Locked tokens | ADA is paired with native tokens |
+| Minimum UTXO | Outputs must meet minimum value requirements |
+| Fee reduction | Fees reduce available balance |
+| Fragmentation | Many small UTXOs create oversized transactions |
+
+### Fee calculation complexity
+
+Fees depend on transaction size, which depends on inputs, outputs, and witnesses. This circular dependency requires iterative solving.
+
+---
+
+## The solution
+
+MeshTxBuilder handles all complexity automatically.
+
+### Quick start
+
+```bash
+npm install @meshsdk/core @meshsdk/react
+```
+
+### Basic usage
+
+```typescript
+import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+const provider = new BlockfrostProvider("<your-api-key>");
+const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const unsignedTx = await txBuilder
+  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(await wallet.getChangeAddressBech32())
+  .selectUtxosFrom(await wallet.getUtxosMesh())
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, false);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+### What Mesh handles automatically
+
+| Feature | What it does |
+|---------|--------------|
+| UTXO selection | Chooses optimal inputs minimizing size |
+| Fee calculation | Iteratively calculates exact fee |
+| Change handling | Creates valid change outputs |
+| Token routing | Routes tokens to change if not sent |
+| Validation | Catches errors before submission |
+
+---
+
+## Handle remaining failures
+
+Even with Mesh, some failures require application-level handling.
+
+### Implement retry logic
+
+```typescript
+async function submitWithRetry(wallet, signedTx, maxRetries = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await wallet.submitTx(signedTx);
+    } catch (error) {
+      if (attempt === maxRetries - 1) throw error;
+      await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+    }
+  }
+}
+```
+
+### Fetch fresh UTXOs
+
+Always fetch UTXOs immediately before building:
+
+```typescript
+// Wrong: stale UTXOs
+const cachedUtxos = await wallet.getUtxosMesh();
+// ... time passes ...
+const tx = await txBuilder.selectUtxosFrom(cachedUtxos).complete(); // May fail
+
+// Correct: fresh UTXOs at transaction time
+async function buildTransaction() {
+  const freshUtxos = await wallet.getUtxosMesh();
+  return await txBuilder.selectUtxosFrom(freshUtxos).complete();
+}
+```
+
+### Prevent double-submission
+
+```typescript
+const [isSubmitting, setIsSubmitting] = useState(false);
+
+async function handleSubmit() {
+  if (isSubmitting) return;
+  setIsSubmitting(true);
+  try {
+    const txHash = await submitTransaction();
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    setIsSubmitting(false);
+  }
+}
+```
+
+### Handle errors gracefully
+
+```typescript
+try {
+  const tx = await txBuilder
+    .txOut(recipientAddress, amount)
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  const signedTx = await wallet.signTx(tx);
+  const txHash = await wallet.submitTx(signedTx);
+} catch (error) {
+  if (error.message.includes("Insufficient")) {
+    showError("Not enough ADA to complete this transaction");
+  } else if (error.message.includes("User")) {
+    showInfo("Transaction cancelled");
+  } else {
+    showError("Transaction failed. Please try again.");
+  }
+}
+```
+
+---
+
+## Advanced patterns
+
+### Multi-asset transactions
+
+```typescript
+const tx = await txBuilder
+  .txOut(recipient, [
+    { unit: "lovelace", quantity: "2000000" },
+    { unit: policyId + assetName, quantity: "1" }
+  ])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+### Smart contract transactions
+
+```typescript
+const tx = await txBuilder
+  .spendingPlutusScript(languageVersion)
+  .txIn(scriptUtxo.input.txHash, scriptUtxo.input.outputIndex)
+  .txInScript(scriptCbor)
+  .txInDatumValue(datum)
+  .txInRedeemerValue(redeemer)
+  .txOut(outputAddress, outputValue)
+  .txInCollateral(collateralUtxo.input.txHash, collateralUtxo.input.outputIndex)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+---
+
+## Best practices
+
+| Practice | Reason |
+|----------|--------|
+| Fetch fresh UTXOs | Avoid stale data and conflicts |
+| Implement retry logic | Handle transient failures |
+| Disable button during submit | Prevent double-submission |
+| Show clear error messages | Help users understand failures |
+| Test on preprod first | Catch issues before mainnet |
+
+---
+
+## Related topics
+
+| Topic | Link |
+|-------|------|
+| UTXO model | [/resources/challenges/utxo-model](/resources/challenges/utxo-model) |
+| Coin selection | [/resources/challenges/coin-selection](/resources/challenges/coin-selection) |
+| Wallet integration | [/resources/challenges/wallet-integration](/resources/challenges/wallet-integration) |
+| Transaction builder | [/resources/solutions/transaction-builder](/resources/solutions/transaction-builder) |

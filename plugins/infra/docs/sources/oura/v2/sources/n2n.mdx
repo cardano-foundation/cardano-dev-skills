@@ -1,0 +1,47 @@
+---
+title: Node-to-Node
+sidebar:
+  label: N2N
+  order: 1
+---
+
+The Node-to-Node (N2N) source connects to a Cardano node over a **TCP socket** — local or
+remote — using the Ouroboros mini-protocols. It runs ChainSync in "headers only" mode and
+fetches the actual block payloads with BlockFetch. Reach for N2N when you want to follow the
+chain through a relay without running your own node.
+
+## Configuration
+
+```toml title="daemon.toml"
+[source]
+type = "N2N"
+peers = ["<hostname:port>"]
+```
+
+- `type` (required): the literal value `N2N`.
+- `peers` (required): the TCP endpoints to connect to, each as a `hostname:port` string.
+
+## Examples
+
+Connecting to a remote Cardano node over TCP:
+
+```toml title="daemon.toml"
+[source]
+type = "N2N"
+peers = ["backbone.mainnet.cardanofoundation.org:3001"]
+```
+
+### Public relays
+
+If you don't run your own node, these public relays are a convenient starting point:
+
+| Network | Relay |
+| :------ | :---- |
+| Mainnet | `backbone.mainnet.cardanofoundation.org:3001` |
+| Preprod | `preprod-node.world.dev.cardano.org:30000` |
+| Preview | `preview-node.world.dev.cardano.org:30002` |
+
+:::tip
+Connecting to anything other than mainnet, preprod, or preview? Tell Oura which network it is
+with a [`[chain]` section](/oura/v2/advanced/custom_network).
+:::

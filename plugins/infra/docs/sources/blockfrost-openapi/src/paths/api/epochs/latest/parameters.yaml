@@ -1,0 +1,24 @@
+get:
+  tags:
+    - Cardano » Epochs
+  summary: Latest epoch protocol parameters
+  description: Return the protocol parameters for the latest epoch.
+  responses:
+    "200":
+      description: Return the data about the epoch
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../schemas/epochs/epoch_param_content.yaml
+    "400":
+      $ref: ../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../responses/errors/500.yaml

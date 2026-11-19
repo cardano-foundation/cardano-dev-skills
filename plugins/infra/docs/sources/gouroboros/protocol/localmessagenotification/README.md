@@ -1,0 +1,140 @@
+# LocalMessageNotification Protocol
+
+The LocalMessageNotification protocol receives notifications about new messages from the local node. It is part of CIP-0137 (Distributed Message Queue) for secure off-chain messaging.
+
+## Protocol Identifiers
+
+| Property | Value |
+|----------|-------|
+| Protocol Name | `LocalMessageNotification` |
+| Protocol ID | `15` |
+| Mode | Node-to-Client |
+
+## State Machine
+
+```
+┌──────┐  RequestMessages   ┌──────────────────┐
+│ Idle │  (non-blocking)    │ BusyNonBlocking  │
+└──┬───┴───────────────────►└────────┬─────────┘
+   │                                 │
+   │ RequestMessages                 │ ReplyMessagesNonBlocking
+   │ (blocking)                      │
+   │                                 ▼
+   │                            ┌──────┐
+   │                            │ Idle │
+   │                            └──────┘
+   │
+   ▼
+┌───────────────┐
+│ BusyBlocking  │
+└───────┬───────┘
+        │
+        │ ReplyMessagesBlocking
+        ▼
+   ┌──────┐           Done       ┌──────┐
+   │ Idle │ ────────────────────►│ Done │
+   └──────┘                      └──────┘
+```
+
+## States
+
+| State | ID | Agency | Description |
+|-------|-----|--------|-------------|
+| **Idle** | 1 | Client | Waiting for message request |
+| **BusyNonBlocking** | 2 | Server | Processing non-blocking request |
+| **BusyBlocking** | 3 | Server | Processing blocking request |
+| **Done** | 4 | None | Terminal state |
+
+## Messages
+
+| Message | Type ID | Direction | Description |
+|---------|---------|-----------|-------------|
+| `RequestMessages` | 0 | Client → Server | Request messages (blocking/non-blocking) |
+| `ReplyMessagesNonBlocking` | 1 | Server → Client | Non-blocking response |
+| `ReplyMessagesBlocking` | 2 | Server → Client | Blocking response |
+| `ClientDone` | 3 | Client → Server | Terminate protocol |
+
+## State Transitions
+
+### From Idle (Client Agency)
+| Message | New State | Condition |
+|---------|-----------|-----------|
+| `RequestMessages` | BusyNonBlocking | Non-blocking request |
+| `RequestMessages` | BusyBlocking | Blocking request |
+| `ClientDone` | Done | |
+
+### From BusyNonBlocking (Server Agency)
+| Message | New State |
+|---------|-----------|
+| `ReplyMessagesNonBlocking` | Idle |
+
+### From BusyBlocking (Server Agency)
+| Message | New State |
+|---------|-----------|
+| `ReplyMessagesBlocking` | Idle |
+
+## Timeouts
+
+| State | Timeout | Description |
+|-------|---------|-------------|
+| Idle | 300 seconds | Client must send RequestMessages |
+| BusyNonBlocking | 0 (immediate) | Non-blocking returns immediately |
+| BusyBlocking | 0 (indefinite) | Blocking waits for messages |
+
+## Request Modes
+
+| Mode | Description |
+|------|-------------|
+| **Non-blocking** | Returns immediately with available messages |
+| **Blocking** | Waits until messages are available |
+
+## Configuration Options
+
+```go
+localmessagenotification.NewConfig(
+    localmessagenotification.WithReplyMessagesFunc(replyCallback),
+    localmessagenotification.WithMaxQueueSize(100),
+    localmessagenotification.WithMaxReplyMessages(1000),
+    localmessagenotification.WithBlockingRequestTimeout(timeout),
+    localmessagenotification.WithAuthenticator(authenticator),
+    localmessagenotification.WithTTLValidator(ttlValidator),
+    localmessagenotification.WithMaxReplayEntries(10000),
+)
+```
+
+## Usage Example
+
+```go
+// Configure client with reply callback
+cfg := localmessagenotification.NewConfig(
+    localmessagenotification.WithAuthenticator(authenticator),
+    localmessagenotification.WithReplyMessagesFunc(func(ctx CallbackContext, messages []DmqMessage, hasMore bool) {
+        for _, msg := range messages {
+            // Handle message
+        }
+    }),
+)
+
+// Non-blocking: get available messages immediately
+err := client.RequestMessagesNonBlocking()
+
+// Blocking: wait for new messages
+err := client.RequestMessagesBlocking()
+```
+
+## Message Authentication
+
+The client validates every message passed to the configured callback:
+- KES signature verification
+- TTL validation
+- Messages already delivered are dropped until expiration, including after reconnection
+- Accepted IDs are never evicted before expiration; a reply that would exceed `MaxReplayEntries` unexpired IDs is refused with an error and nothing in it is delivered
+- The default replay bound holds 31 unexpired messages per stake pool, the most a dmq-node admits, for 4096 pools
+
+## Notes
+
+- Part of CIP-0137 (Distributed Message Queue)
+- Non-blocking mode for polling
+- Blocking mode for push-style notification
+- Authentication state commits atomically for each admitted reply batch; one invalid admitted message rejects that batch
+- Default queue size is 100 messages

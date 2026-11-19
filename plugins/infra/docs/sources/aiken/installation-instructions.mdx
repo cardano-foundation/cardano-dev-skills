@@ -1,0 +1,145 @@
+import { Tabs } from "nextra/components";
+import { Callout } from "nextra-theme-docs";
+import { InstallationInstructions } from "../components/installation-instructions";
+
+## Installation Instructions
+
+<Tabs items={['via aikup', 'manually']}>
+
+<Tabs.Tab>
+## Via `aikup`
+
+First, install **aikup**: a basic cross-platform utility tool to download and
+manage Aiken's across multiple versions and for seamless upgrades. Once
+installed, simply run:
+
+```
+aikup
+```
+
+<Callout type="info">
+  `aikup` alone installs the latest version available. You can install specific
+  versions by specifying a version number. For usage instructions, see `aikup
+  --help`.
+</Callout>
+
+### From a package manager
+
+#### npm
+
+```sh
+npm install -g @aiken-lang/aikup
+```
+
+#### Homebrew
+
+```sh
+brew install aiken-lang/tap/aikup
+```
+
+#### From url (Linux & MacOS)
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf https://install.aiken-lang.org | sh
+```
+
+#### From url (Windows)
+
+```sh
+powershell -c "irm https://windows.aiken-lang.org | iex"
+```
+
+> You can also find an MSI [here](https://github.com/aiken-lang/aikup/releases/latest).
+</Tabs.Tab>
+
+<Tabs.Tab>
+## Manually
+
+### From a package manager
+
+#### npm
+
+```sh
+npm install -g @aiken-lang/aiken
+```
+
+#### Homebrew
+
+```sh
+brew install aiken-lang/tap/aiken
+```
+
+#### From sources (All platform)
+
+<InstallationInstructions />
+
+#### From Nix flakes (Linux & MacOS only)
+
+```sh
+nix build github:aiken-lang/aiken#aiken
+```
+</Tabs.Tab>
+</Tabs>
+
+## Language Server
+
+The `aiken` command-line comes with a built-in [language server](https://microsoft.github.io/language-server-protocol/). If needed, configure your language client with the following configuration (refer to your language client's instructions):
+
+- command: `aiken lsp` (the command is hidden from the command-line help usage)
+- root pattern: `aiken.toml`
+- filetype: aiken (`.ak`)
+
+The language server supports a variety of capabilities (but not all). For more details, please refer to the [supported capabilities](https://github.com/aiken-lang/aiken/tree/main/crates/aiken-lsp#supported-capabilities) on the main repository.
+
+## Auto-completion
+
+The command-line comes with few auto-completion scripts for `bash`, `zsh` and `fish` users. The scripts can be obtained using the `aiken completion <shell>` command. You can install completions on their standard/default locations as follows:
+
+<Tabs items={['bash', 'zsh', 'fish']}>
+<Tabs.Tab>
+```sh
+aiken completion bash --install
+
+# or, manually
+
+aiken completion bash > /usr/local/share/bash-completion/completions/aiken
+source /usr/local/share/bash-completion/completions/aiken
+
+```
+</Tabs.Tab>
+
+<Tabs.Tab>
+```sh
+aiken completion zsh --install
+
+# or, manually
+
+aiken completion zsh > /usr/local/share/zsh/site-functions/_aiken
+source /usr/local/share/zsh/site-functions/_aiken
+```
+</Tabs.Tab>
+
+<Tabs.Tab>
+```sh
+aiken completion fish --install
+
+# or, manually
+
+aiken completion fish > ~/.config/fish/completions/aiken
+source ~/.config/fish/completions/aiken
+```
+</Tabs.Tab>
+</Tabs>
+
+## Editor integrations
+
+The following plugins provide syntax highlighting and indentation rules for Aiken.
+
+| Editor     | Plugin                                                                                          |
+| ---------- | ----------------------------------------------------------------------------------------------- |
+| Zed        | [aiken-lang/zed-aiken](https://github.com/aiken-lang/zed-aiken)                                 |
+| VSCode     | [aiken-lang/vscode-aiken](https://github.com/aiken-lang/vscode-aiken)                           |
+| Vim/Neovim | [aiken-lang/editor-integration-nvim](https://github.com/aiken-lang/editor-integration-nvim)     |
+| Emacs      | [aiken-lang/aiken-mode](https://github.com/aiken-lang/aiken-mode)                               |
+| JetBrains  | [MedusaLabs-cardano/intellij_aiken](https://github.com/MedusaLabs-cardano/intellij_aiken)       |
+

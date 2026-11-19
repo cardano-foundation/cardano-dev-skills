@@ -1,0 +1,60 @@
+get:
+  tags:
+    - Cardano » Mempool
+  summary: Mempool
+  description: |
+    Return transactions that are currently stored in Blockfrost mempool,
+    waiting to be included in a newly minted block.
+    Shows only transactions submitted via Blockfrost.io.
+
+    <p>
+      <span class="hosted">Hosted</span> Endpoint only available for hosted variant.
+    </p>
+  parameters:
+    - in: query
+      name: count
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 100
+      description: The number of results displayed on one page.
+    - in: query
+      name: page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 21474836
+        default: 1
+      description: The page number for listing the results.
+    - in: query
+      name: order
+      required: false
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: asc
+      description: |
+        Ordered by the time of transaction submission.
+        By default, we return oldest first, newest last.
+  responses:
+    "200":
+      description: Return the contents of the mempool
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/mempool/mempool_content.yaml
+    "400":
+      $ref: ../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../responses/errors/500.yaml

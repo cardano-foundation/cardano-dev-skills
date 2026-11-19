@@ -1,0 +1,412 @@
+spectaql:
+  logoFile: ./spectaql-theme/b-logo.png
+  faviconFile: ./spectaql-theme/b-logo.png
+  targetDir: ./docs/midnight
+  themeDir: ./spectaql-theme
+
+introspection:
+  schemaFile: ./.cache/spectaql/midnight-indexer-api.graphql
+  queryNameStrategy: capitalizeFirst
+  fieldExpansionDepth: 3
+
+info:
+  title: Midnight Indexer API
+  description: |
+    The Midnight Indexer API exposes a GraphQL API that enables clients to query and subscribe to blockchain data — blocks, transactions, contracts, and wallet-related events — indexed from the Midnight blockchain.
+
+    The deployed version of the Midnight Indexer API is **v4.4**.
+
+    Types, fields, queries, and subscriptions marked **Beta** are unstable upstream and may change without notice. This includes the bridge API, contract events, and the DUST generation and Merkle tree API.
+
+    For the raw GraphQL schema specification, see the [Midnight Indexer GraphQL Schema](midnight-indexer-api.graphql).
+
+  x-introItems:
+    - title: Quick Start
+      description: |
+        Create a Midnight project on [blockfrost.io](https://blockfrost.io) and make your first API call:
+
+        ```bash
+        curl -X POST https://midnight-mainnet.blockfrost.io/api/v0 \
+          -H "project_id: YOUR_PROJECT_ID" \
+          -H "Content-Type: application/json" \
+          -d '{"query": "{ block { hash height timestamp } }"}'
+        ```
+
+        Response:
+        ```json
+        {
+          "data": {
+            "block": {
+              "hash": "d193b2686197789ace64962eb3049c5b94c4bbf9b07da04bef034cd75d83afc4",
+              "height": 192998,
+              "timestamp": 1770787800000
+            }
+          }
+        }
+        ```
+
+    - title: Endpoints
+      description: |
+        Blockfrost exposes three Midnight services. Available networks: `mainnet`, `preprod`, `preview`.
+
+        | Service | URL |
+        |---------|-----|
+        | **Indexer API** | `https://midnight-{network}.blockfrost.io/api/v0` |
+        | **Indexer WebSocket** | `wss://midnight-{network}.blockfrost.io/api/v0/ws` |
+        | **Node RPC** | `https://rpc.midnight-{network}.blockfrost.io` |
+
+        **Indexer API** — Send GraphQL queries and mutations over HTTP POST. This is the main entry point for fetching blockchain data (blocks, transactions, contracts, DUST status).
+
+        **Indexer WebSocket** — Subscribe to real-time events using the `graphql-transport-ws` protocol. Supports block streaming, contract actions, shielded/unshielded transactions, and ledger events.
+
+        **Node RPC** — Direct JSON-RPC connection to the Midnight Node for low-level runtime access, wallet providers, and transaction submission. Use it with libraries like [midnight.js](https://github.com/midnightntwrk/midnight-js) that need a node connection.
+
+    - title: Authentication
+      description: |
+        All requests require a valid project ID. There are two ways to pass it:
+
+        **HTTP header**
+
+        Include `project_id` as a request header.
+        ```bash
+        curl -X POST https://midnight-mainnet.blockfrost.io/api/v0 \
+          -H "project_id: YOUR_PROJECT_ID" \
+          -H "Content-Type: application/json" \
+          -d '{"query": "{ block { hash height } }"}'
+        ```
+
+        **Query parameter**
+
+        Append `?project_id=YOUR_PROJECT_ID` to the endpoint URL. Use this when your client doesn't support setting custom headers (e.g. Midnight.js SDK).
+        ```text
+        https://midnight-{network}.blockfrost.io/api/v0?project_id=YOUR_PROJECT_ID
+        wss://midnight-{network}.blockfrost.io/api/v0/ws?project_id=YOUR_PROJECT_ID
+        https://rpc.midnight-{network}.blockfrost.io?project_id=YOUR_PROJECT_ID
+        ```
+
+        Replace `{network}` with `mainnet`, `preprod`, or `preview`.
+
+    - title: Request Format
+      description: |
+        Send a POST request with a JSON body containing:
+        * `query` (required): The GraphQL query, mutation, or subscription string
+        * `variables` (optional): Variables for the GraphQL operation
+
+        Example:
+        ```json
+        {
+          "query": "query GetBlock(\$offset: BlockOffset) { block(offset: \$offset) { hash height } }",
+          "variables": { "offset": { "height": 100 } }
+        }
+        ```
+
+        or without variables:
+        ```json
+        {
+          "query": "query { block(offset: { height: 100 }) { hash height } }"
+        }
+        ```
+
+    - title: Response Format
+      description: |
+        Responses follow the standard GraphQL format:
+        ```json
+        {
+          "data": {
+            "block": {
+              "hash": "d193b2686197789ace64962eb3049c5b94c4bbf9b07da04bef034cd75d83afc4",
+              "height": 192998,
+              "timestamp": 1770787800000
+            }
+          }
+        }
+        ```
+
+        On error:
+        ```json
+        {
+          "data": null,
+          "errors": [
+            {
+              "message": "Invalid value for argument \"offset.height\" expected type \"Int\"",
+              "locations": [{ "line": 1, "column": 15 }],
+              "path": ["block"]
+            }
+          ]
+        }
+        ```
+
+    - title: HTTP Query Examples
+      description: |
+        **Query the latest block:**
+        ```bash
+        curl -X POST https://midnight-mainnet.blockfrost.io/api/v0 \
+          -H "project_id: YOUR_PROJECT_ID" \
+          -H "Content-Type: application/json" \
+          -d '{"query": "{ block { hash height timestamp author transactions { hash } } }"}'
+        ```
+
+        **Query a block by height:**
+        ```bash
+        curl -X POST https://midnight-mainnet.blockfrost.io/api/v0 \
+          -H "project_id: YOUR_PROJECT_ID" \
+          -H "Content-Type: application/json" \
+          -d '{"query": "{ block(offset: { height: 3 }) { hash height protocolVersion timestamp transactions { hash } } }"}'
+        ```
+
+        **Query transactions by hash:**
+        ```bash
+        curl -X POST https://midnight-mainnet.blockfrost.io/api/v0 \
+          -H "project_id: YOUR_PROJECT_ID" \
+          -H "Content-Type: application/json" \
+          -d '{"query": "{ transactions(offset: { hash: \"YOUR_TX_HASH\" }) { hash protocolVersion block { height hash } ... on RegularTransaction { fee } } }"}'
+        ```
+
+        **Query DUST generation status:**
+        ```bash
+        curl -X POST https://midnight-mainnet.blockfrost.io/api/v0 \
+          -H "project_id: YOUR_PROJECT_ID" \
+          -H "Content-Type: application/json" \
+          -d '{"query": "{ dustGenerationStatus(cardanoRewardAddresses: [\"YOUR_CARDANO_REWARD_ADDRESS\"]) { cardanoRewardAddress dustAddress registered nightBalance generationRate currentCapacity } }"}'
+        ```
+
+        **Query contract actions:**
+        ```bash
+        curl -X POST https://midnight-mainnet.blockfrost.io/api/v0 \
+          -H "project_id: YOUR_PROJECT_ID" \
+          -H "Content-Type: application/json" \
+          -d '{"query": "{ contractAction(address: \"YOUR_CONTRACT_ADDRESS\") { address state transaction { hash } unshieldedBalances { tokenType amount } } }"}'
+        ```
+
+    - title: WebSocket Subscriptions
+      description: |
+        Subscriptions use a WebSocket connection following the GraphQL over WebSocket protocol.
+
+        Most subscriptions accept an optional `offset` parameter, allowing you to resume from a specific block height or transaction hash instead of starting from the tip. This is useful for catching up after a reconnect without re-processing events you've already seen.
+
+        **Connecting with `websocat`:**
+        ```bash
+        websocat wss://midnight-mainnet.blockfrost.io/api/v0/ws \
+          --protocol "graphql-transport-ws" \
+          -H "project_id: YOUR_PROJECT_ID"
+        ```
+
+        **Step 1 — Initialize the connection:**
+
+        After connecting, send a `connection_init` message:
+        ```json
+        {"type": "connection_init"}
+        ```
+
+        The server responds with:
+        ```json
+        {"type": "connection_ack"}
+        ```
+
+        **Step 2 — Send a subscription:**
+
+        Once acknowledged, send a `subscribe` message with your GraphQL subscription query:
+        ```json
+        {
+          "id": "1",
+          "type": "subscribe",
+          "payload": {
+            "query": "subscription { blocks { hash height timestamp transactions { hash } } }"
+          }
+        }
+        ```
+
+        **Step 3 — Receive events:**
+
+        The server pushes `next` messages whenever new data is available:
+        ```json
+        {
+          "id": "1",
+          "type": "next",
+          "payload": {
+            "data": {
+              "blocks": {
+                "hash": "d193b2686197789ace64962eb3049c5b94c4bbf9b07da04bef034cd75d83afc4",
+                "height": 192998,
+                "timestamp": 1770787800000,
+                "transactions": []
+              }
+            }
+          }
+        }
+        ```
+
+        **Connecting from JavaScript:**
+        ```javascript
+        const url = "wss://midnight-mainnet.blockfrost.io/api/v0/ws?project_id=YOUR_PROJECT_ID";
+        const ws = new WebSocket(url, "graphql-transport-ws");
+
+        ws.onopen = () => {
+          ws.send(JSON.stringify({ type: "connection_init" }));
+        };
+
+        ws.onmessage = (event) => {
+          const msg = JSON.parse(event.data);
+
+          if (msg.type === "connection_ack") {
+            ws.send(
+              JSON.stringify({
+                id: "1",
+                type: "subscribe",
+                payload: {
+                  query: "subscription { blocks { hash height timestamp } }",
+                },
+              })
+            );
+          }
+
+          if (msg.type === "next") {
+            console.log("New block:", msg.payload.data);
+          }
+        };
+        ```
+
+    - title: WebSocket Close Codes
+      description: |
+        Close codes sent by the Midnight Indexer, including the `graphql-transport-ws` protocol codes (`4400`, `4401`, `4403`, `4408`, `4409` and others), are forwarded to your client unchanged, with these exceptions:
+
+        | Code | Meaning |
+        |------|---------|
+        | `4004`, `4005`, `4006` | The upstream connection closed with `1004`, `1005` or `1006`. These codes are reserved and can't be sent in a close frame, so Blockfrost adds 3000 to them. `4006` means the connection to the indexer dropped without a close frame (abnormal closure). |
+        | `4429` | Close reason `Rate limit exceeded`: too many `subscribe` messages for your project from the same IP address. |
+        | `1013` | `WebSocket send queue exceeded`: too many messages were queued for the connection, usually because the client isn't reading them fast enough. |
+
+        In all of these cases, reconnect and subscribe again. To avoid missing events, resume from the last event you processed with the subscription's cursor argument:
+
+        | Subscription | Resume with |
+        |--------------|-------------|
+        | `blocks`, `contractActions` | `offset` (a `BlockOffset`) |
+        | `dustLedgerEvents`, `zswapLedgerEvents` | `id` |
+        | `contractEvents` | `id`, or `filter.fromBlock` |
+        | `shieldedTransactions` | `index` |
+        | `unshieldedTransactions` | `transactionId` |
+        | `shieldedNullifierTransactions`, `dustNullifierTransactions` | `fromBlock` |
+        | `dustGenerations` | Subscribe again with a newer `blockHash`; each subscription returns a complete snapshot at that block. |
+        | `bridgePoolUpdates`, `bridgeBalance` | No cursor. Both emit the current state when you subscribe, but updates sent while you were disconnected are not replayed. |
+
+    - title: Query Limits
+      description: |
+        The server may apply limitations to queries:
+        * `max-depth`: Maximum nesting depth
+        * `max-fields`: Maximum number of fields
+        * `timeout`: Query execution timeout
+        * `complexity`: Query complexity cost
+
+        Requests exceeding limits return errors:
+        ```json
+        {
+          "data": null,
+          "errors": [{ "message": "Query has too many fields: 20. Max fields: 10." }]
+        }
+        ```
+
+    - title: Pagination with Offsets
+      description: |
+        Many queries support offsets for pagination:
+
+        **BlockOffset** (oneOf — provide exactly one):
+        * `hash`: Hex-encoded block hash
+        * `height`: Block height number
+
+        **TransactionOffset** (oneOf — provide exactly one):
+        * `hash`: Hex-encoded transaction hash
+        * `identifier`: Hex-encoded transaction identifier
+
+        **ContractActionOffset** (oneOf — provide exactly one):
+        * `blockOffset`: A BlockOffset
+        * `transactionOffset`: A TransactionOffset
+
+        If no offset is provided, the latest result is returned.
+
+    - title: Shielded Transactions
+      description: |
+        Shielded transactions are at the core of Midnight's privacy model. Because transaction data is encrypted on-chain, the indexer needs a **viewing key** to determine which transactions are relevant to a specific wallet.
+
+        The `connect` mutation establishes a server-side session for a given viewing key. The indexer uses this key to scan the chain and filter shielded transactions relevant to that wallet. It returns a **session ID** used to authenticate the `shieldedTransactions` subscription.
+
+        When you no longer need to monitor shielded transactions for a wallet, call the `disconnect` mutation with the session ID to end the session and free server-side resources.
+
+        **Step 1 — Connect with a viewing key:**
+        ```bash
+        curl -X POST https://midnight-mainnet.blockfrost.io/api/v0 \
+          -H "project_id: YOUR_PROJECT_ID" \
+          -H "Content-Type: application/json" \
+          -d '{"query": "mutation { connect(viewingKey: \"YOUR_VIEWING_KEY\") }"}'
+        ```
+
+        Response:
+        ```json
+        {
+          "data": {
+            "connect": "SESSION_ID_HEX"
+          }
+        }
+        ```
+
+        The viewing key can be in Bech32m format (preferred, e.g. `mn_shield-esk1...`) or hex.
+
+        To skip scanning the start of the chain, pass `options: { startIndex: N }` to `connect`; the indexer then searches for relevant transactions from transaction index `N` onwards.
+
+        **Step 2 — Subscribe to shielded transactions:**
+
+        Using the session ID from the `connect` mutation, subscribe via WebSocket:
+        ```json
+        {
+          "id": "1",
+          "type": "subscribe",
+          "payload": {
+            "query": "subscription(\$sid: HexEncoded!) { shieldedTransactions(sessionId: \$sid) { ... on RelevantTransaction { transaction { hash zswapStartIndex zswapEndIndex } zswapCollapsedUpdate { startIndex endIndex update } } ... on ShieldedTransactionsProgress { highestZswapEndIndex highestCheckedZswapEndIndex highestRelevantZswapEndIndex } } }",
+            "variables": { "sid": "SESSION_ID_HEX" }
+          }
+        }
+        ```
+
+        The subscription emits two event types:
+        * `RelevantTransaction` — a transaction relevant for the wallet. When there is a gap between the current zswap index and the transaction's `zswapStartIndex`, it also carries a `zswapCollapsedUpdate` with the collapsed Merkle tree update for that gap.
+        * `ShieldedTransactionsProgress` — reports sync progress (`highestZswapEndIndex`, `highestCheckedZswapEndIndex`, `highestRelevantZswapEndIndex`), useful for showing progress in a UI.
+
+        Pass the optional `index` argument to resume the subscription from a given index instead of zero.
+
+        **Step 3 — Disconnect when done:**
+        ```bash
+        curl -X POST https://midnight-mainnet.blockfrost.io/api/v0 \
+          -H "project_id: YOUR_PROJECT_ID" \
+          -H "Content-Type: application/json" \
+          -d '{"query": "mutation { disconnect(sessionId: \"SESSION_ID_HEX\") }"}'
+        ```
+
+    - title: Other Subscriptions
+      description: |
+        Besides `blocks` and `shieldedTransactions`, the following subscriptions are available:
+
+        * `contractActions(address: HexEncoded!, offset: BlockOffset)` — real-time contract events (deploys, calls, updates) for a specific contract address
+        * `unshieldedTransactions(address: UnshieldedAddress!, transactionId: Int)` — unshielded transaction events for an address, with optional resume from a specific transaction ID
+        * `dustLedgerEvents(id: Int)` — DUST ledger state changes (initial UTXOs, generation time updates, spend processing, parameter changes)
+        * `zswapLedgerEvents(id: Int)` — zswap ledger state changes
+        * `shieldedNullifierTransactions(nullifierPrefixes: [HexEncoded!]!, fromBlock: Int, toBlock: Int)` — references to transactions containing shielded (zswap) nullifiers that match the given prefixes; completes after `toBlock` if set
+        * `dustNullifierTransactions(nullifierLeBytesPrefixes: [HexEncoded!]!, fromBlock: Int, toBlock: Int)` — references to transactions containing DUST nullifiers that match the given little-endian prefixes; completes after `toBlock` if set
+
+        The following subscriptions are **Beta**:
+
+        * `contractEvents(filter: ContractEventFilter!, id: Int)` — contract events (mints, burns, spends, receives, pause/unpause, and custom events) matching a filter, in ID order; completes once `filter.toBlock` is reached if set
+        * `dustGenerations(dustAddress: DustAddress!, blockHash: HexEncoded!, dtimeCutoffHeight: Int!)` — a consistent snapshot of a DUST address's generations at a given block, interleaved with collapsed Merkle tree updates; completes once emitted
+        * `bridgePoolUpdates` — bridge pool summary snapshots emitted alongside pool-affecting events
+        * `bridgeBalance(address: HexEncoded!)` — a recipient's bridge balance, re-emitted when it changes
+
+    - title: Resources
+      description: |
+        For more information about the Midnight Indexer API, see the [official Midnight documentation](https://docs.midnight.network/api-reference/midnight-indexer).
+
+servers:
+  - url: https://midnight-mainnet.blockfrost.io/api/v0
+    description: Midnight Mainnet
+    production: true
+    headers:
+      - name: project_id
+        example: YOUR_PROJECT_ID
+        comment: Your Blockfrost project ID for Midnight Mainnet

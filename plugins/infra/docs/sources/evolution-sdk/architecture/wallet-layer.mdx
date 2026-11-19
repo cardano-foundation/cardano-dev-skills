@@ -1,0 +1,143 @@
+---
+title: Wallet Layer
+description: Why wallets are separated by capability through the type system
+---
+
+## Abstract
+
+Wallet capabilities vary fundamentally: read-only wallets observe addresses and UTxOs but cannot sign; signing wallets can sign transactions but differ in key management (seed phrase, private key, CIP-30 browser API). The wallet layer captures these differences through the type system, making signing operations unavailable at compile time when using read-only wallets. This capability-based separation prevents calling `.sign()` on clients that cannot sign—not through runtime checks, but through type constraints that make invalid operations inexpressible.
+
+## Purpose and Scope
+
+This document explains why wallet capabilities determine client types, how the type system enforces capability boundaries, and the architectural benefits of compile-time capability checking. It covers the wallet type hierarchy, client type determination, and capability-driven type safety.
+
+**Not covered**: Specific wallet implementations (see wallet guides), key derivation details (see BIP-32/BIP-44 specifications), or CIP-30 protocol details (see CIP-30 standard).
+
+## Design Philosophy
+
+Without type-level capability separation, applications rely on runtime checks: "Does this wallet support signing? If not, throw error." This defers errors to runtime and allows code to attempt operations that will inevitably fail. The question "can this wallet sign?" must be answered repeatedly throughout the codebase.
+
+The architecture encodes capability in types. A `ReadOnlyWallet` produces a `ReadOnlyClient` which has no `.sign()` method—attempting to call it is a compilation error. A `SigningWallet` produces a `SigningClient` where `.sign()` exists and is type-safe. The compiler enforces capability boundaries before code runs.
+
+This separation provides security by design: applications needing only monitoring cannot accidentally expose signing capability. The type system makes "read-only" genuinely read-only at the language level, not through defensive programming.
+
+## Wallet Capability Hierarchy
+
+Wallets separate into two capability levels, with signing wallets further divided by key management approach:
+
+<Mermaid chart={`
+graph TD
+    Base["[1] Wallet Base"]
+    
+    ReadOnly["[2] ReadOnlyWallet"]
+    Signing["[3] SigningWallet"]
+    
+    Seed[SeedWallet]
+    PrivateKey[PrivateKeyWallet]
+    Api[ApiWallet]
+    
+    Base --> ReadOnly
+    Base --> Signing
+    
+    Signing --> Seed
+    Signing --> PrivateKey
+    Signing --> Api
+    
+    style Base fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
+    style ReadOnly fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+    style Signing fill:#f59e0b,stroke:#92400e,stroke-width:3px,color:#ffffff
+    style Seed fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
+    style PrivateKey fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
+    style Api fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
+`} />
+
+**[1] Wallet Base**: Common operation all wallets support:
+- `address()` - Get wallet address
+
+UTxO queries (`getWalletUtxos()`) require a provider and are available on the client, not the wallet itself.
+
+**[2] ReadOnlyWallet**: Base operations only. No signing methods exist. Produced from address or credential without keys.
+
+**[3] SigningWallet**: Base operations plus signing:
+- `signTx(transaction)` - Sign transaction with wallet keys
+- `signMessage(message)` - Sign arbitrary message
+
+Three signing implementations:
+- **SeedWallet**: HD wallet from mnemonic (12/15/24 words)
+- **PrivateKeyWallet**: Extended private key (xprv)
+- **ApiWallet**: CIP-30 browser wallet API (Nami, Eternl, Flint, hardware wallets)
+
+## Client Type Determination
+
+Wallet capability determines the signing side of staged client assembly. The final client type depends on whether a provider is also present:
+
+<Mermaid chart={`
+graph LR
+    Assembly["[1] ClientAssembly"]
+    
+    WalletStep{Wallet step?}
+    ProviderStep{Provider step?}
+    
+    Assembly --> WalletStep
+    Assembly --> ProviderStep
+    ProviderStep -->|withBlockfrost / withKoios / withKupmios / withMaestro| RC["[2] ReadClient"]
+    WalletStep -->|withAddress| AC["[3] AddressClient"]
+    WalletStep -->|withSeed / withPrivateKey / withCip30| OSC["[4] OfflineSignerClient"]
+    
+    RC --> ROC["[5] ReadOnlyClient"]
+    RC --> SC["[6] SigningClient"]
+    AC --> ROC
+    OSC --> SC
+    
+    ROC --> ROB[newTx returns<br/>ReadOnlyTransactionBuilder]
+    SC --> STB[newTx returns<br/>SigningTransactionBuilder]
+    
+    ROB --> NoSign[build returns<br/>TransactionResultBase<br/>NO sign method]
+    STB --> CanSign[build returns<br/>SignBuilder<br/>HAS sign method]
+    
+    style Assembly fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
+    style ProviderStep fill:#fff3cd,stroke:#856404,stroke-width:3px,color:#856404
+    style WalletStep fill:#fff3cd,stroke:#856404,stroke-width:3px,color:#856404
+    style RC fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+    style AC fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+    style OSC fill:#f59e0b,stroke:#92400e,stroke-width:3px,color:#ffffff
+    style ROC fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+    style SC fill:#f59e0b,stroke:#92400e,stroke-width:3px,color:#ffffff
+    style NoSign fill:#e74c3c,stroke:#c0392b,stroke-width:4px,color:#ffffff
+    style CanSign fill:#2ecc71,stroke:#27ae60,stroke-width:4px,color:#ffffff
+`} />
+
+**[1] ClientAssembly**: Chain-scoped starting point.
+
+**[2] ReadClient**: Provider-backed client with no wallet capability yet.
+
+**[3] AddressClient**: Wallet identity only, created with `.withAddress()`.
+
+**[4] OfflineSignerClient**: Signing capability without provider-backed reads or transaction building, created with `.withSeed()`, `.withPrivateKey()`, or `.withCip30()`.
+
+**[5] ReadOnlyClient**: Read-capable client with wallet identity. Transaction builder's `build()` returns `TransactionResultBase` (unsigned transaction). No `sign()` method exists.
+
+**[6] SigningClient**: Full provider-backed signing client. Transaction builder's `build()` returns `SignBuilder`, so `sign()` is available.
+
+## Integration Points
+
+The wallet layer integrates with other architectural components:
+
+**Client Factory**: `client(chain)` uses staged methods like `.withAddress()`, `.withSeed()`, `.withPrivateKey()`, and `.withCip30()` to return the appropriate client type. Type narrowing happens during assembly—no runtime type guards needed in application code.
+
+**Transaction Builder**: Builder type (`ReadOnlyTransactionBuilder` vs `SigningTransactionBuilder`) determined by wallet capability. Read-only builders cannot produce `SignBuilder`, only `TransactionResultBase`.
+
+**Type System Enforcement**: The staged client surface narrows transaction builder access based on the assembled capability set:
+```
+ReadOnlyClient -> ReadOnlyTransactionBuilder
+SigningClient -> SigningTransactionBuilder
+```
+Compiler automatically selects correct return type based on wallet parameter.
+
+**Effect-TS Integration**: All wallet operations available as Effect values (`wallet.Effect.*`). Transaction builder uses Effect API for compositional error handling.
+
+## Related Topics
+
+- [Client Architecture](/docs/architecture) - How clients compose with wallets and providers
+- [Transaction Flow](/docs/architecture/transaction-flow) - How wallet type affects build/sign/submit flow
+- [Deferred Execution](/docs/architecture/deferred-execution) - Change address resolution from wallet

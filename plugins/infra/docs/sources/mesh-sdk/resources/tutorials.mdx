@@ -1,0 +1,268 @@
+---
+title: "Tutorials"
+description: "Step-by-step tutorials for building Cardano applications with Mesh SDK."
+---
+
+import Link from 'next/link';
+import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+
+Learn to build on Cardano with hands-on tutorials. Each tutorial includes working code, explanations, and best practices.
+
+## Getting started
+
+Start here if you are new to Mesh or Cardano development.
+
+| Tutorial | Time | Level |
+|----------|------|-------|
+| [Installation & Setup](/guides) | 10 min | Beginner |
+| [Next.js Integration](/guides/nextjs) | 15 min | Beginner |
+| [React Hooks & Components](/react/getting-started) | 20 min | Beginner |
+| [Wallet Connection](/guides/prove-wallet-ownership) | 15 min | Beginner |
+
+---
+
+## Transactions
+
+Learn to build and submit Cardano transactions.
+
+| Tutorial | Time | Level |
+|----------|------|-------|
+| [Send ADA & Tokens](/apis/txbuilder/basics) | 20 min | Beginner |
+| [Transaction Builder](/apis/txbuilder/basics) | 30 min | Intermediate |
+| [Multi-Asset Transactions](/apis/txbuilder/minting) | 25 min | Intermediate |
+| [Server-Side Transactions](/guides/minting-on-nodejs) | 30 min | Intermediate |
+
+### Send ADA example
+
+```typescript
+import { MeshTxBuilder } from '@meshsdk/core';
+
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const unsignedTx = await txBuilder
+  .txOut(recipientAddress, [{ unit: 'lovelace', quantity: '5000000' }])
+  .changeAddress(await wallet.getChangeAddress())
+  .selectUtxosFrom(await wallet.getUtxos())
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+---
+
+## NFT development
+
+Create and manage NFTs on Cardano.
+
+| Tutorial | Time | Level |
+|----------|------|-------|
+| [Mint Your First NFT](/guides/nft-collection) | 30 min | Beginner |
+| [Multi-Signature Minting](/guides/multisig-minting) | 45 min | Intermediate |
+| [Advanced NFT Metadata](/apis/txbuilder/minting) | 35 min | Intermediate |
+| [Burning Assets](/apis/txbuilder/minting#burning-assets) | 25 min | Intermediate |
+
+### Mint NFT example
+
+```typescript
+const tx = await txBuilder
+  .mint('1', policyId, assetName)
+  .mintingScript(mintingScript)
+  .txOut(recipientAddress, [
+    { unit: policyId + assetName, quantity: '1' },
+    { unit: 'lovelace', quantity: '2000000' }
+  ])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+---
+
+## Smart contracts
+
+Build with Plutus and Aiken smart contracts.
+
+| Tutorial | Time | Level |
+|----------|------|-------|
+| [Getting Started with Aiken](/aiken/getting-started) | 40 min | Intermediate |
+| [Your First Aiken Script](/aiken/first-script) | 50 min | Intermediate |
+| [Smart Contract Transactions](/guides/smart-contract-transactions) | 60 min | Advanced |
+| [Advanced Contract Patterns](/aiken/transactions) | 90 min | Advanced |
+
+### Lock funds to script
+
+```typescript
+const tx = await txBuilder
+  .txOut(scriptAddress, [{ unit: 'lovelace', quantity: '10000000' }])
+  .txOutDatumHashValue(datum)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+### Unlock funds from script
+
+```typescript
+const tx = await txBuilder
+  .spendingPlutusScript(languageVersion)
+  .txIn(scriptUtxo.input.txHash, scriptUtxo.input.outputIndex)
+  .txInScript(scriptCbor)
+  .txInDatumValue(datum)
+  .txInRedeemerValue(redeemer)
+  .txOut(recipient, outputValue)
+  .txInCollateral(collateralTxHash, collateralIndex)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+---
+
+## Advanced topics
+
+For experienced developers building production applications.
+
+| Tutorial | Time | Level |
+|----------|------|-------|
+| [Custom Providers](/guides/custom-provider) | 45 min | Advanced |
+| [Provider Integration](/providers) | 30 min | Intermediate |
+| [Local Development with Yaci](/yaci) | 40 min | Advanced |
+| [Production Best Practices](/guides/aiken) | 60 min | Advanced |
+
+---
+
+## Framework integrations
+
+Use Mesh with your preferred framework.
+
+| Framework | Tutorial | Time |
+|-----------|----------|------|
+| Next.js | [Full Stack Guide](/guides/nextjs) | 45 min |
+| Svelte | [Svelte Integration](/svelte) | 30 min |
+| Node.js | [Backend Guide](/guides/node-specific-imports) | 35 min |
+
+---
+
+## Learning paths
+
+Follow these structured paths based on your goals.
+
+### Path 1: Web developer to dApp developer
+
+| Step | Tutorial | Time |
+|------|----------|------|
+| 1 | Installation & Setup | 10 min |
+| 2 | Wallet Connection | 15 min |
+| 3 | Send ADA & Tokens | 20 min |
+| 4 | React Hooks & Components | 20 min |
+| 5 | Mint Your First NFT | 30 min |
+| 6 | Next.js Integration | 45 min |
+
+**Total: ~2.5 hours** | Beginner to Intermediate
+
+### Path 2: Smart contract developer
+
+| Step | Tutorial | Time |
+|------|----------|------|
+| 1 | Getting Started with Aiken | 40 min |
+| 2 | Your First Aiken Script | 50 min |
+| 3 | Smart Contract Transactions | 60 min |
+| 4 | Advanced Contract Patterns | 90 min |
+| 5 | Local Development with Yaci | 40 min |
+| 6 | Production Best Practices | 60 min |
+
+**Total: ~5.5 hours** | Intermediate to Advanced
+
+### Path 3: NFT collection creator
+
+| Step | Tutorial | Time |
+|------|----------|------|
+| 1 | Installation & Setup | 10 min |
+| 2 | Wallet Connection | 15 min |
+| 3 | Mint Your First NFT | 30 min |
+| 4 | Advanced NFT Metadata | 35 min |
+| 5 | Multi-Signature Minting | 45 min |
+| 6 | Server-Side Transactions | 30 min |
+
+**Total: ~2.5 hours** | Beginner to Intermediate
+
+---
+
+## Additional resources
+
+| Resource | Description |
+|----------|-------------|
+| [API Reference](/apis) | Complete API documentation |
+| [Code Examples](https://github.com/MeshJS/examples) | Working repositories |
+| [FAQ](/resources/faq) | Common questions |
+| [Use Cases](/resources/use-cases) | Real-world applications |
+| [Developer Resources](/resources/developer-resources) | Tools and communities |
+
+## Get help
+
+| Channel | Best for |
+|---------|----------|
+| [Discord](https://discord.gg/dH48jH3BKa) | Real-time support |
+| [GitHub Discussions](https://github.com/MeshJS/mesh/discussions) | Technical Q&A |
+| [Stack Overflow](https://stackoverflow.com/questions/tagged/meshsdk) | Searchable answers |
+
+---
+
+## After these tutorials
+
+You will be ready to:
+
+- Build production Cardano dApps
+- Create NFT collections and marketplaces
+- Develop DeFi applications
+- Integrate smart contracts
+- Contribute to the Cardano ecosystem
+
+**Start now** with the [Getting Started Guide](/guides).
+
+<script type="application/ld+json">
+{JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "Mesh SDK Tutorials",
+  "description": "Step-by-step tutorials for building Cardano applications with Mesh TypeScript SDK",
+  "itemListElement": [
+    {
+      "@type": "HowTo",
+      "position": 1,
+      "name": "Getting Started with Mesh",
+      "description": "Install Mesh and set up your first Cardano project",
+      "totalTime": "PT10M",
+      "skillLevel": "Beginner"
+    },
+    {
+      "@type": "HowTo",
+      "position": 2,
+      "name": "Wallet Connection",
+      "description": "Connect Cardano wallets and prove ownership",
+      "totalTime": "PT15M",
+      "skillLevel": "Beginner"
+    },
+    {
+      "@type": "HowTo",
+      "position": 3,
+      "name": "Mint Your First NFT",
+      "description": "Create a complete NFT collection with metadata",
+      "totalTime": "PT30M",
+      "skillLevel": "Beginner"
+    },
+    {
+      "@type": "HowTo",
+      "position": 4,
+      "name": "Smart Contract Development",
+      "description": "Build and deploy Aiken smart contracts",
+      "totalTime": "PT90M",
+      "skillLevel": "Advanced"
+    }
+  ]
+})}
+</script>

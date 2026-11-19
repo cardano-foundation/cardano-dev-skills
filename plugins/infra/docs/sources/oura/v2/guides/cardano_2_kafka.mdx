@@ -1,0 +1,55 @@
+---
+title: Cardano => Kafka
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+This guide walks through streaming data from a Cardano node into a [Kafka](https://kafka.apache.org/)
+topic with Oura — a typical setup for feeding chain data into an existing stream-processing
+platform.
+
+:::caution[Kafka needs a custom build]
+The Kafka sink isn't in the default binary. Build Oura with the `kafka` feature first — see
+[Install from source](/oura/v2/installation/from_source).
+:::
+
+## Prerequisites
+
+- A running Cardano node, reachable locally via a unix socket.
+- A Kafka cluster reachable over the network, with the destination topic already created.
+- Oura installed with the `kafka` feature enabled.
+
+## Instructions
+
+<Steps>
+
+1. **Create a config file** named `cardano2kafka.toml`:
+
+   ```toml title="cardano2kafka.toml"
+   [source]
+   type = "N2C"
+   socket_path = "/opt/cardano/cnode/sockets/node0.socket"
+
+   [sink]
+   type = "Kafka"
+   brokers = ["kafka-broker-0:9092"]
+   topic = "cardano-events"
+   ```
+
+   What this configures:
+   - **`[source]`** pulls chain data from your node.
+     - `N2C` reads from the node over Node-to-Client mini-protocols (chain-sync in full-blocks
+       mode).
+     - `socket_path` is the path to your local node's unix socket.
+   - **`[sink]`** sends the data on.
+     - `Kafka` uses a Kafka producer client as the output.
+     - `brokers` lists the Kafka brokers; add several `hostname:port` pairs for a cluster.
+     - `topic` is the topic to publish messages to.
+
+2. **Run Oura in `daemon` mode** against the config:
+
+   ```sh
+   RUST_LOG=info oura daemon --config cardano2kafka.toml
+   ```
+
+</Steps>

@@ -42,11 +42,20 @@ if [ -d "$SKILL_DIR" ]; then
   exit 1
 fi
 
-# Create directories
-mkdir -p "$SKILL_DIR/references"
+# Render into a staging directory first so a failure never leaves a half-created skill behind.
+# Stage in the repo root, not in skills/ (validate.py rejects any directory under skills/ without a
+# SKILL.md, so an interrupted run would break validation) and not in the system temp dir (a move
+# across filesystems is a copy, not an atomic rename). The skills directory is a sibling on the same
+# filesystem, so publishing below is a single rename.
+STAGE_ROOT="$(mktemp -d "$REPO_ROOT/.new-skill.XXXXXX")"
+trap 'rm -rf "$STAGE_ROOT"' EXIT
+# Plain mkdir so the scaffold follows the caller's umask (mktemp -d would force 0700)
+STAGE_DIR="$STAGE_ROOT/$SKILL_NAME"
+mkdir "$STAGE_DIR"
+mkdir "$STAGE_DIR/references"
 
 # Create SKILL.md
-cat > "$SKILL_DIR/SKILL.md" << 'TEMPLATE'
+cat > "$STAGE_DIR/SKILL.md" << 'TEMPLATE'
 ---
 name: SKILL_NAME_PLACEHOLDER
 description: >-
@@ -105,8 +114,13 @@ TODO: Describe what to produce.
 - See [shared principles](../../docs/SKILL_PRINCIPLES.md) for safety guidelines
 TEMPLATE
 
-# Replace placeholder with actual name
-sed -i '' "s/SKILL_NAME_PLACEHOLDER/$SKILL_NAME/g" "$SKILL_DIR/SKILL.md"
+# Replace placeholder with actual name (no sed -i: its syntax differs between GNU and BSD)
+sed "s/SKILL_NAME_PLACEHOLDER/$SKILL_NAME/g" "$STAGE_DIR/SKILL.md" > "$STAGE_DIR/SKILL.md.new"
+mv "$STAGE_DIR/SKILL.md.new" "$STAGE_DIR/SKILL.md"
+
+# Publish the finished scaffold
+mkdir -p "$SKILLS_DIR"
+mv "$STAGE_DIR" "$SKILL_DIR"
 
 echo "Created skill scaffold at: $SKILL_DIR"
 echo ""

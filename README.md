@@ -271,7 +271,7 @@ cardano-dev-skills/
 ├── registry/sources.yaml        ← canonical source list
 ├── skills/                      ← developer skills (flat layout)
 ├── docs/sources/                ← extracted upstream docs (auto-refreshed)
-├── scripts/                     ← fetch (pinned + sanitized), validate, policy-check, delta-scan, update-counts
+├── scripts/                     ← fetch (pinned + sanitized), validate, policy-check, delta-scan, new-skill scaffolding, kb tooling
 └── .github/                     ← workflows, issue templates
 ```
 

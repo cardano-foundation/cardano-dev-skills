@@ -1,0 +1,247 @@
+---
+title: Credential.ts
+nav_order: 49
+parent: Modules
+---
+
+## Credential overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [encoding](#encoding)
+  - [toCBORBytes](#tocborbytes)
+  - [toCBORHex](#tocborhex)
+- [model](#model)
+  - [Credential (type alias)](#credential-type-alias)
+- [parsing](#parsing)
+  - [fromCBORBytes](#fromcborbytes)
+  - [fromCBORHex](#fromcborhex)
+- [predicates](#predicates)
+  - [is](#is)
+- [schemas](#schemas)
+  - [Credential](#credential)
+  - [FromCDDL](#fromcddl)
+- [testing](#testing)
+  - [arbitrary](#arbitrary)
+- [utils](#utils)
+  - [CDDLSchema](#cddlschema)
+  - [CredentialEncoded (type alias)](#credentialencoded-type-alias)
+  - [FromCBORBytes](#fromcborbytes-1)
+  - [FromCBORHex](#fromcborhex-1)
+  - [makeKeyHash](#makekeyhash)
+  - [makeScriptHash](#makescripthash)
+
+---
+
+# encoding
+
+## toCBORBytes
+
+Convert a Credential to CBOR bytes.
+
+**Signature**
+
+```ts
+export declare const toCBORBytes: (credential: Credential, options?: CBOR.CodecOptions) => Uint8Array
+```
+
+Added in v2.0.0
+
+## toCBORHex
+
+Convert a Credential to CBOR hex string.
+
+**Signature**
+
+```ts
+export declare const toCBORHex: (credential: Credential, options?: CBOR.CodecOptions) => string
+```
+
+Added in v2.0.0
+
+# model
+
+## Credential (type alias)
+
+Type representing a credential that can be either a key hash or script hash
+Used in various address formats to identify ownership
+
+**Signature**
+
+```ts
+export type Credential = typeof Credential.Type
+```
+
+Added in v2.0.0
+
+# parsing
+
+## fromCBORBytes
+
+Parse a Credential from CBOR bytes.
+
+**Signature**
+
+```ts
+export declare const fromCBORBytes: (bytes: Uint8Array, options?: CBOR.CodecOptions) => Credential
+```
+
+Added in v2.0.0
+
+## fromCBORHex
+
+Parse a Credential from CBOR hex string.
+
+**Signature**
+
+```ts
+export declare const fromCBORHex: (hex: string, options?: CBOR.CodecOptions) => Credential
+```
+
+Added in v2.0.0
+
+# predicates
+
+## is
+
+Check if the given value is a valid Credential
+
+**Signature**
+
+```ts
+export declare const is: (
+  u: unknown,
+  overrideOptions?: ParseOptions | number
+) => u is KeyHash.KeyHash | ScriptHash.ScriptHash
+```
+
+Added in v2.0.0
+
+# schemas
+
+## Credential
+
+Credential schema representing either a key hash or script hash
+credential = [0, addr_keyhash // 1, script_hash]
+Used to identify ownership of addresses or stake rights
+
+**Signature**
+
+```ts
+export declare const Credential: Schema.Union<[typeof KeyHash.KeyHash, typeof ScriptHash.ScriptHash]>
+```
+
+Added in v2.0.0
+
+## FromCDDL
+
+CDDL schema for Credential as defined in the specification:
+credential = [0, addr_keyhash // 1, script_hash]
+
+**Signature**
+
+```ts
+export declare const FromCDDL: Schema.transformOrFail<
+  Schema.Tuple2<Schema.Literal<[0n, 1n]>, typeof Schema.Uint8ArrayFromSelf>,
+  Schema.SchemaClass<KeyHash.KeyHash | ScriptHash.ScriptHash, KeyHash.KeyHash | ScriptHash.ScriptHash, never>,
+  never
+>
+```
+
+Added in v2.0.0
+
+# testing
+
+## arbitrary
+
+FastCheck arbitrary for generating random Credential instances.
+Randomly selects between generating a KeyHash or ScriptHash credential.
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<KeyHash.KeyHash | ScriptHash.ScriptHash>
+```
+
+Added in v2.0.0
+
+# utils
+
+## CDDLSchema
+
+**Signature**
+
+```ts
+export declare const CDDLSchema: Schema.Tuple2<Schema.Literal<[0n, 1n]>, typeof Schema.Uint8ArrayFromSelf>
+```
+
+## CredentialEncoded (type alias)
+
+**Signature**
+
+```ts
+export type CredentialEncoded = typeof Credential.Encoded
+```
+
+## FromCBORBytes
+
+**Signature**
+
+```ts
+export declare const FromCBORBytes: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.transformOrFail<
+    typeof Schema.Uint8ArrayFromSelf,
+    Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+    never
+  >,
+  Schema.transformOrFail<
+    Schema.Tuple2<Schema.Literal<[0n, 1n]>, typeof Schema.Uint8ArrayFromSelf>,
+    Schema.SchemaClass<KeyHash.KeyHash | ScriptHash.ScriptHash, KeyHash.KeyHash | ScriptHash.ScriptHash, never>,
+    never
+  >
+>
+```
+
+## FromCBORHex
+
+**Signature**
+
+```ts
+export declare const FromCBORHex: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.Schema<Uint8Array, string, never>,
+  Schema.transform<
+    Schema.transformOrFail<
+      typeof Schema.Uint8ArrayFromSelf,
+      Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+      never
+    >,
+    Schema.transformOrFail<
+      Schema.Tuple2<Schema.Literal<[0n, 1n]>, typeof Schema.Uint8ArrayFromSelf>,
+      Schema.SchemaClass<KeyHash.KeyHash | ScriptHash.ScriptHash, KeyHash.KeyHash | ScriptHash.ScriptHash, never>,
+      never
+    >
+  >
+>
+```
+
+## makeKeyHash
+
+**Signature**
+
+```ts
+export declare const makeKeyHash: (hash: Uint8Array) => Credential
+```
+
+## makeScriptHash
+
+**Signature**
+
+```ts
+export declare const makeScriptHash: (hash: Uint8Array) => Credential
+```

@@ -1,0 +1,52 @@
+get:
+  tags:
+    - Cardano » Blocks
+  summary: Listing of next blocks
+  description: |
+    Return the list of blocks following a specific block.
+  parameters:
+    - in: path
+      name: hash_or_number
+      required: true
+      schema:
+        type: string
+        format: 64-character case-sensitive hexadecimal string or block number.
+      description: Hash of the requested block.
+      example: "5ea1ba291e8eef538635a53e59fddba7810d1679631cc3aed7c8e6c4091a516a"
+    - in: query
+      name: count
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 100
+      description: The number of results displayed on one page.
+    - in: query
+      name: page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 21474836
+        default: 1
+      description: The page number for listing the results.
+  responses:
+    "200":
+      description: Return the contents of the block
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../schemas/blocks/block_content_array.yaml
+    "400":
+      $ref: ../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../responses/errors/500.yaml

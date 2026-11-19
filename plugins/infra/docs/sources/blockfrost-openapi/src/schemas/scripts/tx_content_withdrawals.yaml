@@ -1,0 +1,15 @@
+type: array
+items:
+  type: object
+  properties:
+    address:
+      type: string
+      example: "stake1u9r76ypf5fskppa0cmttas05cgcswrttn6jrq4yd7jpdnvc7gt0yc"
+      description: Bech32 withdrawal address
+    amount:
+      type: string
+      example: "431833601"
+      description: Withdrawal amount in Lovelaces
+  required:
+    - address
+    - amount

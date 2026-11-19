@@ -1,0 +1,125 @@
+---
+sidebar_label: Register a DRep
+title: Registering as a SanchoNet delegate representative (DRep)
+sidebar_position: 6
+slug: /tutorials/drep-registration
+---
+
+### Pre-requisites
+
+* Payment address with funds
+* A SanchoNet node
+
+### Generate SanchoNet DRep keys and an ID
+
+1. Generate a DRep key pair:
+
+````
+cardano-cli conway governance drep key-gen \
+--verification-key-file drep.vkey \
+--signing-key-file drep.skey
+````
+
+````
+{
+    "type": "DRepSigningKey_ed25519",
+    "description": "Delegate Representative Signing Key",
+    "cborHex": "5820eba7053fdc9cb3b8aacf142d3d4ad575bb48fb92f4082d81605ac8e2ccfead5d"
+}
+````
+````
+{
+    "type": "DRepVerificationKey_ed25519",
+    "description": "Delegate Representative Verification Key",
+    "cborHex": "5820c19e0e939609531cfd04dcfa5bf1a5f3e245aa88e163759341aba296af34cc7e"
+}
+````
+
+2. Generate a SanchoNet DRep ID:
+
+````
+cardano-cli conway governance drep id \
+--drep-verification-key-file drep.vkey \
+--out-file drep.id
+````
+````
+drep124w9k5ml25kcshqet8r3g2pwk6kqdhj79thg2rphf5u5urve0an
+````
+
+### Generate the registration certificate
+
+1. Create a SanchoNet DRep registration certificate
+
+There are three ways to generate the certificate:
+
+* Using the drep.vkey file:
+
+````
+cardano-cli conway governance drep registration-certificate \
+--drep-verification-key-file drep.vkey \
+--key-reg-deposit-amt $(cardano-cli conway query gov-state --testnet-magic 4 | jq -r .currentPParams.dRepDeposit) \
+--out-file drep-register.cert
+````
+
+* Using the DRep verification key:
+
+````
+cardano-cli conway governance drep registration-certificate \
+--drep-verification-key "$(cat drep.vkey | jq -r .cborHex | cut -c 5-)" \
+--key-reg-deposit-amt $(cardano-cli conway query gov-state --testnet-magic 4 | jq -r .currentPParams.dRepDeposit) \
+--out-file drep-register.cert
+````
+
+* Using the DRep ID:
+
+````
+cardano-cli conway governance drep registration-certificate \
+--drep-key-hash $(cat drep.id) \
+--key-reg-deposit-amt $(cardano-cli conway query gov-state --testnet-magic 4 | jq -r .currentPParams.dRepDeposit) \
+--out-file drep-register.cert
+````
+
+Any of the above methods produces drep-register.cert, which contains:
+
+````
+{
+    "type": "CertificateShelley",
+    "description": "DRep Key Registration Certificate",
+    "cborHex": "84108200581c555c5b537f552d885c1959c714282eb6ac06de5e2aee850c374d394e00f6"
+}
+````
+
+### Submit certificate in a transaction
+
+1. Submit the SanchoNet DRep registration certificate in a transaction.
+
+* Build:
+
+```
+cardano-cli conway transaction build \
+--testnet-magic 4 \
+--witness-override 2 \
+--tx-in $(cardano-cli query utxo --address $(cat payment.addr) --testnet-magic 4 --out-file  /dev/stdout | jq -r 'keys[0]') \
+--change-address $(cat payment.addr) \
+--certificate-file drep-register.cert \
+--out-file tx.raw
+```
+
+* Sign:
+
+```
+cardano-cli conway transaction sign \
+--tx-body-file tx.raw \
+--signing-key-file payment.skey \
+--signing-key-file drep.skey \
+--testnet-magic 4 \
+--out-file tx.signed
+```
+
+* Submit:
+
+```
+cardano-cli conway transaction submit \
+--testnet-magic 4 \
+--tx-file tx.signed
+```

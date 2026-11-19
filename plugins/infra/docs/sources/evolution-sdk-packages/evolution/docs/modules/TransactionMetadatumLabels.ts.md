@@ -1,0 +1,227 @@
+---
+title: TransactionMetadatumLabels.ts
+nav_order: 175
+parent: Modules
+---
+
+## TransactionMetadatumLabels overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [model](#model)
+  - [TransactionMetadatumLabel](#transactionmetadatumlabel)
+  - [TransactionMetadatumLabel (type alias)](#transactionmetadatumlabel-type-alias)
+- [schemas](#schemas)
+  - [TransactionMetadatumLabels (class)](#transactionmetadatumlabels-class)
+    - [toJSON (method)](#tojson-method)
+    - [toString (method)](#tostring-method)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method)
+    - [[Equal.symbol] (method)](#equalsymbol-method)
+    - [[Hash.symbol] (method)](#hashsymbol-method)
+    - [size (method)](#size-method)
+    - [get (method)](#get-method)
+    - [set (method)](#set-method)
+    - [add (method)](#add-method)
+    - [removeFirst (method)](#removefirst-method)
+    - [removeLast (method)](#removelast-method)
+    - [removeAll (method)](#removeall-method)
+    - [removeAt (method)](#removeat-method)
+    - [has (method)](#has-method)
+- [utils](#utils)
+  - [describeTransactionMetadatumLabel](#describetransactionmetadatumlabel)
+
+---
+
+# model
+
+## TransactionMetadatumLabel
+
+CDDL spec:
+
+```
+transaction_metadatum_label = uint .size 8
+```
+
+**Signature**
+
+```ts
+export declare const TransactionMetadatumLabel: typeof Schema.Uint8
+```
+
+Added in v2.0.0
+
+## TransactionMetadatumLabel (type alias)
+
+Type representing a transaction metadatum label.
+
+**Signature**
+
+```ts
+export type TransactionMetadatumLabel = typeof TransactionMetadatumLabel.Type
+```
+
+Added in v2.0.0
+
+# schemas
+
+## TransactionMetadatumLabels (class)
+
+Transaction metadatum labels from an array of `TransactionMetadatumLabel`
+
+**Signature**
+
+```ts
+export declare class TransactionMetadatumLabels
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+;[Inspectable.NodeInspectSymbol]()
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+### size (method)
+
+Gets the size of the labels.
+
+**Signature**
+
+```ts
+size()
+```
+
+### get (method)
+
+Gets the label located at the specified index. If the index is out-of-bound,
+returns `undefined`
+
+**Signature**
+
+```ts
+get(index: number)
+```
+
+### set (method)
+
+Overrides the existing labels with the specified ones.
+
+**Signature**
+
+```ts
+set(overideLabels: Array<TransactionMetadatumLabel>)
+```
+
+### add (method)
+
+Appends a new label to the **end**
+
+**Signature**
+
+```ts
+add(label: TransactionMetadatumLabel)
+```
+
+### removeFirst (method)
+
+Removes the first occurence of the specified label from the collection.
+
+**Signature**
+
+```ts
+removeFirst(label: TransactionMetadatumLabel)
+```
+
+### removeLast (method)
+
+Removes the last occurence of the specified label from the collection.
+
+**Signature**
+
+```ts
+removeLast(label: TransactionMetadatumLabel)
+```
+
+### removeAll (method)
+
+Removes all occurences of the specified label from the collection.
+
+**Signature**
+
+```ts
+removeAll(label: TransactionMetadatumLabel)
+```
+
+### removeAt (method)
+
+Removes the label at the specified index from the collection.
+
+**Signature**
+
+```ts
+removeAt(index: number)
+```
+
+### has (method)
+
+Determines whether the collection contains the specified label.
+
+**Signature**
+
+```ts
+has(label: TransactionMetadatumLabel)
+```
+
+# utils
+
+## describeTransactionMetadatumLabel
+
+Describe transaction metadatum label as per
+[CIP-10](https://github.com/cardano-foundation/CIPs/blob/master/CIP-0010/registry.json) standard.
+
+**NOTE**: Only labels associated with CIPs will be described.
+
+**Signature**
+
+```ts
+export declare const describeTransactionMetadatumLabel: (label: TransactionMetadatumLabel) => string | undefined
+```
+
+Added in v2.0.0

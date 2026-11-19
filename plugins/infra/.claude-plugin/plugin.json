@@ -1,0 +1,16 @@
+{
+  "name": "cardano-infra-skills",
+  "version": "0.0.3",
+  "description": "Packaging-proof stand-in for the infrastructure plugin. Not for use.",
+  "author": {
+    "name": "Cardano Foundation"
+  },
+  "license": "Apache-2.0",
+  "mcpServers": {
+    "cardano-infra-docs": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["-I", "-B", "${CLAUDE_PLUGIN_ROOT}/scripts/kb/mcp_server.py"]
+    }
+  }
+}

@@ -1,0 +1,243 @@
+---
+title: "Getting Started with Svelte"
+description: "Set up Mesh Svelte components in your project in 5 minutes"
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+Mesh Svelte provides production-ready UI components for Cardano wallet connections. Built with Svelte 5, these components offer reactive state management using runes and work with all CIP-30 compatible wallets.
+
+**What you get:**
+- `CardanoWallet` - A drop-in wallet connection button
+- `BrowserWalletState` - Reactive wallet state management
+- Pre-built styles that match your app's theme
+
+## Quick Start
+
+Get a wallet connection button running in your Svelte app.
+
+```bash
+npm install @meshsdk/svelte
+```
+
+```svelte
+
+<script lang="ts">
+  import '@meshsdk/svelte/styles.css';
+  let { children } = $props();
+</script>
+
+{@render children()}
+```
+
+```svelte
+
+<script lang="ts">
+  import { CardanoWallet } from "@meshsdk/svelte";
+</script>
+
+<CardanoWallet />
+```
+
+## Step-by-Step Setup
+
+### Option 1: Use the Mesh CLI (Recommended)
+
+Scaffold a new Svelte project with Mesh pre-configured.
+
+```bash
+npx meshjs your-app-name
+```
+
+Select the Svelte template when prompted. This creates a project with all dependencies installed and configured.
+
+### Option 2: Add to an Existing Project
+
+**Step 1: Install the package**
+
+```bash
+npm install @meshsdk/svelte
+```
+
+**Step 2: Import styles**
+
+Add the Mesh CSS to your root layout file (`+layout.svelte`). This applies default styles to all Mesh components.
+
+```svelte
+<script lang="ts">
+  import '@meshsdk/svelte/styles.css';
+  let { children } = $props();
+</script>
+
+{@render children()}
+```
+
+**Step 3: Add the wallet component**
+
+Import and use `CardanoWallet` in any page or component.
+
+```svelte
+<script lang="ts">
+  import { CardanoWallet } from "@meshsdk/svelte";
+</script>
+
+<main>
+  <CardanoWallet />
+</main>
+```
+
+## API Reference
+
+### CardanoWallet
+
+A button component that opens a wallet selection modal and handles the connection flow.
+
+**Props:**
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `label` | `string` | `"Connect Wallet"` | Button text |
+| `isDark` | `boolean` | `false` | Enable dark mode styling |
+| `onConnected` | `() => void` | `undefined` | Callback after successful connection |
+
+**Examples:**
+
+```svelte
+
+<CardanoWallet isDark={true} />
+
+
+<CardanoWallet label="Connect a Wallet" />
+
+
+<script lang="ts">
+  import { CardanoWallet } from "@meshsdk/svelte";
+
+  function handleConnected() {
+    console.log("Wallet connected successfully");
+    // Fetch user data, redirect, etc.
+  }
+</script>
+
+<CardanoWallet onConnected={handleConnected} />
+```
+
+### BrowserWalletState
+
+A reactive state object that tracks the current wallet connection. All properties are Svelte 5 runes, so they update automatically in your UI.
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `wallet` | `MeshCardanoBrowserWallet \| null` | The connected wallet instance |
+| `connected` | `boolean` | `true` when a wallet is connected |
+| `name` | `string` | Name of the connected wallet |
+| `connecting` | `boolean` | `true` while connection is in progress |
+
+**Example:**
+
+```svelte
+<script lang="ts">
+  import { CardanoWallet, BrowserWalletState } from "@meshsdk/svelte";
+
+  $effect(() => {
+    if (BrowserWalletState.wallet) {
+      BrowserWalletState.wallet.getChangeAddress().then(address => {
+        console.log("Connected address:", address);
+      });
+    }
+  });
+</script>
+
+<div>
+  {#if BrowserWalletState.connected}
+    <p>Connected to {BrowserWalletState.name}</p>
+  {:else}
+    <CardanoWallet />
+  {/if}
+</div>
+```
+
+## Complete Example
+
+A full example showing wallet connection with address display.
+
+```svelte
+<script lang="ts">
+  import { CardanoWallet, BrowserWalletState } from "@meshsdk/svelte";
+
+  let address = $state("");
+  let balance = $state("");
+
+  $effect(() => {
+    if (BrowserWalletState.wallet) {
+      // Get wallet address
+      BrowserWalletState.wallet.getChangeAddress().then(addr => {
+        address = addr;
+      });
+
+      // Get wallet balance
+      BrowserWalletState.wallet.getBalance().then(bal => {
+        const lovelace = bal.find(b => b.unit === "lovelace");
+        if (lovelace) {
+          balance = (parseInt(lovelace.quantity) / 1_000_000).toFixed(2);
+        }
+      });
+    }
+  });
+</script>
+
+<main>
+  <h1>My Cardano dApp</h1>
+
+  {#if BrowserWalletState.connecting}
+    <p>Connecting...</p>
+  {:else if BrowserWalletState.connected}
+    <div>
+      <p>Wallet: {BrowserWalletState.name}</p>
+      <p>Address: {address.slice(0, 20)}...</p>
+      <p>Balance: {balance} ADA</p>
+    </div>
+  {:else}
+    <CardanoWallet label="Connect Your Wallet" />
+  {/if}
+</main>
+```
+
+## Troubleshooting
+
+### Styles not applying
+
+Ensure you import the CSS file in your root layout, not in individual components.
+
+```svelte
+
+<script lang="ts">
+  import '@meshsdk/svelte/styles.css';
+</script>
+```
+
+### Wallet not appearing in the list
+
+The wallet extension must be installed in the user's browser. Mesh automatically detects all CIP-30 compatible wallets. If a wallet is missing, verify:
+
+1. The wallet extension is installed and enabled
+2. The browser page has been refreshed after installation
+3. The wallet is CIP-30 compliant
+
+### TypeScript errors with BrowserWalletState
+
+Ensure you are using Svelte 5. The `BrowserWalletState` object uses Svelte 5 runes, which are not compatible with Svelte 4.
+
+### Building a custom wallet component
+
+For advanced customization beyond the provided props, build your own component using the <Link href="/apis/wallets/browserwallet">Browser Wallet API</Link>. Reference the <Link href="https://github.com/MeshJS/mesh/blob/main/packages/mesh-svelte/src/cardano-wallet/index.svelte">source code</Link> for implementation details.
+
+## Related Links
+
+- <Link href="/docs/svelte/ui-components">UI Components</Link> - All available Svelte components
+- <Link href="/apis/wallets/browserwallet">Browser Wallet API</Link> - Full CIP-30 wallet methods
+- <Link href="https://github.com/MeshJS/mesh/tree/main/packages/mesh-svelte">Source Code</Link> - Mesh Svelte package on GitHub

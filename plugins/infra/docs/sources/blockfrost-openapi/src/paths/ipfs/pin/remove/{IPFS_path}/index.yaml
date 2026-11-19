@@ -1,0 +1,65 @@
+servers:
+  - url: https://ipfs.blockfrost.io/api/v0
+post:
+  tags:
+    - IPFS » Pins
+  summary: Remove a IPFS pin
+  description: |
+    Remove pinned objects from local storage
+
+    <p>
+      <span class="hosted">Hosted</span> Endpoint only available for hosted variant.
+    </p>
+
+    **Note:** If the object was pinned to Filecoin (using `filecoin=true`), it cannot be removed or unpinned due to Filecoin's immutable and persistent storage guarantees. Please ensure careful consideration when pinning objects to Filecoin, as the action is irreversible.
+  parameters:
+    - in: path
+      required: true
+      name: IPFS_path
+      schema:
+        type: string
+        description: The path to the IPFS object
+  x-codeSamples:
+    - lang: "Shell"
+      label: "cURL"
+      source: |
+        curl "https://ipfs.blockfrost.io/api/v0/ipfs/pin/remove/{IPFS_PATH}" \
+          -X POST \
+          -H "project_id: $PROJECT_ID" \
+  responses:
+    "200":
+      description: Returns the pins removed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              ipfs_hash:
+                type: string
+                example: "QmPojRfAXYAXV92Dof7gtSgaVuxEk64xx9CKvprqu9VwA8"
+                description: IPFS hash of the pinned object
+              state:
+                type: string
+                enum:
+                  - queued
+                  - pinned
+                  - unpinned
+                  - failed
+                  - gc
+                example: "unpinned"
+                description: State of the pin action
+            required:
+              - ipfs_hash
+              - state
+    "400":
+      $ref: ../../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../../responses/errors/500.yaml

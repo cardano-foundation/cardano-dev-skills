@@ -1,0 +1,483 @@
+---
+title: "Common Design Patterns"
+description: "Aiken is a functional programming language for Cardano smart contracts built on the EUTxO model. Common design patterns are proven architectural approaches refined across Plutus V1, V2, and V3 — including enforcing output uniqueness, one-shot minting policies, the withdraw-zero trick, and avoiding double-satisfaction vulnerabilities. A reference for writing secure, efficient validators that correctly handle EUTxO-based smart contract challenges."
+difficulty: "intermediate"
+keywords: ["design patterns", "double satisfaction", "output uniqueness", "one-shot minting", "withdraw zero", "Plutus V1", "Plutus V2", "Plutus V3", "security", "anti-patterns"]
+topics: ["design-patterns", "security", "best-practices", "eutxo-patterns"]
+prerequisites: ["eutxo", "validators"]
+related: ["eutxo", "validators", "what-i-wish-i-knew"]
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Common Design Patterns
+
+There are number of design patterns that have been refined and enabled as Plutus has advanced from V1 to V2,
+and now to V3. This document seeks to be a non-exhaustive reference to these design patterns and practices.
+
+## Enforcing Uniqueness
+
+Enforcing the uniqueness of policies, asset names, or new outputs is useful in a number of contexts.
+
+### "One-Shot" Minting Policies
+
+A validator is parameterized with an `OutputReference`, the minting validator
+enforces that the inputs to the transaction contain the corresponding `UTxO` as
+input. By doing this, the minting policy is ensured to only validate once and
+only once (since an unspent transaction output can only be spent once, by
+definition). In some designs, this logic is used for only a subset of redeemers
+to allow more flexible minting policies.
+
+Let's walk through an example.
+
+An NFT (Non-Fungible Token) can be created using a one-shot minting policy that
+ensures each minted value is validated by spending a specific UTxO provided
+through the transaction inputs. This minting policy uses a validator parameter
+of OutputReference to confirm that the transaction spends the UTxO.
+Additionally, the policy guarantees that only one token is minted, ensuring the
+NFT's uniqueness.
+
+First define OutputReference as parameter and set the action type to mint or
+burn the token based on the value provided in the redeemer.
+
+``` aiken
+use cardano/transaction.{OutputReference, Transaction}
+use cardano/assets.{PolicyId}
+
+pub type Action {
+  Minting
+  Burning
+}
+
+validator one_shot(utxo_ref: OutputReference) {
+  mint(redeemer: Action, policy_id: PolicyId, self: Transaction) {
+      todo @"mint and burn"
+    }
+  }
+
+```
+
+The validator must handle minting/burning operations and ensures that only one value is minted; it will fail otherwise.
+
+```aiken {1, 12-17}
+use aiken/collection/dict
+use cardano/transaction.{OutputReference, Transaction}
+use cardano/assets.{PolicyId}
+
+pub type Action {
+  Minting
+  Burning
+}
+
+validator one_shot(utxo_ref: OutputReference) {
+  mint(redeemer: Action, policy_id: PolicyId, self: Transaction) {
+      // It checks that only one minted asset exists and will fail otherwise
+      expect [Pair(_asset_name, quantity)] = self.mint
+        |> assets.tokens(policy_id)
+        |> dict.to_pairs()
+
+      todo @"Check if output is consumed"
+    }
+  }
+
+```
+
+To enforce uniqueness, we need to ensure that the UTxO defined as OutputReference in the validator parameters is
+consumed. This is because every OutputReference is a unique combination of the Transaction ID and an Output Index
+Integer. It's important to remember that the Transaction ID is a `Hash<Blake2b_256, Transaction>`, which is also a
+unique identifier and will not be repeated.
+
+``` aiken {2, 18-25}
+use aiken/collection/dict
+use aiken/collection/list
+use cardano/transaction.{OutputReference, Transaction}
+use cardano/assets.{PolicyId}
+
+pub type Action {
+  Minting
+  Burning
+}
+
+validator one_shot(utxo_ref: OutputReference) {
+  mint(redeemer: Action, policy_id: PolicyId, self: Transaction) {
+      // It checks that only one minted asset exists and will fail otherwise
+      expect [Pair(_asset_name, quantity)] = self.mint
+        |> assets.tokens(policy_id)
+        |> dict.to_pairs()
+
+      let Transaction{inputs, mint , ..} = self
+
+      // Check if the specified UTxO reference (utxo_ref) is consumed by any input
+      let is_output_consumed = list.any(inputs, fn(input) { input.output_reference == utxo_ref })
+
+      when redeemer is {
+        Minting ->
+          is_output_consumed? && (quantity == 1)?
+
+        Burning -> (quantity == -1)? // No need to check if output is consumed for burning
+      }
+    }
+  }
+
+```
+
+### Receipts
+
+A validator can mint a unique receipt for a transaction by requiring that the name of the asset is any
+unique value specific to the transaction where validation is set to occur. In other words, if we enforce
+that only one receipt is to be minted per transaction, we can use `blake2b_256` and `cbor.serialise` to
+get a unique value that can be assigned to the `AssetName` expected for the receipt from the
+`OutputReference` from the first `Input` in our transactions inputs.
+
+``` aiken
+use aiken/builtin.{blake2b_256}
+use aiken/cbor
+use aiken/collection/dict
+use aiken/collection/list
+use cardano/assets.{PolicyId}
+use cardano/transaction.{Transaction}
+
+validator receipt {
+  // This validator expects a minting transaction
+  mint(_r: Data, policy_id: PolicyId, self: Transaction) {
+    let Transaction { inputs, mint, .. } = self
+
+    // Select the first input and concatenate its output reference and index to
+    // generate the expected token name
+    expect Some(first_input) = list.at(inputs, 0)
+    expect [Pair(asset_name, quantity)] =
+      mint |> assets.tokens(policy_id) |> dict.to_pairs()
+
+    let expected_token_name =
+      first_input.output_reference
+        |> cbor.serialise
+        |> blake2b_256
+
+    // Compare the asset name with the first utxo output reference
+    asset_name == expected_token_name && quantity == 1
+  }
+
+  // The validator will fail if the transaction is not for minting.
+  else(_) {
+    fail
+  }
+}
+```
+
+We could use this validator to mint a unique receipt for a transaction. It will get the first UTxO reference
+and will compare it with the asset name.
+
+### Unique Outputs
+
+#### Problem: Double Satisfaction
+
+To prevent a vulnerability called _'Double Satisfaction'_ (see more below), one
+must ensure that outputs associated with a given input are only counted once
+across all possible validations occuring in a transaction.
+
+In the eUTxO model, a common anti-pattern is to predicate spending upon logic
+that is specific to a given input - without ensuring the uniqueness of the
+corresponding output.
+
+Let's walk through a short example: Bob wants to sell 20 SCOIN and wants at
+least 5 ADA in return; the contract would require that at least 5 ADA is paid
+to Bob.
+
+Step-by-step swap:
+
+1. Bob sends 20 SCOIN to the validator with a datum containing his
+VerificationKeyHash and the price (5 ADA) required to get the 20 SCOIN.
+
+2. Alice makes a new transaction getting the 20 SCOIN and paying 5 ADA to Bob.
+
+3. Alice will get 20 SCOIN.
+
+4. Bob will get 5 ADA.
+
+
+``` aiken
+use aiken/collection/list
+use aiken/crypto.{Blake2b_224, Hash, VerificationKey}
+use cardano/address
+use cardano/assets.{lovelace_of, merge}
+use cardano/transaction.{Output, OutputReference, Transaction}
+
+type VerificationKeyHash =
+  Hash<Blake2b_224, VerificationKey>
+
+pub type DatumSwap {
+  beneficiary: VerificationKeyHash,
+  price: Int,
+}
+
+validator exploitable_swap {
+  spend(
+    optional_datum: Option<DatumSwap>,
+    _redeemer: Data,
+    _own_ref: OutputReference,
+    self: Transaction,
+  ) {
+    expect Some(datum) = optional_datum
+
+    let beneficiary = address.from_verification_key(datum.beneficiary)
+
+    let user_outputs =
+      list.filter(
+        self.outputs,
+        fn(output) { output.address == beneficiary },
+      )
+
+    let value_paid =
+      list.foldl(
+        user_outputs,
+        assets.zero,
+        fn(output, total) { merge(output.value, total) },
+      )
+
+    (lovelace_of(value_paid) >= datum.price)?
+  }
+}
+```
+
+So far, everything is ok, but what if we have some UTxOs locked in the
+validator at similar prices?
+
+Bob wants to sell 20 XCOIN, and 20 SCOIN and wants at least 10 ADA in return
+for each UTxO; the contract would require that at least 10 ADA be paid to Bob.
+Now Alice comes and pays Bob 10 ADA, in the same transaction she takes both the
+20 SCOIN and 20 XCOIN because the contract only ensures that at least 10 ADA is
+paid to Bob.
+
+So, this validator could potentially cause be satisfied twice with the same
+inputs, where anyone can pay once and get every UTxO unlocked at the same price
+or less.
+
+#### Solution: Tagged Outputs
+
+What can we do? We have to ensure that each input has a corresponding unique
+output to pay or predicate the logic of spending any input of the script on all
+of the inputs and outputs relevant to the business logic of the dApp.
+
+In addition, we have to remember that the code in the validator will be
+executed for every UTxO locked by the validator that we are trying to spend
+from. So we have to make sure that outputs aren't counted multiple times across
+multiple executions of the validator (for each input validation).
+
+This can be achieved by _tagging_ outputs with a value which is unique to the
+input. Enough information is present in the `OutputReference` of the input to
+create a unique tag that must then be found in outputs.
+
+``` aiken {26-50}
+use aiken/collection/list
+use aiken/crypto.{Blake2b_224, Hash, VerificationKey}
+use cardano/address
+use cardano/assets.{lovelace_of, merge}
+use cardano/transaction.{InlineDatum, Output, OutputReference, Transaction}
+
+type VerificationKeyHash =
+  Hash<Blake2b_224, VerificationKey>
+
+pub type DatumSwap {
+  beneficiary: VerificationKeyHash,
+  price: Int,
+}
+
+validator swap {
+  spend(
+    optional_datum: Option<DatumSwap>,
+    _redeemer: Data,
+    own_ref: OutputReference,
+    self: Transaction,
+  ) {
+    expect Some(datum) = optional_datum
+
+    let beneficiary = address.from_verification_key(datum.beneficiary)
+
+    // We will get all UTxO outputs with a datum equal to the UTxO input's reference
+    // we are validating. We have to remember that this code will be executed for every
+    // UTxO locked to the validator address that we are trying to unlock.
+    let user_outputs_restricted =
+      list.filter(
+        self.outputs,
+        fn(output) {
+          when output.datum is {
+            InlineDatum(output_datum) ->
+              // Note that we use a soft-cast here and not an expect, because the transaction
+              // might still contain other kind of outputs that we simply chose to ignore.
+              // Using expect here would cause the entire transaction to be rejected for any
+              // output that doesn't have a datum of that particular shape.
+              if output_datum is OutputReference {
+                and {
+                  output.address == beneficiary,
+                  own_ref == output_datum,
+                }
+              } else {
+                False
+              }
+            _ -> False
+          }
+        },
+      )
+
+    // We sum all output values and check that the amount paid is greater than or equal to the price
+    // asked by the seller.
+    let value_paid =
+      list.foldl(
+        user_outputs_restricted,
+        assets.zero,
+        fn(n, acc) { merge(n.value, acc) },
+      )
+
+    (lovelace_of(value_paid) >= datum.price)?
+  }
+}
+```
+
+## State Thread Tokens (a.k.a STT)
+
+It is often useful to have a mutable state which either changes with each transaction, or on a periodic
+basis. One way to ensure that a datum is not 'spoofed' is to ensure that the input or reference input with
+that datum contains an NFT which has been generated to be unique using one of the method described above.
+
+In this example, we will create an STT that tracks the sum of every transaction
+that uses the STT. And for this, we will create a multivalidator with two
+responsabilities: a minting and spending policy.
+
+The STT Minting Policy allows us to create new tokens with a counter datum initialized at 0.
+
+```aiken
+use aiken/collection/dict
+use aiken/collection/list
+use cardano/address.{Script}
+use cardano/assets.{PolicyId, policies}
+use cardano/transaction.{InlineDatum, OutputReference, Transaction}
+use config
+
+validator counter_stt(utxo_ref: OutputReference) {
+  mint(_redeemer: Data, policy_id: PolicyId, self: Transaction) {
+    let Transaction { inputs, outputs, mint, .. } = self
+
+    expect [Pair(_asset_name, quantity)] =
+      mint |> assets.tokens(policy_id) |> dict.to_pairs()
+
+    let is_output_consumed =
+      list.any(inputs, fn(input) { input.output_reference == utxo_ref })
+
+    expect Some(nft_output) =
+      list.find(
+        outputs,
+        fn(output) { list.has(policies(output.value), policy_id) },
+      )
+    expect InlineDatum(datum) = nft_output.datum
+    expect counter: Int = datum
+    is_output_consumed? && (1 == quantity)? && counter == 0
+  }
+  // "Create the spending part to handle the STT"
+}
+```
+
+Here is the part of the validator that ensures every transaction increments the value of the counter:
+
+- We check if the transaction is signed by the operator.
+- We obtain the `ScriptHash{:ak}` to identify the NFT, which is the same as the `PolicyId{:ak}`.
+- We check if an input NFT exists and has a datum with an integer.
+- We check if an output exists and has a datum with an integer.
+- We check if the output datum equals the input datum + 1.
+
+```aiken
+validator counter_stt(utxo_ref: OutputReference) {
+
+  // Mint code...
+
+  spend(
+    _optional_datum: Option<Data>,
+    _redeemer: Data,
+    own_ref: OutputReference,
+    self: Transaction,
+  ) {
+    let Transaction { inputs, outputs, .. } = self
+
+    // Getting the script hash from this validator. Note that since the
+    // `mint` handler is defined as part of the same validator, they share
+    // the same hash digest. Thus, our `payment_credential` is ALSO our STT
+    // minting policy.
+    expect Some(own_input) =
+      list.find(inputs, fn(input) { input.output_reference == own_ref })
+    expect Script(own_script_hash) = own_input.output.address.payment_credential
+
+    // Checking if the transaction is signed by the operator.
+    let is_signed_by_operator =
+      list.has(self.extra_signatories, config.operator)
+
+    // One input should hold the STT, with the expected format.
+    expect Some(stt_input) =
+      list.find(
+        inputs,
+        fn(input) { list.has(policies(input.output.value), own_script_hash) },
+      )
+    expect InlineDatum(input_datum) = stt_input.output.datum
+    expect counter_input: Int = input_datum
+
+    // The STT must be forwarded to an output
+    expect Some(stt_output) =
+      list.find(
+        outputs,
+        fn(output) { list.has(policies(output.value), own_script_hash) },
+      )
+    expect InlineDatum(output_datum) = stt_output.datum
+    expect counter_output: Int = output_datum
+    expect stt_input.output.address == stt_output.address
+
+    // Final validations
+    is_signed_by_operator? && (counter_output == counter_input + 1)?
+  }
+}
+```
+
+<Callout type="info">
+One important thing to point out is that we're pulling the operator value from the config, which comes from the `config` section of the aiken.toml file:
+
+``` toml
+[config.default.operator]
+encoding = "hex"
+bytes = "00000000000000000000000000000000000000000000000000000000"
+```
+</Callout>
+
+## Forwarding Validation & Other Withdrawal Tricks
+
+By enforcing withdrawals from a specific given script, we can effectively
+'forward' the validation to this script being evaluated with the `withdraw`
+script purpose. This is possible in particular because it is always possible to
+withdraw an amount of 0 lovelace.
+
+We can leverage this to allow a script to be owner of one or multiple UTxOs
+themselves locked by a much simpler script. In stead of normally ensuring that
+the owner's PKH is present in the required signatories, we use a small script
+that forward the validation to another single script also present in the
+transaction.
+
+By using this trick in a spending validator, we can reduce the overhead that
+comes from authorizing multiple spending. Indeed, instead of running the same
+bunch of logic multiple times (one for each input), we only run it once for the
+withdrawal script. Since validators have access to the entire transaction as a
+context, regardless of their execution purpose, it is feasible most of the
+time.
+
+This is being used by a number of dApps now in production in order to optimize
+evaluation budgets and reach a higher efficiency.
+
+## Going further
+
+### Anastasia Labs' design patterns
+
+> https://github.com/Anastasia-Labs/design-patterns
+
+A library designed to abstract away some of the more unintuitive and
+lesser-known eUTxO design patterns, making them more accessible to developers.
+
+### Plutonomicon
+
+> https://github.com/Plutonomicon/plutonomicon
+
+A developer-driven guide to the Plutus smart contract platform _in practice_.

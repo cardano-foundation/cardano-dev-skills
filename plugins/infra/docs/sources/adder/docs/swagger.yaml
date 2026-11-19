@@ -1,0 +1,193 @@
+basePath: /
+definitions:
+  push.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  push.TokenRequest:
+    properties:
+      fcmToken:
+        type: string
+    required:
+    - fcmToken
+    type: object
+  push.TokenResponse:
+    properties:
+      fcmToken:
+        type: string
+    type: object
+info:
+  contact:
+    email: support@blinklabs.io
+    name: Blink Labs
+    url: https://blinklabs.io
+  description: Adder API
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  title: Adder API
+  version: v1
+paths:
+  /events:
+    get:
+      description: Streams pipeline events using SSE, or WebSocket when an upgrade
+        is requested and accepted. Rejected WebSocket handshakes do not fall back
+        to SSE. Supports filtering on event types.
+      parameters:
+      - description: Comma-separated list of event types to filter (e.g., input.block,input.transaction)
+        in: query
+        name: types
+        type: string
+      - default: true
+        description: Whether to replay recent events from the ring buffer on connection
+        in: query
+        name: replay
+        type: boolean
+      produces:
+      - text/event-stream
+      - application/json
+      responses:
+        "101":
+          description: WebSocket protocol switch
+        "200":
+          description: Event Stream (SSE)
+          schema:
+            type: string
+        "400":
+          description: Invalid WebSocket handshake
+          schema:
+            type: string
+        "403":
+          description: WebSocket origin rejected
+          schema:
+            type: string
+        "405":
+          description: Invalid WebSocket method
+          schema:
+            type: string
+        "500":
+          description: Streaming or WebSocket upgrade unsupported
+          schema:
+            type: string
+      summary: Stream Blockchain Events
+  /healthcheck:
+    get:
+      description: Reports the health status of the running pipeline and registered
+        checkers. Returns 503 if any registered checker is unhealthy.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Healthy status response
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable response
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Healthcheck Endpoint
+  /ping:
+    get:
+      description: Returns a simple "pong" response to verify the API server is alive
+        and reachable.
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: pong
+          schema:
+            type: string
+      summary: Ping Endpoint
+  /v1/fcm:
+    post:
+      consumes:
+      - application/json
+      description: Store a token in memory; configured persistence is best-effort.
+        Available with the push output.
+      parameters:
+      - description: FCM Token Request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/push.TokenRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created (empty body)
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/push.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/push.ErrorResponse'
+      summary: Store FCM Token
+  /v1/fcm/{token}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an FCM token by its value. Available with the push output.
+      parameters:
+      - description: FCM Token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found (empty body)
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/push.ErrorResponse'
+      summary: Delete FCM Token
+    get:
+      consumes:
+      - application/json
+      description: Get an FCM token by its value. Available with the push output.
+      parameters:
+      - description: FCM Token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/push.TokenResponse'
+        "404":
+          description: Not Found (empty body)
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/push.ErrorResponse'
+      summary: Get FCM Token
+  /v1/qrcode:
+    get:
+      description: Returns an HTML page that loads QRious to encode an apiEndpoint
+        JSON field containing the request host and FCM route. Available with the push
+        output.
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: Interactive HTML Onboarding Page
+          schema:
+            type: string
+      summary: Generate QR Setup Page
+schemes:
+- http
+swagger: "2.0"

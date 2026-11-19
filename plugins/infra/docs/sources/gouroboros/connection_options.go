@@ -1,0 +1,307 @@
+// Copyright 2026 Blink Labs Software
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package ouroboros
+
+import (
+	"log/slog"
+	"net"
+	"time"
+
+	"github.com/blinklabs-io/gouroboros/protocol/blockfetch"
+	"github.com/blinklabs-io/gouroboros/protocol/chainsync"
+	"github.com/blinklabs-io/gouroboros/protocol/keepalive"
+	"github.com/blinklabs-io/gouroboros/protocol/leiosfetch"
+	"github.com/blinklabs-io/gouroboros/protocol/leiosnotify"
+	"github.com/blinklabs-io/gouroboros/protocol/leiosvotes"
+	"github.com/blinklabs-io/gouroboros/protocol/localmessagenotification"
+	"github.com/blinklabs-io/gouroboros/protocol/localmessagesubmission"
+	"github.com/blinklabs-io/gouroboros/protocol/localstatequery"
+	"github.com/blinklabs-io/gouroboros/protocol/localtxmonitor"
+	"github.com/blinklabs-io/gouroboros/protocol/localtxsubmission"
+	"github.com/blinklabs-io/gouroboros/protocol/peersharing"
+	"github.com/blinklabs-io/gouroboros/protocol/perasvotes"
+	"github.com/blinklabs-io/gouroboros/protocol/txsubmission"
+)
+
+// ConnectionOptionFunc is a type that represents functions that modify the Connection config
+type ConnectionOptionFunc func(*Connection)
+
+// WithConnection specifies an existing connection to use. If none is provided, the Dial() function can be
+// used to create one later
+func WithConnection(conn net.Conn) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.conn = conn
+	}
+}
+
+// WithNetwork specifies the network
+func WithNetwork(network Network) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.networkMagic = network.NetworkMagic
+	}
+}
+
+// WithNetworkMagic specifies the network magic value
+func WithNetworkMagic(networkMagic uint32) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.networkMagic = networkMagic
+	}
+}
+
+// WithErrorChan specifies the caller-owned error channel to use. The Connection
+// sends errors to this channel but never closes it. Delivery is non-blocking;
+// use a channel with capacity of at least one for reliable delivery while the
+// connection is active. Errors may be dropped when the channel is full or has
+// no receiver ready. If none is provided, the Connection creates and closes
+// its own channel.
+func WithErrorChan(errorChan chan error) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.errorChan = errorChan
+	}
+}
+
+// WithServer specifies whether to act as a server
+func WithServer(server bool) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.server = server
+	}
+}
+
+// WithLogger specifies the slog.Logger to use. This is empty by default
+func WithLogger(logger *slog.Logger) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.logger = logger
+	}
+}
+
+// WithNodeToNode specifies whether to use the node-to-node protocol. The default is to use node-to-client
+func WithNodeToNode(nodeToNode bool) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.useNodeToNodeProto = nodeToNode
+	}
+}
+
+// WithDMQ enables CIP-0137 DMQ node-to-client mode. The connection
+// negotiates the DMQ N2C handshake (NodeToClientV_1, bit-12 encoded) using
+// the configured network magic as the DMQ topic identifier, and exposes
+// only the LocalMessageSubmission and LocalMessageNotification mini-
+// protocols. Mutually exclusive with WithNodeToNode.
+func WithDMQ(useDMQ bool) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.useDMQProtocol = useDMQ
+	}
+}
+
+// WithKeepAlives specifies whether to use keep-alives. This is disabled by default
+func WithKeepAlive(keepAlive bool) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.sendKeepAlives = keepAlive
+	}
+}
+
+// WithMuxerSegmentReadTimeout overrides how long the muxer waits for the
+// next segment before closing the connection (the default,
+// muxer.defaultSegmentReadTimeout, is 120s). Pass a duration <= 0 to disable
+// the timeout entirely.
+//
+// The default exists to guard an untrusted remote peer (a slowloris-style
+// DoS) and is appropriate for node-to-node connections. It is not a
+// requirement of the Ouroboros Network Specification, which defines no
+// timeout at the mux/transport layer at all -- timeouts are specified per
+// mini-protocol, per state, in each protocol's own chapter, and
+// LocalStateQuery's own timeout table (section 3.13.4) reads "No timeouts":
+// a query is expected to be able to take an arbitrarily long time. Real
+// cardano-node's own mux implementation matches this -- it applies no
+// bearer-level read timeout at all on local Unix-domain-socket connections,
+// which is what node-to-client (and so LocalStateQuery) normally uses.
+//
+// A node-to-client connection over a channel you already trust (a local
+// socket, or a bridge you control) should generally disable this, so a
+// legitimate, still-computing LocalStateQuery reply (e.g. a whole-UTxO-set
+// dump against a large chain) is never killed mid-flight.
+func WithMuxerSegmentReadTimeout(timeout time.Duration) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.muxerSegmentReadTimeout = &timeout
+	}
+}
+
+// WithDelayMuxerStart specifies whether to delay the muxer start. This is useful if you need to take some
+// custom actions before the muxer starts processing messages, generally when acting as a server
+func WithDelayMuxerStart(delayMuxerStart bool) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.delayMuxerStart = delayMuxerStart
+	}
+}
+
+// WithDelayProtocolStart specifies whether to delay the start of the relevant mini-protocols. This is useful
+// if you are maintaining lots of connections and want to reduce resource overhead by only starting particular
+// protocols
+func WithDelayProtocolStart(delayProtocolStart bool) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.delayProtocolStart = delayProtocolStart
+	}
+}
+
+// WithFullDuplex specifies whether to enable full-duplex mode when acting as a client
+func WithFullDuplex(fullDuplex bool) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.fullDuplex = fullDuplex
+	}
+}
+
+// WithPeerSharing specifies whether to enable peer sharing. This affects both the protocol handshake and
+// whether the PeerSharing protocol is enabled
+func WithPeerSharing(peerSharing bool) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.peerSharingEnabled = peerSharing
+	}
+}
+
+// WithQueryMode specifies whether to enable handshake query mode. When enabled, a ProposeVersions message
+// with the query flag set is sent. The remote peer replies with all supported versions via MsgQueryReply
+// and terminates the connection. Use Connection.QueryReplyVersionMap() to access the reply after
+// a successful connection setup.
+func WithQueryMode(queryMode bool) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.queryMode = queryMode
+	}
+}
+
+// WithHandshakeTimeout sets the maximum time connection setup waits for the
+// initial handshake to complete. This admission limit applies to both
+// node-to-node and node-to-client connections without changing either
+// protocol's state timeouts. A non-positive duration leaves the default in
+// place so an unset configuration value cannot disable connection setup.
+func WithHandshakeTimeout(timeout time.Duration) ConnectionOptionFunc {
+	return func(c *Connection) {
+		if timeout <= 0 {
+			return
+		}
+		c.handshakeTimeout = timeout
+	}
+}
+
+// WithBlockFetchConfig specifies BlockFetch protocol config
+func WithBlockFetchConfig(cfg blockfetch.Config) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.blockFetchConfig = &cfg
+	}
+}
+
+// WithChainSyncConfig secifies ChainSync protocol config
+func WithChainSyncConfig(cfg chainsync.Config) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.chainSyncConfig = &cfg
+	}
+}
+
+// WithKeepAliveConfig specifies KeepAlive protocol config
+func WithKeepAliveConfig(cfg keepalive.Config) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.keepAliveConfig = &cfg
+	}
+}
+
+// WithLeiosFetchConfig enables LeiosFetch and specifies its protocol config.
+func WithLeiosFetchConfig(cfg leiosfetch.Config) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.leiosFetchConfig = &cfg
+	}
+}
+
+// WithLeiosNotifyConfig enables LeiosNotify and specifies its protocol config.
+func WithLeiosNotifyConfig(cfg leiosnotify.Config) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.leiosNotifyConfig = &cfg
+	}
+}
+
+// WithLeiosVotesConfig enables LeiosVotes and specifies its protocol config.
+func WithLeiosVotesConfig(cfg leiosvotes.Config) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.leiosVotesConfig = &cfg
+	}
+}
+
+// WithPerasVotesConfig opts into Peras vote diffusion on a node-to-node
+// connection. Protocol 17 starts only when both peers negotiate Peras support.
+func WithPerasVotesConfig(cfg perasvotes.Config) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.perasVotesConfig = &cfg
+	}
+}
+
+// WithLocalStateQueryConfig specifies LocalStateQuery protocol config
+func WithLocalStateQueryConfig(
+	cfg localstatequery.Config,
+) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.localStateQueryConfig = &cfg
+	}
+}
+
+// WithLocalTxMonitorConfig specifies LocalTxMonitor protocol config
+func WithLocalTxMonitorConfig(
+	cfg localtxmonitor.Config,
+) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.localTxMonitorConfig = &cfg
+	}
+}
+
+// WithLocalTxSubmissionConfig specifies LocalTxSubmission protocol config
+func WithLocalTxSubmissionConfig(
+	cfg localtxsubmission.Config,
+) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.localTxSubmissionConfig = &cfg
+	}
+}
+
+// WithPeerSharingConfig specifies PeerSharing protocol config
+func WithPeerSharingConfig(cfg peersharing.Config) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.peerSharingConfig = &cfg
+	}
+}
+
+// WithTxSubmissionConfig specifies TxSubmission protocol config
+func WithTxSubmissionConfig(cfg txsubmission.Config) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.txSubmissionConfig = &cfg
+	}
+}
+
+// WithLocalMessageSubmissionConfig specifies LocalMessageSubmission
+// protocol config (CIP-0137 DMQ N2C). Only effective when WithDMQ(true)
+// is also set.
+func WithLocalMessageSubmissionConfig(
+	cfg localmessagesubmission.Config,
+) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.localMessageSubmissionConfig = &cfg
+	}
+}
+
+// WithLocalMessageNotificationConfig specifies LocalMessageNotification
+// protocol config (CIP-0137 DMQ N2C). Only effective when WithDMQ(true)
+// is also set.
+func WithLocalMessageNotificationConfig(
+	cfg localmessagenotification.Config,
+) ConnectionOptionFunc {
+	return func(c *Connection) {
+		c.localMessageNotificationConfig = &cfg
+	}
+}

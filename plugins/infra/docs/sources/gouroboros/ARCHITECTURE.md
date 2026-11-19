@@ -1,0 +1,657 @@
+# gOuroboros Architecture
+
+gOuroboros is a Go implementation of the Cardano blockchain protocol, providing ledger validation, network protocol support, consensus primitives, and cryptographic operations.
+
+## High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Ouroboros (Entry Point)                     │
+│              connection.go, connection_options.go               │
+└────────────┬────────────────────────────────────────────────────┘
+             │
+      ┌──────┴──────┐
+      │             │
+      ▼             ▼
+  ┌────────┐   ┌──────────┐
+  │ Muxer  │   │ Protocol │  (Protocol Base Layer)
+  └────────┘   └──────────┘
+      │             │
+      └──────┬──────┴──────────────────┬─────────────────┐
+             │                          │                 │
+        ┌────▼─────┐ ┌──────────┐ ┌──────────────┐ ┌─────▼────────┐
+        │ChainSync │ │BlockFetch│ │TxSubmission  │ │LocalStateQry │
+        └──────────┘ └──────────┘ └──────────────┘ └──────────────┘
+             │
+             ▼
+        ┌─────────────────────────────────────┐
+        │        Ledger Layer                 │
+        │  (Block and Transaction Validation) │
+        └────────┬────────────────────────────┘
+                 │
+        ┌────────▼─────────────────────────┐
+        │  Ledger/Common (Shared Types)    │
+        │  ├─ state.go (Interfaces)        │
+        │  ├─ tx.go (Transaction API)      │
+        │  ├─ rules.go (Validation Rules)  │
+        │  └─ verify_config.go (Config)    │
+        └────────┬─────────────────────────┘
+                 │
+        ┌────────┴─────────────────────────────────┐
+        │  Era-Specific Implementations            │
+        │  Byron → Shelley → Allegra → Mary →      │
+        │  Alonzo → Babbage → Conway → Dijkstra    │
+        └───────────────────────────────────────────┘
+             │
+    ┌────────┴──────────────┬──────────────┬────────────┐
+    │                       │              │            │
+    ▼                       ▼              ▼            ▼
+┌────────┐             ┌────────┐    ┌────────────┐ ┌──────────┐
+│ CBOR   │             │ Crypto │    │ Consensus  │ │ Protocol │
+│Encode/ │             │ KES/VRF│    │  Praos     │ │ Messages │
+│Decode  │             │        │    │            │ │          │
+└────────┘             └────────┘    └────────────┘ └──────────┘
+```
+
+## Package Structure
+
+| Package | Purpose |
+|---------|---------|
+| `/` (root) | Connection API and entry points |
+| `ledger/` | Ledger types and validation by era |
+| `ledger/common/` | Shared types, interfaces, utilities |
+| `ledger/{era}/` | Era-specific implementations |
+| `protocol/` | Network mini-protocol implementations |
+| `protocol/common/` | Shared protocol utilities |
+| `pipeline/` | Block processing pipeline (decode, validate, apply stages) |
+| `consensus/` | Ouroboros Praos consensus primitives |
+| `consensus/byron/` | Byron-era consensus validation |
+| `consensus/genesis/` | Genesis consensus handling |
+| `kes/` | Key-Evolving Signatures (MMM scheme) |
+| `vrf/` | Verifiable Random Functions |
+| `cbor/` | CBOR encoding/decoding utilities |
+| `muxer/` | Protocol multiplexing |
+| `connection/` | ConnectionId type definition |
+| `internal/test/` | Test utilities and conformance tests |
+
+## Ledger Layer
+
+### Core Interfaces (ledger/common/state.go)
+
+```go
+type LedgerState interface {
+    UtxoState           // Query UTxOs by transaction input
+    CertState           // Stake credential registration
+    SlotState           // Slot/time conversion
+    PoolState           // Pool registration status
+    RewardState         // Reward calculations
+    GovState            // Governance (Conway+)
+    NetworkId() uint
+    CostModels() map[PlutusLanguage]CostModel
+}
+```
+
+### Transaction Interface (ledger/common/tx.go)
+
+Transaction embeds TransactionBody, inheriting all of its methods directly:
+
+```go
+type Transaction interface {
+    TransactionBody
+    Type() int
+    Cbor() []byte
+    Hash() Blake2b256
+    LeiosHash() Blake2b256
+    Metadata() TransactionMetadatum
+    AuxiliaryData() AuxiliaryData
+    IsValid() bool
+    Consumed() []TransactionInput
+    Produced() []Utxo
+    Witnesses() TransactionWitnessSet
+}
+
+type TransactionBody interface {
+    Cbor() []byte
+    Fee() *big.Int
+    Id() Blake2b256
+    Inputs() []TransactionInput
+    Outputs() []TransactionOutput
+    TTL() uint64
+    ValidityIntervalStart() uint64
+    ReferenceInputs() []TransactionInput
+    Collateral() []TransactionInput
+    CollateralReturn() TransactionOutput
+    TotalCollateral() *big.Int
+    Certificates() []Certificate
+    Withdrawals() map[*Address]*big.Int
+    AuxDataHash() *Blake2b256
+    RequiredSigners() []Blake2b224
+    AssetMint() *MultiAsset[MultiAssetTypeMint]
+    ScriptDataHash() *Blake2b256
+    VotingProcedures() VotingProcedures
+    ProposalProcedures() []ProposalProcedure
+    CurrentTreasuryValue() *big.Int
+    Donation() *big.Int
+    ProtocolParameterUpdates() (uint64, map[Blake2b224]ProtocolParameterUpdate)
+    Utxorpc() (*utxorpc.Tx, error)
+}
+```
+
+`TTL()` is retained for compatibility, but its zero value cannot distinguish an
+absent upper validity bound from an explicitly encoded bound of zero. Consensus
+consumers use `common.TransactionValidityIntervalUpperBound`, which detects the
+additive `TransactionWithValidityIntervalUpperBound` capability and returns
+both the value and its presence. Allegra through Dijkstra transaction bodies
+record that presence during decode; their `SetValidityIntervalUpperBound` and
+`ClearValidityIntervalUpperBound` methods preserve it for constructed bodies.
+
+### Era Hierarchy
+
+Post-Byron eras build on their predecessors and may delegate individual
+validation rules when their behavior is unchanged. Delegation is not
+universal; era-specific rule bodies must be inspected before assuming it.
+
+```
+Byron (genesis)
+  └─ Shelley (base validation, staking)
+      └─ Allegra (time locks)
+          └─ Mary (multi-asset)
+              └─ Alonzo (Plutus scripts)
+                  └─ Babbage (reference scripts)
+                      └─ Conway (governance)
+                          └─ Dijkstra (PV12)
+```
+
+Leios is not a ledger era. It is a higher-throughput overlay protocol
+introduced with Dijkstra; its shared ledger types live in
+`ledger/common/leios*.go`, and its mini-protocols live under
+`protocol/leios{fetch,notify,votes}/`.
+
+### Validation Pattern
+
+Each era defines its validation rules. A rule can delegate to an earlier era
+when its behavior is unchanged:
+
+```go
+// shelley/rules.go - defines base rules
+var UtxoValidationRules = []common.UtxoValidationRuleFunc{
+    UtxoValidateMetadata,
+    UtxoValidateRequiredVKeyWitnesses,
+    UtxoValidateSignatures,
+    UtxoValidateTimeToLive,
+    // ...
+}
+
+// allegra/rules.go - delegates unchanged rules
+func UtxoValidateTimeToLive(tx, slot, ls, pp) error {
+    return shelley.UtxoValidateTimeToLive(tx, slot, ls, pp)
+}
+```
+
+### Era-Specific Features
+
+| Era | Key Features |
+|-----|--------------|
+| Shelley | Staking, delegation, native scripts, VRF/KES |
+| Allegra | Time-lock scripts (InvalidBefore/InvalidHereafter) |
+| Mary | Multi-asset support (native tokens) |
+| Alonzo | Plutus smart contracts, redeemers, datums |
+| Babbage | Reference scripts, inline datums |
+| Conway | Governance; PV10/PV11 DRep-gated key-hash reward withdrawals |
+| Dijkstra | PV12; CIP-181 removes the reward-withdrawal DRep gate |
+
+### Conway Reward Withdrawal Gate
+
+`conway.UtxoValidateWithdrawals` has an era-specific implementation. It skips
+withdrawal validation for phase-2-invalid transactions, then applies the
+Shelley reward-account registration check. For transactions with withdrawals,
+the remaining behavior is selected by the active major protocol version:
+
+| Protocol version | Key-hash DRep vote delegation required? |
+|------------------|----------------------------------------|
+| PV9 and earlier | No |
+| PV10 (Plomin) and PV11 (Van Rossem) | Yes |
+| PV12 (Dijkstra) and later | No, per CIP-181 |
+
+At PV10/PV11, every key-hash credential present in the withdrawal map is
+checked, including a zero withdrawal from a registered zero-balance account.
+Script-hash reward credentials never require a DRep vote delegation. They
+still undergo the Shelley reward-account registration and withdrawal-amount
+checks.
+
+The active protocol version comes from
+`conway.ConwayProtocolParameters.ProtocolMajorVersion`; Dijkstra protocol
+parameters inherit that method. At PV10/PV11, ledger states validating a
+key-hash reward withdrawal must additionally implement the optional
+`common.DRepDelegationState` capability:
+
+```go
+type DRepDelegationState interface {
+    DRepDelegation(Credential) (*Drep, error)
+}
+```
+
+A `nil` delegation rejects the withdrawal with
+`WithdrawalNotDelegatedToDRepError`. A ledger state that cannot perform the
+lookup returns `DRepDelegationStateUnavailableError`. The capability is kept
+separate from `common.LedgerState` so implementations that do not validate
+PV10/PV11 withdrawals do not need to provide it.
+
+## Protocol Layer (protocol/)
+
+Implements Ouroboros mini-protocols for network communication.
+
+### Mini-Protocols
+
+| Protocol | Purpose |
+|----------|---------|
+| Handshake | Version negotiation |
+| ChainSync | Blockchain synchronization |
+| BlockFetch | Block retrieval |
+| TxSubmission | Transaction submission to network |
+| LocalTxSubmission | Local node transaction submission |
+| LocalStateQuery | Query node state |
+| LocalTxMonitor | Monitor local mempool |
+| PeerSharing | Peer discovery |
+| KeepAlive | Connection health |
+| MessageSubmission | Off-chain message submission |
+| LocalMessageSubmission | Local message submission |
+| LocalMessageNotification | Local message notifications |
+| LeiosFetch | Leios block fetching |
+| LeiosNotify | Leios block notifications |
+| LeiosVotes | Leios vote diffusion |
+
+### Protocol Structure
+
+Each protocol follows the same pattern:
+
+```
+protocol/{name}/
+├── protocol.go   # Protocol ID, state machine
+├── messages.go   # Message types with CBOR encoding
+├── client.go     # Client implementation
+└── server.go     # Server implementation
+```
+
+## Cryptography
+
+### VRF (vrf/)
+
+Spec: ECVRF-ED25519-SHA512-Elligator2
+
+Used for leader election in Ouroboros Praos:
+
+```go
+func Prove(secretKey []byte, alpha []byte) ([]byte, []byte, error)
+func Verify(vrfKey, proof, expectedOutput, msg []byte) (bool, error)
+```
+
+### KES (kes/)
+
+Scheme: MMM sum composition with Ed25519
+
+Forward-secure signatures (compromising current key doesn't affect past signatures):
+
+```go
+const CardanoKesDepth = 6  // 64 time periods
+const CardanoKesSignatureSize = 448
+
+func VerifySignedKES(vkey []byte, period uint64, msg []byte, sig []byte) bool
+```
+
+## Consensus (consensus/)
+
+Implements Ouroboros Praos consensus primitives.
+
+### Key Components
+
+| File | Purpose |
+|------|---------|
+| consensus.go | Core interfaces (VRFSigner, KESSigner, ConsensusHeader, etc.) |
+| block.go | Block construction (BlockBuilder, OperationalCert, Header) |
+| leader.go | Leader eligibility checking |
+| selection.go | Chain selection (Praos ordering + Genesis density comparison) |
+| eligibility.go | Immutable prepared E34 predicate and natural/raw-output APIs |
+| eligibility_cache.go | Bounded successful private-state LRU |
+| e34.go | Pinned finite fixed-point arithmetic and bounded comparator |
+| validate.go | Block validation |
+| byron/ | Byron-era consensus validation |
+| genesis/ | Genesis consensus handling |
+
+### Finite Leader Eligibility
+
+`NewLeaderEligibility` prepares the pinned Haskell node's finite E34 rule
+once for a mode, stake tuple and exact rational active-slot coefficient.
+Signed integer values have scale `10^34`; multiplication/division floor at
+each production operation. The active-slot logarithm is prepared from the
+rounded coefficient, not recomputed as an ideal logarithm. Only the bounded
+exponential comparator's `BELOW` classification elects; `ABOVE` and
+`MAX_REACHED` at 1000 iterations return false. No ideal cutoff or numerical
+margin is exposed.
+
+CPraos derives a 256-bit natural from BLAKE2b-256(`"L" || output`); TPraos
+interprets the 64-byte output as an unsigned 512-bit big-endian natural.
+`CheckVRFOutput` requires exactly 64 bytes and does not verify cryptography.
+`CheckCertifiedNatural` accepts `[0, M]`, with `M=2^256` or `2^512`.
+The artificial oracle endpoint `M` is not a wire value and uses quotient
+`M*10^34`, while representable values use `floor(M*10^34/(M-v))`.
+
+Coefficients are exact rationals in `[1/10^19, 1]` with reduced Word64
+numerator/denominator, including nondecimal values such as `1/3`.
+Construction rejects zero total stake, clamps pool stake above a positive
+total as gOuroboros policy, and validates before unconditional `f=1`.
+The primitive accepts zero pool stake at `f=1`; election, component and
+header adapters preserve separate zero-pool policy gates. Election/components
+also preserve their nonpositive-coefficient false policy, while header
+validation rejects invalid coefficients. Unsupported positive rationals
+error even when an adapter would otherwise reject zero stake.
+
+Prepared private state is immutable. A 4096-entry mutex/map/list LRU retains
+successful preparations, keyed by mode, normalized stake values and the
+validated exact coefficient. Expensive computation occurs outside the lock.
+Fresh public wrappers prevent caller reassignment from corrupting cache hits;
+all per-decision scratch is local. Slot search prepares once and checks
+cancellation before preparation and every slot. Election, scheduling and
+inbound verified-output checks share this one decision engine.
+
+The independent embedded E34 corpus preserves its pinned source/package
+provenance and checksums. It is not an installed-node replay; ordinary Go
+tests require neither adjacent workspaces nor Haskell execution.
+
+### Interfaces
+
+```go
+type VRFSigner interface {
+    Prove(input []byte) (proof, output []byte, err error)
+    PublicKey() []byte
+}
+
+type KESSigner interface {
+    Sign(message []byte) (signature []byte, err error)
+    PublicKey() []byte
+    Period() uint64
+}
+
+type ConsensusHeader interface {
+    Slot() uint64
+    BlockNumber() uint64
+    PrevHash() []byte
+    IssuerVKey() []byte
+    VRFVKey() []byte
+    VRFProof() []byte
+    VRFOutput() []byte
+    KESSignature() []byte
+    KESPeriod() uint64
+    Era() uint8
+}
+```
+
+## CBOR Support (cbor/)
+
+Cardano-specific CBOR encoding with byte preservation for hashing:
+
+```go
+// Preserve original bytes for hash verification
+type DecodeStoreCbor struct {
+    cborData []byte
+}
+
+// Encode struct as CBOR array (not map)
+type StructAsArray struct{}
+
+// Deferred decoding (alias for fxamacker/cbor/v2.RawMessage)
+type RawMessage = _cbor.RawMessage
+```
+
+### Critical Pattern: CBOR Byte Preservation
+
+Blocks and transactions must preserve original CBOR bytes for hash verification:
+
+```go
+type Block struct {
+    cbor.DecodeStoreCbor
+    cbor.StructAsArray
+    Header *BlockHeader
+    Body   interface{}
+}
+
+func (b *Block) Hash() Blake2b256 {
+    return Blake2b256Hash(b.Cbor())  // Uses preserved bytes
+}
+```
+
+## API Usage Examples
+
+### Block Validation
+
+```go
+block, err := ledger.NewBlockFromCbor(blockType, blockCbor)
+err = ledger.VerifyBlock(block, slot, ledgerState, protocolParams)
+```
+
+### Transaction Validation
+
+```go
+err := common.VerifyTransaction(
+    tx,
+    slot,
+    ledgerState,
+    protocolParams,
+    shelley.UtxoValidationRules,
+)
+```
+
+### Network Connection
+
+```go
+conn, err := NewConnection(ctx, "localhost:3001")
+
+// Chain sync
+cs := conn.ChainSync()
+tip, err := cs.GetCurrentTip()
+
+// Block fetch
+bf := conn.BlockFetch()
+block, err := bf.GetBlocks(hashes)
+
+// Transaction submission
+ts := conn.TxSubmission()
+err = ts.SubmitTx(txCbor)
+```
+
+## Data Flow: Block Processing
+
+```
+1. Network receives the hard-fork envelope type and block bytes
+2. `BlockTypeResolver` reads the preserved signed header and confirms that the
+   envelope type is the authoritative active era
+3. NewBlockFromCbor(envelopeType, bytes) -> Block
+4. Extract components:
+   |- BlockHeader (VRF, KES, slot)
+   |- Transaction bodies
+   |- Witness sets
+   |- Metadata
+5. VerifyBlockLocal() validates:
+   |- Body hash matches header
+   |- Block-local VRF proof bytes and KES signature
+6. ChainContextValidator checks ordered linkage and consensus state
+7. VerifyBlockState() reads refreshed ledger state and protocol parameters
+   and checks certificates, block limits, pool registration, and transactions:
+   |- Verify signatures
+   |- Check fees, TTL
+   |- Validate UTxO consumption
+   |- Execute supported Plutus scripts
+   |- Process certificates
+8. `ApplyFunc` atomically updates ledger state
+```
+
+`VerifyBlockLocal()` checks cryptography and body integrity without ledger state.
+`VerifyBlockState()` checks certificates, block limits, transactions, and pool
+registration against the state before the block. `VerifyBlock()` combines both.
+Byron transaction validation also requires `VerifyConfig.ByronTxFeePolicy` and
+fails closed when it is unset: the fee must be at least the linear policy's
+minimum for the serialized transaction size, except for redeem-only spends.
+These helpers are not complete consensus gates. They do not receive the previous
+header, active
+stake distribution, active slot coefficient, max KES evolutions, or operational
+certificate sequence state. Production chain validation must combine these
+checks with pre-decode block-type resolution and ordered chain-context
+consensus validation before accepting a block.
+
+`VerifyBlock()` takes the ledger state before the block and validates each
+transaction against it plus the effects of the transactions before it in the
+block, through `common.BlockLedgerState`: spent and created outputs (only
+collateral and collateral return for a phase-2-invalid transaction),
+withdrawals, direct deposits, stake, pool, DRep and committee certificates,
+vote delegations (cleared when their DRep deregisters), and governance
+proposals, applied for each Dijkstra sub-transaction before the top-level
+body. A pool re-registration records future parameters and leaves the
+current registration in place, as the POOL rule does. It never
+writes to the caller's state. Rules read the optional capabilities a
+transaction can change (stake deposits, DRep delegations, committee
+credentials) through `common.StakeCredentialDepositStateFor` and its siblings
+rather than `common.UnwrapLedgerState`, which would skip the block's effects.
+
+Future pool VRF lookups preserve this overlay even when an outer adapter
+implements the capability. Re-registering a pool releases its superseded
+future VRF key for later transactions in the block. Protocol version 11 and
+later require `FuturePoolParametersState` for pool registrations; unavailable
+state produces a typed configuration error. Governance validation similarly
+requires authoritative roots, action contents and expiry when the action needs
+them. A proposal from an earlier Dijkstra child is visible to later child votes.
+
+Block-wide resource checks require protocol parameters whenever transactions,
+block CBOR or header CBOR are present, unless `SkipBlockLimitsValidation` is
+explicitly selected. Header-only callers must provide parameters or select that
+skip alongside their other header verification options.
+
+Binding the body to the header happens at decode, inside `NewBlockFromCbor`,
+not in `VerifyBlock()`. Every era does this by default and skips it only when
+the caller passes `common.VerifyConfig{SkipBodyHashValidation: true}`. Without
+it a header — and so the block hash and slot — can be genuine while the body
+has been replaced, so a caller accepting blocks from a source it does not
+trust must leave it enabled.
+
+Shelley and later compare a single body hash. Byron instead carries a body
+proof, `[tx_proof, ssc_proof, dlg_proof, upd_proof]`, where `tx_proof` is
+`[tx_count, merkle_root, witnesses_hash]`. `ledger/byron` recomputes the
+transaction count, the merkle root over transaction bodies, the hash over the
+witness list, and the delegation and update payload hashes; epoch boundary
+blocks carry no transactions and are covered by a single body hash. `ssc_proof`
+is not recomputed — see the `NOTE:` in `ledger/byron/bodyproof.go` — so an
+alteration confined to the shared-seed payload is not detected, while
+transaction contents are fully covered. Byron
+merkle roots (`byron.MerkleRoot`) tag leaves and branches distinctly and split
+at the largest power of two below the item count, matching cardano-ledger.
+
+## Block Pipeline (pipeline/)
+
+The `pipeline` package provides a staged block processing pipeline with worker pools:
+
+```
+┌─────────────┐     ┌───────────────┐     ┌─────────────┐
+│ DecodeStage │ --> │ ValidateStage │ --> │ ApplyStage  │
+│  (workers)  │     │   (workers)   │     │  (workers)  │
+└─────────────┘     └───────────────┘     └─────────────┘
+```
+
+- **DecodeStage**: CBOR decoding of raw block bytes (parallelizable)
+- **ValidateStage**: Parallel block-local cryptography and body integrity
+- **ApplyStage**: Ordered chain-context validation, refreshed ledger validation,
+  and atomic state updates
+
+Normal pipelines require `VerifyConfigProvider` to read ledger state and protocol
+parameters after earlier blocks commit. The ordered stage checks certificates,
+block limits, transactions, and pool registration before calling `ApplyFunc`.
+Parallel workers never read that mutable ledger state.
+
+`WithHeaderOnly()` returns ordered, cryptographically checked blocks to an
+external ledger validator without applying them. `WithTrustedDecodeOnly()`
+decodes trusted persisted data without validation. Neither offline mode is
+accepted by ChainSync or BlockFetch clients. Network pipelines must own ordered
+validation and application; each peer needs its own pipeline because a rejection
+stops processing, and each protocol fence waits for ordered completion.
+
+Usage:
+```go
+pipeline := pipeline.NewBlockPipeline(
+    pipeline.WithDecodeWorkers(4),
+    pipeline.WithValidateWorkers(2),
+    pipeline.WithBlockTypeResolver(resolveBlockType),
+    pipeline.WithEta0Provider(eta0Provider),
+    pipeline.WithSlotsPerKesPeriod(slotsPerKesPeriod),
+    pipeline.WithChainContextValidator(validateChainContext),
+    pipeline.WithVerifyConfigProvider(currentVerifyConfig),
+    pipeline.WithApplyFunc(applyBlock),
+)
+if err := pipeline.Start(ctx); err != nil { ... }
+if err := pipeline.Submit(ctx, blockType, rawBlock, tip); err != nil { ... }
+for result := range pipeline.Results() {
+    consume(result)
+    result.Release()
+}
+```
+
+Pipeline admission reserves the raw and decoded full block CBOR copies against
+`MaxRawCborBytes` before allocating a `BlockItem`. A result stays charged until
+the consumer receives it from the results channel. The consumer then owns the
+item and should call `BlockItem.Release()` when finished to clear the raw and
+decoded CBOR; received results are no longer included in the pipeline budget. A
+zero byte limit selects `DefaultMaxRawCborBytes`, and stopping the pipeline
+retires internally owned items and results that shutdown drains.
+
+## Testing
+
+### Organization
+
+```
+internal/test/
+|- conformance/         # Pinned Cardano Blueprint ledger vectors and focused protocol suites
+|- cardano-blueprint/   # Cardano specification reference
+
+ledger/**/*_test.go     # Unit tests
+protocol/**/*_test.go
+consensus/**/*_test.go
+```
+
+Mock ledger state for testing is provided by an external package:
+
+```go
+import ledgertest "github.com/blinklabs-io/ouroboros-mock/ledger"
+
+ls := ledgertest.NewLedgerStateBuilder().
+    WithNetworkId(0).
+    WithUtxoByIdFunc(func(id common.TransactionInput) (common.Utxo, error) {
+        return testUtxo, nil
+    }).
+    Build()
+```
+
+## Key Dependencies
+
+| Package | Purpose |
+|---------|---------|
+| fxamacker/cbor/v2 | CBOR encoding |
+| blinklabs-io/plutigo | Plutus scripts |
+| blinklabs-io/ouroboros-mock | Mock ledger state for testing |
+| utxorpc/go-codegen | UTxO RPC protocol buffer types |
+| golang.org/x/crypto | Cryptographic primitives |
+| filippo.io/edwards25519 | Ed25519 implementation |
+| jinzhu/copier | Deep copy utilities |
+| btcsuite/btcd/btcutil | Bitcoin-style base58 encoding |
+| google.golang.org/protobuf | Protocol buffer runtime |
+| stretchr/testify | Test assertions |
+| go.uber.org/goleak | Goroutine leak detection in tests |
+
+## Design Principles
+
+1. Era Delegation: Later eras may delegate unchanged rules to earlier eras,
+   while changed rules retain era-specific implementations.
+
+2. Interface-Based Validation: Rules operate on interfaces, enabling easy mocking and cross-era compatibility.
+
+3. CBOR Byte Preservation: Original bytes preserved for cryptographic hash verification.
+
+4. Protocol State Machines: Each mini-protocol implements strict state transitions.
+
+5. Streaming Support: BlockTransactionOffsets enables efficient large block handling without full deserialization.

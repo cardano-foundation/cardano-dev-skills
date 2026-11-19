@@ -1,0 +1,21 @@
+---
+title: Hydra
+sidebar:
+  label: Hydra
+  order: 4
+---
+
+The Hydra source connects to a [Hydra](https://hydra.family/head-protocol/) head over a
+**WebSocket** and streams its events into the pipeline. Use it to observe activity on a Hydra
+Layer 2 head with the same tooling you'd use for the main chain.
+
+## Configuration
+
+```toml title="daemon.toml"
+[source]
+type = "Hydra"
+ws_url = "ws://127.0.0.1:4001"
+```
+
+- `type` (required): the literal value `Hydra`.
+- `ws_url` (required): the WebSocket URL of the Hydra node's API.

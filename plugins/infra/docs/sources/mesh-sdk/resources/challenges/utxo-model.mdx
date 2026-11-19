@@ -1,0 +1,311 @@
+---
+title: "UTXO Model"
+description: "Understand Cardano's UTXO model and how Mesh SDK simplifies UTXO management."
+---
+
+import Link from "next/link";
+import { HowToSchema, FAQSchema } from "@/components/seo";
+
+<HowToSchema
+  name="Work with Cardano's UTXO Model Using Mesh SDK"
+  description="Learn to work with Cardano's UTXO model using Mesh SDK for automatic UTXO selection and change calculation."
+  totalTime="PT15M"
+  steps={[
+    { name: "Understand UTXO basics", text: "Learn that UTXOs are discrete unspent outputs that must be fully consumed in transactions." },
+    { name: "Install Mesh SDK", text: "Run npm install @meshsdk/core to add the Cardano SDK." },
+    { name: "Use automatic UTXO selection", text: "Let MeshTxBuilder handle UTXO selection and change calculation automatically." }
+  ]}
+/>
+
+<FAQSchema
+  faqs={[
+    {
+      question: "What is the UTXO model?",
+      answer: "UTXO stands for Unspent Transaction Output. Instead of accounts with balances, Cardano tracks discrete 'coins' that transactions consume entirely and create new ones. Your wallet balance is the sum of all UTXOs you control."
+    },
+    {
+      question: "Why does Cardano use UTXO?",
+      answer: "The UTXO model provides deterministic transaction validation, better parallelization for smart contracts, enhanced privacy through new addresses, and simpler verification since validity depends only on inputs."
+    },
+    {
+      question: "How is Cardano's eUTXO different from Bitcoin's UTXO?",
+      answer: "Cardano's extended UTXO adds datum (arbitrary data), smart contract validators, native multi-asset support, and reference scripts for more efficient contract execution."
+    },
+    {
+      question: "Do I need to understand UTXOs to build Cardano dApps?",
+      answer: "A basic understanding helps, but Mesh SDK abstracts most complexity. You can build functional dApps without deep UTXO knowledge."
+    }
+  ]}
+/>
+
+The UTXO (Unspent Transaction Output) model is Cardano's fundamental architecture. Unlike Ethereum's accounts, Cardano represents value as discrete outputs that you consume and recreate in each transaction. Mesh abstracts this complexity.
+
+## The concept
+
+### Ethereum: account model
+
+```
+Account: 0x123...
+Balance: 100 ETH
+```
+
+Sending 10 ETH updates the number in place. Simple, but limits parallelization.
+
+### Cardano: UTXO model
+
+```
+UTXO 1: 50 ADA (from tx abc123)
+UTXO 2: 30 ADA (from tx def456)
+UTXO 3: 20 ADA (from tx ghi789)
+Total: 100 ADA
+```
+
+To send 10 ADA:
+
+1. Select UTXOs as inputs (consumed entirely)
+2. Create output for recipient (10 ADA)
+3. Create change output (remaining minus fees)
+
+Example: Using UTXO 2 (30 ADA) to send 10 ADA:
+
+```
+Inputs: UTXO 2 (30 ADA) - consumed entirely
+Outputs:
+  - Recipient: 10 ADA (new UTXO)
+  - Change: ~19.8 ADA (new UTXO, minus fee)
+```
+
+UTXO 2 is destroyed. Two new UTXOs are created.
+
+---
+
+## Why UTXO
+
+| Advantage | Description |
+|-----------|-------------|
+| Deterministic validation | Transaction validity depends only on inputs, not global state |
+| Simple verification | Light clients verify without tracking all accounts |
+| Natural parallelism | Transactions on different UTXOs execute in parallel |
+| Privacy features | New addresses per transaction complicate analysis |
+| Explicit resources | Outputs declare contents; no unexpected state changes |
+
+---
+
+## Extended UTXO (eUTXO)
+
+Cardano extends Bitcoin's UTXO for smart contracts:
+
+| Feature | Purpose |
+|---------|---------|
+| Datums | Arbitrary data attached to UTXOs for script state |
+| Validators | Scripts defining spending conditions |
+| Redeemers | Arguments provided when spending script UTXOs |
+| Reference inputs | Read UTXOs without consuming them |
+| Reference scripts | On-chain scripts referenced by hash |
+
+Example UTXO with datum:
+
+```typescript
+{
+  address: "addr_script1...",
+  value: { lovelace: 5000000 },
+  datum: { owner: "addr1...", deadline: 1234567 }
+}
+```
+
+---
+
+## How Mesh handles UTXOs
+
+Mesh lets you describe intent instead of managing UTXOs manually.
+
+### Basic transaction
+
+```typescript
+import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+const provider = new BlockfrostProvider("<your-api-key>");
+const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const unsignedTx = await txBuilder
+  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "10000000" }])
+  .changeAddress(await wallet.getChangeAddressBech32())
+  .selectUtxosFrom(await wallet.getUtxosMesh())
+  .complete();
+
+// Mesh automatically handles:
+// - Optimal UTXO selection
+// - Fee calculation
+// - Change output creation
+// - Minimum UTXO requirements
+```
+
+### What selectUtxosFrom does
+
+Mesh selects UTXOs that:
+
+- Satisfy required output value
+- Minimize transaction size (fewer inputs = lower fees)
+- Avoid unnecessary wallet fragmentation
+- Handle tokens correctly (included in change if not sent)
+
+### Native token handling
+
+Tokens are bundled with ADA in UTXOs. Mesh handles this automatically:
+
+```typescript
+// Wallet has: UTXO 1 (10 ADA + 100 TokenA), UTXO 2 (5 ADA)
+// You want to send 3 ADA
+
+const tx = await txBuilder
+  .txOut(recipient, [{ unit: "lovelace", quantity: "3000000" }])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+// Mesh selects UTXO 2 to avoid TokenA complexity
+// Or ensures TokenA goes to change if UTXO 1 is needed
+```
+
+### Minimum UTXO requirements
+
+Every UTXO needs minimum ADA (~1-2 ADA depending on contents):
+
+```typescript
+const tx = await txBuilder
+  .txOut(recipient, [
+    { unit: policyId + assetName, quantity: "1" }
+    // Mesh adds minimum required ADA automatically
+  ])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+---
+
+## View wallet UTXOs
+
+```typescript
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+const utxos = await wallet.getUtxosMesh();
+
+utxos.forEach(utxo => {
+  console.log(`UTXO: ${utxo.input.txHash}#${utxo.input.outputIndex}`);
+  console.log(`  Value: ${utxo.output.amount}`);
+});
+```
+
+---
+
+## Smart contract UTXOs
+
+### Lock funds to script
+
+```typescript
+const tx = await txBuilder
+  .txOut(scriptAddress, [{ unit: "lovelace", quantity: "10000000" }])
+  .txOutDatumHashValue(datum)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+### Unlock funds from script
+
+```typescript
+const tx = await txBuilder
+  .spendingPlutusScript(languageVersion)
+  .txIn(scriptUtxo.input.txHash, scriptUtxo.input.outputIndex)
+  .txInScript(scriptCbor)
+  .txInDatumValue(datum)
+  .txInRedeemerValue(redeemer)
+  .txOut(recipient, outputValue)
+  .txInCollateral(collateralTxHash, collateralIndex)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+### Reference inputs
+
+Read UTXO without consuming it:
+
+```typescript
+const tx = await txBuilder
+  .readOnlyTxInReference(refTxHash, refIndex)
+  .txOut(recipient, outputValue)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+---
+
+## Common pitfalls
+
+### UTXO fragmentation
+
+Many small transactions create many small UTXOs. Consolidate periodically:
+
+```typescript
+const utxos = await wallet.getUtxos();
+const total = utxos.reduce((sum, u) =>
+  sum + BigInt(u.output.amount.find(a => a.unit === "lovelace")?.quantity || 0),
+  BigInt(0)
+);
+
+const tx = await txBuilder
+  .txOut(await wallet.getChangeAddress(), [
+    { unit: "lovelace", quantity: total.toString() }
+  ])
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+### Concurrent transaction conflicts
+
+Building multiple transactions from the same UTXOs causes conflicts:
+
+```typescript
+// Wrong: both use same UTXOs
+const utxos = await wallet.getUtxos();
+const tx1 = await txBuilder.selectUtxosFrom(utxos).complete();
+const tx2 = await txBuilder.selectUtxosFrom(utxos).complete(); // Conflict!
+
+// Correct: wait for confirmation, then fetch fresh UTXOs
+```
+
+### Token bundles
+
+Tokens are always bundled with ADA. You must send minimum ADA with any token:
+
+```typescript
+const tx = await txBuilder
+  .txOut(recipient, [
+    { unit: "lovelace", quantity: "1500000" }, // Minimum ADA required
+    { unit: tokenUnit, quantity: "50" }
+  ])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+---
+
+## Related topics
+
+| Topic | Link |
+|-------|------|
+| Transaction failures | [/resources/challenges/transaction-failures](/resources/challenges/transaction-failures) |
+| Coin selection | [/resources/challenges/coin-selection](/resources/challenges/coin-selection) |
+| Wallet integration | [/resources/challenges/wallet-integration](/resources/challenges/wallet-integration) |
+| Transaction builder | [/resources/solutions/transaction-builder](/resources/solutions/transaction-builder) |

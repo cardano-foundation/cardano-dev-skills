@@ -1,0 +1,211 @@
+---
+title: sdk/provider/Blockfrost.ts
+nav_order: 153
+parent: Modules
+---
+
+## Blockfrost overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [constructors](#constructors)
+  - [BlockfrostProvider (class)](#blockfrostprovider-class)
+    - [effect (property)](#effect-property)
+    - [baseUrl (property)](#baseurl-property)
+    - [projectId (property)](#projectid-property)
+    - [getProtocolParameters (property)](#getprotocolparameters-property)
+    - [getUtxos (property)](#getutxos-property)
+    - [getUtxosWithUnit (property)](#getutxoswithunit-property)
+    - [getUtxoByUnit (property)](#getutxobyunit-property)
+    - [getUtxosByOutRef (property)](#getutxosbyoutref-property)
+    - [getDelegation (property)](#getdelegation-property)
+    - [getDatum (property)](#getdatum-property)
+    - [awaitTx (property)](#awaittx-property)
+    - [submitTx (property)](#submittx-property)
+    - [evaluateTx (property)](#evaluatetx-property)
+  - [custom](#custom)
+  - [mainnet](#mainnet)
+  - [preprod](#preprod)
+  - [preview](#preview)
+
+---
+
+# constructors
+
+## BlockfrostProvider (class)
+
+Blockfrost provider for Cardano blockchain data access.
+Supports both mainnet and testnet networks with project-based authentication.
+Implements rate limiting to respect Blockfrost API limits.
+
+**Signature**
+
+```ts
+export declare class BlockfrostProvider {
+  constructor(baseUrl: string, projectId?: string)
+}
+```
+
+Added in v2.0.0
+
+### effect (property)
+
+**Signature**
+
+```ts
+readonly effect: ProviderEffect
+```
+
+### baseUrl (property)
+
+**Signature**
+
+```ts
+readonly baseUrl: string
+```
+
+### projectId (property)
+
+**Signature**
+
+```ts
+readonly projectId: string | undefined
+```
+
+### getProtocolParameters (property)
+
+**Signature**
+
+```ts
+getProtocolParameters: () => Promise<ProtocolParameters>
+```
+
+### getUtxos (property)
+
+**Signature**
+
+```ts
+getUtxos: (addressOrCredential: Parameters<Provider["getUtxos"]>[0]) => Promise<UTxO[]>
+```
+
+### getUtxosWithUnit (property)
+
+**Signature**
+
+```ts
+getUtxosWithUnit: (
+  addressOrCredential: Parameters<Provider["getUtxosWithUnit"]>[0],
+  unit: Parameters<Provider["getUtxosWithUnit"]>[1]
+) => Promise<UTxO[]>
+```
+
+### getUtxoByUnit (property)
+
+**Signature**
+
+```ts
+getUtxoByUnit: (unit: Parameters<Provider["getUtxoByUnit"]>[0]) => Promise<UTxO>
+```
+
+### getUtxosByOutRef (property)
+
+**Signature**
+
+```ts
+getUtxosByOutRef: (outRefs: Parameters<Provider["getUtxosByOutRef"]>[0]) => Promise<UTxO[]>
+```
+
+### getDelegation (property)
+
+**Signature**
+
+```ts
+getDelegation: (rewardAddress: Parameters<Provider["getDelegation"]>[0]) => Promise<Delegation>
+```
+
+### getDatum (property)
+
+**Signature**
+
+```ts
+getDatum: (datumHash: Parameters<Provider["getDatum"]>[0]) => Promise<Data>
+```
+
+### awaitTx (property)
+
+**Signature**
+
+```ts
+awaitTx: (
+  txHash: Parameters<Provider["awaitTx"]>[0],
+  checkInterval?: Parameters<Provider["awaitTx"]>[1],
+  timeout?: Parameters<Provider["awaitTx"]>[2]
+) => Promise<boolean>
+```
+
+### submitTx (property)
+
+**Signature**
+
+```ts
+submitTx: (cbor: Parameters<Provider["submitTx"]>[0]) => Promise<TransactionHash>
+```
+
+### evaluateTx (property)
+
+**Signature**
+
+```ts
+evaluateTx: (tx: Parameters<Provider["evaluateTx"]>[0], additionalUTxOs?: Parameters<Provider["evaluateTx"]>[1]) =>
+  Promise<EvalRedeemer[]>
+```
+
+## custom
+
+Create a custom Blockfrost provider with custom base URL.
+
+**Signature**
+
+```ts
+export declare const custom: (baseUrl: string, projectId?: string) => BlockfrostProvider
+```
+
+Added in v2.0.0
+
+## mainnet
+
+Pre-configured Blockfrost provider for Cardano mainnet.
+
+**Signature**
+
+```ts
+export declare const mainnet: (projectId: string) => BlockfrostProvider
+```
+
+Added in v2.0.0
+
+## preprod
+
+Pre-configured Blockfrost provider for Cardano preprod testnet.
+
+**Signature**
+
+```ts
+export declare const preprod: (projectId: string) => BlockfrostProvider
+```
+
+Added in v2.0.0
+
+## preview
+
+Pre-configured Blockfrost provider for Cardano preview testnet.
+
+**Signature**
+
+```ts
+export declare const preview: (projectId: string) => BlockfrostProvider
+```
+
+Added in v2.0.0

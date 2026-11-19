@@ -1,0 +1,19 @@
+description: Internal Server Error
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 500
+        error:
+          type: string
+          example: "Internal Server Error"
+        message:
+          type: string
+          example: "An unexpected response was received from the backend."
+      required:
+        - error
+        - message
+        - status_code

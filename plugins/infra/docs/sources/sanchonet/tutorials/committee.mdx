@@ -1,0 +1,73 @@
+---
+sidebar_label: Generate committee keys
+title: Generate committee member keys and certificates
+sidebar_position: 8
+slug: /tutorials/committee
+---
+
+## Committee member cold keys
+
+Individuals who are to be nominated as committee members are required to generate a *cold* key pair. This requirement stems from the necessity to include the cold verification key (or its hash) in the governance action supporting their proposal. The term 'cold key pair' is used to emphasize its intentional storage in a secure, offline environment, which may include safeguarded USB drives, isolated computing machines, or similar devices deliberately disconnected from the internet for enhanced security.
+
+```
+cardano-cli conway governance committee key-gen-cold \
+    --cold-verification-key-file cc-cold.vkey \
+    --cold-signing-key-file cc-cold.skey
+```
+
+### Generate the cold verification key hash:
+
+```
+cardano-cli conway governance committee key-hash \
+    --verification-key-file cc-cold.vkey > cc-key.hash
+```
+```
+cat cc-key.hash
+89181f26b47c3d3b6b127df163b15b74b45bba7c3b7a1d185c05c2de
+```
+
+The key hash would be typically used in the **update committee** governance action that attempts to add or remove CC members.
+
+## Hot key pair and authorization certificate
+
+After new committee members have been ratified by a governance action, the new committee members are required to generate a _hot key pair_ and issue
+a _hot key authorization certificate_. This enables them to cast votes by signing their transactions with their *hot* signing key while keeping their cold
+keys securely stored in cold storage. In the event that the *hot* keys are compromised at any point, the committee member must generate a new hot key pair and issue
+a new hot key authorization certificate.
+
+```
+cardano-cli conway governance committee key-gen-hot \
+    --verification-key-file cc-hot.vkey \
+    --signing-key-file cc-hot.skey
+```
+```
+cardano-cli conway governance committee create-hot-key-authorization-certificate \
+    --cold-verification-key-file cc-cold.vkey \
+    --hot-verification-key-file cc-hot.vkey \
+    --out-file cc-hot-key-authorization.cert
+```
+
+- Submit the authorization certificate in a transaction:
+
+```
+cardano-cli conway transaction build \
+  --testnet-magic 4 \
+  --tx-in "$(cardano-cli query utxo --address "$(cat payment.addr)" --testnet-magic 4 --out-file /dev/stdout | jq -r 'keys[0]')" \
+  --change-address $(cat payment.addr) \
+  --certificate-file cc-hot-key-authorization.cert \
+  --witness-override 2 \
+  --out-file tx.raw
+```
+```
+cardano-cli conway transaction sign \
+  --testnet-magic 4 \
+  --tx-body-file tx.raw \
+  --signing-key-file payment.skey \
+  --signing-key-file cc-cold.skey \
+  --out-file tx.signed
+```
+```
+cardano-cli conway transaction submit \
+  --testnet-magic 4 \
+  --tx-file tx.signed
+```

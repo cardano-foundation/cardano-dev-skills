@@ -1,0 +1,112 @@
+---
+title: "About Mesh SDK for Cardano"
+description: "Mesh is an open-source, production-ready TypeScript SDK for Cardano blockchain development. Transaction builders, wallet integrations, and data services for building dApps. Built and maintained by an active community of builders."
+---
+import Image from 'next/image';
+import Link from 'fumadocs-core/link';
+import {
+  SiDiscord,
+  SiX,
+  SiGithub
+} from "@icons-pack/react-simple-icons";
+import { GlobeAltIcon } from '@heroicons/react/24/outline';
+import {team} from "@/data/team";
+import { cn } from "@/lib/cn";
+import { buttonVariants } from "@/components/ui/button";
+
+<h1 className='text-center text-4xl mt-4'>Mesh Builder Community</h1>
+
+<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-y-10 mb-32">
+  {
+    team.map((member) => (
+      <div
+      className="flex flex-col items-center justify-center"
+      key={member.name}
+      >
+        <Image
+          src={`/team/${member.image}`}
+          alt={member.name}
+          width={150}
+          height={150}
+          className="rounded-full object-cover"
+          loading="lazy"
+        />
+        <h1 className='text-center'>{member.name}</h1>
+        <div className='flex gap-5 items-center justify-center'>
+          {member.twitter && <Link href={member.twitter}><SiX className="w-5 h-5 text-foreground"/></Link>}
+          {member.linkedin && (
+            <Link href={member.linkedin}>
+              <svg className="w-5 h-5 text-foreground" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+              </svg>
+            </Link>
+          )}
+          <Link href={member.github}><SiGithub className="w-6 h-6 text-foreground"/></Link>
+        </div>
+      </div>
+    ))
+  }
+</div>
+
+<div className="flex justify-center mb-32">
+  <Link href="https://gov.meshjs.dev/contributors" className={cn(buttonVariants({ color: 'primary' }), 'rounded-lg px-6 py-2 text-sm font-semibold no-underline')}>
+    All Contributors
+  </Link>
+</div>
+
+<div className='text-center mb-32'>
+  <h1 className='text-4xl'>What are we working on?</h1>
+  <p className='text-xl'>Check our <Link href="https://github.com/orgs/MeshJS/repositories">GitHub repositories</Link> to see what we are currently working on.</p>
+</div>
+
+<div className='text-center mb-32'>
+  <h1 className='text-4xl'>Incorporation</h1>
+  <p className='text-xl'>MeshJS Pte. Ltd. is a company registered in Singapore since 2023, with the registration number (UEN): 202344120W.</p>
+</div>
+
+<div className='text-center mb-32'>
+  <h1 className='text-4xl'>Ecosystem</h1>
+  <p className='text-xl'>Mesh SDK is built for the <Link href="https://developers.cardano.org">Cardano blockchain</Link>, implementing key standards including <Link href="https://cips.cardano.org/cip/CIP-0030">CIP-30</Link> (wallet connectivity), <Link href="https://cips.cardano.org/cip/CIP-0025">CIP-25</Link> (NFT metadata), and <Link href="https://cips.cardano.org/cip/CIP-0095">CIP-95</Link> (governance). Learn more about Cardano's <Link href="https://docs.cardano.org/about-cardano/learn/eutxo-explainer/">eUTXO model</Link>.</p>
+</div>
+
+<div className='flex flex-col gap-4 text-center mb-10'>
+  <div>
+    <h1 className='text-4xl'>Status</h1>
+    <p className='text-xl'>Stay up to date with our latest releases, tests and build status.</p>
+  </div>
+
+  <div className='grid gap-8 sm:gap-12 md:grid-cols-3'>
+    <div className="flex justify-center">
+      <div>
+        <h3 className="mb-1 text-xl font-bold leading-tigh">
+          Published on NPM
+        </h3>
+        <Link href="https://www.npmjs.com/package/@meshsdk/core">
+          <img src="https://img.shields.io/npm/v/%40meshsdk%2Fcore?style=for-the-badge" />
+        </Link>
+      </div>
+    </div>
+
+    <div className="flex justify-center">
+      <div>
+        <h3 className="mb-1 text-xl font-bold leading-tigh">
+          Build status
+        </h3>
+        <Link href="https://github.com/meshjs/mesh/actions/workflows/build.yml">
+          <img className='h-7' src="https://github.com/meshjs/mesh/actions/workflows/build.yml/badge.svg" />
+        </Link>
+      </div>
+    </div>
+
+    <div className="flex justify-center">
+      <div>
+        <h3 className="mb-1 text-xl font-bold leading-tigh">
+          Publish status
+        </h3>
+        <Link href="https://github.com/meshjs/mesh/actions/workflows/publish.yml">
+          <img className='h-7' src="https://github.com/meshjs/mesh/actions/workflows/publish.yml/badge.svg" />
+        </Link>
+      </div>
+    </div>
+  </div>
+</div>

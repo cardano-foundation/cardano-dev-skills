@@ -1,0 +1,128 @@
+post:
+  tags:
+    - Cardano » Utilities
+  summary: Submit a transaction for execution units evaluation (additional UTXO set)
+  description: |
+    Submit a JSON payload with transaction CBOR and additional UTXO set to evaluate how much execution units it requires.
+
+    <p>
+      <span class="hosted">Hosted</span> Endpoint only available for hosted variant.
+    </p>
+  parameters:
+    - in: header
+      name: Content-Type
+      required: true
+      schema:
+        type: string
+        enum: ["application/json"]
+    - in: query
+      name: version
+      required: false
+      schema:
+        type: number
+        default: 5
+      description: |
+        Optional parameter to specify the version of the Ogmios service to use. Default is `5`. Set to `6` to use Ogmios version 6.
+  requestBody:
+    description: "JSON payload"
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            cbor:
+              type: string
+              description: Transaction CBOR (encoded using base64 or base16).
+            additionalUtxoSet:
+              type: array
+              description: Additional UTXO as an array of tuples [TxIn, TxOut]. See https://ogmios.dev/mini-protocols/local-tx-submission/#additional-utxo-set.
+              items:
+                type: array
+                minItems: 2
+                maxItems: 2
+                # TODO: define as tuple once we migrate to OpenAPI 3.1.0
+                items:
+                  anyOf:
+                    # TxIn
+                    - type: object
+                      description: TxIn
+                      properties:
+                        txId:
+                          type: string
+                          description: Transaction hash for the input
+                        index:
+                          type: number
+                          description: Index of the output within the transaction
+                    # TxOut
+                    - type: object
+                      description: TxOut
+                      properties:
+                        address:
+                          type: string
+                          description: Output address
+                        value:
+                          type: object
+                          properties:
+                            coins:
+                              type: number
+                              description: Lovelace amount
+                            assets:
+                              type: object
+                              description: Assets amount
+                              additionalProperties:
+                                type: number
+                          required:
+                            - coins
+                        datum_hash:
+                          type: string
+                        datum:
+                          type: object
+                          additionalProperties: true
+                        script:
+                          type: object
+                          additionalProperties: true
+                      required:
+                        - address
+                        - value
+          required:
+            - cbor
+  x-codeSamples:
+    - lang: "Shell"
+      label: "cURL"
+      source: |
+        # Assuming TxCbor is a CBOR serialized transaction encoded using base16 or base64
+        # For a structure of additional UTXO set see https://ogmios.dev/mini-protocols/local-tx-submission/#additional-utxo-set
+        curl "https://cardano-mainnet.blockfrost.io/api/v0/utils/txs/evaluate/utxos" \
+          -X POST \
+          -H "Content-Type: application/json" \
+          -H "project_id: $PROJECT_ID" \
+          -d '{"cbor":"<TxCbor>","additionalUtxoSet":[[<TxIn>, <TxOut>]]}'
+  responses:
+    "200":
+      description: |
+        <p>
+          <div class="custom-paragraph">
+            Returns result of EvaluateTx function from Ogmios see <a class="custom-link" href="https://ogmios.dev/mini-protocols/local-tx-submission/#evaluatetx">EvaluateTx</a>
+            and<a href="https://ogmios.dev/api/"> API reference (EvaluateTxResponse)</a> for related errors.
+          </div>
+        </p>
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: true
+    "400":
+      $ref: ../../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../../responses/errors/404.yaml
+    "418":
+      $ref: ../../../../../responses/errors/418.yaml
+    "425":
+      $ref: ../../../../../responses/errors/425.yaml
+    "429":
+      $ref: ../../../../../responses/errors/429.yaml
+    "500":
+      $ref: ../../../../../responses/errors/500.yaml

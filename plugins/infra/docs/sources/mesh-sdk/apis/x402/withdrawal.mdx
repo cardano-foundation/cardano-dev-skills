@@ -1,0 +1,94 @@
+---
+title: "Withdrawal"
+description: "How funds leave after an x402 payment, for each transfer method."
+---
+
+x402 `/settle` is the incoming payment. Whether you then need a withdrawal depends on where that payment landed.
+
+| Method | After `/settle` | Withdrawal |
+|---|---|---|
+| `default` | Funds sit at your address | None. You already have them. |
+| `script` | Locked at your script address | You write it. x402 does not know your contract. |
+| `masumi` | Locked in the Masumi escrow | Later spends: submit a result, then withdraw after the unlock time. |
+
+## Address to address (`default`)
+
+`payTo` is a wallet address. The facilitator submits an ordinary payment. Once it confirms, the funds are yours. There is no escrow and no second transaction.
+
+## Script (`script`)
+
+x402 only checks that the lock went to **your** script, with the datum you declared. It never spends from it. Unlocking is a normal script spend you build for that contract ([MeshTxBuilder](/apis/txbuilder/smart-contract)): your redeemer, your validity window, your payouts.
+
+```ts
+const unsigned = await new MeshTxBuilder({ fetcher: provider, evaluator: provider })
+  .spendingPlutusScriptV3()
+  .txIn(utxo.input.txHash, utxo.input.outputIndex, utxo.output.amount, utxo.output.address)
+  .txInInlineDatumPresent()
+  .txInRedeemerValue(yourRedeemer, "Mesh")
+  .txInScript(script.code)
+  .txOut(destination, utxo.output.amount)
+  .complete();
+```
+
+Pass an `evaluator` (the same `BlockfrostProvider` works) so execution units are estimated. Without one, Mesh uses a default budget and the spend can fail on-chain even when the redeemer is right.
+
+## Masumi (`masumi`)
+
+Settlement only **locks**. The seller is not paid yet. Funds leave in a later transaction against `vested_pay`. See [Masumi Escrow](/apis/x402/masumi) for the lock itself.
+
+### The clock
+
+`buildMasumiOffer` bakes four times into the terms. The contract requires gaps of at least 5 minutes, then 15, then 15. The offer builder adds a little margin (~6 / ~16 / ~16 minutes).
+
+| Time | What it means |
+|---|---|
+| `payByTime` | Buyer must lock before this |
+| `submitResultTime` | Seller must record a result before this |
+| `unlockTime` | Seller can take the funds after this (if they submitted a result) |
+| `externalDisputeUnlockTime` | Admins can settle a dispute after this |
+
+Some actions also set a **cooldown** on that party (canonical deployment: 7 minutes). It is computed from **this transaction's validity upper bound**, not from wall-clock "now". Stretching `invalidHereafter` out to a distant deadline would make the next action wait that long too, so the builders keep the window short (~10 minutes) when the contract allows it.
+
+### Happy path
+
+1. Lock (x402 `/settle`) → `FundsLocked`
+2. Seller `buildSubmitResultTx` **before** `submitResultTime` → `ResultSubmitted`. The escrow UTxO stays at `payTo`.
+3. Wait until `unlockTime`
+4. Seller `buildWithdrawTx` → the escrow is consumed. Buyer gets collateral back; seller gets the rest.
+
+```ts
+import { parseMasumiLockDatum, buildSubmitResultTx, buildWithdrawTx } from "@meshsdk/x402";
+
+const datum = parseMasumiLockDatum(escrowUtxo.output.plutusData)!;
+const ctx = { fetcher: provider, evaluator: provider, currentSlot }; // evaluator estimates script costs
+
+const submit = await buildSubmitResultTx(
+  escrowUtxo, datum, resultHashHex, sellerWallet, deployment, ctx,
+);
+await provider.submitTx(await sellerWallet.signTx(submit));
+
+// later, after unlockTime: re-fetch the continued UTxO + datum (the lock tx is already spent)
+const withdraw = await buildWithdrawTx(nextUtxo, nextDatum, sellerWallet, deployment, ctx);
+await provider.submitTx(await sellerWallet.signTx(withdraw));
+```
+
+Want the payment sooner? The buyer can `buildSetRefundRequestedTx` (a dispute, if a result already exists) then `buildAuthorizeWithdrawalTx`. From `WithdrawAuthorized` the seller withdraws immediately — no `unlockTime` wait.
+
+### If you call a builder at the wrong time
+
+The spend is checked **before** it is built. You get a readable `X402Error` instead of a transaction the node rejects with an opaque script failure:
+
+| When | Code |
+|---|---|
+| `SubmitResult` after `submitResultTime` (or a revision after `externalDisputeUnlockTime`) | `MASUMI_SPEND_DEADLINE_PASSED` |
+| `Withdraw` before `unlockTime` | `MASUMI_SPEND_NOT_YET_OPEN` |
+| Wrong state, e.g. `Withdraw` while still `FundsLocked` | `MASUMI_SPEND_INVALID_STATE` |
+
+The message includes the deadline as UTC, for example `Withdraw opens at unlock_time (2026-10-16T08:12:00.000Z); try again after that`.
+
+### Other ways funds leave
+
+- **Refund.** Seller `buildAuthorizeRefundTx`, then buyer `buildWithdrawRefundTx` with no time wait. If no result was ever submitted, the buyer can `buildWithdrawRefundTx` after `submitResultTime`.
+- **Dispute.** After `externalDisputeUnlockTime`, anyone can `buildWithdrawDisputedTx` with an M-of-N admin CIP-8 quorum (`signAdminIntent`, `verifyAdminSignature`).
+
+The full builder list is on the [Masumi page](/apis/x402/masumi).

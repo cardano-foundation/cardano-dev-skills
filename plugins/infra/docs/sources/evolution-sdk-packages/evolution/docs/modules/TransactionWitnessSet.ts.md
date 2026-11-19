@@ -1,0 +1,466 @@
+---
+title: TransactionWitnessSet.ts
+nav_order: 177
+parent: Modules
+---
+
+## TransactionWitnessSet overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [arbitrary](#arbitrary)
+  - [arbitrary](#arbitrary-1)
+- [constructors](#constructors)
+  - [empty](#empty)
+  - [fromNativeScripts](#fromnativescripts)
+  - [fromVKeyWitnesses](#fromvkeywitnesses)
+- [encoding](#encoding)
+  - [toCBORBytes](#tocborbytes)
+  - [toCBORBytesWithFormat](#tocborbyteswithformat)
+  - [toCBORHex](#tocborhex)
+  - [toCBORHexWithFormat](#tocborhexwithformat)
+- [model](#model)
+  - [PlutusScript](#plutusscript)
+  - [TransactionWitnessSet (class)](#transactionwitnessset-class)
+    - [toJSON (method)](#tojson-method)
+    - [toString (method)](#tostring-method)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method)
+    - [[Equal.symbol] (method)](#equalsymbol-method)
+    - [[Hash.symbol] (method)](#hashsymbol-method)
+  - [VKeyWitness (class)](#vkeywitness-class)
+    - [toJSON (method)](#tojson-method-1)
+    - [toString (method)](#tostring-method-1)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method-1)
+    - [[Equal.symbol] (method)](#equalsymbol-method-1)
+    - [[Hash.symbol] (method)](#hashsymbol-method-1)
+- [parsing](#parsing)
+  - [fromCBORBytes](#fromcborbytes)
+  - [fromCBORBytesWithFormat](#fromcborbyteswithformat)
+  - [fromCBORHex](#fromcborhex)
+  - [fromCBORHexWithFormat](#fromcborhexwithformat)
+- [schemas](#schemas)
+  - [CDDLSchema](#cddlschema)
+  - [FromCDDL](#fromcddl)
+- [utils](#utils)
+  - [FromCBORBytes](#fromcborbytes-1)
+  - [FromCBORHex](#fromcborhex-1)
+  - [PlutusScript (type alias)](#plutusscript-type-alias)
+
+---
+
+# arbitrary
+
+## arbitrary
+
+FastCheck arbitrary for generating random TransactionWitnessSet instances.
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<TransactionWitnessSet>
+```
+
+Added in v2.0.0
+
+# constructors
+
+## empty
+
+Create an empty TransactionWitnessSet.
+
+**Signature**
+
+```ts
+export declare const empty: () => TransactionWitnessSet
+```
+
+Added in v2.0.0
+
+## fromNativeScripts
+
+Create a TransactionWitnessSet with only native scripts.
+
+**Signature**
+
+```ts
+export declare const fromNativeScripts: (scripts: Array<NativeScripts.NativeScript>) => TransactionWitnessSet
+```
+
+Added in v2.0.0
+
+## fromVKeyWitnesses
+
+Create a TransactionWitnessSet with only VKey witnesses.
+
+**Signature**
+
+```ts
+export declare const fromVKeyWitnesses: (witnesses: Array<VKeyWitness>) => TransactionWitnessSet
+```
+
+Added in v2.0.0
+
+# encoding
+
+## toCBORBytes
+
+Convert a TransactionWitnessSet to CBOR bytes.
+
+**Signature**
+
+```ts
+export declare const toCBORBytes: (data: TransactionWitnessSet, options?: CBOR.CodecOptions) => any
+```
+
+Added in v2.0.0
+
+## toCBORBytesWithFormat
+
+Convert a TransactionWitnessSet to CBOR bytes using an explicit root format tree.
+
+**Signature**
+
+```ts
+export declare const toCBORBytesWithFormat: (data: TransactionWitnessSet, format: CBOR.CBORFormat) => Uint8Array
+```
+
+Added in v2.0.0
+
+## toCBORHex
+
+Convert a TransactionWitnessSet to CBOR hex string.
+
+**Signature**
+
+```ts
+export declare const toCBORHex: (data: TransactionWitnessSet, options?: CBOR.CodecOptions) => string
+```
+
+Added in v2.0.0
+
+## toCBORHexWithFormat
+
+Convert a TransactionWitnessSet to CBOR hex string using an explicit root format tree.
+
+**Signature**
+
+```ts
+export declare const toCBORHexWithFormat: (data: TransactionWitnessSet, format: CBOR.CBORFormat) => string
+```
+
+Added in v2.0.0
+
+# model
+
+## PlutusScript
+
+Plutus script reference with version tag.
+
+```
+CDDL: plutus_script =
+  [ 0, plutus_v1_script ]
+/ [ 1, plutus_v2_script ]
+/ [ 2, plutus_v3_script ]
+```
+
+**Signature**
+
+```ts
+export declare const PlutusScript: Schema.Union<
+  [typeof PlutusV1.PlutusV1, typeof PlutusV2.PlutusV2, typeof PlutusV3.PlutusV3]
+>
+```
+
+Added in v2.0.0
+
+## TransactionWitnessSet (class)
+
+TransactionWitnessSet based on Conway CDDL specification.
+
+```
+CDDL: transaction_witness_set = {
+  ? 0 : nonempty_set<vkeywitness>
+  ? 1 : nonempty_set<native_script>
+  ? 2 : nonempty_set<bootstrap_witness>
+  ? 3 : nonempty_set<plutus_v1_script>
+  ? 4 : nonempty_set<plutus_data>
+  ? 5 : redeemers
+  ? 6 : nonempty_set<plutus_v2_script>
+  ? 7 : nonempty_set<plutus_v3_script>
+}
+
+nonempty_set<a0> = #6.258([+ a0])/ [+ a0]
+```
+
+**Signature**
+
+```ts
+export declare class TransactionWitnessSet
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+Added in v2.0.0
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+Added in v2.0.0
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+Added in v2.0.0
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+Added in v2.0.0
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+Added in v2.0.0
+
+## VKeyWitness (class)
+
+VKey witness for Ed25519 signatures.
+
+CDDL: vkeywitness = [ vkey, ed25519_signature ]
+
+**Signature**
+
+```ts
+export declare class VKeyWitness
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+Added in v2.0.0
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+Added in v2.0.0
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+Added in v2.0.0
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+Added in v2.0.0
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+Added in v2.0.0
+
+# parsing
+
+## fromCBORBytes
+
+Parse a TransactionWitnessSet from CBOR bytes.
+
+**Signature**
+
+```ts
+export declare const fromCBORBytes: (bytes: Uint8Array, options?: CBOR.CodecOptions) => TransactionWitnessSet
+```
+
+Added in v2.0.0
+
+## fromCBORBytesWithFormat
+
+Parse a TransactionWitnessSet from CBOR bytes and return the root format tree.
+
+**Signature**
+
+```ts
+export declare const fromCBORBytesWithFormat: (bytes: Uint8Array) => CBOR.DecodedWithFormat<TransactionWitnessSet>
+```
+
+Added in v2.0.0
+
+## fromCBORHex
+
+Parse a TransactionWitnessSet from CBOR hex string.
+
+**Signature**
+
+```ts
+export declare const fromCBORHex: (hex: string, options?: CBOR.CodecOptions) => TransactionWitnessSet
+```
+
+Added in v2.0.0
+
+## fromCBORHexWithFormat
+
+Parse a TransactionWitnessSet from CBOR hex string and return the root format tree.
+
+**Signature**
+
+```ts
+export declare const fromCBORHexWithFormat: (hex: string) => CBOR.DecodedWithFormat<TransactionWitnessSet>
+```
+
+Added in v2.0.0
+
+# schemas
+
+## CDDLSchema
+
+CDDL schema for TransactionWitnessSet encoded as a CBOR map with integer keys.
+Keys and values follow Conway-era CDDL:
+
+```
+  0: nonempty_set<vkeywitness>
+  1: nonempty_set<native_script>
+  2: nonempty_set<bootstrap_witness>
+  3: nonempty_set<plutus_v1_script>
+  4: nonempty_set<plutus_data>
+  5: redeemers (array of [tag, index, data, ex_units])
+  6: nonempty_set<plutus_v2_script>
+  7: nonempty_set<plutus_v3_script>
+
+nonempty_set<a0> = #6.258([+ a0]) / [+ a0]
+```
+
+**Signature**
+
+```ts
+export declare const CDDLSchema: Schema.declare<Map<bigint, CBOR.CBOR>, Map<bigint, CBOR.CBOR>, readonly [], never>
+```
+
+Added in v2.0.0
+
+## FromCDDL
+
+CDDL transformation schema for TransactionWitnessSet.
+
+**Signature**
+
+```ts
+export declare const FromCDDL: Schema.transformOrFail<
+  Schema.declare<Map<bigint, CBOR.CBOR>, Map<bigint, CBOR.CBOR>, readonly [], never>,
+  Schema.SchemaClass<TransactionWitnessSet, TransactionWitnessSet, never>,
+  never
+>
+```
+
+Added in v2.0.0
+
+# utils
+
+## FromCBORBytes
+
+**Signature**
+
+```ts
+export declare const FromCBORBytes: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.transformOrFail<
+    typeof Schema.Uint8ArrayFromSelf,
+    Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+    never
+  >,
+  Schema.transformOrFail<
+    Schema.declare<Map<bigint, CBOR.CBOR>, Map<bigint, CBOR.CBOR>, readonly [], never>,
+    Schema.SchemaClass<TransactionWitnessSet, TransactionWitnessSet, never>,
+    never
+  >
+>
+```
+
+## FromCBORHex
+
+**Signature**
+
+```ts
+export declare const FromCBORHex: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.transform<
+    Schema.Schema<Uint8Array, string, never>,
+    Schema.transformOrFail<
+      typeof Schema.Uint8ArrayFromSelf,
+      Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+      never
+    >
+  >,
+  Schema.transformOrFail<
+    Schema.declare<Map<bigint, CBOR.CBOR>, Map<bigint, CBOR.CBOR>, readonly [], never>,
+    Schema.SchemaClass<TransactionWitnessSet, TransactionWitnessSet, never>,
+    never
+  >
+>
+```
+
+## PlutusScript (type alias)
+
+**Signature**
+
+```ts
+export type PlutusScript = typeof PlutusScript.Type
+```

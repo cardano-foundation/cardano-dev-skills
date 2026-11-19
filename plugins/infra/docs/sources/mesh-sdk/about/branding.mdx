@@ -1,0 +1,175 @@
+---
+title: "Branding"
+description: "Download official Mesh logos and assets for your projects, presentations, and integrations."
+---
+import Link from "next/link";
+import Image from "next/image";
+
+Use the official Mesh brand assets when you reference Mesh in your application, documentation, or marketing materials. This page provides all logo variations and guidelines for proper usage.
+
+## Logo Downloads
+
+Download the Mesh logo in your preferred format and color scheme. Use SVG files for web applications where possible, as they scale to any size without quality loss.
+
+### Standard Logos
+
+Choose between black and white versions depending on your background color.
+
+<Cards className="mb-16 mt-10">
+  <Card>
+    <Image
+      src="/logo-mesh/black/logo-mesh-black-512x512.png"
+      width={500}
+      height={250}
+      alt="mesh-black-512"
+      className="bg-white rounded"
+    />
+
+    <div className="flex flex-col items-center gap-2">
+      <div className="font-bold text-lg">Download black logo:</div>
+      <div className="flex flex-wrap justify-center items-center gap-2">
+        <Link
+          href={`/logo-mesh/black/logo-mesh-vector.svg`}
+          className="text-blue-500 no-underline hover:underline leading-none"
+        >
+          SVG
+        </Link>
+        {["16x16", "32x32", "64x64", "128x128", "256x256", "512x512"].map((size) => (
+          <Link
+            key={size}
+            href={`/logo-mesh/black/logo-mesh-black-${size}.png`}
+            target="_blank"
+            className="text-blue-500 no-underline hover:underline leading-none"
+          >
+            {size}
+          </Link>
+        ))}
+      </div>
+    </div>
+  </Card>
+
+  <Card>
+    <Image
+      src="/logo-mesh/white/logo-mesh-white-512x512.png"
+      width={500}
+      height={250}
+      alt="mesh-white-512"
+      className="bg-black rounded"
+    />
+
+    <div className="flex flex-col items-center gap-2">
+      <div className="font-bold text-lg">Download white logo:</div>
+      <div className="flex flex-wrap justify-center items-center gap-2">
+        <Link
+          href={`/logo-mesh/white/logo-mesh-vector.svg`}
+          className="text-blue-500 no-underline hover:underline leading-none"
+        >
+          SVG
+        </Link>
+        {["16x16", "32x32", "64x64", "128x128", "256x256", "512x512"].map((size) => (
+          <Link
+            key={size}
+            href={`/logo-mesh/white/logo-mesh-white-${size}.png`}
+            target="_blank"
+            className="text-blue-500 no-underline hover:underline leading-none"
+          >
+            {size}
+          </Link>
+        ))}
+      </div>
+    </div>
+  </Card>
+</Cards>
+
+### Logos with Title
+
+Use these versions when you need the Mesh name alongside the logo.
+
+<Cards className="mb-16">
+  <Card>
+    <Image
+      src="/logo-mesh/meshlogo-with-title-black.svg"
+      width={500}
+      height={250}
+      alt="mesh-black-title-512"
+      className="bg-white rounded mb-0"
+    />
+
+    <div className="flex items-center justify-center gap-2 font-bold text-lg">
+      <div>Download black logo with title:</div>
+      <Link
+        href={`/logo-mesh/meshlogo-with-title-black.svg`}
+        className="text-blue-500 no-underline hover:underline"
+      >
+        SVG
+      </Link>
+    </div>
+  </Card>
+
+  <Card>
+    <Image
+      src="/logo-mesh/meshlogo-with-title-white.svg"
+      width={500}
+      height={250}
+      alt="mesh-white-title-512"
+      className="bg-black rounded mb-0"
+    />
+
+    <div className="flex items-center justify-center gap-2 font-bold text-lg leading-none">
+      <span>Download white logo with title:</span>
+      <Link
+        href={`/logo-mesh/meshlogo-with-title-white.svg`}
+        className="text-blue-500 no-underline hover:underline"
+      >
+        SVG
+      </Link>
+    </div>
+  </Card>
+</Cards>
+
+### Logo with Background
+
+Use this version for social media profiles or when you need a standalone image with built-in contrast.
+
+<Cards>
+  <Card>
+    <Image
+      src="/logo-mesh/mesh.png"
+      width={500}
+      height={250}
+      alt="mesh-background"
+      className="rounded mb-0"
+    />
+
+    <div className="flex items-center justify-center gap-2 font-bold text-lg leading-none">
+      <span>Download logo with background:</span>
+      <Link
+        href={`/logo-mesh/mesh.png`}
+        className="text-blue-500 no-underline hover:underline"
+      >
+        <p>PNG</p>
+      </Link>
+    </div>
+  </Card>
+</Cards>
+
+## Available Formats
+
+| Format | Best For | Sizes Available |
+|--------|----------|-----------------|
+| SVG | Web, print, any scale | Vector (scalable) |
+| PNG | Social media, documents | 16x16 to 512x512 |
+
+## Usage Guidelines
+
+When using Mesh branding:
+
+- **Maintain aspect ratio** - Do not stretch or distort the logo
+- **Ensure contrast** - Use the black logo on light backgrounds and white logo on dark backgrounds
+- **Provide spacing** - Leave adequate clear space around the logo
+- **No modifications** - Do not alter colors, add effects, or combine with other graphics
+
+## Related Resources
+
+- [Support Us](/about/support-us) - Ways to contribute to the Mesh project
+- [Project Catalyst](/about/catalyst) - Our funded proposals and development roadmap

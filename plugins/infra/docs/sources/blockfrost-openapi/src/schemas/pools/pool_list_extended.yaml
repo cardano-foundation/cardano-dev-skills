@@ -1,0 +1,214 @@
+type: array
+items:
+  type: object
+  properties:
+    pool_id:
+      type: string
+      example: "pool1z5uqdk7dzdxaae5633fqfcu2eqzy3a3rgtuvy087fdld7yws0xt"
+      description: Bech32 encoded pool ID
+    hex:
+      type: string
+      example: "0f292fcaa02b8b2f9b3c8f9fd8e0bb21abedb692a6d5058df3ef2735"
+      description: Hexadecimal pool ID.
+    active_stake:
+      type: string
+      example: "4200000000"
+      description: Active delegated amount
+    live_stake:
+      type: string
+      example: "6900000000"
+      description: Currently delegated amount
+    live_saturation:
+      type: number
+      example: 0.93
+    blocks_minted:
+      type: integer
+      example: 69
+      description: Total minted blocks
+    declared_pledge:
+      type: string
+      example: "5000000000"
+      description: Stake pool certificate pledge
+    margin_cost:
+      type: number
+      example: 0.05
+      description: Margin tax cost of the stake pool
+    fixed_cost:
+      type: string
+      example: "340000000"
+      description: Fixed tax cost of the stake pool
+    metadata:
+      type: object
+      nullable: true
+      properties:
+        url:
+          type: string
+          nullable: true
+          example: "https://stakenuts.com/mainnet.json"
+          description: URL to the stake pool metadata
+        hash:
+          type: string
+          nullable: true
+          example: "47c0c68cb57f4a5b4a87bad896fc274678e7aea98e200fa14a1cb40c0cab1d8c"
+          description: Hash of the metadata file
+        error:
+          type: object
+          description: Present when metadata could not be fetched or validated.
+          properties:
+            code:
+              type: string
+              description: Stable machine-readable error code.
+              enum:
+                - HASH_MISMATCH
+                - CONNECTION_ERROR
+                - HTTP_RESPONSE_ERROR
+                - DECODE_ERROR
+                - SIZE_EXCEEDED
+                - UNKNOWN_ERROR
+            message:
+              type: string
+              description: Human-readable description of the error.
+          required: [code, message]
+        ticker:
+          type: string
+          nullable: true
+          example: "NUTS"
+          description: Ticker of the stake pool
+        name:
+          type: string
+          nullable: true
+          example: "Stake Nuts"
+          description: Name of the stake pool
+        description:
+          type: string
+          nullable: true
+          example: "The best pool ever"
+          description: Description of the stake pool
+        homepage:
+          type: string
+          nullable: true
+          example: "https://stakentus.com/"
+          description: Home page of the stake pool
+      required:
+        - url
+        - hash
+        - ticker
+        - name
+        - description
+        - homepage
+  required:
+    - pool_id
+    - hex
+    - active_stake
+    - live_stake
+    - blocks_minted
+    - live_saturation
+    - declared_pledge
+    - margin_cost
+    - fixed_cost
+    - metadata
+example:
+  - pool_id: "pool19u64770wqp6s95gkajc8udheske5e6ljmpq33awxk326zjaza0q"
+    hex: "2f355f79ee007502d116ecb07e36f985b34cebf2d84118f5c6b455a1"
+    active_stake: "1541200000"
+    live_stake: "1541400000"
+    blocks_minted:
+      type: integer
+      example: 69
+      description: Total minted blocks
+    live_saturation:
+      type: number
+      example: 0.93
+    declared_pledge:
+      type: string
+      example: "5000000000"
+      description: Stake pool certificate pledge
+    margin_cost:
+      type: number
+      example: 0.05
+      description: Margin tax cost of the stake pool
+    fixed_cost:
+      type: string
+      example: "340000000"
+      description: Fixed tax cost of the stake pool
+    metadata:
+      type: object
+      properties:
+        url:
+          type: string
+          nullable: true
+          example: "https://stakenuts.com/mainnet.json"
+          description: URL to the stake pool metadata
+        hash:
+          type: string
+          nullable: true
+          example: "47c0c68cb57f4a5b4a87bad896fc274678e7aea98e200fa14a1cb40c0cab1d8c"
+          description: Hash of the metadata file
+        ticker:
+          type: string
+          nullable: true
+          example: "NUTS"
+          description: Ticker of the stake pool
+        name:
+          type: string
+          nullable: true
+          example: "Stake Nuts"
+          description: Name of the stake pool
+        description:
+          type: string
+          nullable: true
+          example: "The best pool ever"
+          description: Description of the stake pool
+        homepage:
+          type: string
+          nullable: true
+          example: "https://stakentus.com/"
+          description: Home page of the stake pool
+  - pool_id: "pool1dvla4zq98hpvacv20snndupjrqhuc79zl6gjap565nku6et5zdx"
+    hex: "6b3fda88053dc2cee18a7c2736f032182fcc78a2fe912e869aa4edcd"
+    active_stake: "22200000"
+    live_stake: "48955550"
+    blocks_minted:
+      type: integer
+      example: 69
+      description: Total minted blocks
+    live_saturation:
+      type: number
+      example: 0.93
+    declared_pledge:
+      type: string
+      example: "5000000000"
+      description: Stake pool certificate pledge
+    margin_cost:
+      type: number
+      example: 0.05
+      description: Margin tax cost of the stake pool
+    fixed_cost:
+      type: string
+      example: "340000000"
+      description: Fixed tax cost of the stake pool
+    metadata: null
+  - pool_id: "pool1wvccajt4eugjtf3k0ja3exjqdj7t8egsujwhcw4tzj4rzsxzw5w"
+    hex: "73318ec975cf1125a6367cbb1c9a406cbcb3e510e49d7c3aab14aa31"
+    active_stake: "9989541215"
+    live_stake: "168445464878"
+    blocks_minted:
+      type: integer
+      example: 69
+      description: Total minted blocks
+    live_saturation:
+      type: number
+      example: 0.93
+    declared_pledge:
+      type: string
+      example: "5000000000"
+      description: Stake pool certificate pledge
+    margin_cost:
+      type: number
+      example: 0.05
+      description: Margin tax cost of the stake pool
+    fixed_cost:
+      type: string
+      example: "340000000"
+      description: Fixed tax cost of the stake pool
+    metadata: null

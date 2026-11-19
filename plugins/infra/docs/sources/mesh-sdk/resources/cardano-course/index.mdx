@@ -1,0 +1,95 @@
+---
+title: "Cardano Development Course"
+description: "A comprehensive course for building Cardano applications with Mesh SDK and Aiken smart contracts."
+icon: AcademicCapIcon
+---
+import Link from "fumadocs-core/link";
+import { CourseSchema } from "@/components/seo";
+
+<CourseSchema
+  name="Cardano Development Course with Mesh SDK"
+  description="A comprehensive free course for building Cardano applications with Mesh SDK and Aiken smart contracts. Learn wallet integration, transaction building, smart contract development, and Layer 2 scaling."
+  provider="MeshJS"
+  isAccessibleForFree={true}
+  lessons={[
+    { name: "Hello World", description: "Install Mesh SDK and learn wallet basics with sending lovelace" },
+    { name: "Multi-signature Transactions", description: "Build multi-sig transactions for collaborative signing" },
+    { name: "Aiken Contracts", description: "Introduction to Aiken smart contract development" },
+    { name: "Contract Testing", description: "Testing strategies for smart contracts" },
+    { name: "Avoid Redundant Validation", description: "Smart contract optimization patterns" },
+    { name: "Interpreting Blueprint", description: "Understanding Aiken blueprints and CIP-57" },
+    { name: "Vesting Contract", description: "Build a token vesting contract" },
+    { name: "Plutus NFT Contract", description: "Create NFT minting contracts with Plutus" },
+    { name: "Hydra End-to-End", description: "Layer 2 scaling with Hydra" },
+    { name: "Web3 Services", description: "Wallet-as-a-service and transaction sponsorship" }
+  ]}
+/>
+
+Master Cardano development through hands-on lessons. Each lesson builds on the previous one, taking you from basic wallet operations to advanced smart contract development.
+
+## What You Will Learn
+
+By completing this course, you will be able to:
+
+- Build Cardano dApps using the Mesh SDK
+- Create and deploy Aiken smart contracts
+- Construct transactions and integrate wallet functionality
+- Test and optimize smart contracts for production
+- Mint NFTs and manage tokens on Cardano
+- Implement Layer 2 scaling solutions with Hydra
+
+## Prerequisites
+
+Before starting this course, ensure you have:
+
+- **Node.js v20+** installed on your machine
+- Basic understanding of **TypeScript/JavaScript**
+- A code editor (VS Code recommended)
+- Familiarity with blockchain concepts (helpful but not required)
+
+## Course Structure
+
+### Getting Started
+
+Start here if you are new to Cardano development:
+
+- <Link href="/resources/cardano-course/01-wallet-send-lovelace">Lesson 1: Hello World</Link> - Set up Mesh SDK, create a wallet, and send your first transaction
+- <Link href="/resources/cardano-course/02-multisig">Lesson 2: Multi-signature Transactions</Link> - Build transactions that require multiple signers
+
+### Smart Contract Development
+
+Learn the fundamentals of Aiken smart contract development:
+
+- <Link href="/resources/cardano-course/03-aiken-contracts">Lesson 3: Aiken Contracts</Link> - Understand transaction contexts, validators, and script types
+- <Link href="/resources/cardano-course/04-contract-testing">Lesson 4: Contract Testing</Link> - Write comprehensive tests using mock transactions
+- <Link href="/resources/cardano-course/05-avoid-redundant-validation">Lesson 5: Avoid Redundant Validation</Link> - Optimize contracts by centralizing validation logic
+- <Link href="/resources/cardano-course/06-interpreting-blueprint">Lesson 6: Interpreting Blueprint</Link> - Generate offchain code from Aiken blueprints
+
+### Advanced Contracts
+
+Build production-ready smart contracts:
+
+- <Link href="/resources/cardano-course/07-vesting">Lesson 7: Vesting Contract</Link> - Create a time-locked fund release contract
+- <Link href="/resources/cardano-course/08-plutus-nft">Lesson 8: Plutus NFT Contract</Link> - Mint unique NFTs with auto-incrementing indices
+
+### Scaling and Services
+
+Explore Layer 2 solutions and Web3 services:
+
+- <Link href="/resources/cardano-course/09-hydra">Lesson 9: Hydra End-to-End</Link> - Implement state channels with the Hydra Head protocol
+- <Link href="/resources/cardano-course/10-web3-services">Lesson 10: Web3 Services</Link> - Integrate wallet-as-a-service and transaction sponsorship
+
+## Estimated Time
+
+- **Total course duration:** 8-12 hours
+- **Per lesson:** 30-60 minutes
+
+## Get Help
+
+If you encounter issues or have questions:
+
+- Join the <Link href="https://discord.gg/meshsdk">Mesh Discord community</Link>
+- Check the <Link href="/apis">Mesh SDK API documentation</Link>
+- Review the <Link href="https://aiken-lang.org/">Aiken documentation</Link>
+
+Ready to start? Begin with <Link href="/resources/cardano-course/01-wallet-send-lovelace">Lesson 1: Hello World</Link>.

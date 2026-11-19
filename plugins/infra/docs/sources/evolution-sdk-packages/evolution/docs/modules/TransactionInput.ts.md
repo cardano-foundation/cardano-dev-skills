@@ -1,0 +1,253 @@
+---
+title: TransactionInput.ts
+nav_order: 173
+parent: Modules
+---
+
+## TransactionInput overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [conversion](#conversion)
+  - [fromCBORBytes](#fromcborbytes)
+  - [fromCBORHex](#fromcborhex)
+  - [toCBORBytes](#tocborbytes)
+  - [toCBORHex](#tocborhex)
+- [model](#model)
+  - [TransactionInput (class)](#transactioninput-class)
+    - [toJSON (method)](#tojson-method)
+    - [toString (method)](#tostring-method)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method)
+    - [[Equal.symbol] (method)](#equalsymbol-method)
+    - [[Hash.symbol] (method)](#hashsymbol-method)
+- [predicates](#predicates)
+  - [isTransactionInput](#istransactioninput)
+- [schemas](#schemas)
+  - [FromCBORBytes](#fromcborbytes-1)
+  - [FromCBORHex](#fromcborhex-1)
+  - [FromCDDL](#fromcddl)
+- [testing](#testing)
+  - [arbitrary](#arbitrary)
+- [utils](#utils)
+  - [CDDLSchema](#cddlschema)
+
+---
+
+# conversion
+
+## fromCBORBytes
+
+Convert CBOR bytes to TransactionInput.
+
+**Signature**
+
+```ts
+export declare const fromCBORBytes: (bytes: Uint8Array, options?: CBOR.CodecOptions) => TransactionInput
+```
+
+Added in v2.0.0
+
+## fromCBORHex
+
+Convert CBOR hex string to TransactionInput.
+
+**Signature**
+
+```ts
+export declare const fromCBORHex: (hex: string, options?: CBOR.CodecOptions) => TransactionInput
+```
+
+Added in v2.0.0
+
+## toCBORBytes
+
+Convert TransactionInput to CBOR bytes.
+
+**Signature**
+
+```ts
+export declare const toCBORBytes: (data: TransactionInput, options?: CBOR.CodecOptions) => any
+```
+
+Added in v2.0.0
+
+## toCBORHex
+
+Convert TransactionInput to CBOR hex string.
+
+**Signature**
+
+```ts
+export declare const toCBORHex: (data: TransactionInput, options?: CBOR.CodecOptions) => string
+```
+
+Added in v2.0.0
+
+# model
+
+## TransactionInput (class)
+
+Schema for TransactionInput representing a transaction input with transaction id and index.
+
+```
+transaction_input = [transaction_id : transaction_id, index : uint .size 2]
+```
+
+**Signature**
+
+```ts
+export declare class TransactionInput
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+# predicates
+
+## isTransactionInput
+
+Check if the given value is a valid TransactionInput.
+
+**Signature**
+
+```ts
+export declare const isTransactionInput: (u: unknown, overrideOptions?: ParseOptions | number) => u is TransactionInput
+```
+
+Added in v2.0.0
+
+# schemas
+
+## FromCBORBytes
+
+CBOR bytes transformation schema for TransactionInput.
+
+**Signature**
+
+```ts
+export declare const FromCBORBytes: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.transformOrFail<
+    typeof Schema.Uint8ArrayFromSelf,
+    Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+    never
+  >,
+  Schema.transformOrFail<
+    Schema.Tuple2<typeof Schema.Uint8ArrayFromSelf, typeof Schema.BigIntFromSelf>,
+    Schema.SchemaClass<TransactionInput, TransactionInput, never>,
+    never
+  >
+>
+```
+
+Added in v2.0.0
+
+## FromCBORHex
+
+CBOR hex transformation schema for TransactionInput.
+
+**Signature**
+
+```ts
+export declare const FromCBORHex: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.Schema<Uint8Array, string, never>,
+  Schema.transform<
+    Schema.transformOrFail<
+      typeof Schema.Uint8ArrayFromSelf,
+      Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+      never
+    >,
+    Schema.transformOrFail<
+      Schema.Tuple2<typeof Schema.Uint8ArrayFromSelf, typeof Schema.BigIntFromSelf>,
+      Schema.SchemaClass<TransactionInput, TransactionInput, never>,
+      never
+    >
+  >
+>
+```
+
+Added in v2.0.0
+
+## FromCDDL
+
+CDDL schema for TransactionInput.
+
+**Signature**
+
+```ts
+export declare const FromCDDL: Schema.transformOrFail<
+  Schema.Tuple2<typeof Schema.Uint8ArrayFromSelf, typeof Schema.BigIntFromSelf>,
+  Schema.SchemaClass<TransactionInput, TransactionInput, never>,
+  never
+>
+```
+
+Added in v2.0.0
+
+# testing
+
+## arbitrary
+
+FastCheck arbitrary for TransactionInput instances.
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<TransactionInput>
+```
+
+Added in v2.0.0
+
+# utils
+
+## CDDLSchema
+
+**Signature**
+
+```ts
+export declare const CDDLSchema: Schema.Tuple2<typeof Schema.Uint8ArrayFromSelf, typeof Schema.BigIntFromSelf>
+```

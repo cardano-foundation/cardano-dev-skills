@@ -1,0 +1,231 @@
+---
+title: "Getting Started"
+description: "Install Aiken and set up your development environment"
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+This guide walks you through installing the Aiken CLI and configuring your development environment. After completing these steps, you can write, compile, and test Aiken smart contracts.
+
+**Prerequisites:**
+- macOS, Linux, or Windows with WSL
+- A code editor (VS Code recommended)
+- Node.js 18+ for Mesh integration
+
+## Quick Start
+
+Install Aiken and verify your setup in under 5 minutes.
+
+```bash
+# Install Aiken (macOS/Linux)
+curl -sSfL https://install.aiken-lang.org | bash
+aikup
+
+# Verify installation
+aiken --version
+```
+
+## Step-by-Step Installation
+
+### Option 1: Using aikup (macOS and Linux)
+
+The `aikup` utility downloads and manages Aiken versions. This is the recommended installation method.
+
+**Step 1: Install aikup**
+
+```bash
+curl -sSfL https://install.aiken-lang.org | bash
+```
+
+**Step 2: Install the latest Aiken version**
+
+```bash
+aikup
+```
+
+**Step 3: Verify installation**
+
+```bash
+aiken --version
+```
+
+You should see output like `aiken v1.x.x`.
+
+### Option 2: Build from Source (All Platforms)
+
+Build Aiken from source using Cargo. This method works on all platforms including Windows.
+
+**Step 1: Install Rust**
+
+If you don't have Rust installed, get it from <Link href="https://rustup.rs">rustup.rs</Link>.
+
+```bash
+# Verify Rust installation
+rustc --version
+cargo --version
+```
+
+**Step 2: Install Aiken via Cargo**
+
+```bash
+cargo install aiken
+```
+
+**Step 3: Verify installation**
+
+```bash
+aiken --version
+```
+
+## Editor Setup
+
+### VS Code Extension
+
+Install the Aiken extension for syntax highlighting, code snippets, and error checking.
+
+**Installation options:**
+
+1. Search for "aiken" in the VS Code Extensions tab
+2. Or install directly from the <Link href="https://marketplace.visualstudio.com/items?itemName=TxPipe.aiken">VS Code Marketplace</Link>
+
+**Features:**
+- Syntax highlighting for `.ak` files
+- Inline error checking
+- Code snippets for common patterns
+- Go-to-definition support
+
+## CLI Reference
+
+Use these commands to develop and test your smart contracts.
+
+### aiken new
+
+Create a new Aiken project with the standard directory structure.
+
+```bash
+aiken new your-org/project-name
+cd project-name
+```
+
+### aiken build
+
+Compile your validators and generate the `plutus.json` blueprint file.
+
+```bash
+aiken build
+```
+
+The blueprint contains:
+- Compiled validator code (CBOR-encoded)
+- Type information for datum and redeemer
+- Hash digests for each validator
+
+### aiken check
+
+Type-check your project and run tests.
+
+```bash
+aiken check
+```
+
+Use this command frequently during development to catch errors early.
+
+### aiken docs
+
+Generate HTML documentation from your project's comments.
+
+```bash
+aiken docs
+```
+
+### aiken blueprint
+
+Utility functions for working with the compiled blueprint.
+
+```bash
+# Generate an address for a validator
+aiken blueprint address
+
+# Convert blueprint to different formats
+aiken blueprint convert
+```
+
+## Complete Example
+
+Create a new project and verify the setup.
+
+```bash
+# Create project
+aiken new meshjs/hello_world
+cd hello_world
+
+# Check the project structure
+ls -la
+
+# Run the type checker
+aiken check
+
+# Build the project
+aiken build
+
+# Verify the blueprint was generated
+cat plutus.json
+```
+
+## Project Structure
+
+After running `aiken new`, your project looks like this:
+
+```
+hello_world/
+  aiken.toml          # Project configuration
+  lib/                # Shared library code
+  validators/         # Validator scripts
+  plutus.json         # Generated blueprint (after build)
+```
+
+**Key files:**
+- `aiken.toml` - Project metadata and dependencies
+- `validators/*.ak` - Your validator scripts
+- `plutus.json` - Compiled output for use with Mesh
+
+## Troubleshooting
+
+### Command not found: aiken
+
+The Aiken binary is not in your PATH. Add it manually:
+
+```bash
+# For aikup installations
+export PATH="$HOME/.aiken/bin:$PATH"
+
+# Add to your shell profile for persistence
+echo 'export PATH="$HOME/.aiken/bin:$PATH"' >> ~/.bashrc
+```
+
+### Build fails with type errors
+
+Run `aiken check` to see detailed error messages. Common issues:
+
+1. **Missing imports** - Add required modules at the top of your file
+2. **Type mismatches** - Verify datum/redeemer types match your validator signature
+3. **Syntax errors** - Check for missing commas or brackets
+
+### VS Code extension not working
+
+1. Reload VS Code after installing the extension
+2. Verify the file has a `.ak` extension
+3. Check the extension is enabled for the workspace
+
+### plutus.json not generating
+
+Ensure your project has at least one validator in the `validators/` directory. Empty projects don't generate a blueprint.
+
+## Related Links
+
+- <Link href="/docs/aiken/first-script">Write Your First Smart Contract</Link> - Create a validator
+- <Link href="/docs/aiken/transactions">Build Transactions</Link> - Interact with contracts using Mesh
+- <Link href="https://aiken-lang.org/language-tour">Aiken Language Tour</Link> - Learn Aiken syntax
+- <Link href="https://aiken-lang.org/installation-instructions">Official Installation Guide</Link> - More installation options

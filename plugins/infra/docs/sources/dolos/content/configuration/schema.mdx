@@ -1,0 +1,643 @@
+---
+title: Schema
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`dolos.toml` describes the node: which chain it follows, where its blocks come from, what it keeps and what it serves. It is organised by responsibility, one table per concern. Every table refuses a key it does not know, so a misspelt or removed field fails loading instead of being ignored. How the file is found and how the environment overrides it is covered in the [introduction](./introduction).
+
+The numbers on this page are the defaults the node uses when a field is left out. They are not sizing recommendations.
+
+## An ordinary node
+
+A persistent node on a known network needs little more than the network's name. Everything else here is optional and shown for clarity:
+
+```toml
+compatibility = "v2-alpha.2"
+
+[chain]
+protocol = "cardano"
+network = "mainnet"
+
+[storage]
+path = "data"
+
+[storage.state]
+type = "fjall"
+
+[storage.archive]
+type = "fjall"
+
+[history]
+mode = "rolling"
+window = { unit = "slot", value = 2592000 }
+
+[serve.minibf]
+listen_address = "[::]:3000"
+```
+
+`dolos init` writes a file of this shape, and `dolos config check` validates one without opening any store.
+
+## Full reference
+
+The fields of a node following a known network, each with an example value. The fields of a custom network and of the emulator are in [`chain.cardano`](#chaincardano) and [`upstream`](#upstream). Many of these values are not defaults: a persistent mempool, a rolling history and a different peer, for instance. Each field's default is in its section's table below, and a field left at its default can be left out:
+
+```toml
+compatibility = "v2-alpha.2"
+
+[chain]
+protocol = "cardano"
+network = "mainnet"
+
+[upstream]
+type = "peer"                 # optional; default peer
+peer_address = "backbone.mainnet.cardanofoundation.org:3001" # default: the known network's peer
+
+[sync]
+wal_path = "wal"              # default <storage.path>/wal; relative to storage.path
+pull_batch_size = 100
+
+[sync.retry]
+max_retries = 20
+backoff_unit_seconds = 2
+backoff_factor = 2
+max_backoff_seconds = 60
+dismissible = false
+
+[storage]
+path = "data"                 # relative to the working directory
+
+[storage.state]
+type = "fjall"                # fjall | ephemeral
+path = "state"
+preset = "standard"
+
+[storage.archive]
+type = "fjall"
+path = "archive"
+blocks_path = "blocks"        # relative to storage.path
+preset = "standard"
+
+[storage.cache]
+enabled = true
+path = "cache"
+memory_mb = 512
+disk_mb = 4096
+
+[storage.cache.admission]
+totals = 100000
+
+[history]
+mode = "rolling"              # none | rolling | full; window only for rolling
+window = { unit = "slot", value = 2592000 }
+
+[mempool]
+persistent = true
+path = "mempool"
+retain_confirmed_blocks = 200
+
+[serve]
+max_concurrent_queries = 32   # 1..=64
+
+[serve.grpc]
+listen_address = "[::]:50051"
+permissive_cors = true
+http2_adaptive_window = false
+http2_initial_stream_window_size = 8388608
+http2_initial_connection_window_size = 16777216
+http2_max_frame_size = 16384
+http2_max_concurrent_streams = 256
+
+[serve.minibf]
+listen_address = "[::]:3000"
+permissive_cors = true
+public_url = "https://api.example.com"
+token_registry_url = "https://tokens.example.com"
+max_scan_items = 3000
+route_prefix = "/api/v0"
+ipfs_gateways = ["https://ipfs.io", "https://gateway.pinata.cloud"]
+
+[serve.minikupo]
+listen_address = "[::]:1442"
+permissive_cors = true
+
+[serve.ouroboros]
+listen_path = "./dolos.socket"
+
+[serve.trp]
+listen_address = "[::]:8164"
+permissive_cors = true
+max_optimize_rounds = 10
+extra_fees_lovelace = 200000
+
+[relay]
+listen_address = "[::]:30031"
+
+[logging]
+level = "info"
+filter = "dolos=debug,fjall=warn"
+
+[telemetry]                   # on when present
+otlp_endpoint = "http://localhost:4317"
+service_name = "dolos-mainnet"
+```
+
+The [`examples/`](https://github.com/txpipe/dolos/tree/main/examples) directory of the repository holds this file, the ordinary node for each known network, a custom network and an ephemeral node as complete configurations, and CI runs `dolos config check` over each of them.
+
+## Paths
+
+A relative path resolves against one of three bases, named for every path field below:
+
+| base | fields |
+| ---- | ------ |
+| the working directory | `storage.path`, `serve.ouroboros.listen_path` |
+| `storage.path` | `storage.state.path`, `storage.archive.path`, `storage.archive.blocks_path`, `storage.cache.path`, `sync.wal_path`, `mempool.path` |
+| the configuration file's directory | `chain.cardano.genesis.*_path` |
+
+An absolute path is used as written, which is how a store, or the archive's block segments, goes on another volume.
+
+<Aside type="caution">
+`dolos bootstrap --force` clears only `storage.path`. A store kept outside it is left as it was, so a forced bootstrap would resume from that store's old contents. Delete such a store yourself before you run one. Beside a store this release refuses (see [store identity](../architecture/data-layer#store-identity)), `dolos bootstrap --force` is refused instead, naming what to remove, while a store outside `storage.path` holds data or is itself refused: the state, and unless `history.mode` is `none` the archive and its block segments. A forced bootstrap does not check an outside WAL, mempool or cache, and leaves it as it was. `dolos data cleanup` refuses outright while the WAL, state, archive, block segments or mempool are kept outside `storage.path`; it does not check the cache.
+</Aside>
+
+## `compatibility`
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `compatibility` | string | required |
+
+The configuration contract the file is written for. It is read before anything else, from the file alone; an environment variable cannot set it. This release accepts `"v2-alpha.2"`.
+
+- A file without it is refused, asking for the line to add.
+- A value that is not a string is refused as malformed.
+- A string this release does not accept is refused, listing the ones it does.
+- A Dolos v1 or v2.0.0-alpha.0 file, recognised by a root `[genesis]`, `storage.version` or `chain.type`, is refused with a pointer to the [migration guide](../migration/dolos-v2).
+
+No store is opened before these checks pass. `compatibility` declares the configuration's shape; it says nothing about the data a store already holds.
+
+## `chain`
+
+Which chain the node follows.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `protocol` | string | required; `"cardano"` |
+| `network` | string | required |
+
+`network` is a known network or `"custom"`:
+
+| network | magic | testnet | default peer |
+| ------- | ----- | ------- | ------------ |
+| `mainnet` | 764824073 | no | `relay.cnode-m1.demeter.run:3000` |
+| `preprod` | 1 | yes | `relay.cnode-m1.demeter.run:3001` |
+| `preview` | 2 | yes | `relay.cnode-m1.demeter.run:3002` |
+| `custom` | from `chain.cardano` | from `chain.cardano` | none |
+
+A known network's name is matched without regard to case. Its genesis files, magic and default peer are built into the binary, so the file names none of them; `[chain.cardano]` is refused with a known network. Any other name is refused, listing the known ones.
+
+### `chain.cardano`
+
+The identity of a custom network: required with `network = "custom"`, and refused with any other network.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `magic` | integer | required |
+| `is_testnet` | boolean | required |
+| `genesis` | table | required |
+| `custom_utxos` | array of tables | empty |
+
+`magic` must equal the `networkMagic` of the Shelley genesis file; a mismatch is refused, naming both values.
+
+### `chain.cardano.genesis`
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `byron_path` | path, relative to the configuration file | required |
+| `shelley_path` | path, relative to the configuration file | required |
+| `alonzo_path` | path, relative to the configuration file | required |
+| `conway_path` | path, relative to the configuration file | required |
+| `force_protocol` | integer (protocol major version) | derived |
+
+The files follow the schema of the Haskell node's genesis files. Without `force_protocol`, a Shelley genesis whose `protocolVersion.major` is above 2 starts the chain at that version, and otherwise the chain starts on Byron. An explicit value always wins.
+
+### `chain.cardano.custom_utxos`
+
+Outputs added to the genesis UTxO set, each an entry of the array:
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `ref` | `[transaction hash, output index]` | required |
+| `era` | integer | Conway (`7`) |
+| `cbor` | array of bytes | required |
+
+`ref` is the hex transaction hash and the output's index; `cbor` is the output's CBOR encoding, byte by byte, in the era `era` names.
+
+A custom network in full. These tables replace `[chain]`, and since a custom network has no default peer, `[upstream]` is then required:
+
+```toml
+[chain]
+protocol = "cardano"
+network = "custom"
+
+[chain.cardano]
+magic = 42
+is_testnet = true
+
+[chain.cardano.genesis]
+byron_path = "./genesis/byron.json"
+shelley_path = "./genesis/shelley.json"
+alonzo_path = "./genesis/alonzo.json"
+conway_path = "./genesis/conway.json"
+force_protocol = 9
+
+[[chain.cardano.custom_utxos]]
+ref = ["8d910e3a410a353787d50a708e24c6ba2cc2b6b86ec6d8cb5bf9bbec20bfc937", 0]
+era = 7
+cbor = [162, 0, 88, 29, 96, 13, 209, 114, 185, 177, 134, 111, 217, 81, 59, 150, 252, 190, 55, 138, 45, 90, 220, 127, 180, 153, 148, 158, 136, 101, 213, 62, 223, 1, 27, 0, 0, 0, 23, 72, 118, 232, 0]
+
+[upstream]
+peer_address = "127.0.0.1:3001"
+```
+
+## `upstream`
+
+Where blocks come from. The table is optional on a known network, which then follows its default peer.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `type` | string: `peer` or `emulator` | `peer` |
+| `peer_address` | string, `host:port` | the known network's default peer |
+| `block_production_interval` | integer (seconds) | required with `emulator` |
+
+- `peer` follows a node over the Ouroboros node-to-node protocols, and submits transactions to it. On a custom network `peer_address` is required.
+- `emulator` produces a block from the mempool every `block_production_interval` seconds, with no peer. It is valid only with `network = "custom"`, and takes no `peer_address`; a peer takes no `block_production_interval`.
+
+```toml
+[upstream]
+peer_address = "backbone.mainnet.cardanofoundation.org:3001"
+```
+
+## `sync`
+
+How the node pulls and applies blocks.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `wal_path` | path, relative to `storage.path` | `wal` |
+| `pull_batch_size` | integer (blocks) | `100` |
+
+The write-ahead log is on disk at `wal_path` exactly when `storage.state.type` is `fjall`; with an ephemeral state it is kept in memory, and `wal_path` is refused. It is always pruned to the protocol's rollback window (on Cardano, `3k/f` slots), which is not configurable.
+
+### `sync.retry`
+
+How a pipeline stage retries a step that failed.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `max_retries` | integer | `20` |
+| `backoff_unit_seconds` | integer (seconds) | `2` |
+| `backoff_factor` | integer | `2` |
+| `max_backoff_seconds` | integer (seconds) | `60` |
+| `dismissible` | boolean | `false` |
+
+Retry `n` waits `backoff_unit_seconds × backoff_factor^n` seconds, at most `max_backoff_seconds`. Once `max_retries` is reached the stage stops, unless `dismissible` is on, which skips the failed step and carries on.
+
+The stages that talk to the upstream peer count failed attempts in a row instead: the pull stage (chain-sync and block-fetch) and, under `sync catchup --follow` and in `dolos daemon`, the submit stage (tx-submission). A failed attempt is a connection that fails, an intersection the pull stage cannot find, or a session that ends before it delivers anything: a block or the upstream tip for the pull stage, headers alone not counting, and the peer's first request for the submit stage. Attempt `n` in a row waits `backoff_unit_seconds × backoff_factor^n` seconds, at most `max_backoff_seconds`, whatever failed. `max_retries` failed attempts in a row are retried, and one more stops the sync, which exits 1, in `dolos daemon` too; `dismissible` does not apply. A session that delivered something reconnects at once, and the count starts again. The submit stage's count also starts again whenever the pull stage delivers between two of its failed attempts. A cardano-node asks for transactions only about a minute into a session, so on a link that drops sessions sooner every tx-submission session fails, while the peer still serves the sync.
+
+```toml
+[sync]
+pull_batch_size = 200
+
+[sync.retry]
+max_retries = 10
+```
+
+## `storage`
+
+Where and how the node keeps its data.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `path` | path, relative to the working directory | `data` |
+
+The root directory for the stores. It also holds `scratch/`, where `dolos bootstrap stelae` and `dolos snapshot verify` stage layers moved over an OCI registry; a mainnet transfer stages gigabytes, so it defaults to the volume already sized for the data.
+
+### `storage.state` and `storage.archive`
+
+The ledger state and the block archive. Each store table is optional and takes a `type`:
+
+| field | type | default | stores |
+| ----- | ---- | ------- | ------ |
+| `type` | string: `fjall` or `ephemeral` | `fjall` | both |
+| `path` | path, relative to `storage.path` | `state` / `archive` | both |
+| `preset` | string: `standard` | `standard` | both |
+| `blocks_path` | path, relative to `storage.path` | the archive directory | archive |
+
+- `fjall` keeps the store on disk in a Fjall database, opened with the named `preset`.
+- `ephemeral` keeps it in memory, and it is lost on restart. It holds everything the store holds in RAM, so it suits devnets, tooling and short tests rather than a node that follows a public network for long. An ephemeral store takes no other field.
+
+`blocks_path` puts the archive's block segment files in their own directory, such as one on another volume; `data export` and `bootstrap snapshot` move them with the archive.
+
+The state and archive tables refuse Fjall's tuning fields (`cache`, `max_journal_size`, `flush_on_commit`, `l0_threshold`, `worker_threads`, `memtable_size_mb`) by name: the preset sets all of them.
+
+An ephemeral node, which keeps nothing across a restart. The cache is on disk unless it is turned off, so this node turns it off:
+
+```toml
+compatibility = "v2-alpha.2"
+
+[chain]
+protocol = "cardano"
+network = "preview"
+
+[storage.state]
+type = "ephemeral"
+
+[storage.archive]
+type = "ephemeral"
+
+[storage.cache]
+enabled = false
+```
+
+#### The `standard` preset
+
+A preset is a resource class: one fixed, complete set of Fjall tuning for each store. `standard` is the only one. It sets, for each database:
+
+| store | block cache | journal | workers | flush on commit |
+| ----- | ----------- | ------- | ------- | --------------- |
+| state | 500 MiB | 512 MiB | the number of cores, at most 4 | no |
+| archive | 500 MiB | 512 MiB | the number of cores, at most 4 | no |
+
+and for each keyspace, all with leveled compaction, a 64 MiB table target and a level ratio of 10:
+
+| keyspace | memtable | L0 threshold |
+| -------- | -------- | ------------ |
+| `state-cursor`, `state-utxos`, `state-entities` | 64 MiB | 4 |
+| `state-tags` | 128 MiB | 8 |
+| `archive-blocks`, `archive-logs` | 64 MiB | 4 |
+| `archive-tags`, `index-exact`, `index-entity` | 128 MiB | 8 |
+
+The database row applies at every open. Fjall records a keyspace's memtable and compaction when it creates the keyspace, so the keyspace rows govern stores created from now on, and a store keeps the keyspace settings it was created with. Each store logs its tuning when it opens, and `dolos data stats` reports it.
+
+#### Persistence
+
+The two store types combine as follows. Two things are independent of them: the mempool's persistence, and the [cache](#storagecache), which keeps its disk tier at `storage.cache.path` with any store types unless `enabled = false`. The cache is disposable, but its disk tier is not tied to a chain: when the chain under the same `storage.path` changes, as when a devnet is reset or an emulator or custom network on ephemeral stores starts over, delete `storage.cache.path` or run `dolos cache clear --all` before starting the node, or it serves the old chain's answers.
+
+| state / archive | WAL | archive after a restart | restart |
+| --------------- | --- | ----------------------- | ------- |
+| `fjall` / `fjall` | on disk at `sync.wal_path` | kept | resumes at its cursor with the archive at the same tip, and rolls back within the WAL. A batch the WAL committed and the stores did not is replayed from the WAL when the node, or a command that opens it, starts |
+| `fjall` / `ephemeral` | on disk at `sync.wal_path` | starts empty and refills from the blocks the WAL still holds | resumes at its cursor, with the archive tip back at the cursor; blocks older than the rollback window are gone |
+| `ephemeral` / `ephemeral` | in memory | starts empty | starts over from genesis, with nothing to roll back to |
+| `ephemeral` / `fjall` | refused | | the state restarts empty, and replaying the archive that survives cannot rebuild it |
+
+`history.mode = "none"` opens no archive, so it is valid with either archive type, including the archive's default `fjall` under an ephemeral state.
+
+### `storage.cache`
+
+The disposable cache of answers derived from the other stores. No setting here changes an answer, only what is kept and for how long. See [Cache](../operations/cache) for what it holds and the `dolos cache` commands.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `enabled` | boolean | `true` |
+| `path` | path, relative to `storage.path` | `cache` |
+| `memory_mb` | integer (MiB) | `512` |
+| `disk_mb` | integer (MiB) | `4096` |
+| `admission` | table of integers | each namespace's own |
+
+- `enabled = false` makes every lookup miss and stores nothing.
+- `memory_mb` bounds the memory tier, apart from the state and archive block caches; `disk_mb` bounds the disk tier.
+- `admission` maps a namespace's name to the least build cost an entry must have to be kept, in place of the namespace's default. A name no namespace has is ignored.
+
+```toml
+[storage.cache]
+memory_mb = 1024
+
+[storage.cache.admission]
+totals = 20000
+```
+
+## `history`
+
+How much block history the archive keeps.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `mode` | string: `none`, `rolling` or `full` | `full` |
+| `window` | `{ unit = "slot", value = <integer> }` | required with `rolling` |
+
+- `full` keeps every block.
+- `rolling` keeps the last `window` slots behind the tip; housekeeping prunes the block bodies, the archive's logs and its indexes past it.
+- `none` keeps no archive at all, only the ledger state. Historical lookups go with it.
+
+`window` is required with `rolling` and refused with the other modes.
+
+```toml
+[history]
+mode = "none"
+```
+
+## `mempool`
+
+Transactions submitted to the node and not yet confirmed.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `persistent` | boolean | `false` |
+| `path` | path, relative to `storage.path` | `mempool` |
+| `retain_confirmed_blocks` | integer (blocks) | `6` |
+
+- `persistent = true` keeps pending transactions on disk at `path`, across a restart, with either store combination; otherwise the mempool is in memory.
+- `retain_confirmed_blocks` is how many blocks deep a transaction is confirmed before the mempool finalizes it.
+
+```toml
+[mempool]
+persistent = true
+```
+
+## `serve`
+
+The client APIs. Each API runs when its table is present.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `max_concurrent_queries` | integer | `32`; valid 1 to 64 |
+
+`max_concurrent_queries` bounds the blocking query work the node runs at once, across every API. A value outside 1 to 64 is refused. It is also the one integer field that takes nothing but a whole number, written bare or as a string; see [rules across fields](#rules-across-fields).
+
+### `serve.grpc`
+
+The [UTxO RPC](../apis/grpc) endpoint.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `listen_address` | string, `IP:PORT` | required |
+| `permissive_cors` | boolean | `true` |
+| `http2_adaptive_window` | boolean | `true` |
+| `http2_initial_stream_window_size` | integer (bytes) | hyper's default |
+| `http2_initial_connection_window_size` | integer (bytes) | hyper's default |
+| `http2_max_frame_size` | integer (bytes) | hyper's default |
+| `http2_max_concurrent_streams` | integer (streams per connection) | hyper's default |
+
+- `permissive_cors` allows cross-origin requests from any origin.
+- `http2_adaptive_window` sizes the HTTP/2 flow-control windows to the link. While it is on, the two `http2_initial_*_window_size` fields have no effect.
+
+The endpoint serves plaintext gRPC. Terminate TLS, and client authentication when it is needed, at a reverse proxy in front of it.
+
+HTTP/2 flow control is hop by hop, and the receiver advertises the window that gates the sender. For server-streaming calls Dolos is the sender, so these windows govern downloads only for clients that connect directly; behind a proxy, the proxy's window applies.
+
+### `serve.minibf`
+
+The Blockfrost-compatible [MiniBF](../apis/minibf) endpoint.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `listen_address` | string, `IP:PORT` | required |
+| `permissive_cors` | boolean | `true` |
+| `public_url` | string (URL) | none |
+| `token_registry_url` | string (URL) | none |
+| `max_scan_items` | integer (items) | `3000` |
+| `route_prefix` | string (URL path) | none |
+| `ipfs_gateways` | array of strings (URLs) | `["https://ipfs.io", "https://gateway.pinata.cloud"]` |
+
+- `public_url` is the URL clients reach the API at, reported by `/`.
+- `token_registry_url` is the token registry read for off-chain asset metadata.
+- `max_scan_items` caps the items a page-based scan reads on the heavy endpoints.
+- `route_prefix` is a URL path every endpoint is served under, `/health` and `/metrics` included; set `"/api/v0"` to match the Blockfrost server URL. It starts with `/` and names at least one segment, none of them empty; its segments use only letters, digits, `-`, `.`, `_` and `~`, and `.` and `..` segments are refused; a trailing `/` is dropped. A path outside the prefix answers like any unknown path. Unset, the endpoints are served at the root.
+- `ipfs_gateways` resolve `ipfs://` governance-anchor URLs, tried in order until one serves the content. An empty list turns IPFS resolution off.
+
+### `serve.minikupo`
+
+The Kupo-compatible [MiniKupo](../apis/minikupo) endpoint.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `listen_address` | string, `IP:PORT` | required |
+| `permissive_cors` | boolean | `true` |
+
+### `serve.ouroboros`
+
+The [Ouroboros](../apis/ouroboros) node-to-client endpoint, on a unix socket.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `listen_path` | path, relative to the working directory | required |
+
+### `serve.trp`
+
+The [Transaction Resolver Protocol](../integrations/tx3) endpoint.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `listen_address` | string, `IP:PORT` | required |
+| `permissive_cors` | boolean | `true` |
+| `max_optimize_rounds` | integer, 0 to 255 | `10` |
+| `extra_fees_lovelace` | integer (lovelace) | none |
+
+- `max_optimize_rounds` bounds the rounds spent balancing a transaction's fee.
+- `extra_fees_lovelace` is added to every resolved transaction's fee.
+
+```toml
+[serve.grpc]
+listen_address = "[::]:50051"
+
+[serve.trp]
+listen_address = "[::]:8164"
+extra_fees_lovelace = 200000
+```
+
+## `relay`
+
+Inbound connections from other nodes over the Ouroboros node-to-node protocols. Off unless present.
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `listen_address` | string, `IP:PORT` | required |
+
+## `logging`
+
+What the node writes to stderr. See [Logging](../operations/logging).
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `level` | string: `trace`, `debug`, `info`, `warn` or `error` | `info` |
+| `filter` | string of `target=level` directives, comma-separated | none |
+
+`level` applies to Dolos's own events. Other components log nothing unless `filter` names them; a bare level in `filter` applies to every target it does not name. A directive that does not parse is refused.
+
+```toml
+[logging]
+level = "debug"
+filter = "pallas=info,tonic=warn"
+```
+
+## `telemetry`
+
+OpenTelemetry trace export, on when the table is present. See [Tracing](../operations/tracing).
+
+| field | type | default |
+| ----- | ---- | ------- |
+| `otlp_endpoint` | string (URL) | `http://localhost:4317` |
+| `service_name` | string | `dolos` |
+
+```toml
+[telemetry]
+```
+
+## Rules across fields
+
+Besides each field's own type and range, loading refuses:
+
+- `[chain.cardano]` with a known network, or a custom network without it;
+- a custom network's `magic` that differs from its Shelley genesis;
+- a custom network without `[upstream]`, or with a peer and no `peer_address`;
+- `upstream.type = "emulator"` on a known network;
+- an ephemeral store with any other field;
+- an ephemeral state over a `fjall` archive, while history is kept;
+- `sync.wal_path` with an ephemeral state;
+- `history.window` without `mode = "rolling"`, and `rolling` without a `window`;
+- `serve.max_concurrent_queries` outside 1 to 64.
+
+Each error names the keys involved, and is reported before any store opens.
+
+A plain value of another type is converted to the field's type where it can be, rather than refused:
+
+- a boolean field takes `"true"`, `"yes"`, `"on"`, `"1"` and any non-zero number as `true`, and `"false"`, `"no"`, `"off"`, `"0"` and zero as `false`, in any letter case;
+- an integer field takes a whole number written as a string, such as `"50"`, and takes a boolean, or the words `"true"`, `"yes"` and `"on"` in any letter case, as `1`, and their opposites as `0`;
+- a string field takes a number or a boolean;
+- a fraction in an integer field is rounded: `pull_batch_size = 0.4` loads as `0`, and `window = { unit = "slot", value = 0.4 }` as a window of zero slots. No integer field takes a negative number: `-5` is refused, but a negative number written with a decimal point, such as `-0.4` or `-5.0`, loads as `0`.
+
+A fraction written as a string, such as `"0.4"`, is refused rather than rounded, and so is a fraction in an [environment variable](./introduction#environment-variables), whose value is always a string. `serve.max_concurrent_queries` is stricter: it takes only a whole number, bare or as a string, and refuses a fraction (`2.0` included), a boolean and the words above.
+
+A value with no conversion is refused, such as `"abc"` in an integer field, `"maybe"` in a boolean field, or a list or table in a plain field. A converted value passes `dolos config check`, so write every field in the type its table gives.
+
+## Command inputs
+
+Some settings belong to one invocation rather than to the node, and are arguments of the command that reads them.
+
+### Bootstrap sources
+
+Where a bootstrap reads from is an input of its command, defaulted per known network. A file that still carries a `[mithril]`, `[snapshot]` or `[stelae]` table is refused, naming where each went:
+
+| input | argument | environment |
+| ----- | -------- | ----------- |
+| Mithril aggregator | `dolos bootstrap mithril --aggregator` | `DOLOS_MITHRIL_AGGREGATOR` |
+| Mithril genesis key | `dolos bootstrap mithril --genesis-vkey` | `DOLOS_MITHRIL_GENESIS_VKEY` |
+| snapshot download | `dolos bootstrap snapshot --download-url` | |
+| stele source | `dolos bootstrap stelae --source` | |
+| registry user | `--registry-user` | `DOLOS_STELAE_USER` |
+| registry secret | `--registry-credentials-file` | `DOLOS_STELAE_PASSWORD`, `DOLOS_STELAE_TOKEN` |
+| state epochs | `dolos snapshot digest`, `verify --reproduce`: `--state-epochs`, `--state-epochs-file` | |
+
+The registry inputs apply to `dolos bootstrap stelae`, `dolos snapshot inspect` and `dolos snapshot verify`. A known network's official stele repository is read as its published read-only user with no input at all. Any other registry is read anonymously unless the invocation names a user or a token. A secret is never a command-line argument: it comes from the environment, or from a TOML credentials file naming `password` or `token`. A custom network has no defaults, so it needs the Mithril and stele inputs explicitly.
+
+### Stopping
+
+`dolos daemon` runs until stopped, or until its sync gives up on the upstream peer under [`sync.retry`](#syncretry), when it exits 1. `dolos sync catchup` stops once the stores commit the upstream tip it reached, or with `--follow` runs until stopped or until it gives up the same way, unless told otherwise:
+
+| argument | effect |
+| -------- | ------ |
+| `--stop-epoch N` | stop once the ledger reaches epoch `N`, on its first block |
+
+<Aside type="note">
+These environment variables have a single `_` after `DOLOS`. Variables with `__` between levels override the file instead, as the [introduction](./introduction) describes.
+</Aside>

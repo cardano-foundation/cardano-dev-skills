@@ -1,0 +1,337 @@
+---
+title: "Use Cases"
+description: "Explore real-world applications built with Mesh SDK on Cardano."
+---
+
+import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+
+Discover how developers use Mesh to build production applications on Cardano. From DeFi to NFTs to enterprise solutions, Mesh powers a wide range of blockchain applications.
+
+## DeFi
+
+### Decentralized exchanges
+
+Build trading platforms with Mesh:
+
+| Feature | Mesh capability |
+|---------|-----------------|
+| AMM liquidity pools | Transaction builder for swaps |
+| Order book matching | Smart contract integration |
+| Multi-asset swaps | Native token handling |
+| Wallet connectivity | CIP-30 wallet support |
+
+### Lending protocols
+
+Create lending and borrowing platforms:
+
+- Collateral locking with smart contracts
+- Automated interest calculations
+- Liquidation mechanisms
+- Multi-party transaction management
+
+### Staking platforms
+
+Build custom staking solutions:
+
+- Stake pool delegation interfaces
+- Reward distribution automation
+- Multi-pool management
+- Delegation tracking
+
+---
+
+## NFTs
+
+### Minting platforms
+
+Mesh simplifies NFT creation:
+
+```typescript
+import { MeshTxBuilder } from '@meshsdk/core';
+
+const tx = await txBuilder
+  .mint('1', policyId, assetName)
+  .mintingScript(mintingScript)
+  .txOut(recipientAddress, [
+    { unit: policyId + assetName, quantity: '1' },
+    { unit: 'lovelace', quantity: '2000000' }
+  ])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+| Use case | Mesh features |
+|----------|---------------|
+| Single NFT minting | Transaction builder |
+| Collection launches | Batch minting |
+| Generative art | Programmatic metadata |
+| Metadata standards | CIP-25, CIP-68 support |
+
+### Marketplaces
+
+Power NFT trading:
+
+- Listing and delisting
+- Auction systems
+- Instant purchases
+- Royalty distribution
+
+---
+
+## Wallets
+
+### Browser extension wallets
+
+Build full-featured wallets:
+
+| Feature | Implementation |
+|---------|----------------|
+| Key management | `MeshCardanoHeadlessWallet` class |
+| Transaction signing | CIP-30 APIs |
+| dApp connector | `MeshCardanoBrowserWallet` |
+| Multi-account | Address derivation |
+
+### Hardware wallet integration
+
+Support secure signing:
+
+- Ledger device support
+- Trezor integration
+- Air-gapped signing flows
+
+---
+
+## Gaming
+
+### Blockchain games
+
+Create gaming experiences:
+
+| Feature | Implementation |
+|---------|----------------|
+| In-game assets | NFT representation |
+| Play-to-earn | Token rewards |
+| Character NFTs | Tradeable assets |
+| Land ownership | On-chain real estate |
+
+### Virtual worlds
+
+Build metaverse platforms:
+
+- NFT-based land parcels
+- Customizable avatars
+- In-world economies
+- Decentralized identity
+
+---
+
+## Enterprise
+
+### Supply chain
+
+Track products on-chain:
+
+```typescript
+// Record product transfer
+const tx = await txBuilder
+  .txOut(newOwnerAddress, [
+    { unit: productNftUnit, quantity: '1' },
+    { unit: 'lovelace', quantity: '2000000' }
+  ])
+  .metadataValue('674', {
+    transfer: {
+      from: currentOwner,
+      to: newOwner,
+      timestamp: Date.now(),
+      location: 'Warehouse A'
+    }
+  })
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+| Use case | Implementation |
+|----------|----------------|
+| Asset tracking | On-chain records |
+| Authenticity verification | NFT provenance |
+| Multi-party workflows | Smart contracts |
+| Audit trails | Transaction metadata |
+
+### Identity verification
+
+Build decentralized identity:
+
+- KYC/AML credential storage
+- Age verification without birthdate disclosure
+- Professional certifications
+- Token-gated access control
+
+### Governance
+
+Create voting systems:
+
+- DAO token-weighted voting
+- Proposal submission and voting
+- Quadratic voting mechanisms
+- Verifiable elections
+
+---
+
+## Developer tools
+
+### Block explorers
+
+Build custom blockchain viewers:
+
+- Transaction search and display
+- Address monitoring
+- Smart contract inspection
+- Analytics dashboards
+
+### API services
+
+Create Cardano data platforms:
+
+- Blockchain data providers
+- Webhook notifications
+- GraphQL/REST APIs
+- Historical data archives
+
+---
+
+## Education
+
+### Learning platforms
+
+Build educational tools:
+
+| Feature | Implementation |
+|---------|----------------|
+| Interactive tutorials | Code playgrounds |
+| Sandbox environments | Testnet integration |
+| Browser-based coding | Mesh APIs |
+| Certification | NFT credentials |
+
+### Research tools
+
+Enable blockchain research:
+
+- Data extraction and analysis
+- Economic simulations
+- Smart contract testing
+- Network monitoring
+
+---
+
+## Social platforms
+
+### Token-gated communities
+
+Build Web3 social features:
+
+- Access based on token ownership
+- Creator monetization
+- Tipping systems
+- Decentralized social graphs
+
+### Fundraising
+
+Create transparent fundraising:
+
+- Crowdfunding campaigns
+- Charity donation tracking
+- Investment DAOs
+- Grant distribution
+
+---
+
+## Success metrics
+
+Projects built with Mesh have achieved:
+
+| Metric | Achievement |
+|--------|-------------|
+| Transaction volume | Millions in daily volume |
+| NFT minting | Thousands of successful mints |
+| User bases | Tens of thousands of users |
+| Performance | Sub-second response times |
+| Security | Zero critical incidents |
+
+---
+
+## Build your own
+
+Ready to build on Cardano?
+
+| Resource | Purpose |
+|----------|---------|
+| [Guides](/guides) | Step-by-step tutorials |
+| [API Documentation](/apis) | Complete reference |
+| [Discord](https://discord.gg/dH48jH3BKa) | Community support |
+| [Examples](https://github.com/MeshJS/examples) | Working code |
+
+## Share your project
+
+Built something with Mesh? Share it:
+
+- **Discord** - Join the showcase channel
+- **Twitter** - Tag [@meshsdk](https://twitter.com/meshsdk)
+- **GitHub** - Add to the [ecosystem list](https://github.com/MeshJS/mesh)
+
+<script type="application/ld+json">
+{JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "Mesh SDK Use Cases",
+  "description": "Real-world applications built with Mesh TypeScript SDK on Cardano",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "item": {
+        "@type": "SoftwareSourceCode",
+        "name": "DeFi Applications",
+        "description": "DEXs, lending protocols, and staking platforms"
+      }
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "item": {
+        "@type": "SoftwareSourceCode",
+        "name": "NFT Marketplaces",
+        "description": "Minting platforms and secondary marketplaces"
+      }
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "item": {
+        "@type": "SoftwareSourceCode",
+        "name": "Wallet Applications",
+        "description": "Browser extensions and hardware wallet integrations"
+      }
+    },
+    {
+      "@type": "ListItem",
+      "position": 4,
+      "item": {
+        "@type": "SoftwareSourceCode",
+        "name": "Gaming & Metaverse",
+        "description": "Blockchain games and virtual worlds"
+      }
+    },
+    {
+      "@type": "ListItem",
+      "position": 5,
+      "item": {
+        "@type": "SoftwareSourceCode",
+        "name": "Enterprise Solutions",
+        "description": "Supply chain, identity, and governance systems"
+      }
+    }
+  ]
+})}
+</script>

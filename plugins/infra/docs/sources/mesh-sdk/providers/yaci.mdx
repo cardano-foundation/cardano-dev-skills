@@ -1,0 +1,838 @@
+---
+title: "Yaci Provider"
+description: "Build and test on custom Cardano devnets with fast feedback loops"
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+<Link href="https://github.com/bloxbean/yaci-devkit">Yaci DevKit</Link> is a development tool for rapid Cardano blockchain development. It allows you to create and destroy custom devnets in seconds, providing fast feedback loops and simplifying the iteration process.
+
+**Key features:**
+- Create custom Cardano devnets instantly
+- Built-in indexer and block explorer
+- Admin APIs for devnet management
+- Address top-up functionality for testing
+- Configurable genesis parameters
+
+**Use Yaci when you need:**
+- Fast local development without testnet delays
+- Custom network parameters for testing edge cases
+- Rapid iteration on smart contracts
+- Isolated testing environments
+
+## Quick Start
+
+Install the MeshJS package:
+
+```bash
+npm install @meshsdk/core
+```
+
+Start a Yaci devnet using Docker:
+
+```bash
+docker run -it --rm \
+  -p 3001:3001 \
+  -p 10000:10000 \
+  bloxbean/yaci-devkit:latest
+```
+
+Initialize the provider:
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+```
+
+Optionally include the admin URL for devnet management:
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider(
+  "http://localhost:3001",
+  "http://localhost:10000"
+);
+```
+
+Fetch blockchain data:
+
+```tsx
+// Fetch UTxOs from an address
+const utxos = await provider.fetchAddressUTxOs(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9"
+);
+
+// Top up an address with ADA (requires admin URL)
+await provider.addressTopup(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+  "100000000"
+);
+```
+
+## Configuration Options
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `url` | `string` | Yes | The Yaci indexer API URL |
+| `adminUrl` | `string` | No | The Yaci admin API URL for devnet management |
+
+### Default Ports
+
+| Port | Service |
+|------|---------|
+| 3001 | Yaci Store API (indexer) |
+| 10000 | Yaci Admin API |
+
+## API Reference
+
+### get
+
+Fetch data from any Yaci API endpoint.
+
+```tsx
+await provider.get(endpoint: string): Promise<any>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `endpoint` | `string` | Yes | The API endpoint path |
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+const transactions = await provider.get(
+  "/addresses/addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9/transactions"
+);
+```
+
+---
+
+### fetchAccountInfo
+
+Retrieve information about a stake account.
+
+```tsx
+await provider.fetchAccountInfo(address: string): Promise<AccountInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | The stake address (bech32 format) |
+
+**Returns:** `AccountInfo` object containing balance, rewards, and delegation status.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+const accountInfo = await provider.fetchAccountInfo(
+  "stake_test1uzw5mnt7g4xjgdqkfa80hrk7kdvds6sa4k0vvgjvlj7w8eskffj2n"
+);
+
+console.log(accountInfo.balance);
+console.log(accountInfo.rewards);
+```
+
+---
+
+### fetchAddressAssets
+
+Fetch all assets held by an address.
+
+```tsx
+await provider.fetchAddressAssets(address: string): Promise<Asset[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | The wallet address (bech32 format) |
+
+**Returns:** Array of `Asset` objects with `unit` and `quantity`.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+const assets = await provider.fetchAddressAssets(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9"
+);
+
+assets.forEach((asset) => {
+  console.log(`${asset.unit}: ${asset.quantity}`);
+});
+```
+
+---
+
+### fetchAddressUTxOs
+
+Fetch UTxOs controlled by an address, optionally filtered by asset.
+
+```tsx
+await provider.fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | The wallet address (bech32 format) |
+| `asset` | `string` | No | Filter by asset unit (policy ID + asset name hex) |
+
+**Returns:** Array of `UTxO` objects.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+// Fetch all UTxOs
+const utxos = await provider.fetchAddressUTxOs(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9"
+);
+
+// Fetch UTxOs containing a specific asset
+const filteredUtxos = await provider.fetchAddressUTxOs(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+  "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e"
+);
+```
+
+---
+
+### fetchAssetAddresses
+
+Fetch all addresses holding a specific asset.
+
+```tsx
+await provider.fetchAssetAddresses(asset: string): Promise<AssetAddress[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `asset` | `string` | Yes | The asset unit (policy ID + asset name hex) |
+
+**Returns:** Array of addresses and quantities.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+const holders = await provider.fetchAssetAddresses(
+  "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e"
+);
+
+holders.forEach((holder) => {
+  console.log(`${holder.address}: ${holder.quantity}`);
+});
+```
+
+---
+
+### fetchAssetMetadata
+
+Fetch metadata for an asset.
+
+```tsx
+await provider.fetchAssetMetadata(asset: string): Promise<AssetMetadata>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `asset` | `string` | Yes | The asset unit (policy ID + asset name hex) |
+
+**Returns:** `AssetMetadata` object with name, image, and other metadata fields.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+const metadata = await provider.fetchAssetMetadata(
+  "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e"
+);
+
+console.log(metadata.name);
+```
+
+---
+
+### fetchBlockInfo
+
+Fetch information about a block.
+
+```tsx
+await provider.fetchBlockInfo(hash: string): Promise<BlockInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `hash` | `string` | Yes | The block hash |
+
+**Returns:** `BlockInfo` object with block details.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+const blockInfo = await provider.fetchBlockInfo(
+  "79f60880b097ec7dabb81f75f0b52fedf5e922d4f779a11c0c432dcf22c56089"
+);
+
+console.log(blockInfo.slot);
+```
+
+---
+
+### fetchCollectionAssets
+
+Fetch all assets in an NFT collection by policy ID.
+
+```tsx
+await provider.fetchCollectionAssets(policyId: string, cursor?: number): Promise<{ assets: Asset[]; next: number | null }>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `policyId` | `string` | Yes | The policy ID of the collection |
+| `cursor` | `number` | No | Pagination cursor (default: 1) |
+
+**Returns:** Object with `assets` array and `next` cursor for pagination.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+const result = await provider.fetchCollectionAssets(
+  "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527"
+);
+
+console.log(result.assets);
+```
+
+---
+
+### fetchHandleAddress
+
+Resolve an ADA Handle to its associated address.
+
+```tsx
+await provider.fetchHandleAddress(handle: string): Promise<string>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `handle` | `string` | Yes | The ADA Handle (without $) |
+
+**Returns:** The resolved Cardano address.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+const address = await provider.fetchHandleAddress("meshsdk");
+console.log(address);
+```
+
+---
+
+### fetchHandle
+
+Fetch CIP-68 handle metadata.
+
+```tsx
+await provider.fetchHandle(handle: string): Promise<HandleMetadata>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `handle` | `string` | Yes | The ADA Handle (without $) |
+
+**Returns:** Handle metadata including CIP-68 fields.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+const handleData = await provider.fetchHandle("meshsdk");
+console.log(handleData);
+```
+
+---
+
+### fetchProtocolParameters
+
+Fetch the current protocol parameters.
+
+```tsx
+await provider.fetchProtocolParameters(epoch?: number): Promise<Protocol>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `epoch` | `number` | No | Specific epoch (default: current epoch) |
+
+**Returns:** `Protocol` object with all protocol parameters.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+const params = await provider.fetchProtocolParameters();
+
+console.log(params.minFeeA);
+console.log(params.minFeeB);
+```
+
+---
+
+### fetchTxInfo
+
+Fetch information about a confirmed transaction.
+
+```tsx
+await provider.fetchTxInfo(hash: string): Promise<TransactionInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `hash` | `string` | Yes | The transaction hash |
+
+**Returns:** `TransactionInfo` object with transaction details.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+const txInfo = await provider.fetchTxInfo(
+  "f4ec9833a3bf95403d395f699bc564938f3419537e7fb5084425d3838a4b6159"
+);
+
+console.log(txInfo.block);
+```
+
+---
+
+### fetchUTxOs
+
+Fetch UTxOs by transaction hash.
+
+```tsx
+await provider.fetchUTxOs(hash: string, index?: number): Promise<UTxO[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `hash` | `string` | Yes | The transaction hash |
+| `index` | `number` | No | Specific output index |
+
+**Returns:** Array of `UTxO` objects.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+const utxos = await provider.fetchUTxOs(
+  "dfd2a2616e6154a092807b1ceebb9ddcadc0f22cf5c8e0e6b0757815083ccb70"
+);
+```
+
+---
+
+### fetchGovernanceProposal
+
+Fetch information about a governance proposal.
+
+```tsx
+await provider.fetchGovernanceProposal(txHash: string, certIndex: number): Promise<ProposalInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `txHash` | `string` | Yes | The proposal transaction hash |
+| `certIndex` | `number` | Yes | The certificate index |
+
+**Returns:** `ProposalInfo` object with proposal details.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+const proposal = await provider.fetchGovernanceProposal(
+  "372d688faa77e146798b581b322c0f2981a9023764736ade5d12e0e4e796af8c",
+  0
+);
+```
+
+---
+
+### evaluateTx
+
+Evaluate a transaction to determine script execution costs.
+
+```tsx
+await provider.evaluateTx(tx: string): Promise<Omit<Action, "data">[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tx` | `string` | Yes | The unsigned transaction CBOR hex |
+
+**Returns:** Array of execution cost estimates for each script.
+
+**Example:**
+
+```tsx
+import { YaciProvider, MeshTxBuilder } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+const unsignedTx = await txBuilder
+  // ... transaction building code
+  .complete();
+
+const evaluation = await provider.evaluateTx(unsignedTx);
+console.log(evaluation);
+```
+
+---
+
+### submitTx
+
+Submit a signed transaction to the network.
+
+```tsx
+await provider.submitTx(tx: string): Promise<string>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tx` | `string` | Yes | The signed transaction CBOR hex |
+
+**Returns:** The transaction hash.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+const txHash = await provider.submitTx(signedTx);
+console.log(`Transaction submitted: ${txHash}`);
+```
+
+---
+
+### onTxConfirmed
+
+Listen for transaction confirmation.
+
+```tsx
+provider.onTxConfirmed(txHash: string, callback: () => void, limit?: number): void
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `txHash` | `string` | Yes | The transaction hash to monitor |
+| `callback` | `() => void` | Yes | Function called when confirmed |
+| `limit` | `number` | No | Maximum confirmation checks |
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("http://localhost:3001");
+
+provider.onTxConfirmed(txHash, () => {
+  console.log("Transaction confirmed!");
+});
+```
+
+---
+
+## Admin API Reference
+
+The following methods require the admin URL to be configured.
+
+### getDevnetInfo
+
+Get information about the current devnet.
+
+```tsx
+await provider.getDevnetInfo(): Promise<DevnetInfo>
+```
+
+**Returns:** `DevnetInfo` object with devnet configuration.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider(
+  "http://localhost:3001",
+  "http://localhost:10000"
+);
+
+const devnetInfo = await provider.getDevnetInfo();
+
+console.log(devnetInfo.nodePort);
+console.log(devnetInfo.protocolMagic);
+console.log(devnetInfo.slotLength);
+console.log(devnetInfo.blockTime);
+```
+
+**Response structure:**
+
+```tsx
+{
+  nodePort: 0,
+  submitApiPort: 0,
+  socketPath: "string",
+  protocolMagic: 42,
+  slotLength: 1,
+  blockTime: 1,
+  epochLength: 500,
+  p2pEnabled: true,
+  startTime: 0,
+  masterNode: true,
+  adminNodeUrl: "string",
+  era: "Conway",
+  genesisProfile: "zero_fee",
+  ogmiosPort: 0,
+  kupoPort: 0,
+  yaciStorePort: 3001,
+  socatPort: 0,
+  prometheusPort: 0,
+  blockProducer: true
+}
+```
+
+---
+
+### getGenesisByEra
+
+Get genesis configuration for a specific era.
+
+```tsx
+await provider.getGenesisByEra(era: string): Promise<GenesisConfig>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `era` | `string` | Yes | The era name (e.g., "shelley", "alonzo", "conway") |
+
+**Returns:** Genesis configuration for the specified era.
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider(
+  "http://localhost:3001",
+  "http://localhost:10000"
+);
+
+const genesis = await provider.getGenesisByEra("shelley");
+
+console.log(genesis.activeSlotsCoeff);
+console.log(genesis.epochLength);
+console.log(genesis.networkMagic);
+```
+
+---
+
+### addressTopup
+
+Add ADA to any address. This is useful for funding test wallets.
+
+```tsx
+await provider.addressTopup(address: string, amount: string): Promise<void>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | The address to fund |
+| `amount` | `string` | Yes | Amount in lovelace |
+
+**Example:**
+
+```tsx
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider(
+  "http://localhost:3001",
+  "http://localhost:10000"
+);
+
+// Add 100 ADA to the address
+await provider.addressTopup(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+  "100000000"
+);
+
+console.log("Address topped up!");
+```
+
+## Complete Example
+
+```tsx
+import { YaciProvider, MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+
+async function developWithYaci() {
+  // Initialize provider with admin access
+  const provider = new YaciProvider(
+    "http://localhost:3001",
+    "http://localhost:10000"
+  );
+
+  // Check devnet info
+  const devnetInfo = await provider.getDevnetInfo();
+  console.log(`Devnet running on magic: ${devnetInfo.protocolMagic}`);
+
+  // Initialize wallet
+  const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+    networkId: 0,
+    walletAddressType: AddressType.Base,
+    fetcher: provider,
+    submitter: provider,
+    mnemonic: ["your", "mnemonic", "phrase", "..."],
+  });
+
+  const address = await wallet.getChangeAddressBech32();
+
+  // Fund the wallet
+  await provider.addressTopup(address, "1000000000"); // 1000 ADA
+  console.log("Wallet funded!");
+
+  // Wait a moment for the transaction to be indexed
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  // Get wallet data
+  const utxos = await wallet.getUtxosMesh();
+  console.log(`Wallet has ${utxos.length} UTxOs`);
+
+  // Build transaction
+  const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+  const unsignedTx = await txBuilder
+    .txOut("addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9", [
+      { unit: "lovelace", quantity: "5000000" },
+    ])
+    .changeAddress(address)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  // Sign and submit
+  const signedTx = await wallet.signTx(unsignedTx, false);
+  const txHash = await provider.submitTx(signedTx);
+
+  console.log(`Transaction submitted: ${txHash}`);
+
+  // Wait for confirmation
+  provider.onTxConfirmed(txHash, () => {
+    console.log("Transaction confirmed!");
+  });
+}
+```
+
+## Troubleshooting
+
+### Devnet Not Starting
+
+**Problem:** Docker container fails to start or APIs are unreachable.
+
+**Solution:**
+1. Ensure Docker is running
+2. Check port availability (3001, 10000)
+3. Review container logs: `docker logs <container_id>`
+
+### Address Topup Fails
+
+**Problem:** `addressTopup` returns an error.
+
+**Solution:**
+1. Ensure you provided the admin URL when creating the provider
+2. Verify the address format is correct
+3. Check that the admin API is accessible
+
+### Transactions Not Confirming
+
+**Problem:** Transactions stay pending indefinitely.
+
+**Solution:**
+1. Yaci devnets have configurable block times - transactions confirm faster than mainnet
+2. Check devnet info for block time: `await provider.getDevnetInfo()`
+3. Ensure the devnet is producing blocks
+
+### Empty UTxO Response After Topup
+
+**Problem:** No UTxOs found after calling `addressTopup`.
+
+**Solution:**
+1. Wait for the topup transaction to be indexed (1-2 seconds)
+2. The Yaci indexer needs time to process new blocks
+3. Add a small delay before querying UTxOs
+
+### Genesis Configuration Issues
+
+**Problem:** Need specific protocol parameters for testing.
+
+**Solution:** Use the Yaci CLI or admin API to create a devnet with custom genesis parameters. Check the <Link href="https://github.com/bloxbean/yaci-devkit">Yaci DevKit documentation</Link> for configuration options.
+
+## Related Links
+
+- <Link href="https://github.com/bloxbean/yaci-devkit">Yaci DevKit GitHub</Link>
+- <Link href="https://github.com/bloxbean/yaci">Yaci Core</Link>
+- <Link href="https://github.com/bloxbean/yaci-store">Yaci Store (Indexer)</Link>
+- [MeshJS Transaction Builder](/transaction/basics)
+- [MeshJS Smart Contracts](/smart-contracts)

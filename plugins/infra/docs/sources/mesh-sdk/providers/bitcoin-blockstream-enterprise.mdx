@@ -1,0 +1,154 @@
+---
+title: "Blockstream Enterprise Bitcoin Provider"
+description: "Authenticated Bitcoin chain data and transaction submission via Blockstream Explorer Enterprise, same Esplora API as the public provider, with OAuth client credentials."
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+<Link href="https://help.blockstream.com/blockstream-explorer-api/use-explorer-api/make-a-rest-api-request-with-your-api-keys">Blockstream Explorer Enterprise</Link> is the authenticated Esplora API for production Bitcoin workloads. `BlockstreamEnterpriseBitcoinProvider` implements `IBitcoinProvider` and uses the same REST methods as <Link href="/providers/bitcoin-blockstream">`BlockstreamBitcoinProvider`</Link> — it adds OAuth2 client-credentials auth and talks to the enterprise hosts.
+
+**When to use Blockstream Enterprise:**
+- You have a Blockstream Explorer API key pair (`client_id` and `client_secret`)
+- You want the same `IBitcoinProvider` methods against the enterprise Esplora hosts
+- You want Bearer-token auth handled by the provider, including refresh and one retry on `401`
+
+Both providers share an internal Esplora HTTP client (`EsploraBitcoinClient`, not part of the public package surface). You can swap `BlockstreamBitcoinProvider` for `BlockstreamEnterpriseBitcoinProvider` without changing wallet or query code.
+
+## Quick Start
+
+```bash
+npm install @meshsdk/provider @meshsdk/wallet
+```
+
+```ts
+import { BlockstreamEnterpriseBitcoinProvider } from "@meshsdk/provider";
+import { BitcoinHeadlessWallet } from "@meshsdk/wallet";
+
+const provider = new BlockstreamEnterpriseBitcoinProvider({
+  clientId: "your-client-id",
+  clientSecret: "your-client-secret",
+  network: "mainnet", // "mainnet" | "testnet"
+});
+
+const wallet = await BitcoinHeadlessWallet.fromMnemonic({
+  network: "Mainnet",
+  mnemonic: ["word1", "word2", "..."],
+  provider,
+});
+
+const balance = await wallet.getBalance();
+// { confirmed: "100000", unconfirmed: "0", total: "100000" }
+```
+
+Create an API key pair (`client_id` / `client_secret`) in the [Blockstream Explorer](https://blockstream.info/) account settings. See [Make a REST API request with your API keys](https://help.blockstream.com/blockstream-explorer-api/use-explorer-api/make-a-rest-api-request-with-your-api-keys).
+
+## Configuration Options
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `clientId` | `string` | Yes | `client_id` from a Blockstream Explorer API key |
+| `clientSecret` | `string` | Yes | `client_secret` from a Blockstream Explorer API key |
+| `network` | `"mainnet" \| "testnet"` | Yes | Bitcoin network to connect to |
+
+The base URLs used internally:
+
+| Network | Base URL |
+|---------|----------|
+| `"mainnet"` | `https://enterprise.blockstream.info/api` |
+| `"testnet"` | `https://enterprise.blockstream.info/testnet/api` |
+
+### Authentication
+
+The provider fetches a Bearer token from Blockstream's OpenID token endpoint using `grant_type=client_credentials` and `scope=openid`:
+
+```
+POST https://login.blockstream.com/realms/blockstream-public/protocol/openid-connect/token
+```
+
+Tokens are cached in memory and refreshed 60 seconds before `expires_in` (that field defaults to 300 seconds when the token response omits it). Concurrent calls share one in-flight token request. A `401` clears the cache and the same request is retried once.
+
+You do not set the `Authorization` header yourself — `getHeaders` on the shared Esplora client injects `Authorization: Bearer <token>` on every request, including `submitTx`.
+
+## API Reference
+
+The query and submit methods are identical to [`BlockstreamBitcoinProvider`](/providers/bitcoin-blockstream#api-reference). Both implement `IBitcoinProvider`:
+
+| Method | Description |
+|--------|-------------|
+| `fetchAddressInfo(address)` | Chain and mempool stats for an address |
+| `fetchAddressUTxOs(address)` | Unspent outputs for an address |
+| `fetchUTxO(txid, vout?)` | Unspent output(s) from a transaction |
+| `fetchAddressTxs(address, lastSeenTxid?)` | Paginated address history (`/txs/chain/{txid}`) |
+| `fetchTxInfo(txid)` | Confirmation status of a transaction |
+| `fetchFeeEstimates(blocks)` | Recommended fee rate in sat/vB |
+| `fetchScriptInfo(hash)` | Chain and mempool stats for a script hash |
+| `fetchScriptUTxOs(hash)` | Unspent outputs for a script hash |
+| `fetchScriptTxs(hash, lastSeenTxid?)` | Paginated script-hash history |
+| `submitTx(txHex)` | Broadcast a signed raw transaction; returns txid |
+
+See the [public Blockstream provider API reference](/providers/bitcoin-blockstream#api-reference) for parameters, return shapes, and examples. Replace `BlockstreamBitcoinProvider` with `BlockstreamEnterpriseBitcoinProvider` in those snippets.
+
+## Complete Example
+
+```ts
+import { BlockstreamEnterpriseBitcoinProvider } from "@meshsdk/provider";
+import { BitcoinHeadlessWallet, AddressPurpose } from "@meshsdk/wallet";
+
+async function sendBitcoin() {
+  const provider = new BlockstreamEnterpriseBitcoinProvider({
+    clientId: "your-client-id",
+    clientSecret: "your-client-secret",
+    network: "mainnet",
+  });
+
+  const wallet = await BitcoinHeadlessWallet.fromMnemonic({
+    network: "Mainnet",
+    mnemonic: ["your", "twelve", "word", "mnemonic", "phrase", "here", "..."],
+    provider,
+  });
+
+  const balance = await wallet.getBalance();
+  console.log(`Balance: ${balance.total} sats`);
+
+  const [address] = await wallet.getAddresses([AddressPurpose.Payment]);
+  console.log(`Address: ${address.address}`);
+
+  const txid = await wallet.signTransfer([
+    { address: "bc1q...", amount: 10_000 },
+  ]);
+  console.log(`Sent: ${txid}`);
+}
+```
+
+## Troubleshooting
+
+### Token request failed (401 / 400)
+The `clientId` or `clientSecret` is wrong, revoked, or missing. Create a new API key pair in Blockstream Explorer and pass `client_id` as `clientId` and `client_secret` as `clientSecret`.
+
+### 401 on API calls after a successful token
+The provider invalidates the cached token and retries once. Persistent 401s usually mean the key is not enabled for Explorer Enterprise, or the token endpoint rejected the credentials.
+
+### Network mismatch
+The `network` passed to `BlockstreamEnterpriseBitcoinProvider` must match the wallet:
+
+| Provider | Wallet |
+|----------|--------|
+| `"testnet"` | `"Testnet4"` |
+| `"mainnet"` | `"Mainnet"` |
+
+### Requests still go to the public API
+`BlockstreamBitcoinProvider` uses `https://blockstream.info`. `BlockstreamEnterpriseBitcoinProvider` uses `https://enterprise.blockstream.info`. The class you construct selects the host.
+
+## References
+
+- [Blockstream Explorer API keys](https://help.blockstream.com/blockstream-explorer-api/use-explorer-api/make-a-rest-api-request-with-your-api-keys) - How to create keys and authenticate REST requests
+- [Blockstream Esplora API Reference](https://github.com/Blockstream/esplora/blob/master/API.md) - Endpoint documentation shared with the public provider
+- [Blockstream Explorer](https://blockstream.info/) - Block explorer and API key dashboard
+
+## Related
+
+- <Link href="/providers/bitcoin-blockstream">Blockstream Bitcoin Provider</Link> - Public Esplora API, no API key
+- <Link href="/apis/wallets/bitcoin/headless-wallet">Bitcoin Headless Wallet</Link> - Use this provider with a self-custodial HD wallet
+- <Link href="/providers">All Providers</Link> - Compare with Cardano providers

@@ -1,0 +1,274 @@
+---
+title: CBOR
+description: Low-level CBOR encoding, decoding, and byte-identical re-encoding
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+# CBOR
+
+Low-level CBOR encode/decode with optional byte-identical re-encoding via the `WithFormat` API.
+
+## Overview
+
+`CBOR` is the lowest-level encoding layer in the SDK. It decodes raw CBOR bytes into a typed `CBOR` union value, and encodes that value back to bytes using configurable options.
+
+Most application code should use the module-specific APIs (`Transaction.fromCBORHex`, `TransactionBody.fromCBORHex`, etc.) rather than this module directly. Use `CBOR` when you need to inspect or manipulate raw CBOR structures, implement a custom codec, or re-encode bytes with exact encoding preservation.
+
+**When NOT to use this module directly:**
+- Parsing a full transaction → use `Transaction.fromCBORHex`
+- Encoding a domain type → use the module's own `toCBORHex`/`toCBORBytes`
+- Working with Plutus data → use the `Data` module
+
+## Quick Start
+
+```typescript twoslash
+import { CBOR } from "@evolution-sdk/evolution"
+
+// Decode hex to a typed CBOR value
+const value = CBOR.fromCBORHex("83010203")
+//    ^? CBOR — an array in this case
+
+// Inspect the type before narrowing
+if (CBOR.isArray(value)) {
+  const len = value.length // 3
+}
+
+// Re-encode to hex (canonical by default)
+const hex = CBOR.toCBORHex(value) // "83010203"
+
+// Or to bytes
+const bytes = CBOR.toCBORBytes(value)
+```
+
+## Core Concepts
+
+### The `CBOR` Union Type
+
+`CBOR.fromCBORHex` returns a `CBOR` value — a discriminated union over every CBOR major type:
+
+```typescript twoslash
+import { CBOR } from "@evolution-sdk/evolution"
+
+// bigint      ← CBOR major 0 (uint) and major 1 (nint)
+const uint: CBOR.CBOR = 42n
+const nint: CBOR.CBOR = -1n
+
+// Uint8Array  ← CBOR major 2 (bytes)
+const bytes: CBOR.CBOR = new Uint8Array([0xde, 0xad])
+
+// string      ← CBOR major 3 (text)
+const text: CBOR.CBOR = "hello"
+
+// ReadonlyArray<CBOR>          ← CBOR major 4 (array)
+// ReadonlyMap<CBOR, CBOR>      ← CBOR major 5 (map)
+// { _tag: "Tag"; tag: number; value: CBOR }  ← CBOR major 6 (tag)
+// boolean | null | undefined   ← CBOR major 7 (simple)
+```
+
+Use the type guards to narrow before accessing:
+
+```typescript twoslash
+import { CBOR } from "@evolution-sdk/evolution"
+
+const raw = CBOR.fromCBORHex("a2016161026162") // { 1 → "a", 2 → "b" }
+
+if (!CBOR.isMap(raw)) throw new CBOR.CBORError({ message: "Expected map" })
+// raw is now ReadonlyMap<CBOR.CBOR, CBOR.CBOR>
+
+const entry = raw.get(1n) // "a"
+```
+
+Available guards: `isInteger`, `isByteArray`, `isArray`, `isMap`, `isRecord`, `isTag`.
+
+### `CBORFormat` — The Encoding Tree
+
+Standard CBOR decode throws away encoding choices: whether an integer used 1 or 4 bytes, whether a map was definite or indefinite, what order keys appeared in. This is fine for domain types that own their encoding. It is a problem for relay services that must hand back byte-identical transactions.
+
+`CBORFormat` is a discriminated union (8 variants) that captures the complete encoding tree for every CBOR node. `fromCBORHexWithFormat` / `fromCBORBytesWithFormat` decode and capture it simultaneously. `toCBORHexWithFormat` / `toCBORBytesWithFormat` replay the captured tree exactly.
+
+```typescript twoslash
+import { CBOR } from "@evolution-sdk/evolution"
+
+// "1800" = integer 0 encoded as a 1-byte uint (non-canonical; minimal is "00")
+const hex = "1800"
+
+// Plain path: value decoded, encoding choices discarded
+const value = CBOR.fromCBORHex(hex)             // 0n
+const reEncoded = CBOR.toCBORHex(value)          // "00" — minimal, NOT "1800"
+
+// WithFormat path: encoding tree captured alongside value
+const { format, value: v2 } = CBOR.fromCBORHexWithFormat(hex)
+const preserved = CBOR.toCBORHexWithFormat(v2, format) // "1800" — byte-identical
+```
+
+The `CBORFormat` variants are:
+
+| Variant | CBOR major type | Encoding detail captured |
+|---------|----------------|--------------------------|
+| `uint`  | 0 (uint)       | `byteSize` of the argument |
+| `nint`  | 1 (nint)       | `byteSize` of the argument |
+| `bytes` | 2 (bytes)      | definite vs indefinite, chunk sizes |
+| `text`  | 3 (text)       | definite vs indefinite, chunk sizes |
+| `array` | 4 (array)      | definite vs indefinite, per-child formats |
+| `map`   | 5 (map)        | definite vs indefinite, key insertion order |
+| `tag`   | 6 (tag)        | tag header `width` |
+| `simple`| 7 (simple)     | (no choices to capture) |
+
+### `CodecOptions` Presets
+
+The plain `toCBORHex`/`toCBORBytes` APIs accept a `CodecOptions` argument that controls how values are encoded. Pre-built presets cover the most common Cardano tool conventions:
+
+| Preset | Use when |
+|--------|----------|
+| `CML_DEFAULT_OPTIONS` *(default)* | General Cardano use — definite lengths, minimal integer encoding |
+| `CANONICAL_OPTIONS` | Canonical CBOR as CIP-21 specifies: map keys length-first (RFC 7049 Section 3.9), minimal encoding |
+| `HW_CLI_OPTIONS` | `CANONICAL_OPTIONS` with `keyOrder: "bytewise"`: map keys in bytewise order (RFC 8949 Section 4.2.1), which cardano-hw-cli checks before it witnesses a transaction. `TX_HW_CLI_OPTIONS` applies it to a whole transaction |
+| `PLUTUS_DATA_OPTIONS` | Plutus data in the node layout: indefinite lists and constructor fields, definite maps. The default for `Data` encoding, `UPLC.applyParamsToScript` and `UPLC.dataConstant`; matches `cardano-cli`, Aiken `cbor.serialise()`, and `aiken blueprint apply` |
+| `CML_DATA_DEFAULT_OPTIONS` | Deprecated. Indefinite lists, constructor fields and maps, keys in insertion order. The `Data` default before `PLUTUS_DATA_OPTIONS`; use it only to reproduce datum bytes and hashes the SDK wrote before. It matches no tool exactly: CML `PlutusData.to_cardano_node_format()` also sorts map keys |
+| `CML_DATA_DEFINITE_OPTIONS` | Matches CML `PlutusData.to_cbor_hex()` on new data: definite lists and maps |
+| `AIKEN_DEFAULT_OPTIONS` | Deprecated alias of `PLUTUS_DATA_OPTIONS` |
+| `CARDANO_NODE_DATA_OPTIONS` | Deprecated alias of `CML_DATA_DEFINITE_OPTIONS` |
+
+```typescript twoslash
+import { CBOR } from "@evolution-sdk/evolution"
+
+const value = CBOR.fromCBORHex("a2026161016162") // map with non-sorted keys
+
+// Default (CML): preserve JS Map insertion order
+const defaultHex = CBOR.toCBORHex(value)
+
+// Canonical: sort keys, minimal integer sizes
+const canonicalHex = CBOR.toCBORHex(value, CBOR.CANONICAL_OPTIONS)
+```
+
+## Reference
+
+### Decode
+
+| Function | Input | Returns |
+|----------|-------|---------|
+| `fromCBORHex(hex, options?)` | hex string | `CBOR` |
+| `fromCBORBytes(bytes, options?)` | `Uint8Array` | `CBOR` |
+| `fromCBORHexWithFormat(hex)` | hex string | `DecodedWithFormat<CBOR>` |
+| `fromCBORBytesWithFormat(bytes)` | `Uint8Array` | `DecodedWithFormat<CBOR>` |
+
+### Encode
+
+| Function | Input | Returns |
+|----------|-------|---------|
+| `toCBORHex(value, options?)` | `CBOR` | hex string |
+| `toCBORBytes(value, options?)` | `CBOR` | `Uint8Array` |
+| `toCBORHexWithFormat(value, format)` | `CBOR` + `CBORFormat` | hex string |
+| `toCBORBytesWithFormat(value, format)` | `CBOR` + `CBORFormat` | `Uint8Array` |
+
+### Type Guards
+
+```typescript twoslash
+import { CBOR } from "@evolution-sdk/evolution"
+
+const v: CBOR.CBOR = CBOR.fromCBORHex("01")
+
+CBOR.isInteger(v)   // v is bigint
+CBOR.isByteArray(v) // v is Uint8Array
+CBOR.isArray(v)     // v is ReadonlyArray<CBOR.CBOR>
+CBOR.isMap(v)       // v is ReadonlyMap<CBOR.CBOR, CBOR.CBOR>
+CBOR.isRecord(v)    // v is Record<string | number, CBOR.CBOR>
+CBOR.isTag(v)       // v is { _tag: "Tag"; tag: number; value: CBOR.CBOR }
+```
+
+### Structural Matching
+
+`match` provides exhaustive pattern matching over a `CBOR` value, analogous to a switch on the full union:
+
+```typescript twoslash
+import { CBOR } from "@evolution-sdk/evolution"
+
+const value = CBOR.fromCBORHex("43010203") // bytes [01, 02, 03]
+
+const result = CBOR.match(value, {
+  integer: (n) => `int: ${n}`,
+  bytes: (b) => `bytes(${b.length})`,
+  text: (s) => `text: ${s}`,
+  array: (a) => `array[${a.length}]`,
+  map: (m) => `map{${m.size}}`,
+  record: (_r) => `record`,
+  tag: (tag, _v) => `tag(${tag})`,
+  boolean: (b) => `bool: ${b}`,
+  null: () => `null`,
+  undefined: () => `undefined`,
+  float: (f) => `float: ${f}`,
+  boundedBytes: (b) => `bounded(${b.length})`,
+})
+// result = "bytes(3)"
+```
+
+## Best Practices
+
+### Use `WithFormat` in any relay or signing service
+
+If your code receives a `Transaction` CBOR hex from a client, adds witnesses, and returns the result, use `WithFormat` at the transaction level to guarantee the body bytes — and thus the `txId` — are never altered:
+
+```typescript twoslash
+import { Transaction } from "@evolution-sdk/evolution"
+
+function addWalletWitnesses(txHex: string, walletWitnessHex: string): string {
+  // Byte-level splice: body bytes untouched, txId stable
+  return Transaction.addVKeyWitnessesHex(txHex, walletWitnessHex)
+}
+```
+
+For cases where you need to inspect the transaction before re-encoding, use the WithFormat round-trip:
+
+```typescript twoslash
+import { Transaction } from "@evolution-sdk/evolution"
+
+function inspectAndReserialize(txHex: string): string {
+  const { format, value: tx } = Transaction.fromCBORHexWithFormat(txHex)
+
+  // Inspect tx.body, tx.witnessSet, etc. — no mutation
+  const fee = tx.body.fee
+
+  // Re-encode with the captured format: body bytes byte-identical
+  return Transaction.toCBORHexWithFormat(tx, format)
+}
+```
+
+### Inject a hand-crafted `CBORFormat` for controlled encoding
+
+When you need a specific encoding shape that differs from the defaults — e.g. forcing an indefinite-length array — build the `CBORFormat` explicitly:
+
+```typescript twoslash
+import { CBOR } from "@evolution-sdk/evolution"
+
+const fmt: CBOR.CBORFormat = {
+  _tag: "array",
+  length: { tag: "indefinite" },
+  children: [{ _tag: "uint" }, { _tag: "uint" }],
+}
+
+const hex = CBOR.toCBORHexWithFormat([1n, 2n], fmt)
+// hex = "9f0102ff"  — indefinite-length array
+```
+
+### Narrow before accessing map entries
+
+`fromCBORHex` returns `CBOR`, not a narrowed type. Always check before indexing:
+
+```typescript twoslash
+import { CBOR } from "@evolution-sdk/evolution"
+
+function getMapEntry(hex: string, key: bigint): CBOR.CBOR | undefined {
+  const v = CBOR.fromCBORHex(hex)
+  if (!CBOR.isMap(v)) return undefined
+  return v.get(key)
+}
+```
+
+## Related
+
+<Cards>
+  <Card title="Transaction" href="/docs/modules/Transaction" description="High-level transaction encoding with WithFormat support" />
+  <Card title="Data" href="/docs/encoding/data" description="Plutus data encoding using the CBOR layer" />
+  <Card title="Plutus Types" href="/docs/encoding/plutus" description="Pre-built schemas for Cardano data structures" />
+</Cards>

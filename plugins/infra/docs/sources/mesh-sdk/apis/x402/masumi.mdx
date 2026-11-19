@@ -1,0 +1,109 @@
+---
+title: "Masumi Escrow"
+description: "Lock x402 payments into the Masumi escrow, with refunds and disputes."
+---
+
+With the `masumi` method the money is not paid to the seller. It is **locked in the Masumi `vested_pay` escrow contract**, under terms the seller signed. The seller gets it later by delivering a result, the buyer can ask for a refund, and admins settle disputes. x402 only covers the lock; releasing the funds happens in later transactions.
+
+Use it for agent-to-agent jobs where "pay first, trust later" is not good enough.
+
+## Selling with escrow
+
+```ts
+import { buildMasumiOffer, createPaywall, createFacilitatorClient } from "@meshsdk/x402";
+
+const paywall = createPaywall({
+  network: "cardano:preprod",
+  facilitator: createFacilitatorClient("http://localhost:8787"),
+  issue: async (req) => {
+    const { requirements } = await buildMasumiOffer({
+      network: "cardano:preprod",
+      amount: "5000000",
+      sellerWallet,                       // signs the terms
+      sellerAddress,
+      jobInput: { task: "summarize-market-report" }, // committed to in the offer
+    });
+    return requirements;
+  },
+  serve: () => Response.json({ status: "payment locked, job can start" }),
+});
+```
+
+What `buildMasumiOffer` gives you:
+
+- a fresh random seller nonce every time (never reuse an offer)
+- the job input hashed into the offer, so a dispute can point at what was bought
+- deadlines for paying, delivering, unlocking and disputing
+- the seller's signature over all of it
+
+The client checks every one of these before it signs, and so does the facilitator.
+
+## Paying with escrow
+
+The client code does not change. Same `fetchWithPayment`, the offer says `masumi`:
+
+```ts
+const { response, paymentResponse } = await fetchWithPayment(url, undefined, wallet, {
+  fetcher: provider, protocol, currentSlot,
+});
+```
+
+A successful response means the funds are **locked in escrow**, not delivered to the seller. Paying twice for one offer is blocked: the first transaction to claim an offer wins.
+
+## Registered agents
+
+An offer can name a registered Masumi agent with `agentIdentifier`. Anyone can copy someone else's id into their own offer, so the package refuses it unless **you** prove it is real:
+
+```ts
+const validateRegistryClaim = async ({ agentIdentifier, sellerAddress, network, amount, asset, resource }) => {
+  // true only if: the agent exists on this network, sellerAddress is authorized for it,
+  // its endpoint covers resource.url, and its registered price is exactly amount of asset
+  return await myRegistryLookup(agentIdentifier, { sellerAddress, network, amount, asset, url: resource.url });
+};
+
+createFacilitatorApp({ /* ... */ validateRegistryClaim });                         // facilitator
+fetchWithPayment(url, init, wallet, { fetcher, protocol, currentSlot, validateRegistryClaim }); // client
+```
+
+No validator, or a validator that returns anything but `true` or throws, means the payment is refused. Sellers without an `agentIdentifier` need none.
+
+## Custom escrow deployments
+
+The default deployment uses Masumi's standard admin keys. A different one (`deployment` in the offer) means different people settle disputes, so it is refused unless your app approves it:
+
+```ts
+import { masumiAdminWeights } from "@meshsdk/x402";
+
+const allowMasumiDeployment = (deployment, { weights }) => {
+  // weights shows who really holds the power: a key listed twice counts twice
+  return askUser(masumiAdminWeights(deployment));
+};
+```
+
+On `cardano:preview` there is no default, so an offer must include its `deployment`.
+
+## After the lock
+
+x402 stops at the lock. Releasing the funds is a later spend — [Withdrawal](/apis/x402/withdrawal) covers the clock, the happy path, and the errors you get if you act too early or too late.
+
+These build those later transactions:
+
+```ts
+import { parseMasumiLockDatum, buildSubmitResultTx, buildWithdrawTx } from "@meshsdk/x402";
+
+const datum = parseMasumiLockDatum(inlineDatumCbor)!; // null if it is not a valid escrow datum
+const ctx = { fetcher, evaluator, currentSlot }; // evaluator estimates script costs
+
+const submit = await buildSubmitResultTx(escrowUtxo, datum, resultHashHex, sellerWallet, deployment, ctx);
+const withdraw = await buildWithdrawTx(escrowUtxo, datum, sellerWallet, deployment, ctx);
+```
+
+| Builder | Who | What it does |
+|---|---|---|
+| `buildSubmitResultTx` | seller | Records the delivered result |
+| `buildWithdrawTx` | seller | Takes the funds (after the unlock time, or once the buyer authorizes) |
+| `buildAuthorizeRefundTx` | seller | Gives up the claim so the buyer can refund |
+| `buildSetRefundRequestedTx` | buyer | Asks for a refund; becomes a dispute if a result exists |
+| `buildAuthorizeWithdrawalTx` | buyer | In a dispute, lets the seller withdraw |
+| `buildWithdrawRefundTx` | buyer | Takes the refund |
+| `buildWithdrawDisputedTx` | anyone | Settles a dispute with the admins' signatures (`signAdminIntent`, `verifyAdminSignature`) |

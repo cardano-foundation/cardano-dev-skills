@@ -1,0 +1,4082 @@
+# Available traces
+
+This document lists all available trace schemas in Amaru, auto-generated from the code. Each schema is either a span or an event. Event schemas list the levels they may be emitted at.
+
+For information on how to use and filter these traces, see [monitoring/README.md](../monitoring/README.md).
+
+
+## target: `amaru::blockperf::block`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `adopted` | `event` | debug, info | public | The block was adopted locally. \`peer\` is the first peer that delivered the body, when a delivery was recorded. \`slot_latency_ms\` is milliseconds since the onset of this block's slot. | header_hash | peer, slot_latency_ms |
+| `received` | `event` | debug, info | public | A distinct peer delivered this block body. \`rank\` is 1 for the first delivery, then 2, 3, … in arrival order. \`slot_latency_ms\` is milliseconds since the onset of this block's slot. \`fetch_latency_ms\` is milliseconds since the request was sent to this peer. | peer, header_hash, rank | slot_latency_ms, fetch_latency_ms |
+| `requested` | `event` | debug, info | public | Peers asked to fetch this block body. \`peers\` is a comma-separated list of socket addresses, sorted. \`slot_latency_ms\` is milliseconds since the onset of this block's slot. | header_hash, peers | slot_latency_ms |
+
+<details><summary>event: `adopted`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `header_hash` | `string` | ✓ |
+| `peer` | `string` |  |
+| `slot_latency_ms` | `integer` |  |
+
+</details>
+
+<details><summary>event: `received`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `header_hash` | `string` | ✓ |
+| `rank` | `integer` | ✓ |
+| `slot_latency_ms` | `integer` |  |
+| `fetch_latency_ms` | `integer` |  |
+
+</details>
+
+<details><summary>event: `requested`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `header_hash` | `string` | ✓ |
+| `peers` | `string` | ✓ |
+| `slot_latency_ms` | `integer` |  |
+
+</details>
+
+## target: `amaru::blockperf::header`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `announced` | `event` | debug, info | public | One of the first three distinct peers to announce this header while it is still being collected. A header that is already stored does not start a new line, and a header that has been adopted is not announced again. \`rank\` is 1, 2, or 3 in arrival order. Later peers are not logged. \`slot_latency_ms\` is milliseconds since the onset of this block's slot. | peer, header_hash, rank | slot_latency_ms |
+
+<details><summary>event: `announced`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `header_hash` | `string` | ✓ |
+| `rank` | `integer` | ✓ |
+| `slot_latency_ms` | `integer` |  |
+
+</details>
+
+## target: `amaru::bootstrap`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `complete` | `event` | info | public | Bootstrap completed successfully | duration_seconds, epoch, point |  |
+
+<details><summary>event: `complete`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `duration_seconds` | `number` | ✓ |
+| `epoch` | `integer` | ✓ |
+| `point` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::accounts`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `import` | `event` | info | public | Import accounts from a snapshot | size |  |
+| `is_not_empty` | `event` | warn | public | Existing accounts found in the store before import |  |  |
+
+<details><summary>event: `import`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `size` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::block_issuers`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `import` | `event` | info | public | Import block issuers from a snapshot | count |  |
+
+<details><summary>event: `import`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `count` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::constitution`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `import` | `event` | info | public | Import the constitution from a snapshot | anchor, guardrails |  |
+
+<details><summary>event: `import`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `anchor` | `string` | ✓ |
+| `guardrails` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::constitutional_committee`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `import` | `event` | info | public | Import the constitutional committee from a snapshot | state | threshold, members |
+
+<details><summary>event: `import`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `state` | `string` | ✓ |
+| `threshold` | `string` |  |
+| `members` | `integer` |  |
+
+</details>
+
+## target: `amaru::bootstrap::dreps`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `import` | `event` | info | public | Import DReps from a snapshot | size |  |
+
+<details><summary>event: `import`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `size` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::fetch`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `rollback` | `event` | info | public | Received a rollback while fetching bootstrap headers | point, tip |  |
+
+<details><summary>event: `rollback`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `point` | `string` | ✓ |
+| `tip` | `array` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::governance_activity`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `import` | `event` | info | public | Import the governance activity from a snapshot | dormant_epochs |  |
+
+<details><summary>event: `import`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `dormant_epochs` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::header`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `import` | `event` | info | public | Import a single header into the chain store | header |  |
+
+<details><summary>event: `import`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `header` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::headers`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `fetch` | `event` | info | public | Fetch bootstrap headers from a peer | requested_point, intersection, headers_per_point |  |
+| `next_failed` | `event` | error | public | The chain-sync client failed while requesting or awaiting the next header. Operation ∈ {request_next, await_next}. | operation, error |  |
+
+<details><summary>event: `fetch`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `requested_point` | `string` | ✓ |
+| `intersection` | `string` | ✓ |
+| `headers_per_point` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `next_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `operation` | `string` | ✓ |
+| `error` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::import`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `utxo` | `event` | info | public | Import UTxO entries from a snapshot | size |  |
+
+<details><summary>event: `utxo`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `size` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::nonces`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `import` | `event` | info | public | Import initial nonces into the chain store | point |  |
+
+<details><summary>event: `import`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `point` | `array` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::opcert_sequence_numbers`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `import` | `event` | info | public | Import initial opcert sequence numbers into the chain store | point |  |
+
+<details><summary>event: `import`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `point` | `array` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::peer`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `failed_to_connect` | `event` | error | public | Failed to connect to a peer while bootstrapping | peer, reason |  |
+
+<details><summary>event: `failed_to_connect`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::pots`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `import` | `event` | info | public | Import treasury/reserves/fees pots from a snapshot | treasury, reserves, fees, donations |  |
+
+<details><summary>event: `import`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `treasury` | `integer` | ✓ |
+| `reserves` | `integer` | ✓ |
+| `fees` | `integer` | ✓ |
+| `donations` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::progress`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `complete` | `event` | info | public | Report successful bootstrap completion | epoch, point |  |
+| `download` | `event` | info | public | Report absolute aggregate snapshot download progress | downloaded_bytes, completed_snapshots |  |
+| `phase_completed` | `event` | info | public | A bootstrap phase completed; size counts entries and downloaded_bytes counts bytes | phase | size, downloaded_bytes, completed_snapshots |
+| `snapshots_selected` | `event` | info | public | Report the selected snapshot window and its aggregate compressed size | snapshot_count | total_bytes |
+| `stage` | `event` | info | public | Enter a canonical bootstrap stage | stage |  |
+
+<details><summary>event: `complete`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+| `point` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `download`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `downloaded_bytes` | `integer` | ✓ |
+| `completed_snapshots` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `phase_completed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `phase` | `string` | ✓ |
+| `size` | `integer` |  |
+| `downloaded_bytes` | `integer` |  |
+| `completed_snapshots` | `integer` |  |
+
+</details>
+
+<details><summary>event: `snapshots_selected`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `snapshot_count` | `integer` | ✓ |
+| `total_bytes` | `integer` |  |
+
+</details>
+
+<details><summary>event: `stage`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `stage` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::proposal_roots`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `import` | `event` | info | public | Import governance proposal roots from a snapshot | constitution, constitutional_committee, hard_fork, protocol_parameters |  |
+
+<details><summary>event: `import`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `constitution` | `string` | ✓ |
+| `constitutional_committee` | `string` | ✓ |
+| `hard_fork` | `string` | ✓ |
+| `protocol_parameters` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::proposals`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `import` | `event` | info | public | Import governance proposals from a snapshot | size |  |
+| `is_not_empty` | `event` | warn | public | Existing proposals found in the store before import |  |  |
+
+<details><summary>event: `import`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `size` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::recently_pruned_proposals`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `import` | `event` | info | public | Import proposals pruned at the snapshot's epoch boundary, from its ratify state | size |  |
+
+<details><summary>event: `import`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `size` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::snapshot`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `download` | `event` | info | public | Download a snapshot archive | epoch, point |  |
+| `import_archive` | `event` | info | public | Import a compressed snapshot archive | path |  |
+| `import_tvar` | `event` | info | public | Import from the tvar data | point, new_epoch_state_offset |  |
+| `skip_download` | `event` | info | public | Snapshot already downloaded; skipping download | snapshot |  |
+| `unexpected_era` | `event` | warn | public | The parsed snapshot's current era is not Conway; later decoding may fail | snapshot_era |  |
+
+<details><summary>event: `download`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+| `point` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `import_archive`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `path` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `import_tvar`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `point` | `array` | ✓ |
+| `new_epoch_state_offset` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `skip_download`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `snapshot` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `unexpected_era`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `snapshot_era` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::stake_pools`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `import` | `event` | info | public | Import stake pools from a snapshot | registered, retiring |  |
+
+<details><summary>event: `import`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `registered` | `integer` | ✓ |
+| `retiring` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::bootstrap::votes`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `import` | `event` | info | public | Import governance votes from a snapshot | size |  |
+
+<details><summary>event: `import`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `size` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::cli`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `error` | `event` | error | public | Process terminated with an error. | description | cause |
+
+<details><summary>event: `error`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `description` | `string` | ✓ |
+| `cause` | `string` |  |
+
+</details>
+
+## target: `amaru::cli::current_epoch`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `resolve` | `event` | info | public | Resolve the current epoch from Koios | epoch |  |
+
+<details><summary>event: `resolve`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::cli::db_analyser`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `reuse_ledger_snapshot` | `event` | info | public | Reuse an existing db-analyser ledger snapshot | epoch, slot, snapshot |  |
+| `run` | `event` | info | public | Run db-analyser to produce a ledger snapshot | epoch, slot | analyse_from |
+
+<details><summary>event: `reuse_ledger_snapshot`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+| `slot` | `integer` | ✓ |
+| `snapshot` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `run`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+| `slot` | `integer` | ✓ |
+| `analyse_from` | `integer` |  |
+
+</details>
+
+## target: `amaru::cli::db_chain`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `exist` | `event` | warn | public | Chain database already exists | dir, hint |  |
+
+<details><summary>event: `exist`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `dir` | `string` | ✓ |
+| `hint` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::cli::db_ledger`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `exist` | `event` | warn | public | Ledger database already exists | dir, hint |  |
+
+<details><summary>event: `exist`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `dir` | `string` | ✓ |
+| `hint` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::cli::dev::chain`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ancestors` | `event` | info | public | Walk back from a given point showing block height, presence, validation status and best chain flag. | db_chain, network, start |  |
+| `anchor_updated` | `event` | info | public | The chain store anchor was moved to a new hash | new_anchor |  |
+| `best_chain` | `event` | info | public | Show the best chain tip and computed best tip candidate. | db_chain, network |  |
+| `children` | `event` | info | public | Walk forward from a point and show its children. | db_chain, network, start |  |
+| `clear_invalid` | `event` | info | public | Clear the validation status for selected blocks. | blocks, db_chain, network |  |
+| `dump` | `event` | info | public | Dump selected chain database tables. | db_chain, network |  |
+| `fetch` | `event` | info | public | Fetch chain headers from a peer. | headers, network, parent, peer |  |
+| `migrate` | `event` | info | public | Migrate the chain database to the current format. | db_chain, network |  |
+| `migration_not_needed` | `event` | info | public | The chain database is already at the current version |  |  |
+| `moving_best_chain` | `event` | warn | public | The best chain hash is being moved back before removing points |  |  |
+| `open_failed` | `event` | error | public | The chain database could not be opened | error |  |
+| `parent_not_found` | `event` | error | public | A header on the path back to the best chain has no stored parent | header_hash |  |
+| `point_removed` | `event` | info | public | A point is being removed from the chain store | point |  |
+| `points_to_remove` | `event` | info | public | The number of stored points selected for removal | points |  |
+| `prune` | `event` | info | public | Prune chain data that precedes the oldest ledger snapshot. | db_chain, db_ledger, network |  |
+| `prune_boundary` | `event` | info | public | The pruning boundary derived from the oldest ledger snapshot | oldest_ledger_epoch, boundary_slot |  |
+| `remove` | `event` | info | public | Remove data after a chain point. | db_chain, from_point, network, only_blocks, only_validation_results |  |
+| `validation_cleared` | `event` | info | public | The stored validation status of a block is being cleared | header_hash |  |
+
+<details><summary>event: `ancestors`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `db_chain` | `string` | ✓ |
+| `network` | `string` | ✓ |
+| `start` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `anchor_updated`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `new_anchor` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `best_chain`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `db_chain` | `string` | ✓ |
+| `network` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `children`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `db_chain` | `string` | ✓ |
+| `network` | `string` | ✓ |
+| `start` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `clear_invalid`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `blocks` | `string` | ✓ |
+| `db_chain` | `string` | ✓ |
+| `network` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `dump`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `db_chain` | `string` | ✓ |
+| `network` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `fetch`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `headers` | `string` | ✓ |
+| `network` | `string` | ✓ |
+| `parent` | `string` | ✓ |
+| `peer` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `migrate`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `db_chain` | `string` | ✓ |
+| `network` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `open_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `error` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `parent_not_found`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `header_hash` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `point_removed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `point` | `array` | ✓ |
+
+</details>
+
+<details><summary>event: `points_to_remove`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `points` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `prune`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `db_chain` | `string` | ✓ |
+| `db_ledger` | `string` | ✓ |
+| `network` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `prune_boundary`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `oldest_ledger_epoch` | `integer` | ✓ |
+| `boundary_slot` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `remove`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `db_chain` | `string` | ✓ |
+| `from_point` | `string` | ✓ |
+| `network` | `string` | ✓ |
+| `only_blocks` | `boolean` | ✓ |
+| `only_validation_results` | `boolean` | ✓ |
+
+</details>
+
+<details><summary>event: `validation_cleared`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `header_hash` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::cli::last_block`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `resolve` | `event` | info | public | Resolve the last produced block for an epoch | epoch, point |  |
+
+<details><summary>event: `resolve`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+| `point` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::cli::mithril`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `download` | `event` | info | public | Synchronize the cardano-node database from Mithril | from_chunk, target_dir |  |
+| `ingest_completed` | `event` | info | public | Finished replaying downloaded blocks into the stores | processed, duration_seconds, processed_per_seconds |  |
+| `recover_chain_tip` | `event` | info | public | Complete chain-store adoption after an interrupted Mithril ledger update | ledger_tip, chain_tip |  |
+| `skip_download` | `event` | info | public | Local cardano-node database is recent enough; skipping Mithril download | from_chunk, required_chunk, target_dir, reason |  |
+
+<details><summary>event: `download`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from_chunk` | `integer` | ✓ |
+| `target_dir` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `ingest_completed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `processed` | `integer` | ✓ |
+| `duration_seconds` | `number` | ✓ |
+| `processed_per_seconds` | `number` | ✓ |
+
+</details>
+
+<details><summary>event: `recover_chain_tip`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `ledger_tip` | `array` | ✓ |
+| `chain_tip` | `array` | ✓ |
+
+</details>
+
+<details><summary>event: `skip_download`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from_chunk` | `integer` | ✓ |
+| `required_chunk` | `integer` | ✓ |
+| `target_dir` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::cli::node`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `bootstrap` | `event` | info | public | Bootstrap a node from published snapshots | db_chain, db_ledger, network | epoch |
+| `rm` | `event` | info | public | Remove ledger and chain database from disk | db_chain, db_ledger, network |  |
+| `rollback` | `event` | info | public | Roll the node databases back after a failure | db_chain, db_ledger, mode, network | anchor, best_chain, epoch, ledger_tip |
+| `run` | `span` |  | public | The effective configuration a node run starts with | db_chain, db_chain_automatic_migration, db_ledger, db_ledger_max_extra_snapshots, mempool_max_bytes, network, peer, peers_listen_on, peers_max_downstream, peers_max_upstream, peers_mix, peers_removal_cooldown_ms, peers_snapshot, peers_snapshot_relays, pid_export, submit_api_listen_on, trace_buffer, trace_buffer_dump, tui_log_retention, tui_off, tx_submission_fetch_batch_bytes, tx_submission_inflight_timeout_ms, tx_submission_insert_timeout_ms, tx_submission_max_window | era_history, global_parameters |
+| `submit_api_shutdown_failed` | `event` | warn | public | The submit API did not stop cleanly during shutdown. Reason ∈ {join_error, timeout}. | reason | error |
+
+<details><summary>event: `bootstrap`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `db_chain` | `string` | ✓ |
+| `db_ledger` | `string` | ✓ |
+| `network` | `string` | ✓ |
+| `epoch` | `integer` |  |
+
+</details>
+
+<details><summary>event: `rm`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `db_chain` | `string` | ✓ |
+| `db_ledger` | `string` | ✓ |
+| `network` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `rollback`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `db_chain` | `string` | ✓ |
+| `db_ledger` | `string` | ✓ |
+| `mode` | `string` | ✓ |
+| `network` | `string` | ✓ |
+| `anchor` | `string` |  |
+| `best_chain` | `string` |  |
+| `epoch` | `integer` |  |
+| `ledger_tip` | `string` |  |
+
+</details>
+
+<details><summary>span: `run`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `db_chain` | `string` | ✓ |
+| `db_chain_automatic_migration` | `boolean` | ✓ |
+| `db_ledger` | `string` | ✓ |
+| `db_ledger_max_extra_snapshots` | `string` | ✓ |
+| `mempool_max_bytes` | `string` | ✓ |
+| `network` | `string` | ✓ |
+| `peer` | `string` | ✓ |
+| `peers_listen_on` | `string` | ✓ |
+| `peers_max_downstream` | `integer` | ✓ |
+| `peers_max_upstream` | `integer` | ✓ |
+| `peers_mix` | `string` | ✓ |
+| `peers_removal_cooldown_ms` | `integer` | ✓ |
+| `peers_snapshot` | `string` | ✓ |
+| `peers_snapshot_relays` | `integer` | ✓ |
+| `pid_export` | `string` | ✓ |
+| `submit_api_listen_on` | `string` | ✓ |
+| `trace_buffer` | `string` | ✓ |
+| `trace_buffer_dump` | `string` | ✓ |
+| `tui_log_retention` | `string` | ✓ |
+| `tui_off` | `boolean` | ✓ |
+| `tx_submission_fetch_batch_bytes` | `integer` | ✓ |
+| `tx_submission_inflight_timeout_ms` | `integer` | ✓ |
+| `tx_submission_insert_timeout_ms` | `integer` | ✓ |
+| `tx_submission_max_window` | `integer` | ✓ |
+| `era_history` | `string` |  |
+| `global_parameters` | `string` |  |
+
+</details>
+
+<details><summary>event: `submit_api_shutdown_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `reason` | `string` | ✓ |
+| `error` | `string` |  |
+
+</details>
+
+## target: `amaru::cli::snapshot`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `create` | `event` | info | public | Create snapshots for the given network | cardano_node_db, config, dist, network, to | epoch, snapshots |
+| `created` | `event` | info | public | Finished creating a snapshot archive | epoch, slot, archive |  |
+| `package` | `event` | info | public | Package a snapshot archive | epoch, slot, archive |  |
+| `publish` | `event` | info | public | Publish snapshot archives | network, local, remote |  |
+| `skip_package` | `event` | info | public | Snapshot archive already packaged; skipping | epoch, slot, archive, reason |  |
+| `skip_upload` | `event` | info | public | Snapshot archive already uploaded; skipping | archive |  |
+| `update_index` | `event` | info | public | Update the published snapshot index | network, snapshots |  |
+| `upload` | `event` | info | public | Upload a snapshot archive | archive |  |
+| `uploaded` | `event` | info | public | Finished uploading a snapshot archive | archive |  |
+
+<details><summary>event: `create`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `cardano_node_db` | `string` | ✓ |
+| `config` | `string` | ✓ |
+| `dist` | `string` | ✓ |
+| `network` | `string` | ✓ |
+| `to` | `string` | ✓ |
+| `epoch` | `integer` |  |
+| `snapshots` | `string` |  |
+
+</details>
+
+<details><summary>event: `created`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+| `slot` | `integer` | ✓ |
+| `archive` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `package`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+| `slot` | `integer` | ✓ |
+| `archive` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `publish`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `network` | `string` | ✓ |
+| `local` | `integer` | ✓ |
+| `remote` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `skip_package`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+| `slot` | `integer` | ✓ |
+| `archive` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `skip_upload`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `archive` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `update_index`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `network` | `string` | ✓ |
+| `snapshots` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `upload`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `archive` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `uploaded`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `archive` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::consensus::block`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `adopt_failed` | `event` | error | public | Adopting a tip as the new best chain failed. Step ∈ {adopt_tip, adopt_first_tip, drag_anchor_forward}. | tip, step, error |  |
+| `apply_failed` | `event` | warn | public | A block could not be applied to the ledger. Step ∈ {validate_block, switch_to_fork}. | tip, step, error |  |
+| `header_not_found` | `event` | warn | public | A header needed to adopt a tip could not be loaded. Role ∈ {incoming_tip, current_best}. | role | tip |
+| `invalid` | `event` | warn | public | A block was rejected during validation | failed_tip, parent, error, detail |  |
+| `invariant_violated` | `event` | error | public | The chain store contradicts itself while adopting a tip. Invariant ∈ {header_missing, no_common_ancestor}. | tip, invariant |  |
+| `mismatched_hash` | `event` | warn | public | Mismatched body hash after download, the peer is adversarial | peer, header_hash | expected, actual |
+| `skip` | `event` | debug | public | Skip a block validation when it is not better than the current ledger tip | current, tip |  |
+| `switch_fork` | `event` | info | public | The ledger is switching to a different fork | current, parent |  |
+| `validate_from_genesis` | `event` | error | public | Block validation cannot proceed because the parent is the genesis block | tip, current, parent |  |
+
+<details><summary>event: `adopt_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `tip` | `array` | ✓ |
+| `step` | `string` | ✓ |
+| `error` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `apply_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `tip` | `array` | ✓ |
+| `step` | `string` | ✓ |
+| `error` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `header_not_found`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `role` | `string` | ✓ |
+| `tip` | `array` |  |
+
+</details>
+
+<details><summary>event: `invalid`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `failed_tip` | `array` | ✓ |
+| `parent` | `array` | ✓ |
+| `error` | `string` | ✓ |
+| `detail` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `invariant_violated`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `tip` | `array` | ✓ |
+| `invariant` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `mismatched_hash`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `header_hash` | `string` | ✓ |
+| `expected` | `string` |  |
+| `actual` | `string` |  |
+
+</details>
+
+<details><summary>event: `skip`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `current` | `array` | ✓ |
+| `tip` | `array` | ✓ |
+
+</details>
+
+<details><summary>event: `switch_fork`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `current` | `array` | ✓ |
+| `parent` | `array` | ✓ |
+
+</details>
+
+<details><summary>event: `validate_from_genesis`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `tip` | `array` | ✓ |
+| `current` | `array` | ✓ |
+| `parent` | `array` | ✓ |
+
+</details>
+
+## target: `amaru::consensus::block_source`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `known_invalid` | `event` | info | public | A peer announced a block already known to be invalid | peer, point |  |
+
+<details><summary>event: `known_invalid`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `point` | `array` | ✓ |
+
+</details>
+
+## target: `amaru::consensus::blocks`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `decode_failed` | `event` | warn, error | public | Failed to decode a block received from a peer | peer, error |  |
+| `find_missing_failed` | `event` | error | public | Failed to compute the set of missing blocks | error |  |
+| `header_not_found` | `event` | error | public | A header required for block fetching could not be loaded from the store | header_hash |  |
+| `nothing_to_fetch` | `event` | info | public | The batch of missing blocks is empty; resume fetching from the tip | tip, parent |  |
+| `paused` | `event` | info | public | Block fetching paused because no upstream peers are available | req_id |  |
+| `point_mismatch` | `event` | warn | public | Received a block out of order: its point is not the next missing point | actual | expected |
+| `recover_failed` | `event` | error | public | Failed to check whether a stored block exists during startup recovery | error, header_hash |  |
+| `recover_inconsistent` | `event` | error | public | Startup recovery found an inconsistent stored chain. Reason ∈ {ledger_tip_is_origin, broken_chain}. | from, to, reason |  |
+| `store_failed` | `event` | error | public | Failed to persist a downloaded block | error |  |
+| `timeout` | `event` | debug, warn | public | Timed out waiting for requested blocks | req_id |  |
+
+<details><summary>event: `decode_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `error` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `find_missing_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `error` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `header_not_found`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `header_hash` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `nothing_to_fetch`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `tip` | `array` | ✓ |
+| `parent` | `array` | ✓ |
+
+</details>
+
+<details><summary>event: `paused`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `req_id` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `point_mismatch`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `actual` | `array` | ✓ |
+| `expected` | `array` |  |
+
+</details>
+
+<details><summary>event: `recover_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `error` | `string` | ✓ |
+| `header_hash` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `recover_inconsistent`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from` | `array` | ✓ |
+| `to` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `store_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `error` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `timeout`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `req_id` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::consensus::chain`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `best_tip_candidate` | `event` | debug | public | A new candidate was chosen as the best tip. Reason ∈ {better_chain, previous_invalidated}. | tip, reason | previous |
+| `best_tip_invalidated` | `event` | info | public | The best tip candidate was invalidated and forks depending on it were dropped | removed |  |
+| `fallback_to_origin` | `event` | warn | public | No valid candidate remains; the best chain falls back to origin |  |  |
+| `fetch_next` | `span` |  | public | Some blocks have been fetched for the current chain, decide what to do next | point, header_hash |  |
+| `find_best_candidate_failed` | `event` | error | public | Failed to select a new best candidate after an invalidation | error |  |
+| `find_intersection` | `span` |  | public | Find chain intersection point with peer | peer, intersection_slot |  |
+| `forks_removed` | `event` | warn | public | Chain forks were removed because they depend on an invalid block | removed |  |
+| `header_not_found` | `event` | warn, error | public | A header needed for chain selection could not be loaded from the store. Role ∈ {tip, best_candidate, best_candidate_parent, parent, validation_target}. | role, header_hash | tip |
+| `resume_fetch` | `event` | debug | public | Where block fetching resumes from, once per request. Outcome ∈ {resume_from_best_tip, already_at_best_tip, no_best_tip}; only \`resume_from_best_tip\` sends a tip downstream and carries its \`parent\`. | outcome, point, best_tip | parent |
+| `select_from_block_validation` | `span` |  | public | Received a block validation result | point, valid, header_hash |  |
+| `select_from_tip` | `span` |  | public | Received a new tip from an upstream peer | tip, header_hash |  |
+| `store_validation_failed` | `event` | error | public | Failed to persist the validation result of a block | error, valid |  |
+| `tip_accepted` | `event` | debug | public | A tip announced by an upstream peer is new and starts or extends a chain. Outcome ∈ {new_tip, from_origin, extend, fork}. | tip, outcome | parent |
+| `tip_ignored` | `event` | debug, info | public | A tip announced by an upstream peer was not adopted. Reason ∈ {already_validated, already_invalid, already_tracked, invalid_ancestor}. | tip, reason | parent |
+
+<details><summary>event: `best_tip_candidate`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `tip` | `array` | ✓ |
+| `reason` | `string` | ✓ |
+| `previous` | `array` |  |
+
+</details>
+
+<details><summary>event: `best_tip_invalidated`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `removed` | `integer` | ✓ |
+
+</details>
+
+<details><summary>span: `fetch_next`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `point` | `array` | ✓ |
+| `header_hash` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `find_best_candidate_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `error` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `find_intersection`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `intersection_slot` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `forks_removed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `removed` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `header_not_found`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `role` | `string` | ✓ |
+| `header_hash` | `string` | ✓ |
+| `tip` | `array` |  |
+
+</details>
+
+<details><summary>event: `resume_fetch`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `outcome` | `string` | ✓ |
+| `point` | `array` | ✓ |
+| `best_tip` | `array` | ✓ |
+| `parent` | `array` |  |
+
+</details>
+
+<details><summary>span: `select_from_block_validation`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `point` | `array` | ✓ |
+| `valid` | `boolean` | ✓ |
+| `header_hash` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `select_from_tip`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `tip` | `array` | ✓ |
+| `header_hash` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `store_validation_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `error` | `string` | ✓ |
+| `valid` | `boolean` | ✓ |
+
+</details>
+
+<details><summary>event: `tip_accepted`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `tip` | `array` | ✓ |
+| `outcome` | `string` | ✓ |
+| `parent` | `array` |  |
+
+</details>
+
+<details><summary>event: `tip_ignored`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `tip` | `array` | ✓ |
+| `reason` | `string` | ✓ |
+| `parent` | `array` |  |
+
+</details>
+
+## target: `amaru::consensus::chainsync`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `chain_lagging` | `event` | error | public | Near-now headers have been arriving for a minute and the adopted tip is not getting closer to the wall clock. Sync that is still adopting faster than 10 blocks per second does not raise this. Emitted at most once a minute. | peer, live_slot, our_slot, lag |  |
+| `initialized` | `event` | info | public | A chainsync session with an upstream peer was initialized | peer, conn_id |  |
+| `intersect_found` | `event` | info | public | An intersection with the peer's chain was found | peer, conn_id, current, highest, tip_height |  |
+| `intersect_not_found` | `event` | info | public | No intersection with the peer's chain was found, so chainsync with it stops | peer, highest |  |
+| `reinitialized` | `event` | warn | public | A chainsync session was re-initialized while still active; prior state is purged | peer, conn_id |  |
+| `roll_backward` | `event` | info | public | A peer rolled back to an earlier point | peer, current, highest, tip_height |  |
+| `roll_backward_failed` | `event` | error | public | A rollback requested by a peer could not be applied; the peer is adversarial | peer, error |  |
+| `roll_forward_done` | `event` | debug | public | A header announced by a peer was processed. Outcome ∈ {already_stored, stored}. \`current_height\` is that header. \`tip_height\` is the tip the peer advertises. | peer, current, highest, current_height, tip_height, outcome |  |
+| `terminated` | `event` | info | public | A chainsync session terminated and its connection state was purged | peer, conn_id |  |
+| `unknown_intersection_point` | `event` | warn | public | The peer intersected on a point absent from our own store, so chainsync with it stops. Unlike \`INTERSECT_NOT_FOUND\` this points at local state, not at the peer. | peer, current, highest |  |
+
+<details><summary>event: `chain_lagging`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `live_slot` | `integer` | ✓ |
+| `our_slot` | `integer` | ✓ |
+| `lag` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `initialized`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `intersect_found`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `current` | `array` | ✓ |
+| `highest` | `array` | ✓ |
+| `tip_height` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `intersect_not_found`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `highest` | `array` | ✓ |
+
+</details>
+
+<details><summary>event: `reinitialized`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `roll_backward`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `current` | `array` | ✓ |
+| `highest` | `array` | ✓ |
+| `tip_height` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `roll_backward_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `error` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `roll_forward_done`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `current` | `array` | ✓ |
+| `highest` | `array` | ✓ |
+| `current_height` | `integer` | ✓ |
+| `tip_height` | `integer` | ✓ |
+| `outcome` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `terminated`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `unknown_intersection_point`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `current` | `array` | ✓ |
+| `highest` | `array` | ✓ |
+
+</details>
+
+## target: `amaru::consensus::db_chain_migration`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `execute` | `event` | info | public | Migrate the database if necessary | from, to |  |
+| `migrate` | `span` |  | public | Migrate the chain database from the stored version to the current one | from, to |  |
+| `reset_best_chain` | `event` | info | public | Reset the best chain to the anchor during migration so blocks are revalidated | prev_best_chain, new_best_chain |  |
+| `warn` | `event` | warn | public | A database migration relies on an assumption that may not hold; see the reason | to, reason |  |
+
+<details><summary>event: `execute`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from` | `integer` | ✓ |
+| `to` | `integer` | ✓ |
+
+</details>
+
+<details><summary>span: `migrate`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from` | `integer` | ✓ |
+| `to` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `reset_best_chain`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `prev_best_chain` | `string` | ✓ |
+| `new_best_chain` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `warn`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `to` | `integer` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::consensus::forge`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `forge_failed` | `event` | error | public | Forging the header or storing it failed. The node shuts down. Step ∈ {sign_header, validate_header, store_header, store_block}. | slot, step, error |  |
+| `forged` | `event` | info | public | A block was forged and stored, and its tip sent to chain selection. | slot, header_hash, parent |  |
+| `kes_period` | `event` | info | public | The in-memory KES key moved to a new period. | period |  |
+| `missed_slot` | `event` | warn | public | A led slot was not forged. Reason ∈ {ocert_not_yet_valid, ocert_expired, tip_ahead, not_led, woke_late, parent_not_stored}. | slot, reason |  |
+| `schedule` | `event` | debug, info | public | Leader schedules still held, with how many led slots remain in each epoch and how many of k blocks since freeze have been adopted. \`next_slot\` is the UTC onset of the next armed led slot, \`YYYY-MM-DDTHH:MM:SS.ffffffZ\`. | slots, freeze_depth, settled | next_slot |
+
+<details><summary>event: `forge_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `slot` | `integer` | ✓ |
+| `step` | `string` | ✓ |
+| `error` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `forged`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `slot` | `integer` | ✓ |
+| `header_hash` | `string` | ✓ |
+| `parent` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `kes_period`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `period` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `missed_slot`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `slot` | `integer` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `schedule`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `slots` | `object` | ✓ |
+| `freeze_depth` | `integer` | ✓ |
+| `settled` | `boolean` | ✓ |
+| `next_slot` | `["string","null"]` |  |
+
+</details>
+
+## target: `amaru::consensus::kes`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `legacy_key_envelope` | `event` | trace | public | Loaded a legacy KES signing-key text envelope; new keys should use raw binary files | path |  |
+
+<details><summary>event: `legacy_key_envelope`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `path` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::consensus::perf::fork`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `switch` | `event` | debug | public | Event recorded when a fork switch ends. \`duration_micros\` is the \`amaru::network\` span \`perf.fork.switch\`. | header_hash | outcome, duration_micros |
+
+<details><summary>event: `switch`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `header_hash` | `string` | ✓ |
+| `outcome` | `string` |  |
+| `duration_micros` | `integer` |  |
+
+</details>
+
+## target: `amaru::consensus::perf::header`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `lifecycle` | `event` | debug, error | public | Event recorded once per header, when its processing reaches a terminal state. The four network-health points themselves are the \`amaru::blockperf\` events (\`header.announced\`, \`block.requested\`, \`block.received\`, \`block.adopted\`). A header rejected on reception is logged at error and carries no durations. A completed header stays at debug. The optional durations are the \`amaru::network\` span durations, not a separate clock: - \`forward_micros\`: \`perf.header.forward\` - \`block_fetch_wait_micros\`: \`perf.header.block_fetch_wait\` - \`block_fetch_micros\`: \`perf.blocks.fetch\` - \`adopt_micros\`: body reception to adoption |  | peer, header_hash, outcome, error, slot_start_to_header_micros, block_fetch_wait_micros, block_fetch_micros, forward_micros, adopt_micros |
+
+<details><summary>event: `lifecycle`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` |  |
+| `header_hash` | `string` |  |
+| `outcome` | `string` |  |
+| `error` | `string` |  |
+| `slot_start_to_header_micros` | `integer` |  |
+| `block_fetch_wait_micros` | `integer` |  |
+| `block_fetch_micros` | `integer` |  |
+| `forward_micros` | `integer` |  |
+| `adopt_micros` | `integer` |  |
+
+</details>
+
+## target: `amaru::consensus::performance`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `queue_lagging` | `event` | warn | public | The performance operation queue is growing faster than the worker drains it | queue_depth |  |
+| `queue_overflow` | `event` | error | public | The performance operation queue exceeded its hard limit; the node aborts | queue_depth, threshold |  |
+| `worker_panicked` | `event` | error | public | The performance worker thread stopped because it panicked | error |  |
+
+<details><summary>event: `queue_lagging`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `queue_depth` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `queue_overflow`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `queue_depth` | `integer` | ✓ |
+| `threshold` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `worker_panicked`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `error` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::consensus::roll_forward`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `process` | `span` |  | public | Received a new tip to roll forward. Parent of the exported \`perf.header.forward\` span. | tip, peer | header_hash |
+
+<details><summary>span: `process`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `tip` | `array` | ✓ |
+| `peer` | `string` | ✓ |
+| `header_hash` | `string` |  |
+
+</details>
+
+## target: `amaru::consensus::tip`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `adopt` | `event` | debug, info | public | Adopt a tip as the next tip in the best chain | slot, header_hash, block_height, max_block_height, suppressed |  |
+| `mode` | `event` | info | public | The node switched between catching up and live. \`mode\` and \`previous\` ∈ {sync, live}. | mode, previous, slot |  |
+
+<details><summary>event: `adopt`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `slot` | `integer` | ✓ |
+| `header_hash` | `string` | ✓ |
+| `block_height` | `integer` | ✓ |
+| `max_block_height` | `integer` | ✓ |
+| `suppressed` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `mode`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `mode` | `string` | ✓ |
+| `previous` | `string` | ✓ |
+| `slot` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::ledger::account`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `pay_or_refund` | `event` | debug | public | Pay withdrawals to an account, or refund its deposit | credential_type, account, deposit |  |
+
+<details><summary>event: `pay_or_refund`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `credential_type` | `string` | ✓ |
+| `account` | `string` | ✓ |
+| `deposit` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::ledger::block`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `apply` | `span` |  | public | Apply a block to stable state | point_slot |  |
+| `prepare` | `span` |  | public | Prepare block for validation |  |  |
+
+<details><summary>span: `apply`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `point_slot` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::ledger::block_validation_context`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `create` | `span` |  | public | Create validation context for a block | block_id, block_number, block_body_size | total_inputs |
+
+<details><summary>span: `create`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `block_id` | `string` | ✓ |
+| `block_number` | `integer` | ✓ |
+| `block_body_size` | `integer` | ✓ |
+| `total_inputs` | `integer` |  |
+
+</details>
+
+## target: `amaru::ledger::chain_growth`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `violate` | `event` | warn | public | Fewer than k blocks were seen within the stability window | unstable_tail_length, reason |  |
+
+<details><summary>event: `violate`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `unstable_tail_length` | `integer` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::ledger::constitutional_committee`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `dump` | `span` |  | public | Load the current constitutional committee on startup | status |  |
+| `ignore` | `event` | warn | public | The constitutional committee votes were ignored during ratification | active_members, min_committee_size, reason |  |
+
+<details><summary>span: `dump`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `status` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `ignore`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `active_members` | `integer` | ✓ |
+| `min_committee_size` | `integer` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::ledger::constitutional_committee_member`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `dump` | `event` | info | public | Load the current constitutional committee member on startup | cold_credential | status, valid_until |
+
+<details><summary>event: `dump`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `cold_credential` | `string` | ✓ |
+| `status` | `string` |  |
+| `valid_until` | `integer` |  |
+
+</details>
+
+## target: `amaru::ledger::epoch_transition`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `apply` | `span` |  | public | Flushing the epoch transition overlay to disk | epoch | should_end_epoch, should_snapshot, should_begin_epoch |
+| `compute` | `span` |  | public | Epoch transition processing | from, into | skipped, resuming_from |
+| `new_governance_updates` | `span` |  | public | Create governance updates (i.e. ratify proposals) at an epoch boundary. | proposals_count |  |
+| `new_pools_updates` | `span` |  | public | Create pools updates |  |  |
+| `record` | `event` | debug | public | Record an in-flight epoch transition | from, to |  |
+| `retire_pool` | `event` | debug | public | Retire a pool at an epoch boundary | id |  |
+| `rollback` | `event` | debug | public | Rollback an in-flight epoch transition | from, to |  |
+| `tick_pool` | `event` | debug | public | Update a pool's parameters at an epoch boundary; only changed parameters are recorded | id | vrf, pledge, cost, margin, reward_account, owners, relays, metadata |
+
+<details><summary>span: `apply`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+| `should_end_epoch` | `boolean` |  |
+| `should_snapshot` | `boolean` |  |
+| `should_begin_epoch` | `boolean` |  |
+
+</details>
+
+<details><summary>span: `compute`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from` | `integer` | ✓ |
+| `into` | `integer` | ✓ |
+| `skipped` | `boolean` |  |
+| `resuming_from` | `string` |  |
+
+</details>
+
+<details><summary>span: `new_governance_updates`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `proposals_count` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `record`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from` | `integer` | ✓ |
+| `to` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `retire_pool`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `id` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `rollback`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from` | `integer` | ✓ |
+| `to` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `tick_pool`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `id` | `string` | ✓ |
+| `vrf` | `string` |  |
+| `pledge` | `string` |  |
+| `cost` | `string` |  |
+| `margin` | `string` |  |
+| `reward_account` | `string` |  |
+| `owners` | `string` |  |
+| `relays` | `string` |  |
+| `metadata` | `string` |  |
+
+</details>
+
+## target: `amaru::ledger::governance`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `enacting` | `span` |  | public | Computing enactment of a ratified proposal | proposal_id, proposal_kind | pruned_relatives |
+| `new_ratification_context` | `span` |  | public | Create ratification context | ratifying_epoch | treasury, votes |
+| `ratify_proposals` | `span` |  | public | Ratify proposals at epoch boundary | epoch | roots_protocol_parameters, roots_hard_fork, roots_constitutional_committee, roots_constitution |
+| `ratifying` | `span` |  | public | Ratify a proposal while traversing the governance forest | proposal_id, proposal_kind | approved_by_constitutional_committee, committee_approval_threshold, approved_by_pools, pools_approval_threshold, approved_by_dreps, dreps_approval_threshold |
+
+<details><summary>span: `enacting`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `proposal_id` | `string` | ✓ |
+| `proposal_kind` | `string` | ✓ |
+| `pruned_relatives` | `string` |  |
+
+</details>
+
+<details><summary>span: `new_ratification_context`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `ratifying_epoch` | `integer` | ✓ |
+| `treasury` | `integer` |  |
+| `votes` | `integer` |  |
+
+</details>
+
+<details><summary>span: `ratify_proposals`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+| `roots_protocol_parameters` | `string` |  |
+| `roots_hard_fork` | `string` |  |
+| `roots_constitutional_committee` | `string` |  |
+| `roots_constitution` | `string` |  |
+
+</details>
+
+<details><summary>span: `ratifying`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `proposal_id` | `string` | ✓ |
+| `proposal_kind` | `string` | ✓ |
+| `approved_by_constitutional_committee` | `boolean` |  |
+| `committee_approval_threshold` | `string` |  |
+| `approved_by_pools` | `boolean` |  |
+| `pools_approval_threshold` | `string` |  |
+| `approved_by_dreps` | `boolean` |  |
+| `dreps_approval_threshold` | `string` |  |
+
+</details>
+
+## target: `amaru::ledger::governance_activity`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `update` | `event` | debug | public | Update the number of consecutive dormant epochs | consecutive_dormant_epochs |  |
+
+<details><summary>event: `update`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `consecutive_dormant_epochs` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::ledger::overlay`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `no_governance_updates` | `event` | debug | public | No governance updates found in the epoch transition overlay |  |  |
+| `no_pools_updates` | `event` | debug | public | No pools updates found in the epoch transition overlay |  |  |
+
+## target: `amaru::ledger::pots`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `dump` | `event` | info | public | Load the current ledger pots | treasury, reserves, fees, donations |  |
+
+<details><summary>event: `dump`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `treasury` | `integer` | ✓ |
+| `reserves` | `integer` | ✓ |
+| `fees` | `integer` | ✓ |
+| `donations` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::ledger::proposal`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `active` | `event` | info | public | Observe a governance proposal that is currently active | id, proposal_kind, proposed_in, valid_until | detail |
+| `drop` | `event` | info | public | Drop an expired or ratified governance proposal | id, expired, ratified_or_evicted |  |
+| `skip` | `event` | debug | public | Skip a governance proposal during ratification | id, reason | proposed_in, ratifying_epoch, withdrawal, treasury, invalid_members |
+
+<details><summary>event: `active`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `id` | `string` | ✓ |
+| `proposal_kind` | `string` | ✓ |
+| `proposed_in` | `integer` | ✓ |
+| `valid_until` | `integer` | ✓ |
+| `detail` | `string` |  |
+
+</details>
+
+<details><summary>event: `drop`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `id` | `string` | ✓ |
+| `expired` | `boolean` | ✓ |
+| `ratified_or_evicted` | `boolean` | ✓ |
+
+</details>
+
+<details><summary>event: `skip`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `id` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+| `proposed_in` | `integer` |  |
+| `ratifying_epoch` | `integer` |  |
+| `withdrawal` | `integer` |  |
+| `treasury` | `integer` |  |
+| `invalid_members` | `string` |  |
+
+</details>
+
+## target: `amaru::ledger::proposal_roots`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `summarize` | `event` | debug | public | Summary of the governance proposal roots after ratification |  | constitution, constitutional_committee, hard_fork, protocol_parameters |
+
+<details><summary>event: `summarize`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `constitution` | `string` |  |
+| `constitutional_committee` | `string` |  |
+| `hard_fork` | `string` |  |
+| `protocol_parameters` | `string` |  |
+
+</details>
+
+## target: `amaru::ledger::protocol`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `upgrade` | `event` | info | public | Upgrade to a new protocol version | old_version, new_version |  |
+
+<details><summary>event: `upgrade`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `old_version` | `integer` | ✓ |
+| `new_version` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::ledger::protocol_parameters`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `dump` | `event` | info | public | Dump the current protocol parameters |  | protocol_version, max_block_body_size, max_transaction_size, max_block_header_size, max_tx_ex_units, max_block_ex_units, max_value_size, max_collateral_inputs, min_fee_a, min_fee_b, stake_credential_deposit, stake_pool_deposit, monetary_expansion_rate, treasury_expansion_rate, min_pool_cost, lovelace_per_utxo_byte, prices, min_fee_ref_script_lovelace_per_byte, max_ref_script_size_per_tx, max_ref_script_size_per_block, ref_script_cost_stride, ref_script_cost_multiplier, stake_pool_max_retirement_epoch, optimal_stake_pools_count, pledge_influence, cost_models, collateral_percentage, pool_voting_thresholds, drep_voting_thresholds, min_committee_size, max_committee_term_length, gov_action_lifetime, gov_action_deposit, drep_deposit, drep_expiry |
+
+<details><summary>event: `dump`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `protocol_version` | `string` |  |
+| `max_block_body_size` | `integer` |  |
+| `max_transaction_size` | `integer` |  |
+| `max_block_header_size` | `integer` |  |
+| `max_tx_ex_units` | `string` |  |
+| `max_block_ex_units` | `string` |  |
+| `max_value_size` | `integer` |  |
+| `max_collateral_inputs` | `integer` |  |
+| `min_fee_a` | `integer` |  |
+| `min_fee_b` | `integer` |  |
+| `stake_credential_deposit` | `integer` |  |
+| `stake_pool_deposit` | `integer` |  |
+| `monetary_expansion_rate` | `string` |  |
+| `treasury_expansion_rate` | `string` |  |
+| `min_pool_cost` | `integer` |  |
+| `lovelace_per_utxo_byte` | `integer` |  |
+| `prices` | `string` |  |
+| `min_fee_ref_script_lovelace_per_byte` | `string` |  |
+| `max_ref_script_size_per_tx` | `integer` |  |
+| `max_ref_script_size_per_block` | `integer` |  |
+| `ref_script_cost_stride` | `integer` |  |
+| `ref_script_cost_multiplier` | `string` |  |
+| `stake_pool_max_retirement_epoch` | `integer` |  |
+| `optimal_stake_pools_count` | `integer` |  |
+| `pledge_influence` | `string` |  |
+| `cost_models` | `string` |  |
+| `collateral_percentage` | `integer` |  |
+| `pool_voting_thresholds` | `string` |  |
+| `drep_voting_thresholds` | `string` |  |
+| `min_committee_size` | `integer` |  |
+| `max_committee_term_length` | `integer` |  |
+| `gov_action_lifetime` | `integer` |  |
+| `gov_action_deposit` | `integer` |  |
+| `drep_deposit` | `integer` |  |
+| `drep_expiry` | `integer` |  |
+
+</details>
+
+## target: `amaru::ledger::ratification`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `skip` | `event` | info | public | Skip the remaining proposals for this epoch | reason |  |
+| `summarize` | `event` | info | public | Summary of the outcome of a ratification round | is_dormant_epoch | pruned_proposals, refunds, withdrawals, new_constitution, constitutional_committee_update |
+
+<details><summary>event: `skip`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `summarize`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `is_dormant_epoch` | `boolean` | ✓ |
+| `pruned_proposals` | `string` |  |
+| `refunds` | `string` |  |
+| `withdrawals` | `string` |  |
+| `new_constitution` | `string` |  |
+| `constitutional_committee_update` | `string` |  |
+
+</details>
+
+## target: `amaru::ledger::relays`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `collect` | `span` |  | public | Fetch candidate relays from the immutable store |  | count |
+
+<details><summary>span: `collect`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `count` | `string` |  |
+
+</details>
+
+## target: `amaru::ledger::rewards`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `compute` | `span` |  | public | Compute rewards for epoch | for_epoch, using_stake_distribution_from_epoch |  |
+| `summarize` | `event` | info | public | Summary of the rewards calculation for an epoch | efficiency, incentives, treasury_tax, total_rewards, available_rewards, effective_rewards, pots_reserves, pots_treasury, pots_fees |  |
+
+<details><summary>span: `compute`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `for_epoch` | `integer` | ✓ |
+| `using_stake_distribution_from_epoch` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `summarize`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `efficiency` | `string` | ✓ |
+| `incentives` | `integer` | ✓ |
+| `treasury_tax` | `integer` | ✓ |
+| `total_rewards` | `integer` | ✓ |
+| `available_rewards` | `integer` | ✓ |
+| `effective_rewards` | `integer` | ✓ |
+| `pots_reserves` | `integer` | ✓ |
+| `pots_treasury` | `integer` | ✓ |
+| `pots_fees` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::ledger::rules`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `block` | `span` |  | public | Block-related rules and other preflight checks |  |  |
+| `phase_one` | `span` |  | public | All phase one validations |  | preflight_micros, certificates_micros, collateral_micros, collateral_return_micros, donation_micros, fees_micros, inputs_micros, metadata_micros, mint_micros, outputs_micros, proposals_micros, scripts_micros, signatures_micros, validity_interval_micros, votes_micros, withdrawals_micros |
+| `phase_two` | `span` |  | public | Initialize script context and cost models for phase-2 validations, common to all scripts |  | script_context_micros |
+
+<details><summary>span: `phase_one`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `preflight_micros` | `integer` |  |
+| `certificates_micros` | `integer` |  |
+| `collateral_micros` | `integer` |  |
+| `collateral_return_micros` | `integer` |  |
+| `donation_micros` | `integer` |  |
+| `fees_micros` | `integer` |  |
+| `inputs_micros` | `integer` |  |
+| `metadata_micros` | `integer` |  |
+| `mint_micros` | `integer` |  |
+| `outputs_micros` | `integer` |  |
+| `proposals_micros` | `integer` |  |
+| `scripts_micros` | `integer` |  |
+| `signatures_micros` | `integer` |  |
+| `validity_interval_micros` | `integer` |  |
+| `votes_micros` | `integer` |  |
+| `withdrawals_micros` | `integer` |  |
+
+</details>
+
+<details><summary>span: `phase_two`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `script_context_micros` | `integer` |  |
+
+</details>
+
+## target: `amaru::ledger::stake_distribution`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `compute` | `span` |  | public | Compute stake distribution for epoch | epoch |  |
+| `initial_begin` | `event` | info | public | Start computing one of the initial stake distributions loaded on startup | epoch |  |
+| `initial_progress` | `event` | info | public | Report progress for one of the initial stake distributions loaded on startup | epoch, progress |  |
+| `initial_ready` | `event` | info | public | Finished computing all initial stake distributions loaded on startup | epochs |  |
+| `rotate` | `event` | info | public | Rotate stake distributions at an epoch boundary | available_stake_distributions |  |
+| `snapshot` | `event` | info | public | Snapshot of the stake distribution taken at an epoch boundary | accounts, dreps, pools, active_stake, pools_voting_stake, dreps_voting_stake | cc_update |
+
+<details><summary>span: `compute`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `initial_begin`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `initial_progress`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+| `progress` | `number` | ✓ |
+
+</details>
+
+<details><summary>event: `initial_ready`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epochs` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `rotate`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `available_stake_distributions` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `snapshot`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `accounts` | `integer` | ✓ |
+| `dreps` | `integer` | ✓ |
+| `pools` | `integer` | ✓ |
+| `active_stake` | `integer` | ✓ |
+| `pools_voting_stake` | `integer` | ✓ |
+| `dreps_voting_stake` | `integer` | ✓ |
+| `cc_update` | `string` |  |
+
+</details>
+
+## target: `amaru::ledger::state`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `push` | `span` |  | public | Forward ledger state with new volatile state |  |  |
+| `roll_backward` | `span` |  | public | Roll backward to a specific point |  |  |
+| `roll_forward` | `span` |  | public | Roll forward with a new block |  |  |
+| `switch_to_fork` | `span` |  | public | Switching to an alternative chain fork | fork_point, fork_length, rollback_length | outcome, stable_modified |
+
+<details><summary>span: `switch_to_fork`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `fork_point` | `array` | ✓ |
+| `fork_length` | `integer` | ✓ |
+| `rollback_length` | `integer` | ✓ |
+| `outcome` | `string` |  |
+| `stable_modified` | `boolean` |  |
+
+</details>
+
+## target: `amaru::ledger::tip`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `update` | `event` | debug | public | Updated view of the locally adopted chain tip and its derived ledger health. | slot, header_hash, block_height, tx_count, epoch, slot_in_epoch, density, current_kes_period, remaining_kes_periods |  |
+
+<details><summary>event: `update`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `slot` | `integer` | ✓ |
+| `header_hash` | `string` | ✓ |
+| `block_height` | `integer` | ✓ |
+| `tx_count` | `integer` | ✓ |
+| `epoch` | `integer` | ✓ |
+| `slot_in_epoch` | `integer` | ✓ |
+| `density` | `number` | ✓ |
+| `current_kes_period` | `integer` | ✓ |
+| `remaining_kes_periods` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::ledger::transaction`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `validate` | `span` |  | public | Validate a single transaction | id |  |
+
+<details><summary>span: `validate`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `id` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::ledger::transaction::script`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `execute` | `span` |  | public | A single script execution, with the associated redeemer qualifiers | purpose, index | acquire_arena_micros, decode_script_micros, build_uplc_program_micros, evaluate_uplc_program_micros |
+
+<details><summary>span: `execute`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `purpose` | `string` | ✓ |
+| `index` | `integer` | ✓ |
+| `acquire_arena_micros` | `integer` |  |
+| `decode_script_micros` | `integer` |  |
+| `build_uplc_program_micros` | `integer` |  |
+| `evaluate_uplc_program_micros` | `integer` |  |
+
+</details>
+
+## target: `amaru::ledger::transaction_validation_context`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `create` | `span` |  | public | Create validation context for a transaction | id |  |
+
+<details><summary>span: `create`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `id` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::ledger::validation_context::accounts`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `hydrate` | `span` |  | public | Resolve accounts from the volatile db or the stable one |  | from_volatile, from_db |
+
+<details><summary>span: `hydrate`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from_volatile` | `integer` |  |
+| `from_db` | `integer` |  |
+
+</details>
+
+## target: `amaru::ledger::validation_context::committee`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `hydrate` | `span` |  | public | Resolve committee members from the volatile db or the stable one |  |  |
+
+## target: `amaru::ledger::validation_context::dreps`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `hydrate` | `span` |  | public | Resolve dreps from the volatile db or the stable one |  | from_volatile, from_db |
+
+<details><summary>span: `hydrate`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from_volatile` | `integer` |  |
+| `from_db` | `integer` |  |
+
+</details>
+
+## target: `amaru::ledger::validation_context::inputs`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `hydrate` | `span` |  | public | Resolve transaction inputs from the volatile db or the stable one |  | from_volatile, from_db |
+
+<details><summary>span: `hydrate`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from_volatile` | `integer` |  |
+| `from_db` | `integer` |  |
+
+</details>
+
+## target: `amaru::ledger::validation_context::pools`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `hydrate` | `span` |  | public | Resolve pools from the volatile db or the stable one |  | from_volatile, from_db |
+
+<details><summary>span: `hydrate`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from_volatile` | `integer` |  |
+| `from_db` | `integer` |  |
+
+</details>
+
+## target: `amaru::ledger::validation_context::proposals`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `hydrate` | `span` |  | public | Resolve proposals from the volatile db or the stable one |  | from_volatile, from_db |
+
+<details><summary>span: `hydrate`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from_volatile` | `integer` |  |
+| `from_db` | `integer` |  |
+
+</details>
+
+## target: `amaru::ledger::volatile`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `aggregate` | `span` |  | public | Recompute the volatile aggregate |  |  |
+| `warm_up` | `event` | trace | public | The volatile db is still warming up and hasn't reached a stable point yet | size |  |
+
+<details><summary>event: `warm_up`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `size` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::mempool::state`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `update` | `event` | debug | public | Compact view of the mempool occupancy for terminal dashboards. | tx_count, size_bytes |  |
+
+<details><summary>event: `update`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `tx_count` | `integer` | ✓ |
+| `size_bytes` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::mempool::transaction`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `accepted` | `event` | info | public | Transaction validated and inserted into the mempool. | id, seq_no, origin |  |
+| `evicted` | `event` | info | public | Transaction removed from the mempool. Reason ∈ {included_in_adopted_block, evicted_after_new_tip}. | id, tip, reason |  |
+| `received` | `event` | debug | public | Transaction received by the mempool stage, before validation. | id, origin |  |
+| `rejected` | `event` | info | public | Transaction rejected at insertion. Reason ∈ {invalid, duplicate, mempool_full}. | id, reason | validation_error |
+
+<details><summary>event: `accepted`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `id` | `string` | ✓ |
+| `seq_no` | `integer` | ✓ |
+| `origin` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `evicted`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `id` | `string` | ✓ |
+| `tip` | `array` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `received`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `id` | `string` | ✓ |
+| `origin` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `rejected`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `id` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+| `validation_error` | `string` |  |
+
+</details>
+
+## target: `amaru::mithril::progress`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `complete` | `event` | info | public | Mithril synchronization completed successfully | point, processed_blocks |  |
+| `download` | `event` | info | public | Absolute Mithril database download progress | downloaded_bytes, completed_files, total_files | total_bytes |
+| `ingest` | `event` | info | public | Absolute block ingestion progress | blocks, point |  |
+| `phase_completed` | `event` | info | public | A Mithril phase completed successfully | phase | downloaded_bytes, completed_files |
+| `snapshot` | `event` | info | public | Selected the applicable Mithril snapshot | hash, through_chunk |  |
+| `stage` | `event` | info | public | Mithril synchronization entered a new stage | stage |  |
+
+<details><summary>event: `complete`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `point` | `array` | ✓ |
+| `processed_blocks` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `download`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `downloaded_bytes` | `integer` | ✓ |
+| `completed_files` | `integer` | ✓ |
+| `total_files` | `integer` | ✓ |
+| `total_bytes` | `integer` |  |
+
+</details>
+
+<details><summary>event: `ingest`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `blocks` | `integer` | ✓ |
+| `point` | `array` | ✓ |
+
+</details>
+
+<details><summary>event: `phase_completed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `phase` | `string` | ✓ |
+| `downloaded_bytes` | `integer` |  |
+| `completed_files` | `integer` |  |
+
+</details>
+
+<details><summary>event: `snapshot`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `hash` | `string` | ✓ |
+| `through_chunk` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `stage`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `stage` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::mithril::snapshot`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `download` | `event` | info | public | Download and unpack immutable files from a Mithril snapshot | target_dir, from_chunk, through_chunk |  |
+| `fetch` | `event` | info | public | Fetch and verify a Mithril snapshot | hash, from_chunk |  |
+| `ready` | `event` | info | public | Mithril cardano-node database is ready | target_dir |  |
+| `rebuild_cache` | `event` | warn | public | Rebuild an invalid local immutable cache before retrying once | immutable_dir, reason |  |
+| `redownload_cache` | `event` | warn | public | Cached immutable files did not verify, so fetch the selected range again | from_chunk, through_chunk, reason |  |
+| `reuse_cache` | `event` | info | public | Reuse cached immutable files after verifying them against the selected snapshot | from_chunk, through_chunk |  |
+| `verify_database` | `event` | info | public | Verify the local cardano-node database against a Mithril certificate | target_dir |  |
+| `verify_digests` | `event` | info | public | Download and verify the digests for a Mithril snapshot | target_dir |  |
+
+<details><summary>event: `download`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `target_dir` | `string` | ✓ |
+| `from_chunk` | `integer` | ✓ |
+| `through_chunk` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `fetch`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `hash` | `string` | ✓ |
+| `from_chunk` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `ready`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `target_dir` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `rebuild_cache`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `immutable_dir` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `redownload_cache`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from_chunk` | `integer` | ✓ |
+| `through_chunk` | `integer` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `reuse_cache`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from_chunk` | `integer` | ✓ |
+| `through_chunk` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `verify_database`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `target_dir` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `verify_digests`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `target_dir` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::network::connection`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `accept_loop_stopped` | `event` | info | public | The accept loop terminated because the listener or channel closed | local |  |
+| `listener_restart` | `event` | info | public | Aborted an existing listener task so the address can be rebound on restart | address |  |
+
+<details><summary>event: `accept_loop_stopped`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `local` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `listener_restart`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `address` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::network::perf::blocks`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `fetch` | `span` |  | public | One header's block body, from the request of the range that contains it until that body arrives. | header_hash |  |
+
+<details><summary>span: `fetch`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `header_hash` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::network::perf::fork`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `switch` | `span` |  | public | One switch onto a fork, from detection until the switch ends. \`header_hash\` is the fork tip. The span covers every block on that fork. | header_hash |  |
+
+<details><summary>span: `switch`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `header_hash` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::network::perf::header`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `block_fetch_wait` | `span` |  | public | Header waiting in chain selection before it can be fetched. | header_hash |  |
+| `forward` | `span` |  | public | Header accepted from an upstream peer, or forged locally, until chain selection finishes with it. A locally forged block has no upstream roll-forward and is a root span. | header_hash |  |
+
+<details><summary>span: `block_fetch_wait`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `header_hash` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `forward`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `header_hash` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::node::build`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `forging` | `event` | info | public | Block forging is configured from key files. | pool_id, sequence, kes_period |  |
+| `ledger_opened` | `event` | info | public | Opened the ledger state; reports the ledger tip at startup | tip |  |
+| `stake_dist_notify_failed` | `event` | warn | public | Failed to notify the peer tracker of a stake distribution update |  |  |
+
+<details><summary>event: `forging`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `pool_id` | `string` | ✓ |
+| `sequence` | `integer` | ✓ |
+| `kes_period` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `ledger_opened`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `tip` | `array` | ✓ |
+
+</details>
+
+## target: `amaru::node::metrics`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `process_not_found` | `event` | error | public | The metrics collector could not find Amaru's own process | pid |  |
+
+<details><summary>event: `process_not_found`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `pid` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::node::submit_api`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `mempool_unreachable` | `event` | warn | public | A submitted transaction could not reach the mempool. Reason ∈ {send_failed, response_dropped, deserialize_failed}. | reason |  |
+| `started` | `event` | info | public | The transaction submission HTTP server is listening | local_addr |  |
+| `stopped` | `event` | warn | public | The transaction submission HTTP server stopped with an error | error |  |
+
+<details><summary>event: `mempool_unreachable`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `started`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `local_addr` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `stopped`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `error` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::protocols`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `invalid_input` | `event` | error | public | A protocol handler received invalid input | proto, peer, state, input |  |
+| `timeout` | `event` | warn | public | A protocol handler timed out waiting for the peer and is terminating | proto, peer, state |  |
+
+<details><summary>event: `invalid_input`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `proto` | `string` | ✓ |
+| `peer` | `string` | ✓ |
+| `state` | `string` | ✓ |
+| `input` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `timeout`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `proto` | `string` | ✓ |
+| `peer` | `string` | ✓ |
+| `state` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::chainsync::initiator`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `rollback_point_not_found` | `event` | error | public | A rollback target announced by the peer is not in the chain store | header_hash |  |
+
+<details><summary>event: `rollback_point_not_found`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `header_hash` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::chainsync::responder`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `stopped` | `event` | info | public | The peer ended the chainsync session |  |  |
+
+## target: `amaru::protocols::connection`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `accept_failed` | `event` | debug, error | public | An inbound connection could not be accepted. Reason ∈ {aborted, error}. | reason | error |
+| `child_died` | `event` | info | public | A mini-protocol stage running on a connection died | peer, conn_id, child |  |
+| `child_stopped` | `event` | info | public | A mini-protocol stage running on a connection stopped upon request | peer, conn_id, child |  |
+| `handshake_query_reply` | `event` | info | public | The peer answered a version query instead of negotiating | version_table |  |
+| `handshake_refused` | `event` | error | public | The peer refused our proposed protocol versions | reason |  |
+
+<details><summary>event: `accept_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `reason` | `string` | ✓ |
+| `error` | `string` |  |
+
+</details>
+
+<details><summary>event: `child_died`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `child` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `child_stopped`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `child` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `handshake_query_reply`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `version_table` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `handshake_refused`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `reason` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::keepalive::peer`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `round_trip` | `event` | debug | public | Measured round-trip time for a keepalive exchange on an established peer connection. | peer, conn_id, round_trip_micros |  |
+
+<details><summary>event: `round_trip`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `round_trip_micros` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::manager::blocks`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `fetch_no_peers` | `event` | debug | public | No connection was available to serve a block-fetch request | id |  |
+
+<details><summary>event: `fetch_no_peers`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `id` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::manager::listen`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `failed` | `event` | error | public | The node could not listen on the configured address | listen_addr, error |  |
+| `started` | `event` | info | public | The node is accepting inbound connections on an address | listen_addr |  |
+
+<details><summary>event: `failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `listen_addr` | `string` | ✓ |
+| `error` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `started`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `listen_addr` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::manager::message`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `process` | `span` |  | public | Handle manager stage messages | message_type |  |
+
+<details><summary>span: `process`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `message_type` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::manager::peer`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `accepted` | `span` |  | public | An inbound connection was accepted from a peer | peer, conn_id |  |
+| `add` | `span` |  | public | A new peer was added to the manager | peer |  |
+| `close_failed` | `event` | debug, error | public | Closing the socket of a dead connection failed | peer, error |  |
+| `connect` | `event` | info | public | Initiating an outbound connection to a peer | peer |  |
+| `connect_discarded` | `event` | debug, info | public | A connection request for a peer was discarded. Reason ∈ {already_connected_or_scheduled, already_connected, not_added}. | peer, reason |  |
+| `connect_failed` | `event` | info | public | An outbound connection attempt failed | peer, error |  |
+| `connected` | `event` | info | public | An outbound connection to a peer was established | peer, conn_id |  |
+| `connection_died` | `span` |  | public | A peer connection has died | peer, conn_id, role |  |
+| `connection_died_handled` | `event` | info | public | A dead connection was reconciled with the peer's remaining state. Outcome ∈ {peer_removed, kept_for_outbound, retries_suppressed, reconnect_scheduled}. | peer, outcome |  |
+| `disconnect_ignored` | `event` | debug, info | public | A disconnect request could not be carried out. Reason ∈ {not_connected, connection_not_found, peer_already_removed, before_handshake, rejected_duplicate}. | peer, reason | conn_id |
+| `disconnecting` | `event` | debug, info | public | A connection is being closed on request. Direction ∈ {inbound, outbound}. | peer, conn_id, direction |  |
+| `duplicate_terminated` | `event` | info | public | A duplicate connection is terminated after its handshake completed | peer, conn_id |  |
+| `handshake_completed` | `event` | info | public | The handshake completed on a connection | peer, conn_id, role, full_duplex, advertisable |  |
+| `inbound_refused` | `event` | info | public | An inbound handshake was refused because the inbound cap is full | peer, conn_id |  |
+| `local_use_applied` | `event` | info | public | The connection finished converging to this local use | peer, conn_id, local_use |  |
+| `remove` | `span` |  | public | A peer was removed from the manager | peer |  |
+| `set_local_use` | `event` | info | public | A change of local use was requested on a connection | peer, conn_id, local_use |  |
+
+<details><summary>span: `accepted`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+
+</details>
+
+<details><summary>span: `add`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `close_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `error` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `connect`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `connect_discarded`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `connect_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `error` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `connected`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+
+</details>
+
+<details><summary>span: `connection_died`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `role` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `connection_died_handled`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `outcome` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `disconnect_ignored`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+| `conn_id` | `integer` |  |
+
+</details>
+
+<details><summary>event: `disconnecting`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `direction` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `duplicate_terminated`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `handshake_completed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `role` | `string` | ✓ |
+| `full_duplex` | `boolean` | ✓ |
+| `advertisable` | `boolean` | ✓ |
+
+</details>
+
+<details><summary>event: `inbound_refused`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `local_use_applied`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `local_use` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `remove`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `set_local_use`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `local_use` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::mux`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `empty_segment` | `event` | info | public | A segment header announcing an empty payload was received | role, peer |  |
+| `failed` | `event` | warn, error | public | The muxer failed while moving data between a protocol and the network. Operation ∈ {send, recv_header, decode_header, recv_data, muxing, after_done}. | role, peer, operation, error |  |
+
+<details><summary>event: `empty_segment`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `role` | `string` | ✓ |
+| `peer` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `role` | `string` | ✓ |
+| `peer` | `string` | ✓ |
+| `operation` | `string` | ✓ |
+| `error` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::mux::protocol`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `buffer_exceeded` | `event` | info | public | A protocol message does not fit in the buffer allotted to it | buffered, max_buffer |  |
+| `buffer_overflow` | `event` | warn | public | Reducing a protocol buffer was not enough and the connection was killed | buffer, limit |  |
+
+<details><summary>event: `buffer_exceeded`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `buffered` | `integer` | ✓ |
+| `max_buffer` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `buffer_overflow`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `buffer` | `integer` | ✓ |
+| `limit` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::peer_selection`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `connect_initial` | `event` | info | public | Connect to the initial set of peers at startup | static_peers, snapshot_peers |  |
+| `tick` | `event` | trace | public | One wake of the selection timeout. \`full\` is true when this wake ran a round. | full |  |
+
+<details><summary>event: `connect_initial`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `static_peers` | `integer` | ✓ |
+| `snapshot_peers` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `tick`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `full` | `boolean` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::peer_selection::ledger`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `candidates_failed` | `event` | warn | public | Failed to read registered relay addresses from the ledger | error |  |
+
+<details><summary>event: `candidates_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `error` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::peer_selection::peer`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `add_skipped` | `event` | info | public | A peer was not added to the outbound set. Reason ∈ {already_added}. | peer, reason |  |
+| `added` | `event` | info | public | A peer was added to the outbound set | peer, was_banned |  |
+| `address_rejected` | `event` | warn | public | A candidate address was rejected and will not be used as a Peer. | address, reason |  |
+| `connected` | `span` |  | public | A connection has been established and the handshake completed successfully. local_use ∈ {none, maintenance, diffusion}. | peer, conn_id, direction, full_duplex, local_use |  |
+| `demoted` | `event` | info | public | Local use dropped to Maintenance. Reason ∈ {churn, uninteresting}. | peer, conn_id, reason |  |
+| `disconnected` | `span` |  | public | A connection has been terminated (graceful disconnect, error, handshake refusal, or network error). | peer, conn_id, direction | reason |
+| `remote_use` | `event` | info | public | The derived remote temperature of a bearer changed. remote_use ∈ {none, maintenance, diffusion}. | peer, conn_id, remote_use |  |
+| `removed` | `event` | warn | public | A peer was removed after behaving adversarially | peer, direction, peer_state, is_static |  |
+| `resolve_failed` | `event` | warn | public | Name resolution for a bootstrap candidate failed (no viable address). | candidate, reason |  |
+| `resolved` | `event` | info | public | A selected bootstrap name resolved to a single peer, ready to dial. | candidate, origin, peer |  |
+
+<details><summary>event: `add_skipped`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `added`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `was_banned` | `boolean` | ✓ |
+
+</details>
+
+<details><summary>event: `address_rejected`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `address` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `connected`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `direction` | `string` | ✓ |
+| `full_duplex` | `boolean` | ✓ |
+| `local_use` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `demoted`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `disconnected`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `direction` | `string` | ✓ |
+| `reason` | `string` |  |
+
+</details>
+
+<details><summary>event: `remote_use`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `conn_id` | `integer` | ✓ |
+| `remote_use` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `removed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `direction` | `string` | ✓ |
+| `peer_state` | `string` | ✓ |
+| `is_static` | `boolean` | ✓ |
+
+</details>
+
+<details><summary>event: `resolve_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `candidate` | `string` | ✓ |
+| `reason` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `resolved`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `candidate` | `string` | ✓ |
+| `origin` | `string` | ✓ |
+| `peer` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::peer_selection::sharing`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `received` | `event` | info | public | Peer-sharing address list received from peer. | peer, peers, added, total |  |
+| `sent` | `event` | info | public | Peer-sharing request served for peer. | peer, peers, requested, count |  |
+
+<details><summary>event: `received`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `peers` | `string` | ✓ |
+| `added` | `integer` | ✓ |
+| `total` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `sent`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `peer` | `string` | ✓ |
+| `peers` | `string` | ✓ |
+| `requested` | `integer` | ✓ |
+| `count` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::peer_sharing::initiator`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `protocol_violation` | `event` | warn | public | The peer broke the peer-sharing protocol and the connection is terminated. Reason ∈ {no_request_in_flight, too_many_addresses}. | reason | requested, received |
+
+<details><summary>event: `protocol_violation`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `reason` | `string` | ✓ |
+| `requested` | `integer` |  |
+| `received` | `integer` |  |
+
+</details>
+
+## target: `amaru::protocols::tx_submission`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `terminating` | `event` | warn | public | The tx-submission protocol is being torn down; the cause names the rule broken | cause |  |
+
+<details><summary>event: `terminating`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `cause` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::tx_submission::initiator`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `over_acknowledged` | `event` | warn | public | The peer acknowledged more transaction ids than are outstanding | ack, window |  |
+| `unavailable_txs` | `event` | warn | public | The peer asked for transactions that are not in our outstanding window | unavailable |  |
+
+<details><summary>event: `over_acknowledged`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `ack` | `integer` | ✓ |
+| `window` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `unavailable_txs`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `unavailable` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::protocols::tx_submission::responder`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `mempool_timeout` | `event` | error | public | The mempool did not answer an insertion batch before the timeout |  |  |
+| `over_replied` | `event` | warn | public | The peer replied with more transaction ids than were requested | requested, received, max_window |  |
+| `received_tx` | `event` | debug, warn | public | A transaction received from a peer was handed to the mempool. Outcome ∈ {inserted, invalid, mempool_full, duplicate}. | id, outcome | error |
+| `unsolicited_txs` | `event` | warn | public | The peer sent transaction bodies that were never requested | not_requested |  |
+
+<details><summary>event: `over_replied`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `requested` | `integer` | ✓ |
+| `received` | `integer` | ✓ |
+| `max_window` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `received_tx`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `id` | `string` | ✓ |
+| `outcome` | `string` | ✓ |
+| `error` | `string` |  |
+
+</details>
+
+<details><summary>event: `unsolicited_txs`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `not_requested` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::setup::build`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `version` | `event` | info | public | Running binary build/version identity (package version, git commit, target). | version, git_commit, git_dirty, os, arch |  |
+
+<details><summary>event: `version`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `version` | `string` | ✓ |
+| `git_commit` | `string` | ✓ |
+| `git_dirty` | `boolean` | ✓ |
+| `os` | `string` | ✓ |
+| `arch` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::setup::clock`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `drift` | `event` | warn | public | The wall clock is not trustworthy for slot timing. Reason ∈ {unsynchronized, max_error_exceeded}. | reason, max_error_millis, threshold_millis, hint |  |
+| `synchronized` | `event` | info | public | The kernel reports the wall clock as NTP-synchronized within the tolerated error bound | max_error_millis, threshold_millis |  |
+| `unknown` | `event` | warn | public | The kernel NTP state could not be queried | error |  |
+
+<details><summary>event: `drift`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `reason` | `string` | ✓ |
+| `max_error_millis` | `integer` | ✓ |
+| `threshold_millis` | `integer` | ✓ |
+| `hint` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `synchronized`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `max_error_millis` | `integer` | ✓ |
+| `threshold_millis` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `unknown`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `error` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::setup::file_descriptors`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `too_low` | `event` | error | public | The soft limit on open files is below what Amaru needs | current_soft_fd_limit, current_hard_fd_limit, expected_min, hint |  |
+| `unknown` | `event` | warn | public | The open-file limit could not be queried | expected_min |  |
+
+<details><summary>event: `too_low`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `current_soft_fd_limit` | `integer` | ✓ |
+| `current_hard_fd_limit` | `integer` | ✓ |
+| `expected_min` | `integer` | ✓ |
+| `hint` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `unknown`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `expected_min` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::setup::lifecycle`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `consensus_died` | `event` | error | public | The consensus pipeline stopped while the node was still running |  |  |
+| `ledger_still_closing` | `event` | warn | public | Ledger cleanup is still running after the soft shutdown timeout | status, phase |  |
+| `termination_signal` | `event` | warn | public | A termination signal was received; the node is shutting down |  |  |
+
+<details><summary>event: `ledger_still_closing`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `status` | `string` | ✓ |
+| `phase` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::setup::observability`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `export_failed` | `event` | warn | public | OTLP export failed; collection may not be started for every signal | unavailable_signals |  |
+| `export_recovered` | `event` | info | public | OTLP collection recovered for previously unavailable signals | recovered_signals |  |
+| `init` | `event` | info | public | Observability stack initialization | with_open_telemetry, with_json_traces, with_colors |  |
+
+<details><summary>event: `export_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `unavailable_signals` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `export_recovered`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `recovered_signals` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `init`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `with_open_telemetry` | `boolean` | ✓ |
+| `with_json_traces` | `boolean` | ✓ |
+| `with_colors` | `boolean` | ✓ |
+
+</details>
+
+## target: `amaru::setup::peer_snapshot`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `empty` | `event` | warn | public | A peer snapshot was loaded but holds no relay addresses | path, point, pools |  |
+| `loaded` | `event` | info | public | A peer snapshot was loaded at startup | path, point, pools, relays, node_to_client_version, configs_commit |  |
+| `missing` | `event` | warn | public | No embedded peer snapshot exists for the selected network | network |  |
+
+<details><summary>event: `empty`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `path` | `string` | ✓ |
+| `point` | `string` | ✓ |
+| `pools` | `integer` | ✓ |
+
+</details>
+
+<details><summary>event: `loaded`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `path` | `string` | ✓ |
+| `point` | `string` | ✓ |
+| `pools` | `integer` | ✓ |
+| `relays` | `integer` | ✓ |
+| `node_to_client_version` | `integer` | ✓ |
+| `configs_commit` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `missing`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `network` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::setup::pid`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `write_failed` | `event` | warn | public | The PID file could not be created or written | error |  |
+
+<details><summary>event: `write_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `error` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::setup::trace`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `filter` | `event` | info, warn | public | Resolution of a trace filter from the environment | var, value, provided_by_user | provided_invalid, error |
+
+<details><summary>event: `filter`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `var` | `string` | ✓ |
+| `value` | `string` | ✓ |
+| `provided_by_user` | `boolean` | ✓ |
+| `provided_invalid` | `boolean` |  |
+| `error` | `string` |  |
+
+</details>
+
+## target: `amaru::setup::trace_buffer`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `dump_failed` | `event` | error | public | The stage trace buffer could not be written to disk | path, error |  |
+| `dumped` | `event` | info | public | The stage trace buffer was written to disk | path |  |
+
+<details><summary>event: `dump_failed`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `path` | `string` | ✓ |
+| `error` | `string` | ✓ |
+
+</details>
+
+<details><summary>event: `dumped`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `path` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::stores::batch`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `commit` | `span` |  | public | Commit a write batch |  |  |
+| `dropped_without_close` | `event` | warn, error | public | A transaction was dropped without commit or rollback. Outcome ∈ {left_open, auto_rolled_back}. | outcome |  |
+| `rollback` | `span` |  | public | Rollback a write batch |  |  |
+
+<details><summary>event: `dropped_without_close`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `outcome` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::stores::consensus::block`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `store` | `span` |  | public | Store a raw block | hash |  |
+
+<details><summary>span: `store`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `hash` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::stores::consensus::chain`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `roll_forward` | `span` |  | public | Roll forward the chain to a point | hash, slot |  |
+| `switch_to_fork` | `span` |  | public | Switch the chain to a new fork | hash, slot |  |
+
+<details><summary>span: `roll_forward`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `hash` | `string` | ✓ |
+| `slot` | `integer` | ✓ |
+
+</details>
+
+<details><summary>span: `switch_to_fork`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `hash` | `string` | ✓ |
+| `slot` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::stores::consensus::header`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `store` | `span` |  | public | Store a block header | hash |  |
+
+<details><summary>span: `store`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `hash` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::stores::ledger`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `iter_scan` | `span` |  | public | Full scan for a given collection | db_collection_name | rows_scanned, rows_written, rows_deleted |
+
+<details><summary>span: `iter_scan`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `db_collection_name` | `string` | ✓ |
+| `rows_scanned` | `integer` |  |
+| `rows_written` | `integer` |  |
+| `rows_deleted` | `integer` |  |
+
+</details>
+
+## target: `amaru::stores::ledger::accounts`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `add` | `span` |  | public | Batch-upsert account entries |  |  |
+| `get` | `span` |  | public | Point-read an account entry |  |  |
+| `remove` | `span` |  | public | Batch-delete account entries |  |  |
+| `reset_many` | `event` | error | public | Skipped resetting rewards because the account is not in the store |  | credential, reason |
+| `set` | `event` | debug | public | Update rewards balance for a single account |  | credential_type, account, reason |
+
+<details><summary>event: `reset_many`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `credential` | `string` |  |
+| `reason` | `string` |  |
+
+</details>
+
+<details><summary>event: `set`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `credential_type` | `string` |  |
+| `account` | `string` |  |
+| `reason` | `string` |  |
+
+</details>
+
+## target: `amaru::stores::ledger::cc_members`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `get` | `span` |  | public | Read a constitutional committee member |  |  |
+| `upsert` | `span` |  | public | Upsert a constitutional committee member |  |  |
+
+## target: `amaru::stores::ledger::dreps`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `add` | `event` | error | public | Skipped a DRep registration that carried no deposit |  | credential, reason |
+| `get` | `span` |  | public | Point-read a DRep entry |  |  |
+| `remove` | `event` | error | public | Skipped de-registration because the DRep is not in the store |  | drep, reason |
+| `set_valid_until` | `event` | warn | public | Skipped refreshing expiry because the DRep is not in the store |  | credential, reason |
+
+<details><summary>event: `add`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `credential` | `string` |  |
+| `reason` | `string` |  |
+
+</details>
+
+<details><summary>event: `remove`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `drep` | `string` |  |
+| `reason` | `string` |  |
+
+</details>
+
+<details><summary>event: `set_valid_until`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `credential` | `string` |  |
+| `reason` | `string` |  |
+
+</details>
+
+## target: `amaru::stores::ledger::epoch`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `create_snapshot` | `span` |  | public | Create ledger snapshot for epoch | epoch |  |
+| `prune_old_snapshots` | `span` |  | public | Prune old snapshots | functional_minimum, desired_minimum |  |
+| `try_transition` | `span` |  | public | Epoch transition tracking | from, to |  |
+
+<details><summary>span: `create_snapshot`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+
+</details>
+
+<details><summary>span: `prune_old_snapshots`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `functional_minimum` | `integer` | ✓ |
+| `desired_minimum` | `integer` | ✓ |
+
+</details>
+
+<details><summary>span: `try_transition`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `from` | `string` | ✓ |
+| `to` | `string` | ✓ |
+
+</details>
+
+## target: `amaru::stores::ledger::overlay`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `apply_governance_updates` | `span` |  | public | Enact all governance updates and flush their outcome to disk |  |  |
+| `pay_or_refund_accounts` | `span` |  | public | Pay withdrawals to accounts, or refund deposits |  | total_paid_or_refunded, treasury_leftovers |
+| `pay_rewards` | `span` |  | public | Pay rewards to all accounts before the epoch end |  | accounts_paid, rewards_paid, treasury_delta, reserves_delta |
+| `record_pruned_proposals` | `span` |  | public | Pruned proposals at an epoch boundary, recorded to facilitate future stake distribution calculations. |  |  |
+| `reset_blocks_count` | `span` |  | public | Reset blocks count to zero |  |  |
+| `reset_fees` | `span` |  | public | Reset fees to zero |  |  |
+| `update_constitutional_committee` | `span` |  | public | Add or remove CC members; or switch to a no-confidence state | no_confidence |  |
+| `update_or_retire_pools` | `span` |  | public | Updating pools metadata or retiring pools at an epoch boundary. | pools_updated, pools_retired |  |
+
+<details><summary>span: `pay_or_refund_accounts`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `total_paid_or_refunded` | `integer` |  |
+| `treasury_leftovers` | `integer` |  |
+
+</details>
+
+<details><summary>span: `pay_rewards`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `accounts_paid` | `integer` |  |
+| `rewards_paid` | `integer` |  |
+| `treasury_delta` | `integer` |  |
+| `reserves_delta` | `integer` |  |
+
+</details>
+
+<details><summary>span: `update_constitutional_committee`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `no_confidence` | `boolean` | ✓ |
+
+</details>
+
+<details><summary>span: `update_or_retire_pools`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `pools_updated` | `integer` | ✓ |
+| `pools_retired` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::stores::ledger::pools`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `add` | `span` |  | public | Batch-upsert pool entries |  |  |
+| `get` | `span` |  | public | Point-read a pool entry |  |  |
+| `remove` | `event` | error | public | Skipped scheduling retirement because the pool is not in the store |  | pool, reason |
+
+<details><summary>event: `remove`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `pool` | `string` |  |
+| `reason` | `string` |  |
+
+</details>
+
+## target: `amaru::stores::ledger::pots`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `get` | `span` |  | public | Read treasury/reserve/fees pots |  |  |
+| `put` | `span` |  | public | Write treasury/reserve/fees pots |  |  |
+
+## target: `amaru::stores::ledger::proposals`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `add` | `span` |  | public | Insert governance proposals |  |  |
+| `get` | `span` |  | public | Read governance proposals |  |  |
+| `remove` | `span` |  | public | Remove enacted or expired proposals |  |  |
+
+## target: `amaru::stores::ledger::recently_pruned_proposals`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `replace_all` | `span` |  | public | Inserting recently pruned proposals |  |  |
+
+## target: `amaru::stores::ledger::recently_unregistered_accounts`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `insert` | `span` |  | public | Insert a recently unregistered account |  |  |
+| `prune` | `span` |  | public | Prune recently unregistered accounts | epoch |  |
+| `remove` | `span` |  | public | Remove a recently unregistered account |  |  |
+
+<details><summary>span: `prune`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `epoch` | `integer` | ✓ |
+
+</details>
+
+## target: `amaru::stores::ledger::slots`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `get` | `span` |  | public | Point-read a slot/block-issuer entry |  |  |
+| `put` | `span` |  | public | Write a slot/block-issuer entry |  |  |
+
+## target: `amaru::stores::ledger::snapshots`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `unexpected_file` | `event` | warn | public | Skipped an unexpected file found in the snapshots directory | filename |  |
+| `validate` | `span` |  | public | Validate sufficient snapshots exist |  | snapshot_count, continuous_ranges |
+
+<details><summary>event: `unexpected_file`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `filename` | `string` | ✓ |
+
+</details>
+
+<details><summary>span: `validate`</summary>
+
+| field | type | required |
+| --- | --- | --- |
+| `snapshot_count` | `integer` |  |
+| `continuous_ranges` | `integer` |  |
+
+</details>
+
+## target: `amaru::stores::ledger::utxo`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `add` | `span` |  | public | Batch-insert UTxO entries |  |  |
+| `get` | `span` |  | public | Point-read a UTxO entry |  |  |
+| `remove` | `span` |  | public | Batch-delete UTxO entries |  |  |
+
+## target: `amaru::stores::ledger::votes`
+
+| name | kind | levels | public | description | required fields | optional fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| `add` | `span` |  | public | Record governance votes |  |  |
+| `remove` | `span` |  | public | Remove now-obsolete governance votes |  |  |
+
+## Updating This Documentation
+
+This file is auto-generated from the trace schema definitions in the code. To update it, run:
+
+```bash
+./scripts/generate-traces-doc
+```
+
+The schemas are defined using the `define_schemas!` macro in the codebase. Any changes to trace definitions will automatically be reflected in this documentation when the script is run.

@@ -1,0 +1,32 @@
+get:
+  tags:
+    - Cardano » Assets
+  summary: Specific asset
+  description: Information about a specific asset
+  parameters:
+    - in: path
+      name: asset
+      required: true
+      schema:
+        type: string
+      description: Concatenation of the policy_id and hex-encoded asset_name
+      example: "b0d07d45fe9514f80213f4020e5a61241458be626841cde717cb38a76e7574636f696e"
+  responses:
+    "200":
+      description: Return the information about a specific asset
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../schemas/assets/asset.yaml
+    "400":
+      $ref: ../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../responses/errors/500.yaml

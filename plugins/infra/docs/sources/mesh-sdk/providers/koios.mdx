@@ -1,0 +1,663 @@
+---
+title: "Koios Provider"
+description: "Connect to Cardano using the distributed, open-source Koios API"
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+<Link href="https://www.koios.rest/">Koios</Link> is a distributed, open-source public API query layer for Cardano. It provides free access to blockchain data through a network of community-hosted nodes.
+
+**Use Koios when you need:**
+- A free tier for development and small projects
+- A decentralized, community-driven infrastructure
+- Access to comprehensive Cardano blockchain data
+
+## Quick Start
+
+Install the MeshJS package:
+
+```bash
+npm install @meshsdk/core
+```
+
+Initialize the provider:
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+```
+
+Fetch blockchain data:
+
+```tsx
+// Fetch UTxOs from an address
+const utxos = await provider.fetchAddressUTxOs(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9"
+);
+
+// Submit a transaction
+const txHash = await provider.submitTx(signedTx);
+```
+
+Get your API key from the <Link href="https://koios.rest/Profile.html">Koios User Profile page</Link>.
+
+## Configuration Options
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `network` | `"api" \| "preview" \| "preprod" \| "guild"` | Yes | The Cardano network to connect to |
+| `apiKey` | `string` | No | Your Koios API key for authenticated requests |
+
+### Network Values
+
+| Network | Description |
+|---------|-------------|
+| `api` | Cardano mainnet |
+| `preview` | Preview testnet |
+| `preprod` | Pre-production testnet |
+| `guild` | Guild testnet |
+
+## API Reference
+
+### get
+
+Fetch data from any Koios API endpoint.
+
+```tsx
+await provider.get(endpoint: string): Promise<any>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `endpoint` | `string` | Yes | The API endpoint path |
+
+**Example:**
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+
+const transactions = await provider.get(
+  "/addresses/addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9/transactions"
+);
+```
+
+---
+
+### fetchAccountInfo
+
+Retrieve information about a stake account.
+
+```tsx
+await provider.fetchAccountInfo(address: string): Promise<AccountInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | The stake address (bech32 format) |
+
+**Returns:** `AccountInfo` object containing balance, rewards, and delegation status.
+
+**Example:**
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+
+const accountInfo = await provider.fetchAccountInfo(
+  "stake_test1uzw5mnt7g4xjgdqkfa80hrk7kdvds6sa4k0vvgjvlj7w8eskffj2n"
+);
+
+console.log(accountInfo.balance);
+console.log(accountInfo.rewards);
+console.log(accountInfo.poolId);
+```
+
+---
+
+### fetchAddressAssets
+
+Fetch all assets held by an address.
+
+```tsx
+await provider.fetchAddressAssets(address: string): Promise<Asset[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | The wallet address (bech32 format) |
+
+**Returns:** Array of `Asset` objects with `unit` and `quantity`.
+
+**Example:**
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+
+const assets = await provider.fetchAddressAssets(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9"
+);
+
+assets.forEach((asset) => {
+  console.log(`${asset.unit}: ${asset.quantity}`);
+});
+```
+
+---
+
+### fetchAddressUTxOs
+
+Fetch UTxOs controlled by an address, optionally filtered by asset.
+
+```tsx
+await provider.fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | The wallet address (bech32 format) |
+| `asset` | `string` | No | Filter by asset unit (policy ID + asset name hex) |
+
+**Returns:** Array of `UTxO` objects.
+
+**Example:**
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+
+// Fetch all UTxOs
+const utxos = await provider.fetchAddressUTxOs(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9"
+);
+
+// Fetch UTxOs containing a specific asset
+const filteredUtxos = await provider.fetchAddressUTxOs(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+  "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e"
+);
+```
+
+---
+
+### fetchAssetAddresses
+
+Fetch all addresses holding a specific asset.
+
+```tsx
+await provider.fetchAssetAddresses(asset: string): Promise<AssetAddress[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `asset` | `string` | Yes | The asset unit (policy ID + asset name hex) |
+
+**Returns:** Array of addresses and quantities.
+
+**Example:**
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+
+const holders = await provider.fetchAssetAddresses(
+  "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e"
+);
+
+holders.forEach((holder) => {
+  console.log(`${holder.address}: ${holder.quantity}`);
+});
+```
+
+---
+
+### fetchAssetMetadata
+
+Fetch metadata for an asset.
+
+```tsx
+await provider.fetchAssetMetadata(asset: string): Promise<AssetMetadata>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `asset` | `string` | Yes | The asset unit (policy ID + asset name hex) |
+
+**Returns:** `AssetMetadata` object with name, image, and other metadata fields.
+
+**Example:**
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+
+const metadata = await provider.fetchAssetMetadata(
+  "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e"
+);
+
+console.log(metadata.name);
+console.log(metadata.image);
+```
+
+---
+
+### fetchBlockInfo
+
+Fetch information about a block.
+
+```tsx
+await provider.fetchBlockInfo(hash: string): Promise<BlockInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `hash` | `string` | Yes | The block hash |
+
+**Returns:** `BlockInfo` object with block details.
+
+**Example:**
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+
+const blockInfo = await provider.fetchBlockInfo(
+  "79f60880b097ec7dabb81f75f0b52fedf5e922d4f779a11c0c432dcf22c56089"
+);
+
+console.log(blockInfo.slot);
+console.log(blockInfo.time);
+```
+
+---
+
+### fetchCollectionAssets
+
+Fetch all assets in an NFT collection by policy ID.
+
+```tsx
+await provider.fetchCollectionAssets(policyId: string, cursor?: number): Promise<{ assets: Asset[]; next: number | null }>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `policyId` | `string` | Yes | The policy ID of the collection |
+| `cursor` | `number` | No | Pagination cursor (default: 1) |
+
+**Returns:** Object with `assets` array and `next` cursor for pagination.
+
+**Example:**
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+
+// Fetch first page
+const result = await provider.fetchCollectionAssets(
+  "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527"
+);
+
+console.log(result.assets);
+
+// Fetch next page if available
+if (result.next) {
+  const nextPage = await provider.fetchCollectionAssets(
+    "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527",
+    result.next
+  );
+}
+```
+
+---
+
+### fetchHandleAddress
+
+Resolve an ADA Handle to its associated address.
+
+```tsx
+await provider.fetchHandleAddress(handle: string): Promise<string>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `handle` | `string` | Yes | The ADA Handle (without $) |
+
+**Returns:** The resolved Cardano address.
+
+**Example:**
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("api", "<YOUR_API_KEY>");
+
+const address = await provider.fetchHandleAddress("meshsdk");
+console.log(address);
+```
+
+<Link href="https://handle.me/">ADA Handle</Link> allows users to associate human-readable names with Cardano addresses. Each handle is a unique NFT on the blockchain.
+
+---
+
+### fetchHandle
+
+Fetch CIP-68 handle metadata.
+
+```tsx
+await provider.fetchHandle(handle: string): Promise<HandleMetadata>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `handle` | `string` | Yes | The ADA Handle (without $) |
+
+**Returns:** Handle metadata including CIP-68 fields.
+
+**Example:**
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("api", "<YOUR_API_KEY>");
+
+const handleData = await provider.fetchHandle("meshsdk");
+console.log(handleData);
+```
+
+---
+
+### fetchProtocolParameters
+
+Fetch the current protocol parameters.
+
+```tsx
+await provider.fetchProtocolParameters(epoch?: number): Promise<Protocol>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `epoch` | `number` | No | Specific epoch (default: current epoch) |
+
+**Returns:** `Protocol` object with all protocol parameters.
+
+**Example:**
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+
+// Fetch current parameters
+const params = await provider.fetchProtocolParameters();
+
+console.log(params.minFeeA);
+console.log(params.minFeeB);
+console.log(params.maxTxSize);
+```
+
+---
+
+### fetchTxInfo
+
+Fetch information about a confirmed transaction.
+
+```tsx
+await provider.fetchTxInfo(hash: string): Promise<TransactionInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `hash` | `string` | Yes | The transaction hash |
+
+**Returns:** `TransactionInfo` object with transaction details.
+
+**Example:**
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+
+const txInfo = await provider.fetchTxInfo(
+  "f4ec9833a3bf95403d395f699bc564938f3419537e7fb5084425d3838a4b6159"
+);
+
+console.log(txInfo.block);
+console.log(txInfo.fees);
+```
+
+---
+
+### fetchUTxOs
+
+Fetch UTxOs by transaction hash.
+
+```tsx
+await provider.fetchUTxOs(hash: string, index?: number): Promise<UTxO[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `hash` | `string` | Yes | The transaction hash |
+| `index` | `number` | No | Specific output index |
+
+**Returns:** Array of `UTxO` objects.
+
+**Example:**
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+
+// Fetch all UTxOs from a transaction
+const utxos = await provider.fetchUTxOs(
+  "dfd2a2616e6154a092807b1ceebb9ddcadc0f22cf5c8e0e6b0757815083ccb70"
+);
+
+// Fetch specific output
+const specificUtxo = await provider.fetchUTxOs(
+  "dfd2a2616e6154a092807b1ceebb9ddcadc0f22cf5c8e0e6b0757815083ccb70",
+  0
+);
+```
+
+---
+
+### fetchGovernanceProposal
+
+Fetch information about a governance proposal.
+
+```tsx
+await provider.fetchGovernanceProposal(txHash: string, certIndex: number): Promise<ProposalInfo>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `txHash` | `string` | Yes | The proposal transaction hash |
+| `certIndex` | `number` | Yes | The certificate index |
+
+**Returns:** `ProposalInfo` object with proposal details.
+
+**Example:**
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+
+const proposal = await provider.fetchGovernanceProposal(
+  "372d688faa77e146798b581b322c0f2981a9023764736ade5d12e0e4e796af8c",
+  0
+);
+```
+
+---
+
+### submitTx
+
+Submit a signed transaction to the network.
+
+```tsx
+await provider.submitTx(tx: string): Promise<string>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tx` | `string` | Yes | The signed transaction CBOR hex |
+
+**Returns:** The transaction hash.
+
+**Example:**
+
+```tsx
+import { KoiosProvider } from "@meshsdk/core";
+
+const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+
+const txHash = await provider.submitTx(signedTx);
+console.log(`Transaction submitted: ${txHash}`);
+```
+
+---
+
+### onTxConfirmed
+
+Listen for transaction confirmation.
+
+```tsx
+provider.onTxConfirmed(txHash: string, callback: () => void, limit?: number): void
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `txHash` | `string` | Yes | The transaction hash to monitor |
+| `callback` | `() => void` | Yes | Function called when confirmed |
+| `limit` | `number` | No | Maximum confirmation checks |
+
+**Example:**
+
+```tsx
+import { KoiosProvider, MeshTxBuilder } from "@meshsdk/core";
+
+const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+
+// Build and submit transaction
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+const unsignedTx = await txBuilder
+  .txOut("addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr", [
+    { unit: "lovelace", quantity: "5000000" },
+  ])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await provider.submitTx(signedTx);
+
+// Wait for confirmation
+provider.onTxConfirmed(txHash, () => {
+  console.log("Transaction confirmed!");
+});
+```
+
+## Complete Example
+
+```tsx
+import { KoiosProvider, MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+
+async function sendAda() {
+  // Initialize provider
+  const provider = new KoiosProvider("preprod", "<YOUR_API_KEY>");
+
+  // Initialize wallet
+  const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+    networkId: 0,
+    walletAddressType: AddressType.Base,
+    fetcher: provider,
+    submitter: provider,
+    mnemonic: ["your", "mnemonic", "phrase", "..."],
+  });
+
+  // Get wallet data
+  const utxos = await wallet.getUtxosMesh();
+  const changeAddress = await wallet.getChangeAddressBech32();
+
+  // Build transaction
+  const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+  const unsignedTx = await txBuilder
+    .txOut("addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9", [
+      { unit: "lovelace", quantity: "5000000" },
+    ])
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  // Sign and submit
+  const signedTx = await wallet.signTx(unsignedTx, false);
+  const txHash = await provider.submitTx(signedTx);
+
+  console.log(`Transaction submitted: ${txHash}`);
+
+  // Wait for confirmation
+  provider.onTxConfirmed(txHash, () => {
+    console.log("Transaction confirmed!");
+  });
+}
+```
+
+## Troubleshooting
+
+### API Key Issues
+
+**Problem:** Requests return 401 Unauthorized.
+
+**Solution:** Verify your API key is correct and active. Get a new key from the <Link href="https://koios.rest/Profile.html">Koios Profile page</Link>.
+
+### Rate Limiting
+
+**Problem:** Requests fail with 429 Too Many Requests.
+
+**Solution:** Koios has rate limits on API calls. Implement retry logic with exponential backoff, or upgrade to a paid tier for higher limits.
+
+### Network Mismatch
+
+**Problem:** Addresses or transactions not found.
+
+**Solution:** Ensure your provider network matches your addresses. Mainnet addresses start with `addr1`, testnet addresses start with `addr_test1`.
+
+### Empty UTxO Response
+
+**Problem:** `fetchAddressUTxOs` returns empty array.
+
+**Solution:** Verify the address has funds and is on the correct network. Check the address on a block explorer.
+
+## References
+
+- [Koios REST API](https://www.koios.rest/) - Official Koios service documentation and API reference
+- [Koios API Endpoints](https://api.koios.rest/) - Interactive API documentation for all Koios endpoints
+- [Cardano Developer Portal](https://developers.cardano.org) - Official Cardano development resources
+- [Cardano eUTXO Model](https://docs.cardano.org/about-cardano/learn/eutxo-explainer/) - Understanding the transaction model behind UTxO queries
+
+## Related Links
+
+- <Link href="https://www.koios.rest/">Koios Website</Link>
+- <Link href="https://api.koios.rest/">Koios API Documentation</Link>
+- <Link href="https://koios.rest/Profile.html">Get API Key</Link>
+- <Link href="/apis/txbuilder/basics">Transaction Builder</Link>
+- <Link href="/apis/wallets">Wallets</Link>

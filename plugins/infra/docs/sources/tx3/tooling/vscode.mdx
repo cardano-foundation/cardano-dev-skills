@@ -1,0 +1,126 @@
+---
+title: VSCode Extension
+sidebar:
+    order: 4
+---
+import { Steps } from '@astrojs/starlight/components';
+
+Tx3 VSCode Extension is a Visual Studio Code extension designed to improve your development experience with `tx3`. It provides features such as syntax highlighting, LSP diagnostics, and interactive panels for transaction resolution and visualization.
+
+## Installation Requirements
+
+To use the Tx3 extension, you must first ensure that the **tx3 toolchain** is installed on your system. You can find detailed installation instructions and a quick start guide in the [official Tx3 documentation](https://docs.txpipe.io/tx3/authoring/quick-start).
+
+Once the Tx3 toolchain is installed, you can install the VS Code extension from the Visual Studio Code Marketplace:
+
+1.  Open Visual Studio Code.
+2.  Go to the Extensions view by clicking on the square icon in the sidebar or pressing `Ctrl+Shift+X`.
+3.  Search for "Tx3 Language Support".
+4.  Click the "Install" button for the extension published by TxPipe.
+
+To verify that the installation was successful, open a file with the `.tx3` extension. You should see syntax highlighting applied to the code.
+
+The extension requires the path to the Tx3 language server executable. By default, it looks for the executable at `~/.tx3/default/bin/tx3-lsp`. If your installation places the executable elsewhere, you can configure the path in the extension settings:
+
+1.  Open VS Code Settings (`Ctrl+,`).
+2.  Search for "Tx3".
+3.  Update the "Tx3: Lsp Path" setting with the correct path to your `tx3-lsp` executable.
+
+## Features Overview
+
+The Tx3 Language Support extension provides the following key features:
+
+*   **Syntax Highlighting**: Provides clear and intuitive syntax highlighting for `.tx3` files, making your code easier to read and understand.
+*   **LSP Diagnostics**: Utilizes the Language Server Protocol (LSP) to deliver real-time diagnostics, including errors and warnings, helping you identify and resolve issues as you code.
+*   **Tx3 Resolve Panel**: An interactive webview panel for generating the transaction CBOR from your Tx3 code using a configured TRP server.
+*   **Tx3 Diagram Visualization Panel**: A graphical webview panel for visualizing transaction diagrams based on the Abstract Syntax Tree (AST) of your Tx3 code.
+
+## Commands Overview
+
+The extension registers several commands within VS Code, accessible primarily through the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P` on macOS):
+
+*   `Tx3: Start Tx3 Language Server`: Starts the Tx3 language server. This is typically handled automatically when you open a `.tx3` file.
+*   `Tx3: Open Tx3 Resolve Panel`: Opens the interactive panel for generating transaction CBOR.
+*   `Tx3: Open Tx3 Diagram Panel`: Opens the graphical panel for visualizing transaction diagrams.
+
+## Command Details
+
+### `Tx3: Start Tx3 Language Server`
+
+This command is responsible for starting the background process of the Tx3 Language Server. The language server provides features like diagnostics and data for the webview panels.
+
+**Syntax:**
+
+This command is not typically run manually by the user. The extension automatically attempts to start the language server when a `.tx3` file is opened, using the executable path specified in the extension settings (`tx3.lspPath`).
+
+**Usage:**
+
+You generally do not need to execute this command directly. If the language server fails to start automatically, ensure the `tx3.lspPath` setting is correct and that the Tx3 toolchain is properly installed.
+
+### `Tx3: Open Tx3 Resolve Panel`
+
+This command opens the Tx3 Resolve Panel, an interactive interface within VS Code that allows you to generate the transaction CBOR for the active `.tx3` file by interacting with a TRP server.
+
+**Syntax:**
+
+```
+Tx3: Open Tx3 Resolve Panel
+```
+
+**Usage:**
+
+1.  Open a `.tx3` file in the VS Code editor.
+2.  Open the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`).
+3.  Type "Open Tx3 Resolve Panel" and select the command.
+4.  Alternatively, click the `play` icon button that appears in the editor's title bar when a `.tx3` file is open.
+
+The panel will open, typically in a split view. It will load the transaction data from your active `.tx3` file and allow you to interact with configured TRP servers to resolve the transaction.
+
+### `Tx3: Open Tx3 Diagram Panel`
+
+This command opens the Tx3 Diagram Panel, a graphical interface within VS Code that visualizes the structure of transactions defined in your active `.tx3` file.
+
+**Syntax:**
+
+```
+Tx3: Open Tx3 Diagram Panel
+```
+
+**Usage:**
+
+1.  Open a `.tx3` file in the VS Code editor.
+2.  Open the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`).
+3.  Type "Open Tx3 Diagram Panel" and select the command.
+4.  Alternatively, click the `diagram` icon button that appears in the editor's title bar when a `.tx3` file is open.
+
+The panel will open, typically in a split view, displaying a diagram representing the structure of the transactions in your active file.
+
+## Configuration
+
+The Tx3 Language Support extension provides the following configuration options in VS Code Settings:
+
+*   `tx3.lspPath`: Specifies the path to the Tx3 language server executable.
+    *   Type: `string`
+    *   Default: `~/.tx3/default/bin/tx3-lsp`
+    *   Description: The absolute path to the `tx3-lsp` executable on your system.
+*   `tx3.trpServers`: A list of TRP servers that the Tx3 Resolve Panel can use to resolve transactions.
+    *   Type: `array` of objects
+    *   Description: Configure the name, URL, and optional headers for each TRP server.
+
+**Example `tx3.trpServers` configuration (in `settings.json`):**
+
+```json
+"tx3.trpServers": [
+    {
+        "name": "Demeter Cardano Preview",
+        "url": "https://cardano-preview.trp-m1.demeter.run",
+        "headers": {
+            "dmtr-api-key": "YOUR_API_KEY"
+        }
+    },
+    {
+        "name": "Custom Local Server",
+        "url": "http://localhost:8080"
+    }
+]
+```

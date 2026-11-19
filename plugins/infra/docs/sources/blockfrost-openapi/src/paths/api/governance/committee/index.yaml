@@ -1,0 +1,27 @@
+get:
+  tags:
+    - Cardano » Governance
+  summary: Constitutional committee
+  description: |
+    Information about the currently active constitutional committee
+
+    When `is_dissolved` is `true`, the committee has been removed by an enacted `NoConfidence` governance action; `quorum` and `members` still describe the last seated committee for historical reference.
+  responses:
+    "200":
+      description: Return the active constitutional committee
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../schemas/governance/committee.yaml
+    "400":
+      $ref: ../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../responses/errors/500.yaml

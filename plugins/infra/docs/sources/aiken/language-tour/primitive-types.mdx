@@ -1,0 +1,471 @@
+---
+title: "Primitive Types"
+description: "Aiken is a functional programming language for writing Cardano smart contracts that compiles to Plutus Core. Primitive types are the 6 built-in data types (Bool, Int, String, ByteArray, Data, and Void) plus base building blocks like Lists, Tuples, Options, and Pairs — the fundamental building blocks for defining validator logic, transaction data, and on-chain state."
+difficulty: "beginner"
+keywords: ["Bool", "Int", "String", "ByteArray", "Data", "Void", "List", "Tuple", "Option", "Pair", "primitive types", "Aiken types"]
+topics: ["types", "primitive-types", "data-types"]
+prerequisites: []
+related: ["variables-and-constants", "custom-types", "functions"]
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Primitive Types
+
+Aiken has 6 primitive types that are built in the language and can be typed as literals: booleans, integers, strings, bytearrays, data and void. The language also includes few base building blocks for associating types together: lists, tuples, options, pairs...
+
+Worry not, we'll see later in this manual how to create your own [custom types](/language-tour/custom-types).
+
+<Callout type="info">
+  Inline comments are denoted via `//`. We'll use them to illustrate the value
+  of some expressions in examples given all across this guide.
+</Callout>
+
+## Bool
+
+A `Bool{:ak}` is a boolean value that can be either `True{:ak}` or `False{:ak}`.
+
+Aiken defines a handful of operators that work with booleans. No doubts that they'll look
+quite familiar.
+
+| Operator  | Description                                                                           | Precedence |
+| :-------: | ------------------------------------------------------------------------------------- | ---------- |
+| `=={:ak}` | Equality                                                                              | 4          |
+| `&&{:ak}` | Logical conjunction (a.k.a 'AND')                                                     | 3          |
+|  `\|\|`   | Logical disjunction (a.k.a. 'OR')                                                     | 2          |
+| `!{:ak}`  | Logical negatation (a.k.a 'NOT')                                                      | 1          |
+| `?{:ak}`  | Trace if false (see also [Troubleshooting](/language-tour/troubleshooting#-operator)) | 1          |
+
+Like most languages, `&&{:ak}` and `||{:ak}` are _right-associative_, which means they don't evaluate their second operand if the first one gives the answer (i.e. short-circuit).
+
+### `and`/`or` keywords
+
+You'll soon come to realize that long chains of logical operators are quite common
+when building validators.
+
+```ak
+True && False && True || False
+```
+
+In this example one could derive the final boolean after thinking for a little
+but it also requires that you carefully consider how precedence affects the expression grouping.
+Although this specific example may be simple, in practice those `True{:ak}` and `False{:ak}`
+literals would actually be expressions of type `Bool`. Considering that these kinds of boolean checks
+are a huge corner stone of validator logic, we've introduced keywords that increase the readability of
+these so called _logical operator chains_.
+
+```ak
+and {
+  True,
+  False,
+  or {
+    True,
+    False,
+  }
+}
+```
+
+With these keywords, the grouping becomes immediately obvious at a glance resulting
+in more readable and maintainable logical operator chains. This shines especially when
+composing large numbers of logical operators (i.e. four or more) but is less impactful when
+there are one or two logical operators.
+
+## Int
+
+Aiken's only number type is an arbitrary sized integer. This means there is no underflow or overflow.
+
+```aiken
+42
+14
+1337
+```
+
+Literals can also be written with `_` as separators to enhance readability:
+
+```ak
+1_000_000
+```
+
+Aiken also supports writing integer literals in other bases than decimals. Binary, octal, and hexadecimal integers begin with `0b`, `0o`, and `0x` respectively.
+
+```aiken
+0b00001111 == 15
+0o17 == 15
+0xF == 15
+```
+
+Aiken has several binary arithmetic operators that work with integers.
+
+| Operator | Description                 | Precedence |
+| :------: | --------------------------- | ---------- |
+| `+{:ak}` | Arithmetic sum              | 6          |
+| `-{:ak}` | Arithmetic difference       | 6          |
+| `/{:ak}` | Whole division              | 7          |
+| `*{:ak}` | Arithmetic multiplication   | 7          |
+| `%{:ak}` | Remainder by whole division | 7          |
+
+Integers are also of course comparable, so they work with a variety of binary logical operators too:
+
+| Operator  | Description      | Precedence |
+| :-------: | ---------------- | ---------- |
+| `=={:ak}` | Equality         | 4          |
+| `>{:ak}`  | Greater than     | 4          |
+| `<{:ak}`  | Smaller than     | 4          |
+| `>={:ak}` | Greater or equal | 4          |
+| `<={:ak}` | Smaller or equal | 4          |
+
+<Callout type="info">
+Any _serialisable_ type is comparable through `==` in Aiken. A serialisable type represents any of the primitive type in this guide with the exception of `Fuzzer` and `MillerLoopResult`, as well as any user-defined custom data-type made of serialisable types.
+
+Said differently, you can compare bytestrings, booleans, integers, lists, tuples, etc. using the `==` operator.
+</Callout>
+
+## ByteArray
+
+A _ByteArray_ is exactly what it seems, an array of bytes. Aiken supports three notations to declare ByteArray literals.
+
+#### As an array of bytes
+
+First, as list of integers ranging from 0 to 255 (a.k.a. _bytes_):
+
+```aiken
+#[10, 255]
+#[1, 256] // results in a parse error because 256 is bigger than 1 byte
+```
+
+Syntax rules for literal integers also apply to byte arrays. Thus, the following is a perfectly valid syntax:
+
+```aiken
+#[0xff, 0x42]
+```
+
+#### As a byte string
+
+Second, as a UTF-8 encoded byte string. This is generally how common text strings are represented under the hood. In Aiken, simply use double-quotes for that:
+
+```aiken
+"foo" == #[0x66, 0x6f, 0x6f] == #[102, 111, 111]
+```
+
+#### As a hex-encoded byte string
+
+Because it is quite common to manipulate base16-encoded byte strings in a blockchain context (e.g. transaction id, policy id, etc..); Aiken also supports a shorthand syntax for declaring bytearrays as an hexadecimal string.
+
+Behind the scene, Aiken decodes the encoded string for you and stores only the raw bytes as a ByteArray. This is achieved by prefixing a double-quotes byte string with a `#`, like so:
+
+```aiken
+#"666f6f" == #[0x66, 0x6f, 0x6f] == #[102, 111, 111] == "foo"
+```
+
+Note how this is different from:
+
+```aiken
+"666f6f" == #[0x36, 0x36, 0x36, 0x66, 0x36, 0x66] == #[54, 54, 54, 102, 54, 54]
+```
+
+## List
+
+Lists are ordered collections of values. They're one of the most common data structures in Aiken.
+
+Unlike tuples, all the elements of a List must be of the same type. Attempting to make a list using multiple
+different types will result in a type error.
+
+```aiken
+[1, 2, 3, 4]  // List<Int>
+
+["text", 3, 4]  // Type error!
+```
+
+Inserting at the front of a list is very fast, and is the preferred way to add new values.
+
+```aiken
+[1, ..[2, 3]] // [1, 2, 3]
+```
+
+Note that all data structures in Aiken are immutable so prepending to a list does not change the original list. Instead it efficiently creates a new list with the new additional element.
+
+```aiken
+let x = [2, 3]
+let y = [1, ..x]
+
+x // [2, 3]
+y // [1, 2, 3]
+```
+
+## Tuple(s)
+
+Aiken has tuples which can be useful for grouping values. Unlike lists, each element in a tuple can have a different type.
+
+```aiken
+(10, "hello") // Type is (Int, ByteArray)
+(1, 4, [0]) // Type is (Int, Int, List<Int>)
+```
+
+Long tuples (i.e. more than 3 elements) are usually discouraged. Indeed, tuples are anonymous constructors, and while they are quick and easy to use, they often impede readability. When types become more complex, one should use records instead (as we'll see later).
+
+Elements of a tuple can be accessed using the dot, followed by the index of the element (ordinal). So for example:
+
+```aiken
+let point = (14, 42, 1337, 0)
+let a = point.1st
+let b = point.2nd
+let c = point.3rd
+let d = point.4th
+(c, d, b, a) // (1337, 0, 42, 14)
+```
+
+### Pair
+
+Aiken has a specific type for representing a pair of values of two
+not-necessarily equal types. Thus a `Pair<a, b>{:ak}` is akin to a 2-tuple `(a,
+b){:ak}`. Like for tuples, you can access elements of a pair using the ordinal syntax:
+
+```aiken
+let foo = Pair(14, "aiken")
+
+foo.1st == 14
+
+foo.2nd == "aiken"
+```
+
+So why have another type specifically for pairs? The answer is two folds:
+
+1. This is a specific kind of term that also exists on the underlying Plutus
+Virtual Machine. Hence, given Aiken's proximity to that machine's
+representation, it is useful, if not simply necessary, to have ways to
+represent those when needed.
+
+2. There's an ambiguity at the contract's boundary regarding how to serialise
+lists of pairs in CBOR. One way is to use a CBOR array of arrays (of two
+elements). And the other is to use a CBOR map. While the former is more
+intuitive, it is in fact the latter that end up being used by the ledger for
+many internal types. In the first versions of Aiken, the compiler would
+implicitly treat list of pairs as CBOR map in serialisation functions to mimic
+the ledger. This has proven inconvenient and confusing in many scenarios
+involving user-defined data-types, hence the introduction of pairs.
+
+So as a rule of thumb, unless you specifically want to serialize external types
+(in datums and redeemers) as CBOR maps, you probably never want to use a
+`Pair<a, b>{:ak}` and can stick to a 2-tuple `(a, b){:ak}`.
+
+## Value
+
+Since Aiken `v1.1.24`, built-in `Value` are also available. A `Value` is a
+mapping between bytearray to a map of bytearray and integer quantities. A map
+of maps, tailored to representing eUTxO multi-assets values.
+
+Of course, while their primary use-case is to store multi-assets, a `Value` can
+also be used to store similarly-shaped objects. They provide efficient access
+to their inner values and be convenient to use as local caches.
+
+### Literal notation
+
+Values can be declared as literals using curly braces, like a record:
+
+```aiken
+{
+  #"00000000000000000000000000000000000000000000000000000000": {
+    "utf-8": 1,
+    #"abcd": -1,
+  }
+}
+```
+
+Keys of each map are limited in size (up to 32 bytes).
+
+When constructing literals as such, the compiler enforces that keys from the
+outer map are exactly 28 bytes in length and always expect them hex-encoded. In
+practice, those keys represent script hashes (a.k.a policy id).
+
+The inner keys are more flexible and can be provided as either plain UTF-8 byte
+strings or as hex-encoded byte strings, very much like `ByteArray`. Use a
+leading `#` to choose between either.
+
+Duplicate keys are not tolerated.
+
+Quantities can be negative, but can not be `0`. Similarly, the assets map for
+a given policy cannot be empty or full of zero quantities.
+
+### Interpolation
+
+Note that keys and values can also interpolate with any identifier in scope.
+Interpolated values can be mixed with literal values:
+
+```aiken
+let my_policy = #"00000000000000000000000000000000000000000000000000000000"
+let my_token = "aiken ✨"
+let my_quantity = 99
+
+let my_value = {
+  my_policy: {
+    my_token: my_quantity,
+    "foo": 99,
+  }
+}
+```
+
+Importantly, the interpolated values must type-check correctly and can be
+dynamically provided!
+
+### Lovelace quantities
+
+A special optional keyword `lovelace` exists in order to specify a lovelace
+quantity. You can create lovelace-only values, or mixed them with other assets:
+
+```aiken
+let my_value_1 = {
+  lovelace: 42
+}
+
+let my_value_2 = {
+  lovelace: 14,
+  #"00000000000000000000000000000000000000000000000000000000": {
+    "foo": -9999,
+  }
+}
+```
+
+## Option
+
+We define `Option{:ak}` as a generic type with two constructors (see also [custom types](/language-tour/custom-types) for details about this syntax):
+
+```ak
+type Option<a> {
+  Some(a)
+  None
+}
+```
+
+The type parameter `a{:ak}` indicates that an `Option{:ak}` may be inhabited by any other type. Functions may manipulate it without making assumptions on what this type is, or may require the type to be instantiated to a particular concrete type.
+
+Options are used in situation where function must return optional values. For example:
+
+```ak
+/// Extract the first element of a list, if any.
+fn get_head(xs: List<a>) -> Option<a> {
+  when xs is {
+    [] -> None
+    [head, ..] -> Some(head)
+  }
+}
+
+/// Ensures a number is strictly positive.
+fn to_positive(n: Int) -> Option<Int> {
+  if n <= 0 {
+    None
+  } else {
+    Some(n)
+  }
+}
+```
+
+The `Option{:ak}` type is readily available in Aiken; it is part of the types and constructors available by default. Don't hesitate to use it!
+
+### Never
+
+In some rare cases, it is needed to refer to an `Option` that can only ever be `None`. This is the case in some parts of the standard library and mainly due to unforeseen bugs in the ledger and backward compatibility concerns. For these scenarios, we introduce a `Never` type, which has a single constructor of the same name. It is identical in all points to `None` and serialises down to the same binary structure. Said differently, we have:
+
+```aiken
+let some: Data = None
+let never: Data = Never
+some == never
+```
+
+## Ordering
+
+[`Ordering`](https://aiken-lang.github.io/prelude/aiken.html#Ordering) type is helpful when comparing two values of same type. It is defined as:
+
+```aiken
+pub type Ordering {
+  Less
+  Equal
+  Greater
+}
+```
+
+And [standard library](https://aiken-lang.github.io/stdlib/) often defines `compare` function corresponding to different types, for instance, to compare two `ByteArray`s one can use this [`bytearray.compare`](https://aiken-lang.github.io/stdlib/aiken/primitive/bytearray.html#compare) function.
+
+## Void
+
+`Void{:ak}` is a type representing the nullary constructor, or put simply, the absence of value. It is denoted `Void` as a type and constructor. Fundamentally, if you think in terms of tuples, `Void{:ak}` is a tuple with no element in it.
+
+`Void{:ak}` is useful in certain situations, but because in Aiken everything is a typed expression (there's no "statement"), you'll rarely end up in a situation where you need it.
+
+## Data
+
+A `Data{:ak}` is an opaque compound type that can represent any possible user-defined type in Aiken. We'll see more about `Data{:ak}` when we cover [custom types](/language-tour/custom-types). In the meantime, think of _Data_ as a kind of wildcard that can possibly represent _any serialisable_ value.
+
+This is useful when you need to use values from different types in an homogeneous structure. Any user-defined type can be cast to a `Data{:ak}`, and you can try converting from a _Data_ to any [custom type](/language-tour/custom-types) in a safe manner. Besides, several language builtins only work with `Data{:ak}` as a way to deal with polymorphism.
+
+## String
+
+In Aiken text strings can be written as text surrounded by double quotes, prefixed with `@`.
+
+```aiken
+@"Hello, Aiken!"
+```
+
+They can span multiple lines.
+
+```aiken
+@"Hello
+Aiken!"
+```
+
+Under the hood text strings are [UTF-8](https://en.wikipedia.org/wiki/UTF-8) encoded binaries and can contain any valid unicode.
+
+```aiken
+@"🌘 アルバイト Aiken 🌒"
+```
+
+<Callout type="warning">
+  Beware the use case for strings is extremely narrow in Aiken and on-chain
+  code. They are only used for _tracing_, a bit like labels attached to specific
+  execution paths of your program. You can't find them in the interface exposed
+  by your validator, for example. So most of the time, you probably want to use
+  a `ByteArray` instead and only resort to `String` for debugging.
+</Callout>
+
+## Advanced
+
+<Callout emoji="💡">
+If you're just **getting started** with Aiken, you can probably **skip** the
+following section as it describes some more advanced types and behaviors. Feel
+free to come back to it in due time.
+</Callout>
+
+### Pairs
+
+An associative list (a.k.a Pairs) is a mere type alias such that: `type Pairs<a, b> =
+List<Pair<a, b>>{:ak}`. It exists as a convenience since pairs are mainly
+present in validator's script contexts under this form. In addition to
+functions for `List{:ak}` which are also all usable on `Pairs{:ak}`, the stdlib
+also provides a [dedicated module of
+helpers](https://aiken-lang.github.io/stdlib/aiken/collection/pairs.html) specifically
+crafted for associative lists.
+
+### PRNG & Fuzzer
+
+Aiken has an integrated property-based testing framework. Yes, you read that
+right. Property-based test is a first-class citizen here. If you want to read
+more about this, we strongly recommend looking at [our guide about
+property-based test](/language-tour/tests#property-based-test); it should teach
+you everything you need to get started with the framework.
+
+To support this framework, the prelude comes with two pre-defined types. `PRNG{:ak}`
+stands for Pseudo-Random Number Generator. Its definition is opaque and matters
+only to the internals of the test framework. If you're still interested about
+the details, head towards the
+[aiken-lang/fuzz](https://github.com/aiken-lang/fuzz.git)!
+
+Similarly, the `Fuzzer{:ak}` is an interface for building random generators. It
+offers a base set of primitives for a variety of types, and compose nicely with
+one another.
+
+### G1Element, G2Element & MillerLoopResult
+
+Specific to the use of BLS12-381 cryptographic primitives, the `G1Element{:ak}`,
+`G2Element{:ak}` and `MillerLoopResult{:ak}` capture the types of various operands and
+return values of some builtin functions. Their usage is agnostic to Aiken
+itself and described in more details in [CIP-0381: Plutus support for Pairings
+over BLS12-381](https://cips.cardano.org/cip/CIP-0381).

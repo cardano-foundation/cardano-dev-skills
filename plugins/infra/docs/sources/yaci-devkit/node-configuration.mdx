@@ -1,0 +1,103 @@
+import { Callout } from 'nextra/components'
+
+## Node Configuration
+
+Apart from a few options like `block time`, `epoch length`, and `slot length` which are provided through Yaci CLI,
+other devnet node-related configurations can be configured through the `node.properties` file. The configurations defined in the
+`node.properties` file will be used during devnet node creation.
+
+For **zip** based installation, this file is located under installation directory ``config/node.properties``.
+
+For **curl** based installation, this file is located under ``$HOME/.yaci-devkit/config/node.properties``.
+
+Please refer to the `config/node.properties` file for all the node specific configurations.
+
+## Example of few key configurations:
+
+### nodeMode
+
+`nodeMode` controls how DevKit starts the local network.
+
+```properties
+nodeMode=companion
+```
+
+Supported Yano-backed modes:
+
+- `companion`: Yano bootstraps the network, then hands over to the Haskell node. This is the default mode.
+- `yano-only`: Yano runs as the only node, and Yaci Store syncs directly from Yano.
+
+See [Node Modes](/yano-node-modes) for details about when to use each mode.
+
+### securityParam
+To set the security parameter for the node. Default value is 300. (300 blocks)
+
+To change the configuration, add to the `node.properties` file
+
+```shell
+securityParam=<int value>
+```
+
+**Note:** If you want to stop your node for some time and restart it later without a reset, allowing it to continue from where
+it left off and use existing data, you may want to set `securityParam` to a higher value.
+Otherwise, the node may get stuck and you need to reset the node.
+
+Let's say you want to stop your node and start the node again next day to continue from where it left off,
+then you can set `securityParam` to a higher values like `86400` for 1 sec block time.
+
+<Callout>
+    Currently, for Devnet work, the security parameter is set to a reasonable value to improve the developer experience.
+    For a real/multi-node network setup, please refer to this known issue/workaround: https://github.com/bloxbean/yaci-devkit/issues/65#issuecomment-2318155838
+</Callout>
+
+### maxKESEvolutions and slotsPerKESPeriod
+
+Defaults are `62` and `10000000`. The node derives the current KES period as `slot / slotsPerKESPeriod`, and
+an operational certificate expires once the periods elapsed since it was issued exceed `maxKESEvolutions`.
+
+In companion mode the bootstrap shifts genesis back by whole epochs and then catches up to wall clock, so the
+chain starts at a high slot number. At the mainnet `slotsPerKESPeriod` of `129600` that shift alone consumes a
+large share of the evolutions before the devnet produces its first real block, and the share grows with epoch
+length. The large period keeps a devnet inside KES period 0 for its whole life.
+
+The trade-off is that a DevKit devnet does not exercise KES rotation. Set both to mainnet-like values
+(`62` and `129600`) if that is what you want to test:
+
+```shell
+maxKESEvolutions=62
+slotsPerKESPeriod=129600
+```
+
+### stabilityWindowFactor
+
+When `securityParam` is left at `0`, DevKit derives it from the epoch length so that the stability window
+(`3k/f` slots) covers this fraction of the epoch:
+
+```
+securityParam = epochLength * activeSlotsCoeff * stabilityWindowFactor / 3
+```
+
+The default is `0.5`, half an epoch. The Haskell block producer can only check leadership for slots within
+`3k/f` of its chain tip, so a gap in block production longer than that (the host asleep, the container stopped)
+freezes the chain until it is reset. This factor times the epoch's wall-clock length is therefore the devnet's
+idle tolerance. Raising it buys tolerance without a longer epoch:
+
+```shell
+stabilityWindowFactor=0.7
+```
+
+Values up to about `0.7` are sound: `4k/f` must stay below the epoch length for the epoch nonce schedule, and
+the rewards calculation needs the stability window inside the epoch. Setting `securityParam` explicitly bypasses
+this derivation.
+### traceChainSyncClient
+
+Whether the node logs its chain-sync client (`TraceChainSyncClient`). Default `false`. Set to `true` to see why a
+node rejects a bootstrap chain during a Yano handover. It logs every header received from a peer, so expect a
+busier log on multi-node devnets.
+
+### peerSharing
+
+To enable or disable peer sharing. Default value is `true`.
+
+
+**Note:** More configurations can be found in `node.properties` file.

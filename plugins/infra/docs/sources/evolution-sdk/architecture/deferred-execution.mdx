@@ -1,0 +1,120 @@
+---
+title: Deferred Execution
+description: Why builders store programs instead of executing immediately
+---
+
+## Abstract
+
+Transaction builders store **program descriptions** (Effect values) rather than executing operations immediately. When you call `.payToAddress()` or `.collectFrom()`, the builder appends a ProgramStep to an immutable array. Execution happens later when `build()` is called, creating fresh state for each invocation. This separation between program description and execution enables safe builder reuse, compositional transaction patterns, and predictable state management.
+
+## Purpose and Scope
+
+This document explains why builders defer execution, how ProgramSteps are stored and executed, and the architectural benefits of treating builders as immutable values. It covers the program storage mechanism, fresh state creation per build, and execution sequencing.
+
+**Not covered**: Specific Effect-TS implementation details (see Effect documentation), coin selection algorithms (see provider layer), or transaction validation rules (see transaction guides).
+
+## Design Philosophy
+
+Traditional builders execute immediately: calling `.payToAddress()` mutates internal state right then. This creates a critical flaw—calling `build()` twice uses the same accumulated state. The second execution includes mutations from the first, making builder reuse unsafe.
+
+The architecture resolves this by storing ProgramSteps (Effect programs describing work) in an immutable array. Nothing executes until `build()` is called. Each `build()` creates fresh state, executes all stored programs sequentially, and returns an independent transaction. The builder itself never mutates—it's an immutable value holding program descriptions.
+
+## Program Storage and Execution
+
+The builder maintains an immutable array of ProgramSteps. Each builder method appends a new program without executing it:
+
+<Mermaid chart={`
+graph TB
+    subgraph Builder["[1] Builder Instance"]
+        Programs["ProgramStep[]<br/>immutable array"]
+    end
+    
+    subgraph Build1["[2] build() Call 1"]
+        State1["Fresh State<br/>RefTxBuilderState"]
+        Execute1[Execute Programs]
+        Result1[Transaction 1]
+        
+        State1 --> Execute1
+        Execute1 --> Result1
+    end
+    
+    subgraph Build2["[3] build() Call 2"]
+        State2["Fresh State<br/>RefTxBuilderState"]
+        Execute2[Execute Programs]
+        Result2[Transaction 2]
+        
+        State2 --> Execute2
+        Execute2 --> Result2
+    end
+    
+    Programs -.->|executed with| State1
+    Programs -.->|executed with| State2
+    
+    style Builder fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
+    style Programs fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#2c3e50
+    style Build1 fill:#e8f4f8,stroke:#2c3e50,stroke-width:2px
+    style Build2 fill:#e8f4f8,stroke:#2c3e50,stroke-width:2px
+    style State1 fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+    style State2 fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+    style Result1 fill:#2ecc71,stroke:#27ae60,stroke-width:4px,color:#ffffff
+    style Result2 fill:#2ecc71,stroke:#27ae60,stroke-width:4px,color:#ffffff
+`} />
+
+**[1] Builder Instance**: Immutable collection of ProgramSteps (Effect values). Never changes except by appending new programs.
+
+**[2] First build() Call**: Creates fresh `Ref<TxBuilderState>`, executes all programs sequentially, returns independent transaction.
+
+**[3] Second build() Call**: Creates new fresh `Ref<TxBuilderState>`, re-executes all programs, returns independent transaction. No state shared with first execution.
+
+## Execution Sequence
+
+Programs execute sequentially in append order. Each program can observe effects of previous programs within the same build cycle:
+
+<Mermaid chart={`
+sequenceDiagram
+    participant User
+    participant Builder
+    participant State as RefTxBuilderState
+    participant Provider
+
+    User->>Builder: build()
+    Builder->>State: [1] Ref.make(initialState)
+    
+    loop [2] For each ProgramStep
+        Builder->>State: Execute program 1<br/>Append output
+        Builder->>State: Execute program 2<br/>Query UTxOs
+        State->>Provider: Get available UTxOs
+        Provider-->>State: Return UTxOs
+        State->>State: Select inputs
+        Builder->>State: Execute program 3<br/>Attach script
+    end
+    
+    Builder->>State: [3] Ref.get(finalState)
+    Builder->>Builder: Assemble transaction
+    Builder-->>User: SignBuilder
+`} />
+
+**[1] Fresh State Creation**: `Ref.make(initialTxBuilderState)` creates mutable reference with empty arrays: `outputs: [], inputs: [], scripts: []`.
+
+**[2] Sequential Execution**: Programs execute in order appended. Later programs see state mutations from earlier programs (within this build only).
+
+**[3] Transaction Assembly**: Final state is read, transaction body constructed, witnesses prepared.
+
+## Integration Points
+
+Deferred execution integrates with other architectural layers:
+
+**Transaction Builder Methods**: All builder methods (`payToAddress`, `collectFrom`, `attachScript`, `readFrom`) create ProgramSteps and append to array. Methods return `this` for chaining. No execution occurs.
+
+**Effect-TS Runtime**: ProgramSteps are `Effect.Effect<void, TransactionBuilderError, TxContext>` values. The `build()` method provides `TxContext` (containing `Ref<TxBuilderState>`) and executes all effects sequentially using `Effect.all(programs, { concurrency: "unbounded" })`.
+
+**State Management**: Fresh state is provided via Effect context layers:
+- `TxContext`: `Ref<TxBuilderState>` for mutable transaction state
+- `PhaseContextTag`: `Ref<PhaseContext>` for build phase state machine
+- `ProtocolParametersTag`, `ChangeAddressTag`, `AvailableUtxosTag`: Immutable configuration
+
+## Related Topics
+
+- [Transaction Flow](/docs/architecture/transaction-flow) - How build, sign, submit phases enforce ordering
+- [Provider Layer](/docs/architecture/provider-layer) - UTxO queries during program execution
+- [Wallet Layer](/docs/architecture/wallet-layer) - Change address resolution and signing

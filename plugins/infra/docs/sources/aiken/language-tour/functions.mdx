@@ -1,0 +1,349 @@
+---
+title: "Functions"
+description: "Aiken is a functional programming language for Cardano smart contracts where functions are first-class values. Functions are defined using the fn keyword with typed arguments and an implicit return. Used to structure validator logic, build reusable libraries, and compose operations via the pipe operator, anonymous functions, and backpassing."
+difficulty: "beginner"
+keywords: ["fn", "functions", "anonymous functions", "pipe operator", "backpassing", "labeled arguments", "generics", "type variables", "first-class functions"]
+topics: ["functions", "fn", "pipe-operator", "backpassing", "anonymous-functions"]
+prerequisites: ["primitive-types", "variables-and-constants"]
+related: ["control-flow", "modules", "validators"]
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Functions
+
+## Defining functions
+
+### Named functions
+
+Named functions in Aiken are defined using the `fn{:ak}` keyword. Functions can have (typed) arguments, and always have a return type. Because in Aiken, pretty much everything is an expression, functions do not have an explicit _return_ keyword. Instead, they implicitly return whatever they evaluate to.
+
+```aiken
+fn add(x: Int, y: Int) -> Int {
+  x + y
+}
+
+fn multiply(x: Int, y: Int) -> Int {
+  x * y
+}
+```
+
+Functions are first class values and so can be assigned to variables, passed to
+other functions, or anything else you might do with any other data type with the exception of: being part of a data-type definition. We'll see more on that in the next section about [Custom Types](./custom-types).
+
+```aiken
+/// This function takes a function as an argument
+fn twice(f: fn(t) -> t, x: t) -> t {
+  f(f(x))
+}
+
+fn add_one(x: Int) -> Int {
+  x + 1
+}
+
+fn add_two(x: Int) -> Int {
+  twice(add_one, x)
+}
+```
+
+### Anonymous functions
+
+Anonymous functions can be defined with a similar syntax and assigned to an identifier using a let-binding. The identifier then serves as a name to call and pass the function around.
+
+```aiken
+fn run() {
+  let add = fn(x, y) { x + y }
+
+  add(1, 2)
+}
+```
+
+<Callout type="warning">
+One cannot define a _recursive anonymous function_. If you need recursion, make it a top-level definition.
+</Callout>
+
+## Labeled arguments
+
+When functions take several arguments it can be difficult for the user to
+remember what the arguments are, and what order they are expected in.
+
+To help with this Aiken supports _labeled arguments_, where function arguments
+are given by labels instead of position.
+
+Take this function that replaces sections of a string:
+
+```aiken
+fn replace(self: String, pattern: String, replacement: String) {
+  // ...
+}
+```
+
+When calling the function, it is possible to use the defined labels to pass the
+arguments:
+
+```aiken
+replace(self: @"A,B,C", pattern: @",", replacement: @" ")
+
+// Labeled arguments can be given in any order
+replace(pattern: @",", replacement: @" ", self: @"A,B,C")
+
+// Positional arguments and labels can be mixed
+replace(@"A,B,C", pattern: @",", replacement: @" ")
+```
+
+The use of argument labels can allow a function to be called in an expressive,
+sentence-like manner, while still providing a function body that is readable
+and clear in intent.
+
+### Overriding default labels
+
+Note that, when defining a function, it is possible to override the default
+label to use different names (e.g. a shorter name) in the function body. For
+example:
+
+```aiken
+fn insert(self: List<(String, Int)>, key k: String, value v: Int) {
+  // ... do something with `k` and `v`
+}
+```
+
+Externally, the function can still be called using `key` and `value` as
+labelled, but in the function body, they are named `k` and `v` for conciseness.
+
+## Type annotations
+
+Function arguments are normally annotated with their type, and the
+compiler will check these annotations and ensure they are correct.
+
+```aiken
+fn identity(x: some_type) -> some_type {
+  x
+}
+
+fn inferred_identity(x) {
+  x
+}
+```
+
+The Aiken compiler can infer all the types of Aiken code without annotations
+and both annotated and unannotated code is equally safe. It's considered a
+best practice to always write type annotations for your functions as they
+provide useful documentation, and they encourage thinking about types as code
+is being written.
+
+
+## Documentation
+
+You may add user facing documentation in front of function definitions with a
+documentation comment `///{:ak}` per line. Markdown is supported and this text
+will be included with the module's entry in generated HTML documentation.
+
+```aiken
+/// Always **true**.
+fn always_true(_) -> Bool {
+  True
+}
+```
+
+<Callout type="info">
+Unlike constants and data-types definitions, functions are exported and appear
+in generated documentation in the same order they are defined. This enables one
+to group similar functions together to build a coherent module API.
+</Callout>
+
+### Section headings
+
+Library modules generally export several (many) functions which can rapidly
+becomes overwhelming. Hence, Aiken provides means of organizing functions by
+allowing and processing section headings. A section headings is a double-slash
+comment `//{:ak}` whose payload starts with a markdown heading (`#{:md}`,
+`##{:md}`, `###{:md}`...).
+
+Such comment headings can be interspersed in the module to indicate the
+documentation generation tool to create a new heading in the sidebar as well as
+in the function main content. The size and margins surrounding the heading
+depends on its importance (`#{:md}` being the most important).
+
+So for example:
+
+```aiken
+// ## Constructing
+
+/// Construct a new `MyType` holding a value.
+fn new(value) -> MyType {}
+
+/// Construct an empty `MyType`.
+fn empty() -> MyType {}
+
+// ## Inspecting
+
+/// Obtain the value, if any, at the given key.
+fn get(self, key) -> Option <value> {}
+```
+
+## Advanced
+
+<Callout emoji="💡">
+If you're just **getting started** with Aiken, you can probably **skip** the
+following section as it describes some more function usages and behaviors. Feel
+free to come back to it in due time.
+</Callout>
+
+### Argument destructuring
+
+It is possible to use [destructuring](./custom-types#destructuring) directly on
+function arguments. It is particularly handy to pull fields out of records
+while keeping the code concise:
+
+```aiken
+use aiken/math
+
+pub type Point {
+  x: Int,
+  y: Int,
+}
+
+fn distance(Point { x, y }: Point, Point { x: x_r, y: y_r }: Point) -> Option<Int> {
+  math.sqrt(math.pow2(x_r - x) + math.pow2(y_r - y))
+}
+```
+
+### Function capturing
+
+There is a shorthand syntax for creating anonymous functions that take one
+argument and call another function. The `_` is used to indicate where the
+argument should be passed.
+
+```aiken
+fn add(x, y) {
+  x + y
+}
+
+fn run() {
+  let add_one = add(1, _)
+  add_one(2)
+}
+```
+
+The function capture syntax is often used with the [pipe operator](./control-flow#piping) to create
+a series of transformations on some data.
+
+```aiken
+fn add(x: Int , y: Int ) -> Int {
+  x + y
+}
+
+fn run() {
+  // This is the same as add(add(add(1, 3), 6), 9)
+  1
+    |> add(_, 3)
+    |> add(_, 6)
+    |> add(_, 9)
+}
+```
+
+In fact, this usage is so common that there is a special shorthand for it.
+
+```aiken
+fn run() {
+  // This is the same as the example above
+  1
+    |> add(3)
+    |> add(6)
+    |> add(9)
+}
+```
+
+The pipe operator will first check to see if the left hand value could be used
+as the first argument to the call, e.g. `a |> b(1, 2)` would become `b(a, 1, 2)`.
+
+If not it falls back to calling the result of the right hand side as a function
+, e.g. `b(1, 2)(a)`.
+
+### Generic functions
+
+At times you may wish to write functions that are generic over multiple types.
+For example, consider a function that consumes any value and returns a list
+containing two of the value that was passed in. This can be expressed in Aiken
+like this:
+
+```aiken
+fn list_of_two(my_value: a) -> List<a> {
+  [my_value, my_value]
+}
+```
+
+Here the type variable `a` is used to represent any possible type.
+
+You can use any number of different type variables in the same function. This
+function declares type variables `a` and `b`.
+
+```aiken
+fn multi_result(x: a, y: b, condition: Bool) -> Result<a, b> {
+  when condition is {
+    True -> Ok(x)
+    False -> Error(y)
+  }
+}
+```
+
+Type variables can be named anything and may contain underscores (_), but the names must be lowercase. Like other type annotations, they are completely optional,
+but using them may make it easier to understand the code.
+
+### Backpassing `←`
+
+Functions that take a continuation (i.e. callback with a single argument) can be invoked using the backpassing syntax:
+
+```aiken
+let x <- foo()
+
+// which is equivalent to writing:
+
+foo(fn(x) {
+
+})
+```
+
+This is particularly well suited for functions that operate over abstractions
+such as `Option` or `Fuzzer` and that provide an API of primitives to
+manipulate them. For example, let's consider the following small API over a
+`Fuzzer`:
+
+```aiken
+fn constant(a) -> Fuzzer<a>
+fn bool() -> Fuzzer<Bool>
+fn map(Fuzzer<a>, fn(a) -> b) -> Fuzzer<b>
+fn and_then(Fuzzer<a>, fn(a) -> Fuzzer<b>) -> Fuzzer<b>
+```
+
+And let's look at an excerpt constructing a pipeline using those primitives _without backpassing_. Something along the lines of:
+
+```aiken
+pub fn option(fuzz_a: Fuzzer<a>) -> Fuzzer<Option<a>> {
+  bool()
+    |> and_then(
+         fn(predicate) {
+           if predicate {
+             fuzz_a |> map(Some)
+           } else {
+             constant(None)
+           }
+         },
+       )
+}
+```
+
+A bit involved. Here, we can see how `and_then` is used to step through the bool's `Fuzzer`. This can be re-written more simply with backpassing as:
+
+```aiken
+pub fn option(fuzz_a: Fuzzer<a>) -> Fuzzer<Option<a>> {
+  let predicate <- and_then(bool())
+  if predicate {
+   fuzz_a |> map(Some)
+  } else {
+    constant(None)
+  }
+}
+```
+
+Which reads a lot better! In fact, this technique becomes even more helpful when there are a lot of nested callbacks as it _flattens_ them into a sequence of backpassed let-bindings.

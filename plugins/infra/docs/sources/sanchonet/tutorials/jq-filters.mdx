@@ -1,0 +1,205 @@
+---
+sidebar_label: Useful jq filters
+title: Useful jq filters
+sidebar_position: 11
+slug: /tutorials/jq-filters
+---
+
+'_jq is like sed for JSON data - you can use it to slice, filter, map, and transform
+structured data with the same ease that sed, awk, grep and friends let you play with text._'
+
+[Install jq](https://jqlang.github.io/jq/download/).
+
+Below you will find some useful jq filters to parse the governance state.
+
+### Show governance actions that will expire at the end of the current epoch:
+
+```
+current_epoch=$(cardano-cli query tip --testnet-magic 4 | jq .epoch)
+```
+```
+cardano-cli conway query gov-state --testnet-magic 4 \
+    | jq --argjson epoch "$current_epoch" '.proposals
+    | to_entries[]
+    | select(.value.expiresAfter == $epoch)'
+
+```
+
+### Show governance actions that were proposed in the current epoch:
+
+```
+current_epoch=$(cardano-cli query tip --testnet-magic 4 | jq .epoch)
+```
+```
+cardano-cli conway query gov-state --testnet-magic 4 \
+    | jq -r --argjson epoch "$current_epoch" '.proposals
+    | to_entries[]
+    | select(.value.proposedIn == $epoch)'
+```
+
+### Sort governance actions by the number of DRep votes:
+
+```
+cardano-cli conway query gov-state --testnet-magic 4 | jq -r '
+  .proposals
+  | to_entries[]
+  | {govActionId: .value.actionId, type: .value.proposalProcedure.govAction.tag, drepVoteCount: (.value.dRepVotes | keys | length)}
+  ' | jq -s 'sort_by(.voteCount) | reverse[]'
+
+```
+
+### Sort by the number of SPO votes:
+
+```
+cardano-cli conway query gov-state --testnet-magic 4 | jq -r '
+  .proposals
+  | to_entries[]
+  | {govActionId: .value.actionId, type: .value.proposalProcedure.govAction.tag, spoVoteCount: (.value.stakePoolVotes | keys | length)}
+  ' | jq -s 'sort_by(.voteCount) | reverse[]'
+```
+
+### Sort by the number of CC votes:
+
+```
+cardano-cli conway query gov-state --testnet-magic 4 | jq -r '
+  .proposals
+  | to_entries[]
+  | {govActionId: .value.actionId, type: .value.proposalProcedure.govAction.tag, ccVoteCount: (.value.committeeVotes | keys | length)}
+  ' | jq -s 'sort_by(.voteCount) | reverse[]'
+```
+
+### Filter actions that expire within the current and the next two epochs, including information about all roles' votes, sorted by expiration epoch:
+
+```
+current_epoch=$(cardano-cli query tip --testnet-magic 4 | jq .epoch)
+```
+
+```
+cardano-cli conway query gov-state --testnet-magic 4 | jq -r --argjson current_epoch "$current_epoch" '
+  .proposals
+  | to_entries[]
+  | select(.value.expiresAfter >= ($current_epoch | tonumber) and .value.expiresAfter <= ($current_epoch + 2))
+  | {
+      govActionId: .value.actionId,
+      type: .value.proposalProcedure.govAction.tag,
+      expiresAfter: .value.expiresAfter,
+      committeeVotesCount: (.value.committeeVotes | length),
+      dRepVotesCount: (.value.dRepVotes | length),
+      stakePoolVotesCount: (.value.stakePoolVotes | length)
+    }
+  ' | jq -s 'sort_by(.expiresAfter)'
+
+```
+
+### Show actions for which a specific DRep key has voted, indicating the DRep's vote and the total number of votes received for this action:
+
+Replace `keyHash-0e7d17c8a917eaee361924d6471331128b3e0de5323f54d70dd0c8c9` with the hex DRep ID of your interest, if it is a script based DRRep, make sure 
+to use `scriptHash` instead of `keyHash` prefix.
+
+```
+cardano-cli conway query gov-state --testnet-magic 4 | jq -r --arg dRepKey "keyHash-0e7d17c8a917eaee361924d6471331128b3e0de5323f54d70dd0c8c9" '
+  .proposals
+  | to_entries[]
+  | select(.value.dRepVotes[$dRepKey] != null)
+  | {
+      govActionId: .value.actionId,
+      type: .value.proposalProcedure.govAction.tag,
+      dRepVote: .value.dRepVotes[$dRepKey],
+      expiresAfter: .value.expiresAfter,
+      committeeVotesCount: (.value.committeeVotes | length),
+      dRepVotesCount: (.value.dRepVotes | length),
+      stakePoolVotesCount: (.value.stakePoolVotes | length)
+    }
+  '
+```
+
+### Show actions where the given DRep key has not voted yet:
+
+Replace `058b60ead63f667c0ff5b40e269dd1f05ce3a804256735ad4eddce20` with the hex DRep ID of your interest.
+
+```
+cardano-cli conway query gov-state --testnet-magic 4 | jq -r --arg dRepKey "keyHash-0e7d17c8a917eaee361924d6471331128b3e0de5323f54d70dd0c8c9" '
+  .proposals
+  | to_entries[]
+  | select(.value.dRepVotes[$dRepKey] == null)
+  | {
+      govActionId: .value.actionId,
+      type: .value.proposalProcedure.govAction.tag,
+      expiresAfter: .value.expiresAfter,
+      committeeVotesCount: (.value.committeeVotes | length),
+      dRepVotesCount: (.value.dRepVotes | length),
+      stakePoolVotesCount: (.value.stakePoolVotes | length)
+    }
+  '
+```
+
+### Show the total number of 'yes', 'no', and 'abstain' votes for a given governance action ID:
+
+Replace "1e08794a48b71ec7e48d3190c7c30455f9538d0e54f4087915ff201167334bc7" and "0" and  with the governance action ID and index of your interest.
+
+
+and .value.actionId.govActionIx == $actionIndex
+```
+cardano-cli conway query gov-state --testnet-magic 4 \
+  | jq -r --arg actionTxId "1e08794a48b71ec7e48d3190c7c30455f9538d0e54f4087915ff201167334bc7" --arg actionIndex "0" ' .proposals
+  | to_entries[]
+  | select(.value.actionId.txId == $actionTxId and .value.actionId.govActionIx == ($actionIndex | tonumber))
+  | {
+      govActionId: .value.actionId,
+      dRepVoteYesCount: (.value.dRepVotes | with_entries(select(.value == "VoteYes")) | length),
+      dRepVoteNoCount: (.value.dRepVotes | with_entries(select(.value == "VoteNo")) | length),
+      dRepAbstainCount: (.value.dRepVotes | with_entries(select(.value == "Abstain")) | length),
+      stakePoolVoteYesCount: (.value.stakePoolVotes | with_entries(select(.value == "VoteYes")) | length),
+      stakePoolVoteNoCount: (.value.stakePoolVotes | with_entries(select(.value == "VoteNo")) | length),
+      stakePoolAbstainCount: (.value.stakePoolVotes | with_entries(select(.value == "Abstain")) | length),
+      committeeVoteYesCount: (.value.committeeVotes | with_entries(select(.value == "VoteYes")) | length),
+      committeeVoteNoCount: (.value.committeeVotes | with_entries(select(.value == "VoteNo")) | length),
+      committeeAbstainCount: (.value.committeeVotes | with_entries(select(.value == "Abstain")) | length)
+    }
+'
+```
+
+### Show the active `treasury withdrawal` governance actions and their current vote count:
+
+```
+current_epoch=$(cardano-cli query tip --testnet-magic 4 | jq .epoch)
+
+cardano-cli conway query gov-state --testnet-magic 4 | jq -r --arg currentEpoch "$current_epoch" '
+  .proposals
+  | to_entries[]
+  | select(.value.expiresAfter > ($currentEpoch | tonumber) and .value.proposalProcedure.govAction.tag == "TreasuryWithdrawals")
+  | { type: .value.proposalProcedure.govAction.tag, 
+      govActionId: .value.actionId,
+      expiresAfter: .value.expiresAfter,
+      dRepVoteYesCount: (.value.dRepVotes | with_entries(select(.value == "VoteYes")) | length),
+      dRepVoteNoCount: (.value.dRepVotes | with_entries(select(.value == "VoteNo")) | length),
+      dRepAbstainCount: (.value.dRepVotes | with_entries(select(.value == "Abstain")) | length),
+      committeeVoteYesCount: (.value.committeeVotes | with_entries(select(.value == "VoteYes")) | length),
+      committeeVoteNoCount: (.value.committeeVotes | with_entries(select(.value == "VoteNo")) | length),
+      committeeAbstainCount: (.value.committeeVotes | with_entries(select(.value == "Abstain")) | length)
+    }
+' | jq -s 'sort_by(.expiresAfter)'
+
+```
+
+### Show the active `update committee` governance actions and their current vote count:
+
+```
+current_epoch=$(cardano-cli query tip --testnet-magic 4 | jq .epoch)
+
+cardano-cli conway query gov-state --testnet-magic 4 | jq -r --arg currentEpoch "$current_epoch" '
+  .proposals
+  | to_entries[]
+  | select(.value.expiresAfter > ($currentEpoch | tonumber) and.value.proposalProcedure.govAction.tag == "UpdateCommittee")
+  | { type: .value.proposalProcedure.govAction.tag,
+      govActionId: .value.actionId,
+      expiresAfter: .value.expiresAfter,
+      dRepVoteYesCount: (.value.dRepVotes | with_entries(select(.value == "VoteYes")) | length),
+      dRepVoteNoCount: (.value.dRepVotes | with_entries(select(.value == "VoteNo")) | length),
+      dRepAbstainCount: (.value.dRepVotes | with_entries(select(.value == "Abstain")) | length),
+      stakePoolVoteYesCount: (.value.stakePoolVotes | with_entries(select(.value == "VoteYes")) | length),
+      stakePoolVoteNoCount: (.value.stakePoolVotes | with_entries(select(.value == "VoteNo")) | length),
+      stakePoolAbstainCount: (.value.stakePoolVotes | with_entries(select(.value == "Abstain")) | length)
+    }
+' | jq -s 'sort_by(.expiresAfter)'
+```

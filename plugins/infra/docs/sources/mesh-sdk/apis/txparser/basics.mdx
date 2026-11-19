@@ -1,0 +1,384 @@
+---
+title: "Parser Basics"
+description: "Parse Cardano transactions from CBOR hex and rebuild them with modifications."
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+`TxParser` converts transaction CBOR hex into a `MeshTxBuilderBody` object, enabling you to inspect, modify, and rebuild transactions. This is useful for debugging, analyzing on-chain transactions, and implementing transaction modification workflows.
+
+**When to use this:**
+- Inspecting transaction structure for debugging
+- Analyzing transactions from the blockchain
+- Modifying and rebuilding existing transactions
+- Implementing transaction amendment workflows
+- Converting between transaction formats
+
+## Quick Start
+
+```tsx
+import { BlockfrostProvider, TxParser } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+// Initialize parser with serializer and optional fetcher
+const fetcher = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, fetcher);
+
+// Parse a transaction CBOR
+const txHex = "84a400818258..."; // Transaction CBOR hex
+const utxos = await wallet.getUtxos();
+
+const txBuilderBody = await txParser.parse(txHex, utxos);
+
+// Inspect parsed data
+console.log("Inputs:", txBuilderBody.inputs);
+console.log("Outputs:", txBuilderBody.outputs);
+console.log("Fee:", txBuilderBody.fee);
+```
+
+## API Reference
+
+### Constructor
+
+Create a new TxParser instance.
+
+```tsx
+new TxParser(serializer: IMeshTxSerializer, fetcher?: IFetcher)
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `serializer` | `IMeshTxSerializer` | Yes | Serializer for parsing (CSLSerializer) |
+| `fetcher` | `IFetcher` | No | Provider for fetching missing UTxO data |
+
+### parse()
+
+Parse a transaction CBOR hex into a MeshTxBuilderBody.
+
+```tsx
+await txParser.parse(txHex: string, providedUtxos?: UTxO[]): Promise<MeshTxBuilderBody>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `txHex` | `string` | Yes | Transaction CBOR hex |
+| `providedUtxos` | `UTxO[]` | No | Input UTxO information |
+
+**Returns:** `Promise<MeshTxBuilderBody>` - Parsed transaction body
+
+### toTester()
+
+Convert the parsed transaction to a TxTester for unit testing.
+
+```tsx
+txParser.toTester(): TxTester
+```
+
+**Returns:** `TxTester` - Test utilities for the parsed transaction
+
+## Common Patterns
+
+### Initialize TxParser
+
+Set up the parser with required dependencies:
+
+```tsx
+import { BlockfrostProvider, TxParser } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+// With fetcher (recommended - auto-fetches missing UTxO data)
+const fetcher = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, fetcher);
+
+// Without fetcher (must provide all UTxO data manually)
+const txParserNoFetch = new TxParser(serializer);
+```
+
+### Parse and Inspect Transaction
+
+Parse a transaction and examine its structure:
+
+```tsx
+import { BlockfrostProvider, TxParser } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+const fetcher = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, fetcher);
+
+// Get the transaction CBOR (from building or from chain)
+const txHex = "84a400818258...";
+
+// Provide UTxOs for inputs (or let fetcher get them)
+const utxos = await wallet.getUtxos();
+
+// Parse the transaction
+const txBody = await txParser.parse(txHex, utxos);
+
+// Inspect the parsed structure
+console.log("=== Transaction Analysis ===");
+console.log("Inputs:", txBody.inputs.length);
+console.log("Outputs:", txBody.outputs.length);
+console.log("Fee:", txBody.fee);
+console.log("Mints:", txBody.mints?.length || 0);
+console.log("Validity:", {
+  from: txBody.validityRange?.invalidBefore,
+  to: txBody.validityRange?.invalidHereafter,
+});
+
+// Examine specific inputs
+txBody.inputs.forEach((input, i) => {
+  console.log(`Input ${i}:`, input.txIn.txHash, "#", input.txIn.txIndex);
+});
+
+// Examine outputs
+txBody.outputs.forEach((output, i) => {
+  console.log(`Output ${i}:`, output.address, output.amount);
+});
+```
+
+### Rebuild Transaction with Modifications
+
+Parse a transaction, modify it, and rebuild:
+
+```tsx
+import {
+  BlockfrostProvider,
+  TxParser,
+  MeshTxBuilder
+} from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+const fetcher = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, fetcher);
+
+// Parse original transaction
+const originalTxHex = "84a400818258...";
+const utxos = await wallet.getUtxos();
+const txBody = await txParser.parse(originalTxHex, utxos);
+
+// Modify the transaction body
+txBody.outputs.push({
+  address: "addr_test1qz...",
+  amount: [{ unit: "lovelace", quantity: "2000000" }],
+});
+
+// Rebuild with MeshTxBuilder
+const txBuilder = new MeshTxBuilder({
+  fetcher,
+  verbose: true,
+});
+
+const newTxHex = await txBuilder.complete(txBody);
+
+// Sign and submit the modified transaction
+const signedTx = await wallet.signTx(newTxHex);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+### Parse from Blockchain
+
+Fetch and parse a transaction from the blockchain:
+
+```tsx
+import { BlockfrostProvider, TxParser } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, provider);
+
+// Fetch transaction from blockchain
+const txHash = "abc123...";
+const txInfo = await provider.fetchTxInfo(txHash);
+
+// Parse the transaction (fetcher auto-gets UTxO data)
+const txBody = await txParser.parse(txInfo.tx.cborHex);
+
+// Analyze the transaction
+console.log("Transaction:", txHash);
+console.log("Block:", txInfo.block);
+console.log("Inputs:", txBody.inputs.length);
+console.log("Outputs:", txBody.outputs.length);
+```
+
+### Convert to Unit Tester
+
+Parse and create a tester for validation:
+
+```tsx
+import { BlockfrostProvider, TxParser, MeshValue } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+const fetcher = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, fetcher);
+
+// Parse transaction
+const txHex = "84a400818258...";
+const utxos = await wallet.getUtxos();
+await txParser.parse(txHex, utxos);
+
+// Convert to tester
+const txTester = txParser.toTester();
+
+// Run tests
+txTester
+  .allOutputs()
+  .outputsValue(
+    MeshValue.fromAssets([{ unit: "lovelace", quantity: "5000000" }])
+  );
+
+// Check results
+const passed = txTester.success();
+const errors = txTester.errors();
+
+console.log("Tests passed:", passed);
+if (!passed) {
+  console.log("Errors:", errors);
+}
+```
+
+## Complete Example
+
+This example demonstrates parsing, analyzing, and modifying a transaction:
+
+```tsx
+import {
+  BlockfrostProvider,
+  TxParser,
+  MeshTxBuilder,
+  MeshValue
+} from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, provider);
+
+// Analyze a transaction
+async function analyzeTransaction(txHex: string, utxos?: any[]) {
+  const txBody = await txParser.parse(txHex, utxos);
+
+  return {
+    inputCount: txBody.inputs.length,
+    outputCount: txBody.outputs.length,
+    fee: txBody.fee,
+    hasMints: (txBody.mints?.length || 0) > 0,
+    hasMetadata: !!txBody.metadata,
+    totalInputValue: calculateTotalValue(txBody.inputs),
+    totalOutputValue: calculateTotalValue(txBody.outputs),
+  };
+}
+
+// Modify a transaction to add an output
+async function addOutputToTransaction(
+  txHex: string,
+  utxos: any[],
+  newOutput: { address: string; amount: any[] }
+) {
+  const txBody = await txParser.parse(txHex, utxos);
+
+  // Add new output
+  txBody.outputs.push(newOutput);
+
+  // Rebuild
+  const txBuilder = new MeshTxBuilder({
+    fetcher: provider,
+    verbose: true,
+  });
+
+  return await txBuilder.complete(txBody);
+}
+
+// Test a transaction's structure
+async function testTransaction(txHex: string, utxos: any[]) {
+  await txParser.parse(txHex, utxos);
+  const tester = txParser.toTester();
+
+  // Run validation tests
+  tester
+    .allInputs()
+    .inputsValue(
+      MeshValue.fromAssets([{ unit: "lovelace", quantity: "1000000" }])
+    );
+
+  tester
+    .allOutputs()
+    .outputsValue(
+      MeshValue.fromAssets([{ unit: "lovelace", quantity: "500000" }])
+    );
+
+  return {
+    passed: tester.success(),
+    errors: tester.errors(),
+  };
+}
+
+// Helper to calculate total value
+function calculateTotalValue(items: any[]) {
+  const totals: Record<string, bigint> = {};
+
+  items.forEach((item) => {
+    const amount = item.amount || item.txIn?.amount || [];
+    amount.forEach((asset: any) => {
+      const current = totals[asset.unit] || 0n;
+      totals[asset.unit] = current + BigInt(asset.quantity);
+    });
+  });
+
+  return totals;
+}
+
+// Usage
+async function main() {
+  const txHex = "84a400818258...";
+  const utxos = await wallet.getUtxos();
+
+  // Analyze
+  const analysis = await analyzeTransaction(txHex, utxos);
+  console.log("Analysis:", analysis);
+
+  // Test
+  const testResult = await testTransaction(txHex, utxos);
+  console.log("Test result:", testResult);
+
+  // Modify
+  const modifiedTx = await addOutputToTransaction(txHex, utxos, {
+    address: "addr_test1qz...",
+    amount: [{ unit: "lovelace", quantity: "2000000" }],
+  });
+  console.log("Modified transaction:", modifiedTx);
+}
+```
+
+## Troubleshooting
+
+### "Missing UTxO information" error
+- Provide UTxOs via the `providedUtxos` parameter
+- Or configure a fetcher to auto-retrieve missing data
+- Transaction CBOR only contains hashes, not full UTxO data
+
+### "Failed to parse CBOR" error
+- Ensure the hex string is valid transaction CBOR
+- Check that it's a complete transaction, not just a body
+
+### "Serializer error" error
+- Make sure you're using CSLSerializer from @meshsdk/core-csl
+- Verify the serializer is properly initialized
+
+### "Cannot fetch UTxO" error
+- Check your provider API key is valid
+- Verify network connectivity
+- The UTxO may have been spent
+
+## Related
+
+- <Link href="/apis/txparser/txtester">Unit Testing</Link> - Test transaction logic
+- <Link href="/apis/txbuilder">Transaction Builder</Link> - Build transactions
+- <Link href="/apis/data">Data Types</Link> - Working with Cardano data

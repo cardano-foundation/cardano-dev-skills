@@ -1,0 +1,686 @@
+---
+title: "Custom Types"
+description: "Aiken is a functional programming language for Cardano smart contracts with a strong static type system. Custom types are named collections of fields defined with the type keyword, supporting records, enums, generics, and algebraic data types — similar to structs and enums in Rust. Used to define datums, redeemers, and any structured data validators need to process on-chain."
+difficulty: "beginner"
+keywords: ["type", "custom types", "records", "enums", "constructors", "algebraic data types", "generics", "destructuring", "opaque types", "Data", "datum", "redeemer"]
+topics: ["custom-types", "records", "enums", "algebraic-data-types", "generics"]
+prerequisites: ["primitive-types", "functions"]
+related: ["control-flow", "validators", "primitive-types"]
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Custom types
+
+## Defining custom types
+
+### Basics
+
+Aiken's custom types are named collections of keys and/or values. They are
+similar to objects in object-oriented languages, though they don't have
+methods.
+
+Custom types are defined with the `type{:ak}` keyword. They may contain named
+fields, or not; but they cannot mix.
+
+```aiken
+// With named fields
+type Datum {
+  Datum { signer: ByteArray, count: Int }
+}
+
+// With unnamed fields
+type DatumNameless {
+  DatumNameless(ByteArray, Int)
+}
+```
+
+Here we have defined two custom types called `Datum{:ak}` and `DatumNameless{:ak}` respectively.
+
+The constructor of `Datum{:ak}` is called `Datum{:ak}` and it has two fields: A
+`signer{:ak}` field which is a `ByteArray{:ak}`, and a `count{:ak}` field which
+is an `Int{:ak}`. Likewise, the constructor of `DatumNameless{:ak}` also has two fields
+of types `ByteArray{:ak}` and `Int{:ak}`.
+
+Once defined the custom type can be used in functions to create values by calling their constructors.
+
+```aiken
+fn datums() {
+  // Named fields can be given in any order
+  let named_1 = Datum { signer: #[0xAA, 0xBB], count: 2001 }
+  let named_2 = Datum { count: 1805, signer: #[0xAA, 0xCC] }
+
+  // Nameless fields are given as positional arguments
+  let nameless_1 = DatumNameless(#[0xAA, 0xBB], 2001)
+
+  //Event-named fields can be given as positional arguments.
+  let named_3 = Datum(#[0xAA, 0xBB], 2001)
+
+  (named_1, named_2, nameless_1, named_3)
+}
+```
+
+### Shorthand notation
+
+Because single constructors are quite common, there exists a special shorthand
+notation when the type and the constructor have the same name. So instead of
+the above, one can write:
+
+```aiken
+type Datum {
+  signer: ByteArray,
+  count: Int
+}
+```
+
+These two notations (with or without the constructor) are synonyms. With the
+shorthand, we implicitly indicate that there's a single constructor named
+`Datum` which can be used for constructing values of type `Datum`, or can also
+be used when destructuring (see below).
+
+### Multiple constructors
+
+Custom types in Aiken can be defined with multiple constructors (a.k.a variants), making them a
+way of modeling data that can be one of a few different variants.
+
+We've already seen custom types with multiple constructors in the Language
+Tour like [`Bool{:ak}`](./primitive-types#bool) or [`Option{:ak}`](./primitive-types#option).
+
+Aiken's built-in `Bool` type is defined like this:
+
+```aiken
+/// A Bool is a value that is either `True` or `False`
+type Bool {
+  False
+  True
+}
+```
+
+It's a simple custom type with constructors that takes no arguments at all! Use
+it to answer yes/no questions and to indicate whether something is `True{:ak}`
+or `False{:ak}`.
+
+The records created by different constructors for a custom type can contain
+different values. For example, a `User{:ak}` custom type could have a `LoggedIn`
+constructor that creates records with a name, and a `Guest` constructor which
+creates records without any contained values.
+
+```aiken
+type User {
+  LoggedIn { username: ByteArray }  // A logged in user
+  Guest // A guest user with no details
+}
+```
+
+```aiken
+let user1 = LoggedIn { username: "Alice" }
+let user2 = LoggedIn { username: "Bob" }
+let visitor = Guest
+```
+
+### Generics
+
+Custom types can be parameterized with other types, making their contents
+variable. We've seen that with the [`Option{:ak}`](./primitive-types#option).
+
+Let's consider another example with a `Box{:ak}` type, which is a simple record that
+holds a single value.
+
+```aiken
+type Box<inner_type> {
+  Box(inner: inner_type)
+}
+```
+
+The type of the field `inner{:ak}` is `inner_type{:ak}`, which is a parameter of the `Box{:ak}`
+type. If it holds an `Int{:ak}` the box's type is `Box<Int>{:ak}`, if it holds a string the
+box's type is `Box<ByteArray>{:ak}`.
+
+```aiken
+fn foo() {
+  let a = Box(420) // type is Box<Int>
+  let b = Box("That's my ninja way!") // type is Box<ByteArray>
+}
+```
+
+## Inspecting custom types
+
+### Named accessors
+
+If a custom type **has only one constructor** and **named fields** they can be
+accessed using the _dot_ symbol (`.{:ak}`), followed by the name of the field.
+
+For example, considering a type `Dog`:
+
+```aiken
+type Dog {
+  name: ByteArray,
+  cuteness: Int,
+  age: Int,
+}
+```
+
+We can access any of its fields using `.name{:ak}`, `.cuteness{:ak}` and
+`.age{:ak}` respectively.
+
+```aiken
+let dog = Dog { name: "bob", cuteness: 2001, age: 6 }
+dog.name // This returns "bob"
+dog.cuteness // This returns 2001
+dog.age // This returns 6
+```
+
+### Destructuring
+
+Values can be _destructured_ in Aiken. Destructuring is the opposite of
+constructing a value and uses a similar syntax albeit reversed. When
+**constructing**, constructors and fields appears on the **right-hand side** of
+an assignment. When **destructuring**, they appear on the **left-hand side**.
+
+To keep rolling with our `Dog{:ak}` example, we have the following equivalence:
+
+```aiken
+// Constructing
+let dog = Dog { name: "bob", cuteness: 2001, age: 6 }
+
+// Destructuring
+let Dog { name, cuteness, age } = dog
+name == "bob" // True
+cuteness == 2001 // True
+age == 6 // True
+
+// Equivalent to
+let name = dog.name
+let cuteness = dog.cuteness
+let age = dog.age
+```
+
+As you can see, the second expression introduces three new bindings in scope
+for `name{:ak}`, `cuteness{:ak}` and `dog{:ak}` respectively. Destructuring
+works here because the associated type has a single constructor and the
+identifiers we introduce have the same names as the fields.
+
+#### (Re)naming fields
+
+If needed, we can also rename fields using a colon symbol (`:{:ak}`), like
+so:
+
+```aiken
+// Destructuring
+let Dog { name: its_name, cuteness, age: its_age } = dog
+its_name == "bob" // True
+its_age == 6 // True
+```
+
+Note that we can also destructure constructors whose fields are nameless by
+introducing identifiers for each of the fields. Like for constructing, when
+treated as nameless fields, the arguments are positional.
+
+```aiken
+// Destructuring nameless
+let Dog(name, cuteness, age) = dog
+name == "bob" // True
+cuteness == 2001 // True
+age == 6 // True
+
+// Destructuring nameless, arguments swapped.
+let Dog(age, name, cuteness) = dog
+age == "bob" // Confusing, but True
+name == 2001 // Confusing, but True
+cuteness == 6 // Confusing, but True
+```
+
+### Pattern-matching
+
+For nameless fields, one must resort to _pattern-matching_ using the `when
+*expr* is{:ak}` keywords. This syntax allows the inspection of a value following the
+various branches defined by a type, ensuring that all possible paths are
+properly handled.  Said differently, it is like asking the compiler "If the
+data has this shape then do that", for all possible shapes.
+
+Recall our `User{:ak}` type from before?
+
+```aiken
+type User {
+  LoggedIn { username: ByteArray }
+  Guest
+}
+```
+
+Let's write a function `get_name{:ak}` that pulls out the name of a `User{:ak}`:
+
+```aiken
+fn get_name(user: User) -> ByteArray {
+  when user is {
+    LoggedIn { username } -> username
+    Guest -> "Guest user"
+  }
+}
+```
+
+The `when *expr* is{:ak}` block forces us to exhaustively handle every
+constructor in the type definition.
+
+#### Wildcard
+
+Patterns always need to be complete, but enumerating every single fields or
+constructor can sometime be cumbersome. For these situations, Aiken allows the
+use of wildcards.
+
+A wildcard is like a fallback pattern, denoted `_{:ak}` and it can be used in place
+of a pattern to match any remaining patterns. For example:
+
+```aiken
+fn get_name(user: User) -> ByteArray {
+  when user is {
+    LoggedIn { username } -> username
+    _ -> "Guest user"
+  }
+}
+```
+
+Note that wildcards can also be named. And generally speaking, any identifier
+that starts with an underscore `_{:ak}` will be treated as a wildcard.
+
+Beware though that wildcards are usually not recommended because they make code
+more brittle. Indeed, if you were to add a new constructor to the type `User`,
+this function would generate no warnings or errors at compilation because the
+wildcard `_` would swallow all the remaining constructors. Yet, imagine the following:
+
+```aiken
+type User {
+  LoggedInAsAdministrator { username: ByteArray }
+  LoggedIn { username: ByteArray }
+  Guest
+}
+```
+
+With the wildcard, `get_name` would compile just fine and return `"Guest user"`
+for users logged in as administrator! So, use wildcard only when you cannot do
+otherwise. In many situations, it is better to list all patterns explicitly.
+
+<Callout type="info">
+  Wildcards also works when destructuring, should you need to only bring
+  specific fields in scope but not all.
+
+  ```aiken
+  let Dog(name, _cuteness, _age) = dog
+
+  // equivalent to
+
+  let name = dog.name
+  ```
+</Callout>
+
+#### Alternative patterns
+
+To avoid repeating the same bits of logic across multiple branches, Aiken
+provides a syntax for handling multiple patterns at once using the pipe symbol
+`|{:ak}`. This works particularly well when patterns introduce the same
+identifiers with the same respective types in scope.
+
+```aiken
+fn get_name(user: User) -> ByteArray {
+  when user is {
+    LoggedInAsAdministrator { username } | LoggedIn { username } -> username
+    Guest -> "Guest user"
+  }
+}
+```
+
+#### Spread operator
+
+In a similar fashion, it is sometimes useful to pull only specific named fields
+out of a constructor or even, none at all. For these situations, Aiken provides
+the spread operator `..{:ak}` as a way to indicates that anything else is ignored.
+
+For example, let's pretend we added a field `age: Int` to our `LoggedIn`
+constructor variant.
+
+```aiken
+fn is_authorized(user: User) -> Bool {
+  when user is {
+    LoggedInAsAdministrator { .. } -> True
+    LoggedIn { days_of_activity, .. } -> days_of_activity > 30
+    Guest -> False
+  }
+}
+```
+
+In the function above, you can see how we authorize any administrator or any
+logged-in user so long as they have at least 30 days of activity. The spread
+operator is used to indicate that other named fields of the records are
+ignored.
+
+<Callout type="info">
+  The spread operator also works for destructuring, should you need to only bring
+  specific fields in scope but not all.
+
+  ```aiken
+  let Dog { name, .. } = dog
+
+  // equivalent to
+
+  let name = dog.name
+  ```
+</Callout>
+
+#### List
+
+Pattern-matching also works on lists with a syntax of their own. In Aiken,
+lists are linked-lists, so they are virtually equivalent to a custom-type with
+two constructors: either it is an empty list, or it is a value and another
+list, possibly empty.
+
+When matching on lists, one may use wildcard and spread operators. Yet in the
+case of lists, the spread operator can be named to explicitly capture the tail
+of the list. Let's walk through some examples:
+
+```aiken
+fn get_head(xs: List<a>) -> Option<a> {
+  when xs is {
+    [] -> None
+    [a, ..] -> Some(a)
+  }
+}
+
+fn is_empty(xs: List<a>) -> Bool {
+  when xs is {
+    [] -> True
+    [_, ..] -> False
+  }
+}
+
+fn get_tail(xs: List<a>) -> List<a> {
+  when xs is {
+    [] -> [] // debatable
+    [_, ..tail] -> tail
+  }
+}
+```
+
+#### Nested patterns
+
+Patterns aren't limited to the first level of a type structure only. It is
+possible to pattern any compound type as deep as necessary.
+
+```aiken
+fn get_name_with_default(dog: Option<Dog>, default: ByteArray) -> ByteArray {
+  when dog is {
+    Some(Dog { name, .. }) -> name
+    _ -> default
+  }
+}
+```
+
+You can also pattern-match on nested fields within a record. For this, use the field labels and the `:{:ak}` operator, like so:
+
+```aiken
+fn get_age_of_oscar(dog: Dog) -> Option<Int> {
+  when dog is {
+    Dog { name: "Oscar", age, ..} -> Some(age)
+    _ -> None
+  }
+}
+```
+
+#### Assigning names to sub-patterns
+
+Sometimes when pattern-matching we want to assign a name to a value while
+specifying its shape at the same time. We can do this using the `as{:ak}`
+keyword.
+
+```aiken
+when xs is {
+  [[_, ..] as inner_list] -> inner_list
+  _other -> []
+}
+```
+
+## Updating custom types
+
+Aiken provides a dedicated syntax for updating some of the fields of a custom
+type record.
+
+```aiken
+type Person {
+  name: ByteArray,
+  shoe_size: Int,
+  age: Int,
+  is_happy: Bool,
+}
+
+fn have_birthday(person) {
+  // It's this person's birthday, so increment their age and
+  // make them happy
+  Person { ..person, age: person.age + 1, is_happy: True }
+}
+```
+
+The update syntax created a new record with the values of the initial record.
+It replaces the given binding with their new values.
+
+## Relationship with Data
+
+At runtime custom types become an opaque Plutus' Data. In Aiken's type system
+`Data` matches with any user-defined type (but with none of the primitive
+types).
+
+### Upcasting
+
+Thus, it's also possible to cast any custom type **into** `Data{:ak}` (a.k.a
+_upcasting_). This implicit conversion is handy for interacting with builtin
+functions that operate on raw `Data{:ak}`. Any function that accepts
+`Data{:ak}` will automatically work with any custom type.
+
+```aiken
+type Datum {
+  count: Int,
+}
+
+let datum: Datum = Datum { count: 1 }
+
+// fn(Data) -> ByteArray
+builtin.serialise_data(datum)
+
+// Or similarly, by providing an annotation.
+let as_data: Data = datum
+```
+
+### Downcasting
+
+Extracting **from** `Data{:ak}` into a custom type (a.k.a _downcasting_)
+however requires the use of [`expect{:ak}`](./control-flow#expect) or an [`if
+*pattern* is{:ak}`](./control-flow#if-is) as explained in the [next section:
+Control Flow](./control-flow).
+
+While upcasting is always possible and safe, downcasting is not and can fail. How one chooses to handle failure drives the choice between `expect{:ak}` (fail immediately and loudly) and `if/is{:ak}` (fallback gracefully).
+
+In summary:
+
+| From              | To                | Crash on failure?  | How                                            |
+| ---               | ---               | ---                | ---                                            |
+| _any custom type_ | `Data{:ak}`       | \- _(cannot fail)_ | let-binding + type-annotation                  |
+| `Data{:ak}`       | _any custom type_ | no                 | [`if *pattern* is{:ak}`](./control-flow#if-is) |
+| `Data{:ak}`       | _any custom type_ | yes                | [`expect{:ak}`](./control-flow#expect)         |
+
+## Type aliases
+
+Finally, it is also possible to define mere aliases for types. A type alias lets
+you create a name that is identical to another type, without any additional
+information.
+
+```aiken
+type MyNumber = Int
+```
+
+Aliases are fully interchangeable and bear no difference at runtime. They are
+most useful for simplifying type signatures.
+
+```aiken
+type Person = (String, Int)
+
+fn create_person(name: String, age: Int) -> Person {
+  (name, age)
+}
+```
+
+<Callout type="info">
+While they are fully erased at runtime, type-aliases information are preserved during type-checking and when generating the validator(s) final blueprint(s). Said differently, type aliases will appear in error messages and generated documentation as well.
+</Callout>
+
+## Documentation
+
+You may add user-facing documentation to any data-type definition and
+constructor with a documentation comment starting with `///{:ak}`. Markdown is
+supported and this text will be included with the module's entry in generated
+HTML documentation.
+
+```aiken
+/// A **incredibly useful** comment to tell you that this type represents: a person.
+type Person {
+  /// The number of years elapsed since birth.
+  age: Int,
+  /// The word other people shout to catch this person's attention
+  name: String,
+}
+```
+
+<Callout type="info">
+When exported as module documentation, types-definition are alphabetically sorted (in ascending order).
+</Callout>
+
+## Customizing Encoding
+
+There is syntax available for controlling the expected encoding of the
+underlying `PlutusData` representation of your custom data types.
+
+All Aiken types are represented under the hood with `PlutusData` which
+has a cbor encoding. The builtin Aiken type `Data{:ak}` is exactly that. `Data{:ak}`
+is a way to express that some value can be _any_ `PlutusData`. If `PlutusData` itself
+was an Aiken type, it would look something like this:
+
+```aiken
+type PlutusData {
+  Constr { tag: Int, fields: List<PlutusData> }
+  PlutusList(List<PlutusData>)
+  Map(List<(PlutusData, PlutusData)>)
+  I(Int)
+  B(ByteArray)
+}
+```
+
+Please keep in mind, this is just an example so that you can better visualize what
+is happening under the hood. Actually creating such a type is useless but enabling `when/is{:ak}`
+to pattern match on `Data{:ak}` to manually pull apart the constructors is something we could see
+in a future version of Aiken because this would need special treatment within the compiler.
+
+So now, considering that `PlutusData` is used to represent all custom types, let's look at some commonly used
+types and learn about how they are represented under the hood. As a first example, let's consider
+the `Bool{:ak}` type which is defined like so:
+
+```aiken
+type Bool {
+  False
+  True
+}
+```
+
+This type would be represented using the `Constr{:ak}` form of `PlutusData`. This means that
+to build a correct `PlutusData` payload representing `Bool{:ak}` you'd do this:
+
+**False**
+
+```aiken
+Constr { tag: 0, fields: [] }
+```
+
+**True**
+
+```aiken
+Constr { tag: 1, fields: [] }
+```
+
+
+<Callout type="info">
+Aiken comes with some neat built in tools to see the cbor
+representation of your data types directly. To learn more
+[check out this section](./troubleshooting).
+</Callout>
+
+Most notably, `False{:ak}` can be said to be "constr with a tag **0**" and `True{:ak}`
+can be said to be "constr with a tag **1**"". The key take away here is that all constructors
+in Aiken will be represented with `Constr{:ak}` and the tag will be based on the order as
+written at the definition site. Since `False{:ak}` comes first it is of course _tagged_ as **0**.
+
+Aiken `v1.1.19` introduced the ability to control the number of the _tag_. Here is what that looks like:
+
+```aiken
+type Bool {
+  @tag(1)
+  True
+  
+  @tag(0)
+  False
+}
+```
+
+It may be a bit subtle but we've swapped the order in which the two constructors are defined
+but preserved their original tag which will be respected when casting to and from `Data{:ak}`. This
+decouples the textual representation of the type from the way it is encoded under the hood. Most
+of the time, you should rely on the default which is the definition order but if you ever
+need to control the tags of a type's constructors, you can.
+
+It's now a good time to turn our attention to the shorthand notation for a type with a single
+constructor matching the name of the type itself. Naturally, with what we now know it's easy
+to conclude that they _must_ all use _tag_ **0** and contain one or more fields which are
+recursively `PlutusData` themselves. Let's bring back the `Datum{:ak}` type from earlier:
+
+```aiken
+type Datum {
+  signer: ByteArray,
+  count: Int
+}
+```
+
+Normally, this would look like so, as `PlutusData` under the hood:
+
+```aiken
+Constr { tag: 0, fields: [B(#"aabbcc"), I(5)]  }
+```
+
+You are free to customize the tag here as well:
+
+```aiken
+@tag(9000)
+type Datum {
+  signer: ByteArray,
+  count: Int
+}
+```
+
+Lastly, when you have this kind of type, you can go as far as skipping `Constr{:ak}`
+all together and using `PlutusList{:ak}` which doesn't require a _tag_ and can in many
+cases perform better than `Constr{:ak}` due to not needing to call `un_constr_data{:ak}`
+and `snd_pair{:ak}` under the hood to access the inner fields.
+
+```aiken
+@list
+type Datum {
+  signer: ByteArray,
+  count: Int
+}
+```
+
+Resulting in this kind of encoding:
+
+```aiken
+PlutusList([B(#"aabbcc"), I(5)])
+```
+
+> "With great power comes great responsibility" - Uncle Ben
+
+Please lean on the defaults and only reach for these
+when you know what you are doing.
+
+

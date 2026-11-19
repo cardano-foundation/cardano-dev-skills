@@ -1,0 +1,45 @@
+---
+title: "AI Integration"
+description: "Build Cardano applications faster with AI-powered tools for documentation, code generation, and debugging"
+icon: SparklesIcon
+---
+import { linksAi } from "@/data/links-ai";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+Mesh provides AI-powered tools that accelerate Cardano development. Whether you prefer chatbots, IDE integrations, or CLI-based assistants, you can access Mesh documentation and code examples directly in your workflow.
+
+## Available Tools
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {linksAi.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## Choose Your Integration
+
+| Tool | Best For | Setup Time |
+|------|----------|------------|
+| [MeshAI Chatbot](/docs/ai/chatbot) | Quick answers without leaving the browser | None |
+| [MCP Server](/docs/ai/mcp) | Real-time coding assistance in VS Code, Cursor, or Claude Desktop | 2 minutes |
+| [Agent Skills](/docs/ai/skills) | Deep API knowledge for AI coding assistants | 1 minute |
+| [llms.txt](/docs/ai/llms-txt) | Universal AI-friendly documentation for any tool | 1 minute |
+
+## Why Use AI with Mesh?
+
+Building on Cardano requires understanding complex concepts like UTxO management, Plutus scripts, and transaction building. AI tools help you:
+
+- **Get instant answers** - Ask questions about Mesh API in natural language
+- **Generate working code** - Describe what you want to build and get valid TypeScript
+- **Debug faster** - Explain errors and get solutions without searching forums
+- **Learn patterns** - Discover best practices through AI-guided examples

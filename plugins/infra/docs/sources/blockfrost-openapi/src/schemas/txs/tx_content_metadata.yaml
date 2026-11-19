@@ -1,0 +1,28 @@
+type: array
+items:
+  type: object
+  properties:
+    label:
+      type: string
+      description: Metadata label
+    json_metadata:
+      oneOf:
+        - type: string
+        - type: object
+          additionalProperties: true
+      description: Content of the metadata
+  required:
+    - label
+    - json_metadata
+example:
+  - label: "1967"
+    json_metadata:
+      {
+        "metadata": "https://nut.link/metadata.json",
+        "hash": "6bf124f217d0e5a0a8adb1dbd8540e1334280d49ab861127868339f43b3948af",
+      }
+  - label: "1968"
+    json_metadata:
+      {
+        "ADAUSD": [{ "value": "0.10409800535729975", "source": "ergoOracles" }],
+      }

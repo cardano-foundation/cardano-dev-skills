@@ -1,0 +1,68 @@
+---
+title: "MeshAI Chatbot"
+description: "Get instant answers about Mesh SDK using contextual AI retrieval"
+---
+import Video from "@/components/ui/Video";
+
+MeshAI is an AI-powered chatbot that answers your Mesh SDK questions instantly. It uses contextual retrieval to search through documentation, code examples, and starter templates to provide accurate, up-to-date responses.
+
+## Overview
+
+MeshAI combines vector embeddings with large language models to deliver accurate answers without hallucination. When you ask a question, the system:
+
+1. Converts your query into a vector embedding
+2. Searches Mesh documentation for semantically similar content
+3. Retrieves the most relevant context
+4. Generates a response grounded in actual Mesh documentation
+
+## Use Cases
+
+- **Quick API lookups** - Find method signatures, parameters, and return types
+- **Code generation** - Get working code snippets for common tasks
+- **Concept explanations** - Understand Cardano and Mesh concepts in plain language
+- **Troubleshooting** - Describe errors and receive solutions
+
+## Quick Start
+
+1. Navigate to the [Mesh documentation site](https://meshjs.dev)
+2. Click the chat icon in the bottom-right corner
+3. Type your question and press Enter
+
+No API keys or setup required.
+
+## Example Response
+
+<Video src="/videos/demo.webm" poster="/ai/demo-poster.png" />
+
+In this example, MeshAI creates a transaction that transfers ADA back to the sender's own address. The chatbot generates complete, working code with proper imports.
+
+## Tips for Better Results
+
+| Do | Don't |
+|------|--------|
+| Ask specific questions: "How do I mint an NFT with a Plutus policy?" | Ask vague questions: "How do I use Mesh?" |
+| Include context: "I'm building a DEX and need to..." | Assume the AI knows your project |
+| Ask for code examples: "Show me how to..." | Ask only for explanations without examples |
+
+## How Contextual Retrieval Works
+
+Traditional RAG (Retrieval-Augmented Generation) retrieves chunks of documentation based on keyword matching. MeshAI uses **contextual retrieval**, which:
+
+- Embeds chunks with surrounding context for better semantic understanding
+- Ranks results by relevance to your specific question
+- Filters out tangentially related content
+- Synthesizes responses from multiple relevant sources
+
+This approach reduces hallucination and ensures answers are grounded in actual Mesh documentation.
+
+## Limitations
+
+- **Scope** - MeshAI only answers questions about Mesh SDK. For general Cardano questions, consult the [Cardano Developer Portal](https://developers.cardano.org/).
+- **Real-time data** - The chatbot does not access live blockchain data. For queries about specific transactions or addresses, use a blockchain explorer.
+- **Code execution** - MeshAI generates code but does not execute it. Always test generated code in your development environment.
+
+## Related Resources
+
+- [MCP Server](/docs/ai/mcp) - Get AI assistance directly in your IDE
+- [Agent Skills](/docs/ai/skills) - Deep API knowledge for AI coding assistants
+- [llms.txt](/docs/ai/llms-txt) - AI-friendly documentation for any tool

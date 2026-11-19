@@ -1,0 +1,219 @@
+import { Callout } from 'nextra/components'
+
+# Node Modes
+
+<Callout type="info">
+Supported in Yaci DevKit `v0.12.0` and later.
+</Callout>
+
+[Yano](https://github.com/bloxbean/yano) is a lightweight Cardano devnet node added in `v0.12.0` to help DevKit bootstrap and run PV11-compatible local networks quickly.
+
+Yaci DevKit currently exposes two primary Yano-backed modes through `node.properties`:
+
+```properties
+nodeMode=companion
+```
+
+or
+
+```properties
+nodeMode=yano-only
+```
+
+## Why Yano Is Needed
+
+Cardano node `11.0.1` validates the length of each Plutus cost model. That means DevKit can no longer patch extra cost model entries directly into genesis files for fast local startup.
+
+Protocol parameter changes now need to go through the proper governance action flow. Yano helps DevKit complete that flow quickly during devnet bootstrap.
+
+## Companion Mode
+
+`companion` is the default mode.
+
+In companion mode, Yano bootstraps the devnet before handing over to the Haskell node.
+
+Yano starts the network in the past, submits the required protocol parameter governance action for Plutus cost models, advances the chain until the update is enacted, and then fast-forwards back to wall-clock time before handover.
+
+This avoids requiring users to wait for two epoch transitions before updated protocol parameters are available.
+
+Use companion mode when you want normal Haskell-node behavior, including node socket access, but want DevKit to prepare the chain quickly for PV11 protocol parameters.
+
+### Backfill block interval
+
+Catching up from the shifted genesis to wall clock used to place one empty block in every slot, so devnet
+create time grew with epoch length and the Haskell relay had to copy the whole chain.
+
+DevKit now asks Yano to derive the spacing itself, through
+`yano.block-producer.backfill-block-interval-slots=0`. Yano places only the blocks a validating node
+actually needs: gaps stay inside the forecast window (`3k/f` slots) so the relay can validate every header,
+the epoch-boundary blocks needed for nonces are kept, and a final block lands at the catch-up target so the
+producer resumes at wall clock. Everything in between was empty filler.
+
+Override it in `config/application.properties`:
+
+```properties
+# auto (default) hands the decision to Yano; dense is one block per slot; an integer forces the interval
+yano.backfill.block.interval.slots=auto
+```
+
+Automatic spacing needs a Yano build that understands the property (`0.1.0-pre15` or later). Yano validates
+the resulting interval against its own forecast window and fails with an explicit message rather than
+producing a chain the relay would reject.
+
+### Block time longer than slot length
+
+With `--block-time` larger than `--slot-length`, `activeSlotsCoeff` is below 1 and only VRF-eligible slots may carry
+a block. Yano's default time travel places one block in every slot, which the Haskell node rejects at the first
+header with `VRFLeaderValueTooBig`, so the relay never syncs and the cost-model update is never enacted.
+
+DevKit therefore turns on Yano's slot-leader time travel whenever a Haskell node validates the chain (companion and
+yano-primary modes) and `activeSlotsCoeff` is below 1. The backfill then places blocks only in eligible slots. The
+choice can be forced in `config/application.properties`:
+
+```properties
+# auto (default), true, or false
+yano.past.time.travel.slot.leader.mode=auto
+```
+
+If the relay still does not sync, set `traceChainSyncClient=true` in `node.properties` to see the rejection in the
+node log.
+
+### Relay sync wait during handover
+
+After Yano catches up to wall-clock time, the Haskell node starts as a relay and copies Yano's chain before it
+takes over as block producer. The handover waits while the relay's tip keeps advancing. It gives up when the tip
+has not moved for the stall timeout, or when the optional overall ceiling is reached. The wait is not a fixed
+deadline: a long epoch means a long bootstrap chain (about 550 blocks per second are copied), and the producer
+must own the whole chain before Yano stops.
+
+The two settings live in `config/application.properties` (the CLI's own properties, not `node.properties`):
+
+```properties
+# Give up when the relay tip stops advancing for this long. Default 30.
+yano.relay.sync.stall.timeout.seconds=30
+# Optional overall ceiling for the wait. Default 0 = no ceiling.
+yano.relay.sync.max.wait.seconds=0
+```
+
+Progress is printed about every five seconds while the relay is syncing.
+
+## Yano-only Mode
+
+In `yano-only` mode, Yano runs as the devnet node. There is no Haskell node handover.
+
+Yaci Store syncs directly from Yano, so this mode starts quickly and avoids running a separate Cardano node process.
+
+Use Yano-only mode when you want a lightweight devnet for application, SDK, and API testing and do not need direct Haskell node process or node socket access.
+
+<Callout type="info">
+Yano-only mode is optimized for local development speed. If your workflow needs direct `cardano-node` socket access, use companion mode.
+</Callout>
+
+## Resuming After a Long Pause
+
+Close the laptop for the weekend, or stop DevKit and come back days later, and you keep the same devnet:
+your contracts, wallets, stake and governance state are still there.
+
+Without help, a paused devnet would not produce blocks again. A Haskell block producer can only forge while
+its chain tip is less than one stability window (`3k/f` slots) behind wall clock: 5 minutes on the default
+devnet, 21 seconds with `--epoch-length 40`. DevKit notices a pause longer than that and catches the chain up
+with Yano:
+
+1. The Haskell node restarts as a relay and Yano syncs its chain.
+2. Yano fills the gap up to wall clock with empty blocks. The blocks are sparse (one per stability window) but
+   every epoch boundary gets one, so rewards, snapshots and governance run for every epoch that passed.
+3. The Haskell node syncs those blocks and restarts as the block producer.
+
+```text
+The devnet stopped producing blocks (the machine slept?)
+⏸  Devnet was idle for 3d 4h (tip slot 1,830, now slot 275,562, 457 epochs behind).
+💡 Catching up to wall clock with Yano (sparse backfill, about 1,380 blocks) ...
+  [1/4] ✅ Haskell node → relay ................. tip slot 1,830 (2s)
+  [2/4] ✅ Yano following the chain ............. at slot 1,830 (4s)
+  [3/4] ✅ Backfill to wall clock ............... 1,372 blocks to slot 275,561 (12s)
+  [4/4] ✅ Haskell node back as block producer .. forging at slot 275,570 (1s)
+✅ Devnet resumed in 19s at slot 275,570, epoch 459. Your contracts, wallets and stake are unchanged; 457 epochs passed.
+```
+
+This happens on its own:
+
+- **On `start`**, before Yaci Store and the other services start.
+- **While DevKit keeps running** (lid closed, machine asleep): a watchdog checks the chain every 30 seconds.
+
+In a terminal each step shows a spinner, and a progress bar with a percentage while Yano or the Haskell node
+syncs. In Docker logs and other non-terminal output the same steps are written as plain lines. Set
+`YACI_PROGRESS=plain` to get plain lines in a terminal too.
+
+In yano-only mode, `start` backfills before Yano produces its first live block.
+
+You can also run it yourself, or check how far behind the chain is:
+
+```shell
+devnet:default> catch-up
+```
+
+```shell
+curl http://localhost:10000/local-cluster/api/admin/devnet/chain-lag
+curl -X POST http://localhost:10000/local-cluster/api/admin/devnet/catch-up
+```
+
+To only report the stall and catch up by hand, set this in `config/application.properties`:
+
+```properties
+devnet.auto.catch.up=false
+```
+
+The chain then waits for you: a companion block producer cannot forge, and in yano-only mode Yano starts without
+producing blocks, so no missed epoch is skipped. `catch-up` brings it to wall clock and starts block production.
+If Yano cannot read its chain tip on `start`, the start fails instead of producing blocks; run `start` again.
+
+<Callout type="info">
+Time moves forward to wall clock, so every epoch that passed is processed. Governance actions and DRep activity
+can expire while the devnet sleeps, just as they would on a real network.
+</Callout>
+
+Limitations:
+
+- Companion devnets need `activeSlotsCoeff` 1 (block time equal to slot length).
+- Local multi-node, `yano-primary` and `haskell-only` devnets are not supported.
+- If DevKit keeps running in yano-only mode, Yano produces a block as soon as the machine wakes, before DevKit can
+  react. That block jumps over the missed epochs. Stop the devnet before a long pause, so the next `start` catches
+  up first.
+
+## Configuration
+
+For Docker and zip distributions, set the mode in `config/node.properties` before creating the devnet:
+
+```properties
+# Yano bootstraps, then Haskell node takes over
+nodeMode=companion
+```
+
+```properties
+# Yano runs as the only node
+nodeMode=yano-only
+```
+
+After changing `nodeMode`, recreate the devnet:
+
+```shell
+yaci-cli:> create-node -o --start
+```
+
+## Ports
+
+When Yano is running, these ports are used by default:
+
+| Service | Docker host port | Purpose |
+|---|---:|---|
+| Yano HTTP | `6060` | Yano HTTP API |
+| Yano n2n | `14447` | Node-to-node protocol |
+
+For Docker, these can be changed in `config/env`:
+
+```shell
+HOST_YANO_HTTP_PORT=6060
+HOST_YANO_N2N_PORT=14447
+```
+
+Run `info` in the Yaci CLI to see the active node mode and URLs for the current devnet.

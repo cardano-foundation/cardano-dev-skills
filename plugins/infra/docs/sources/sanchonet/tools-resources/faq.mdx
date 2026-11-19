@@ -1,0 +1,125 @@
+---
+description: Conway ledger era FAQs"
+sidebar_position: 2
+---
+
+# Conway ledger era FAQs
+
+**Warning:** Please note that due to ongoing development, some answers may change over time.
+
+*Last update: 2024-02-17*
+
+Based on ledger design cddl: [node 8.8.0-pre](https://github.com/IntersectMBO/cardano-ledger/blob/cardano-ledger-conway-1.12.0.0/eras/conway/impl/cddl-files/conway.cddl)
+
+### 1. What are the new Conway certificates?
+
+| Certificate in CDDL            | Description                                                              |
+|------------------------------- |------------------------------------------------------------------------- |
+| `reg_cert`                     | Registers stake credentials                                            |
+| `unreg_cert`                   | Unregisters stake credentials                                          |
+| `vote_deleg_cert`              | Delegates votes                                                           |
+| `stake_vote_deleg_cert`        | Delegates to a stake pool and a DRep from the same certificate                            |
+| `stake_reg_deleg_cert`         | Registers stake credentials and delegates to a stake pool                 |
+| `vote_reg_deleg_cert`          | Registers stake credentials and delegates to a DRep                       |
+| `stake_vote_reg_deleg_cert`    | Registers stake credentials, delegates to a pool, and to a DRep |
+| `auth_committee_hot_cert`      | Authorizes the constitutional committee hot credential                        |
+| `resign_committee_cold_cert`   | Resigns the constitutional committee cold credential                          |
+| `reg_drep_cert`                | Registers DRep's credentials                                                 |
+| `unreg_drep_cert`              | Unregisters (retires) DRep's credentials                                      |
+| `update_drep_cert`             | Updates DRep's metadata anchor                                              |
+
+### 2. Why are there two ways to register/unregister stake credentials now?
+
+⚠ There are currently two ways to register/unregister stake credentials because the old `stake_registration` and `stake_deregistration` will be deprecated in the era following the Conway era. ⚠ 
+
+The new version allows the ledger to check deposit amounts and return them instantly (rather than on epoch boundary), matching the other new certificates containing deposits.
+
+### 3. Why do new certificates have a `coin` field?
+
+This change has been made to enable the checking of deposit amounts at the ledger level. It also proves to be more useful in Voltaire, given that protocol parameters are likely to change more frequently than in past eras.
+
+### 4. Certificate and transaction field witnesses and deposits
+
+| Certificate                            | Parameters                                                   | Required witnesses                                                | Deposit/refund                        |
+| -------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------- |-------------------------------------- |
+| stake_registration                     | (0, stake_credential)                                     | None                                                              | None                                  |
+| stake_deregistration                   | (1, stake_credential)                                     | stake_credential                                                  | None                                  |
+| stake_delegation                       | (2, stake_credential, pool_keyhash)                       | stake_credential                                                  | None                                  |
+| pool_registration                      | (3, pool_params)                                          | pool_key                                                          | None                                  |
+| pool_retirement                        | (4, pool_keyhash, epoch)                                  | pool_key                                                          | None                                  |
+| reg_cert                               | (7, stake_credential, coin)                               | *stake_credential*                                                | Deposit `coin` of amount `keyDeposit` |
+| unreg_cert                             | (8, stake_credential, coin)                               | stake_credential                                                  | Refund `keyDeposit` of amount `coin`  |
+| vote_deleg_cert                        | (9, stake_credential, drep)                               | stake_credential                                                  | None                                  |
+| stake_vote_deleg_cert                  | (10, stake_credential, pool_keyhash, drep)                | stake_credential                                                  | None                                  |
+| stake_reg_deleg_cert                   | (11, stake_credential, pool_keyhash, coin)                | stake_credential                                                  | Deposit `coin` of amount `keyDeposit` |
+| vote_reg_deleg_cert                    | (12, stake_credential, drep, coin)                        | stake_credential                                                  | Deposit `coin` of amount `keyDeposit` |
+| stake_vote_reg_deleg_cert              | (13, stake_credential, pool_keyhash, drep, coin)          | stake_credential                                                  | Deposit `coin` of amount `keyDeposit` |
+| auth_committee_hot_cert                | (14, committee_cold_credential, committee_hot_credential) | committee_cold_credential                                         | None                                  |
+| resign_committee_cold_cert             | (15, committee_cold_credential, anchor / null)            | committee_cold_credential                                         | None                                  |
+| reg_drep_cert                          | (16, drep_credential, coin, anchor / null)                | drep_credential                                                   | drepDeposit                           |
+| unreg_drep_cert                        | (17, drep_credential, coin)                               | drep_credential                                                   | Refund drepDeposit of amount coin     |
+| update_drep_cert                       | (18, drep_credential, anchor / null)                      | drep_credential                                                   | None                                  |
+| voting_procedure (in Tx body)          | voting_procedures = { + voter => { + gov_action_id => voting_procedure } } | drep_credential OR committee_hot_credential OR stake_pool_keyHash | None                                  |
+| proposal_procedure (in Tx body)        | proposal_procedure = [ deposit : coin, reward_account, gov_action, anchor] | coin                                                              | Deposit is returned at the epoch boundary to the `reward_account` that is specified in the proposal. |
+| Current treasury value (in Tx body)    | coin                                                      | none                                                | None                                  |
+| Treasury donation (in Tx body)         | positive_coin                                             | none                                                | None                                  |
+
+
+### 5. Why isn't the script directly included in a new constitution proposal for the proposal policy?
+
+The decision to provide only the script hash, rather than the entire script, within a new constitution proposal serves the purpose of reusing the mechanisms previously implemented in Babbage. For instance, it allows individuals to use reference scripts to provide the actual script for the proposal policy when proposing various governance actions. Creating another source for scripts would entail more work.
+
+### 6. Regarding the proposal policy for a new CC constitution action: How does the proposal policy script impact the script integrity hash in the transaction body? Do I need to consider the cost model of the provided script?
+
+The new constitution proposal contains a `ScriptHash`, also known as the proposal policy. There is nothing special that needs to be done during the proposal stage because the policy is simply being suggested. The significance comes into play when a new constitution with a script hash (proposal policy) is enacted. At that point, the constitution will require scripts and redeemers for every governance proposal, except for the `new_constitution` and `no_confidence` proposals. In these cases, it will function in a manner similar to other scripts.
+
+### 7. If a voting proposal requires a script and a redeemer, which redeemer tag should I use?
+
+This tag is yet to be implemented. The designated tag for such instances will be 5, with the index in the redeemer corresponding to the proposal procedure. Additionally, there will be tag 4 – specifically for voting procedures.
+
+### 8. What will be the maximum number of protocol parameter changes that can be executed in a single governance action?
+
+With numerous Plutus versions having distinct cost models, accommodating all of them may become impractical. Nevertheless, it's highly unlikely to exceed the maximum transaction size in the near future.
+
+### 9. Can one delegate to DReps that do not exist?
+
+There are no checks for this at the ledger level, neither for SPOs nor for DReps. At any point, the DRep and the SPO to whom you delegated can unregister, so there is no need to enforce their existence when delegating.
+
+### 10. Is it possible to stake a DRep deposit when it is locked?
+
+No, there is no mechanism to facilitate that action. The purpose of the deposit is to restrict the use of those funds.
+
+### 11. What happens with DRep deposits when no stake credential is provided, and where is the deposit returned?
+
+DRep deposits function similarly to stake credential deposits. They are refunded in the transaction that unregisters the DRep. Stake pool and proposal procedures are retired or expired on the epoch boundary, which is why their deposits are refunded into a reward account. However, DReps and stake credentials are unregistered immediately.
+
+### 13. Does the new donation field function similarly to implicit outputs?
+
+Donations function more like fees. They are collected in a pool and then transferred at the epoch boundary.
+
+### 14. How does the 'current treasury value' function, and what happens if I set it to an incorrect value?
+
+The 'current treasury value' is used for conveying the current treasury amount to Plutus scripts. If the treasury field is set incorrectly, the transaction will be rejected.
+
+### 15. How does the process of CC resignation (resign_committee_cold_cert) work, and what happens if all CC members resign? Does this impact the quorum?
+
+Resigned and expired constitutional committee members are automatically counted as if they have voted 'Abstain'.
+
+Another crucial point to note is that whenever the number of active committee members (those who are neither expired nor resigned) falls below the `committeeMinSize` protocol parameter, the system enters a mode in which it is as though all committee members have cast a 'No' vote.
+
+### 16. For `parameter_change_action` and `treasury_withdrawals_action` does the optionally supplied `policy_hash` require a witness from the script?
+
+Yes. It is only optional, when there is no governance policy. When there is a governance policy we require that `policy_hash` to be present and equal to the one in the elected constitution.
+
+### 17. Are the governance voting threshold Parameters set to be fixed at 2 decimal places?
+
+No, they are rational numbers on the unit interval where both numerator and denominator are specified by 64bit unsigned integers. So, those thresholds can be very precise.
+
+### 18. Do unwithdrawn staking rewards count towards one's voting power/ is counted in active/inactive voting stake amounts?
+
+Yes, the amount in the reward account is counted towards active stake, which means it will also participate in the voting.
+This decision was to prevent people from constantly withdrawing rewards just so they can get rewards on that amount.
+
+### 19. Do any locked deposits count towards voting stake?
+
+The only deposits which count toward voting stake thresholds are deposits locked for governance actions.

@@ -1,0 +1,47 @@
+type: object
+properties:
+  address:
+    type: string
+    description: Bech32 encoded addresses
+    example: addr1qxqs59lphg8g6qndelq8xwqn60ag3aeyfcp33c2kdp46a09re5df3pzwwmyq946axfcejy5n4x0y99wqpgtp2gd0k09qsgy6pz
+  amount:
+    type: array
+    items:
+      type: object
+      description: The sum of all the UTXO per asset
+      properties:
+        unit:
+          type: string
+          format: Lovelace or concatenation of asset policy_id and hex-encoded asset_name
+          description: The unit of the value
+        quantity:
+          type: string
+          description: The quantity of the unit
+      required:
+        - unit
+        - quantity
+    example:
+      - unit: "lovelace"
+        quantity: "42000000"
+      - unit: "b0d07d45fe9514f80213f4020e5a61241458be626841cde717cb38a76e7574636f696e"
+        quantity: "12"
+  stake_address:
+    type: string
+    nullable: true
+    example: stake1ux3g2c9dx2nhhehyrezyxpkstartcqmu9hk63qgfkccw5rqttygt7
+    description: Stake address that controls the key
+  type:
+    type: string
+    enum: [byron, shelley]
+    example: shelley
+    description: Address era
+  script:
+    type: boolean
+    example: false
+    description: True if this is a script address
+required:
+  - address
+  - amount
+  - stake_address
+  - type
+  - script

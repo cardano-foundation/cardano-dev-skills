@@ -1,0 +1,19 @@
+type: array
+items:
+  type: object
+  properties:
+    stake_address:
+      type: string
+      example: stake1ux3g2c9dx2nhhehyrezyxpkstartcqmu9hk63qgfkccw5rqttygt7
+      description: Bech32 stake address
+    amount:
+      type: string
+      description: Withdrawal amount in Lovelaces
+  required:
+    - stake_address
+    - amount
+example:
+  - stake_address: "stake1ux3g2c9dx2nhhehyrezyxpkstartcqmu9hk63qgfkccw5rqttygt7"
+    amount: "454541212442"
+  - stake_address: "stake1xx2g2c9dx2nhhehyrezyxpkstoppcqmu9hk63qgfkccw5rqttygt2"
+    amount: "97846969"

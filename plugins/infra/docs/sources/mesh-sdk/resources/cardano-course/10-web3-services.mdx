@@ -1,0 +1,621 @@
+---
+title: "Lesson 10: Web3 Services"
+description: "Integrate wallet-as-a-service and transaction sponsorship for seamless user onboarding."
+---
+import Link from "fumadocs-core/link";
+
+## Learning Objectives
+
+By the end of this lesson, you will be able to:
+
+- Understand wallet-as-a-service (WaaS) architecture
+- Implement social login wallet creation
+- Set up transaction sponsorship for gasless user experience
+- Design onboarding flows that hide blockchain complexity
+- Evaluate trade-offs between custody models
+
+## Prerequisites
+
+Before starting this lesson, ensure you have:
+
+- Completed <Link href="/resources/cardano-course/09-hydra">Lesson 9: Hydra End-to-End</Link>
+- A web application framework (Next.js, React, etc.)
+- Understanding of authentication flows
+
+## Key Concepts
+
+### The Onboarding Challenge
+
+Traditional blockchain onboarding requires users to:
+
+1. Install a browser extension or mobile app
+2. Understand and securely store seed phrases
+3. Acquire native tokens (ADA) for transaction fees
+4. Navigate unfamiliar wallet interfaces
+
+Each step loses potential users. Web3 services eliminate these friction points.
+
+### Wallet-as-a-Service (WaaS)
+
+WaaS provides wallets without requiring users to manage keys directly:
+
+| Feature | Traditional Wallet | WaaS |
+|---------|-------------------|------|
+| Setup | Install extension, write seed | Social login |
+| Key storage | User's responsibility | Distributed/encrypted |
+| Recovery | 24-word seed phrase | Email/social recovery |
+| User experience | Technical | Familiar |
+
+### Transaction Sponsorship
+
+Transaction sponsorship allows developers to pay fees on behalf of users:
+
+- Users transact without holding ADA
+- Developers cover network costs
+- Removes the "buy crypto first" barrier
+
+## Step 1: Understand WaaS Architecture
+
+### Shamir's Secret Sharing
+
+Modern WaaS solutions use Shamir's Secret Sharing to distribute private keys:
+
+```
+Private Key splits into:
+  Share 1: Stored on user's device
+  Share 2: Encrypted on server
+  Share 3: Recovery backup (optional)
+```
+
+Key reconstruction requires multiple shares, so:
+- The server alone cannot access funds
+- A lost device can be recovered
+- Users maintain self-custody
+
+### Security Model
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    Transaction Signing               │
+│                                                      │
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐        │
+│  │  Share 1 │ + │  Share 2 │ = │ Full Key │        │
+│  │ (Device) │   │ (Server) │   │(Temporary)│        │
+│  └──────────┘   └──────────┘   └────┬─────┘        │
+│                                      │              │
+│                              ┌───────▼───────┐      │
+│                              │  Sign TX in   │      │
+│                              │ Isolated iFrame│      │
+│                              └───────┬───────┘      │
+│                                      │              │
+│                              ┌───────▼───────┐      │
+│                              │   Key Destroyed│      │
+│                              │  After Signing │      │
+│                              └───────────────┘      │
+└─────────────────────────────────────────────────────┘
+```
+
+The full key:
+- Only exists in memory briefly
+- Lives in an isolated iframe
+- Is destroyed immediately after signing
+
+## Step 2: Integrate Wallet-as-a-Service
+
+Use UTXOS WaaS to add social login wallets to your application.
+
+### Installation
+
+```bash
+npm install @utxos/wallet-sdk
+```
+
+### Initialize the SDK
+
+```ts
+import { UTXOSWallet } from "@utxos/wallet-sdk";
+
+const wallet = new UTXOSWallet({
+  apiKey: "YOUR_UTXOS_API_KEY",
+  network: "preprod",  // or "mainnet"
+});
+```
+
+### Social Login Integration
+
+```tsx
+import { useState } from "react";
+import { UTXOSWallet } from "@utxos/wallet-sdk";
+
+export function WalletConnect() {
+  const [wallet, setWallet] = useState<UTXOSWallet | null>(null);
+  const [address, setAddress] = useState<string>("");
+
+  async function connectWithGoogle() {
+    const utxosWallet = new UTXOSWallet({
+      apiKey: "YOUR_UTXOS_API_KEY",
+      network: "preprod",
+    });
+
+    // Opens Google OAuth flow
+    await utxosWallet.connectWithGoogle();
+
+    // Get the wallet address
+    const walletAddress = await utxosWallet.getAddress();
+
+    setWallet(utxosWallet);
+    setAddress(walletAddress);
+  }
+
+  async function connectWithEmail() {
+    const utxosWallet = new UTXOSWallet({
+      apiKey: "YOUR_UTXOS_API_KEY",
+      network: "preprod",
+    });
+
+    // Sends magic link to email
+    await utxosWallet.connectWithEmail("user@example.com");
+
+    // Wait for user to click link...
+  }
+
+  return (
+    <div>
+      {!wallet ? (
+        <div>
+          <button onClick={connectWithGoogle}>
+            Continue with Google
+          </button>
+          <button onClick={connectWithEmail}>
+            Continue with Email
+          </button>
+        </div>
+      ) : (
+        <div>
+          <p>Connected: {address}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### Sign Transactions
+
+Use the WaaS wallet like any other wallet:
+
+```ts
+import { MeshTxBuilder } from "@meshsdk/core";
+
+async function sendTransaction(wallet: UTXOSWallet) {
+  const utxos = await wallet.getUtxos();
+  const address = await wallet.getAddress();
+
+  const txBuilder = new MeshTxBuilder();
+
+  const unsignedTx = await txBuilder
+    .txOut(recipientAddress, [{ unit: "lovelace", quantity: "5000000" }])
+    .changeAddress(address)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  // Signs in isolated iframe using reconstructed key
+  const signedTx = await wallet.signTx(unsignedTx);
+
+  // Submit to blockchain
+  const txHash = await wallet.submitTx(signedTx);
+
+  return txHash;
+}
+```
+
+### Export Keys
+
+Users can export their private keys at any time:
+
+```ts
+async function exportPrivateKey(wallet: UTXOSWallet) {
+  // Requires re-authentication
+  const privateKey = await wallet.exportPrivateKey();
+
+  // Display to user (they can import into any standard wallet)
+  console.log("Your private key:", privateKey);
+}
+```
+
+## Step 3: Implement Transaction Sponsorship
+
+Transaction sponsorship eliminates the need for users to hold ADA.
+
+### How Sponsorship Works
+
+```
+┌─────────────┐                    ┌─────────────┐
+│    User     │                    │  Sponsor    │
+│  (no ADA)   │                    │ (has ADA)   │
+└──────┬──────┘                    └──────┬──────┘
+       │                                  │
+       │  1. Build transaction            │
+       │  (no inputs from user)           │
+       │                                  │
+       │  2. Send to sponsor API ────────►│
+       │                                  │
+       │  3. Sponsor adds inputs ◄────────│
+       │     and pays fees                │
+       │                                  │
+       │  4. User signs ─────────────────►│
+       │                                  │
+       │  5. Sponsor signs ◄──────────────│
+       │                                  │
+       │  6. Submit to blockchain         │
+       ▼                                  ▼
+```
+
+### Configure Sponsorship
+
+```ts
+import { UTXOSSponsor } from "@utxos/sponsor-sdk";
+
+const sponsor = new UTXOSSponsor({
+  apiKey: "YOUR_UTXOS_SPONSOR_API_KEY",
+  network: "preprod",
+});
+```
+
+### Build a Sponsored Transaction
+
+```ts
+import { MeshTxBuilder } from "@meshsdk/core";
+
+async function buildSponsoredTransaction(
+  wallet: UTXOSWallet,
+  sponsor: UTXOSSponsor
+) {
+  const userAddress = await wallet.getAddress();
+
+  // Build transaction without user inputs
+  const txBuilder = new MeshTxBuilder();
+
+  const partialTx = await txBuilder
+    .txOut(recipientAddress, [{ unit: "lovelace", quantity: "2000000" }])
+    .changeAddress(userAddress)
+    // No selectUtxosFrom - sponsor will provide inputs
+    .complete({ noCoinSelection: true });
+
+  // Send to sponsor to add inputs and fees
+  const sponsoredTx = await sponsor.sponsorTransaction(partialTx);
+
+  // User signs their part
+  const userSignedTx = await wallet.signTx(sponsoredTx, true);
+
+  // Sponsor signs and submits
+  const txHash = await sponsor.submitSponsoredTransaction(userSignedTx);
+
+  return txHash;
+}
+```
+
+### Sponsorship Policies
+
+Configure rules for what transactions to sponsor:
+
+```ts
+const sponsor = new UTXOSSponsor({
+  apiKey: "YOUR_API_KEY",
+  network: "preprod",
+  policies: {
+    // Maximum ADA to sponsor per transaction
+    maxFeePerTx: 2_000_000,  // 2 ADA
+
+    // Maximum daily sponsorship per user
+    maxDailyPerUser: 10_000_000,  // 10 ADA
+
+    // Allowed recipient addresses (optional)
+    allowedRecipients: [
+      "addr_test1qp...",  // Your application's addresses
+    ],
+
+    // Required metadata tags (optional)
+    requiredMetadata: {
+      app: "my-app",
+    },
+  },
+});
+```
+
+## Step 4: Design the User Experience
+
+### Registration Flow
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  App Landing Page                    │
+│                                                      │
+│  ┌─────────────────────────────────────────────┐    │
+│  │        Get Started in Seconds               │    │
+│  │                                             │    │
+│  │  ┌─────────────┐  ┌─────────────────────┐   │    │
+│  │  │   Google    │  │      Email          │   │    │
+│  │  │   Sign In   │  │   Continue with     │   │    │
+│  │  └─────────────┘  └─────────────────────┘   │    │
+│  │                                             │    │
+│  │  No wallet extension needed                 │    │
+│  │  No seed phrases to remember               │    │
+│  │  No crypto required to start               │    │
+│  └─────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────┘
+```
+
+### First Transaction
+
+```tsx
+function FirstTransaction({ wallet, sponsor }) {
+  const [status, setStatus] = useState("idle");
+
+  async function handleClaim() {
+    setStatus("processing");
+
+    try {
+      // User has no ADA, but sponsor covers fees
+      const txHash = await buildSponsoredTransaction(wallet, sponsor);
+      setStatus("success");
+    } catch (error) {
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div>
+      <h2>Claim Your Welcome NFT</h2>
+      <p>Free for new users - no crypto needed!</p>
+
+      <button onClick={handleClaim} disabled={status === "processing"}>
+        {status === "processing" ? "Processing..." : "Claim Now"}
+      </button>
+
+      {status === "success" && (
+        <p>NFT claimed! Check your collection.</p>
+      )}
+    </div>
+  );
+}
+```
+
+### Progressive Disclosure
+
+Start simple, reveal complexity as users advance:
+
+| User Stage | Visible Features |
+|------------|------------------|
+| **New** | Social login, sponsored transactions |
+| **Active** | Balance display, transaction history |
+| **Power** | Export keys, connect external wallets |
+| **Advanced** | Full wallet features, manual fees |
+
+## Complete Working Example
+
+### Project Structure
+
+```
+web3-app/
+  components/
+    WalletProvider.tsx
+    ConnectButton.tsx
+    SponsoredAction.tsx
+  hooks/
+    useWallet.ts
+    useSponsor.ts
+  pages/
+    index.tsx
+```
+
+### WalletProvider.tsx
+
+```tsx
+import { createContext, useContext, useState, ReactNode } from "react";
+import { UTXOSWallet } from "@utxos/wallet-sdk";
+import { UTXOSSponsor } from "@utxos/sponsor-sdk";
+
+interface WalletContextType {
+  wallet: UTXOSWallet | null;
+  sponsor: UTXOSSponsor;
+  connect: (method: "google" | "email", email?: string) => Promise<void>;
+  disconnect: () => void;
+  address: string;
+  isConnected: boolean;
+}
+
+const WalletContext = createContext<WalletContextType | null>(null);
+
+export function WalletProvider({ children }: { children: ReactNode }) {
+  const [wallet, setWallet] = useState<UTXOSWallet | null>(null);
+  const [address, setAddress] = useState("");
+
+  const sponsor = new UTXOSSponsor({
+    apiKey: process.env.NEXT_PUBLIC_SPONSOR_API_KEY!,
+    network: "preprod",
+  });
+
+  async function connect(method: "google" | "email", email?: string) {
+    const newWallet = new UTXOSWallet({
+      apiKey: process.env.NEXT_PUBLIC_WALLET_API_KEY!,
+      network: "preprod",
+    });
+
+    if (method === "google") {
+      await newWallet.connectWithGoogle();
+    } else if (email) {
+      await newWallet.connectWithEmail(email);
+    }
+
+    const walletAddress = await newWallet.getAddress();
+    setWallet(newWallet);
+    setAddress(walletAddress);
+  }
+
+  function disconnect() {
+    setWallet(null);
+    setAddress("");
+  }
+
+  return (
+    <WalletContext.Provider
+      value={{
+        wallet,
+        sponsor,
+        connect,
+        disconnect,
+        address,
+        isConnected: !!wallet,
+      }}
+    >
+      {children}
+    </WalletContext.Provider>
+  );
+}
+
+export function useWallet() {
+  const context = useContext(WalletContext);
+  if (!context) {
+    throw new Error("useWallet must be used within WalletProvider");
+  }
+  return context;
+}
+```
+
+### SponsoredAction.tsx
+
+```tsx
+import { useState } from "react";
+import { MeshTxBuilder } from "@meshsdk/core";
+import { useWallet } from "./WalletProvider";
+
+interface SponsoredActionProps {
+  recipientAddress: string;
+  amount: string;
+  onSuccess?: (txHash: string) => void;
+}
+
+export function SponsoredAction({
+  recipientAddress,
+  amount,
+  onSuccess,
+}: SponsoredActionProps) {
+  const { wallet, sponsor, address, isConnected } = useWallet();
+  const [loading, setLoading] = useState(false);
+  const [txHash, setTxHash] = useState("");
+
+  async function execute() {
+    if (!wallet) return;
+
+    setLoading(true);
+
+    try {
+      const txBuilder = new MeshTxBuilder();
+
+      const partialTx = await txBuilder
+        .txOut(recipientAddress, [{ unit: "lovelace", quantity: amount }])
+        .changeAddress(address)
+        .complete({ noCoinSelection: true });
+
+      const sponsoredTx = await sponsor.sponsorTransaction(partialTx);
+      const userSignedTx = await wallet.signTx(sponsoredTx, true);
+      const hash = await sponsor.submitSponsoredTransaction(userSignedTx);
+
+      setTxHash(hash);
+      onSuccess?.(hash);
+    } catch (error) {
+      console.error("Transaction failed:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!isConnected) {
+    return <p>Please connect your wallet first.</p>;
+  }
+
+  return (
+    <div>
+      <button onClick={execute} disabled={loading}>
+        {loading ? "Processing..." : "Execute (Sponsored)"}
+      </button>
+
+      {txHash && (
+        <p>
+          Success!{" "}
+          <a
+            href={`https://preprod.cardanoscan.io/transaction/${txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View transaction
+          </a>
+        </p>
+      )}
+    </div>
+  );
+}
+```
+
+## Key Concepts Explained
+
+### Self-Custody vs Convenience
+
+WaaS provides a spectrum of custody models:
+
+| Model | Key Control | Recovery | Convenience |
+|-------|-------------|----------|-------------|
+| **Full self-custody** | User only | Seed phrase | Low |
+| **WaaS (SSS)** | Distributed | Social/email | High |
+| **Custodial** | Provider only | Provider | Highest |
+
+WaaS with Shamir's Secret Sharing offers the best balance: users maintain custody while enjoying familiar authentication.
+
+### Sponsorship Economics
+
+Consider these factors when designing sponsorship:
+
+- **Cost per user**: Average transaction fees x transactions per session
+- **Abuse prevention**: Rate limits, allowed actions, required authentication
+- **Revenue model**: Freemium, subscription, or transaction-based
+
+## Exercises
+
+1. **Add Apple Sign-In**: Extend the wallet provider to support Apple authentication.
+
+2. **Sponsorship dashboard**: Build an admin panel showing sponsorship usage and costs.
+
+3. **Hybrid wallet**: Allow users to switch between WaaS and their own browser wallet.
+
+## Course Completion
+
+Congratulations! You have completed the Cardano Development Course.
+
+You have learned:
+
+- Wallet creation and transaction building
+- Multi-signature transactions
+- Aiken smart contract development
+- Contract testing and optimization
+- Blueprint interpretation and code generation
+- Vesting and NFT contracts
+- Hydra Layer 2 scaling
+- Web3 services for user onboarding
+
+### What to Build Next
+
+Apply your skills to build:
+
+- **DeFi protocols**: Lending, swapping, yield farming
+- **NFT platforms**: Marketplaces, generative collections
+- **DAOs**: Governance and treasury management
+- **Gaming**: On-chain game logic, asset ownership
+- **Identity**: Verifiable credentials, reputation systems
+
+## Related Links
+
+- <Link href="https://docs.utxos.dev/wallet/usage">UTXOS Wallet Documentation</Link>
+- <Link href="https://docs.utxos.dev/sponsor/usage">UTXOS Sponsorship Documentation</Link>
+- <Link href="/apis">Mesh SDK API Reference</Link>
+- <Link href="https://discord.gg/meshsdk">Mesh Discord Community</Link>

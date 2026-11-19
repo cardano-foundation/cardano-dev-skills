@@ -1,0 +1,731 @@
+// Copyright 2026 Blink Labs Software
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package common
+
+import (
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"math/big"
+	"reflect"
+	"strings"
+
+	"github.com/blinklabs-io/gouroboros/cbor"
+)
+
+// OutsideForecastError reports a transaction whose validity upper bound
+// cannot be converted to time by the validation slot state.
+type OutsideForecastError struct {
+	cbor.StructAsArray
+	Type uint8
+	Slot uint64
+}
+
+func (e *OutsideForecastError) Error() string {
+	return fmt.Sprintf("OutsideForecast (Slot %d)", e.Slot)
+}
+
+// MissingDatumForSpendingScriptError reports a Plutus V1/V2 spending input
+// whose datum hash has no matching witness datum.
+type MissingDatumForSpendingScriptError struct {
+	ScriptHash ScriptHash
+	Input      TransactionInput
+}
+
+func (e MissingDatumForSpendingScriptError) Error() string {
+	return fmt.Sprintf(
+		"missing datum for spending script (hash=%x, input=%s)",
+		e.ScriptHash[:],
+		e.Input.String(),
+	)
+}
+
+// NotAllowedSupplementalDatumsError reports witness datums that are not
+// justified by a Plutus spending input or a datum-hash output.
+type NotAllowedSupplementalDatumsError struct {
+	DatumHashes []Blake2b256
+}
+
+func (e NotAllowedSupplementalDatumsError) Error() string {
+	hashes := make([]string, len(e.DatumHashes))
+	for i, hash := range e.DatumHashes {
+		hashes[i] = hex.EncodeToString(hash[:])
+	}
+	return "not allowed supplemental datums in witness set: " + strings.Join(hashes, ", ")
+}
+
+// TxOut preserves an opaque transaction output embedded in a ledger failure.
+type TxOut struct {
+	cbor.Value
+}
+
+func (t *TxOut) String() string {
+	return fmt.Sprintf("TxOut (%v)", t.Value.Value())
+}
+
+// PtrPresentInCollateralReturn is the Dijkstra UTxO failure for a pointer
+// address in the collateral return output.
+type PtrPresentInCollateralReturn struct {
+	cbor.StructAsArray
+	Type   uint8
+	Output TxOut
+}
+
+func (e *PtrPresentInCollateralReturn) Error() string {
+	return fmt.Sprintf("PtrPresentInCollateralReturn (Output %s)", e.Output.String())
+}
+
+// WrongTransactionNetworkIdError reports a transaction-body network ID that
+// does not match the active ledger network.
+type WrongTransactionNetworkIdError struct {
+	TxNetworkId     uint8
+	LedgerNetworkId uint
+}
+
+func (e WrongTransactionNetworkIdError) Error() string {
+	return fmt.Sprintf(
+		"wrong transaction network ID: transaction has %d, ledger expects %d",
+		e.TxNetworkId,
+		e.LedgerNetworkId,
+	)
+}
+
+// CurrentTreasuryValueMismatchError indicates that a transaction's supplied
+// current treasury value differs from the ledger state.
+type CurrentTreasuryValueMismatchError struct {
+	Supplied *big.Int
+	Expected uint64
+}
+
+func (e CurrentTreasuryValueMismatchError) Error() string {
+	supplied := "<nil>"
+	if e.Supplied != nil {
+		supplied = e.Supplied.String()
+	}
+	return fmt.Sprintf(
+		"current treasury value mismatch: supplied %s, expected %d",
+		supplied,
+		e.Expected,
+	)
+}
+
+// TreasuryValueQueryError indicates that the current ledger treasury value
+// could not be loaded for transaction validation.
+type TreasuryValueQueryError struct {
+	Err error
+}
+
+func (e TreasuryValueQueryError) Error() string {
+	return fmt.Sprintf("failed to query current treasury value: %v", e.Err)
+}
+
+func (e TreasuryValueQueryError) Unwrap() error {
+	return e.Err
+}
+
+// TreasuryValueProviderUnavailableError indicates that treasury validation
+// cannot query a ledger-state provider because it is nil.
+type TreasuryValueProviderUnavailableError struct{}
+
+func (TreasuryValueProviderUnavailableError) Error() string {
+	return "ledger state provider is unavailable for current treasury value validation"
+}
+
+// InvalidIsValidFlagError indicates a tx marked invalid but lacking Plutus scripts
+type InvalidIsValidFlagError struct{}
+
+func (InvalidIsValidFlagError) Error() string {
+	return "transaction marked as invalid but has no Plutus scripts requiring phase-2 validation"
+}
+
+// PlutusScriptValidationUnsupportedError indicates a transaction needs phase-2
+// Plutus execution in an era path that cannot perform it.
+type PlutusScriptValidationUnsupportedError struct {
+	Era string
+}
+
+// PlutusScriptFailedError identifies a failed phase-2 script execution.
+type PlutusScriptFailedError struct {
+	ScriptHash ScriptHash
+	Tag        RedeemerTag
+	Index      uint32
+	Err        error
+}
+
+// PlutusScriptResultNotUnitError indicates that a validator returned a value
+// other than the unit constant required for phase-2 success.
+type PlutusScriptResultNotUnitError struct{}
+
+func (PlutusScriptResultNotUnitError) Error() string {
+	return "Plutus script returned a non-unit result"
+}
+
+func (e PlutusScriptFailedError) Error() string {
+	return fmt.Sprintf(
+		"plutus script failed (hash=%x, tag=%d, index=%d): %v",
+		e.ScriptHash[:],
+		e.Tag,
+		e.Index,
+		e.Err,
+	)
+}
+
+func (e PlutusScriptFailedError) Unwrap() error {
+	return e.Err
+}
+
+// ScriptContextConstructionError wraps an error building a Plutus context.
+type ScriptContextConstructionError struct {
+	Err error
+}
+
+func (e ScriptContextConstructionError) Error() string {
+	return fmt.Sprintf("failed to construct script context: %v", e.Err)
+}
+
+func (e ScriptContextConstructionError) Unwrap() error {
+	return e.Err
+}
+
+// ExtraRedeemerError identifies a redeemer without a matching script purpose.
+type ExtraRedeemerError struct {
+	RedeemerKey RedeemerKey
+}
+
+func (e ExtraRedeemerError) Error() string {
+	return fmt.Sprintf(
+		"extra redeemer: tag=%d, index=%d doesn't match any valid script purpose",
+		e.RedeemerKey.Tag,
+		e.RedeemerKey.Index,
+	)
+}
+
+// UnexpectedPlutusScriptSuccessError indicates that every phase-2 script
+// succeeded for a transaction that declared phase-2 failure.
+type UnexpectedPlutusScriptSuccessError struct{}
+
+func (UnexpectedPlutusScriptSuccessError) Error() string {
+	return "transaction marked invalid but all Plutus scripts succeeded"
+}
+
+func (e PlutusScriptValidationUnsupportedError) Error() string {
+	return e.Era + " Plutus phase-2 validation is not supported"
+}
+
+// MissingCostModelError indicates a missing cost model for a Plutus version
+type MissingCostModelError struct {
+	Version uint
+}
+
+func (e MissingCostModelError) Error() string {
+	return fmt.Sprintf("missing cost model for Plutus v%d", e.Version+1)
+}
+
+// InputResolutionError indicates a failure to resolve a regular input UTxO
+type InputResolutionError struct {
+	Input TransactionInput
+	Err   error
+}
+
+func (e InputResolutionError) Error() string {
+	return fmt.Sprintf(
+		"failed to resolve input %s: %v",
+		e.Input.String(),
+		e.Err,
+	)
+}
+
+func (e InputResolutionError) Unwrap() error { return e.Err }
+
+// Sentinel error for input resolution failures so callers can use errors.Is
+var ErrInputResolution = errors.New(
+	"input resolution failed",
+)
+
+func (InputResolutionError) Is(target error) bool {
+	return target == ErrInputResolution
+}
+
+// ResolveInputUtxo resolves an input and rejects a state entry without an
+// output. Validators use this for inputs whose absence cannot be treated as an
+// empty value, such as collateral inputs.
+func ResolveInputUtxo(state UtxoState, input TransactionInput) (Utxo, error) {
+	utxo, err := state.UtxoById(input)
+	if err != nil {
+		return Utxo{}, InputResolutionError{Input: input, Err: err}
+	}
+	if utxo.Output == nil {
+		return Utxo{}, InputResolutionError{
+			Input: input,
+			Err:   errors.New("resolved UTxO has nil output"),
+		}
+	}
+	outputValue := reflect.ValueOf(utxo.Output)
+	kind := outputValue.Kind()
+	if (kind == reflect.Chan || kind == reflect.Func ||
+		kind == reflect.Interface || kind == reflect.Map ||
+		kind == reflect.Pointer || kind == reflect.Slice) && outputValue.IsNil() {
+		return Utxo{}, InputResolutionError{
+			Input: input,
+			Err:   errors.New("resolved UTxO has nil output"),
+		}
+	}
+	return utxo, nil
+}
+
+// ReferenceInputResolutionError indicates a failure to resolve a reference input UTxO
+type ReferenceInputResolutionError struct {
+	Input TransactionInput
+	Err   error
+}
+
+func (e ReferenceInputResolutionError) Error() string {
+	return fmt.Sprintf(
+		"failed to resolve reference input %s: %v",
+		e.Input.String(),
+		e.Err,
+	)
+}
+
+func (e ReferenceInputResolutionError) Unwrap() error { return e.Err }
+
+// Sentinel error for reference input resolution failures so callers can use errors.Is
+var ErrReferenceInputResolution = errors.New(
+	"reference input resolution failed",
+)
+
+func (ReferenceInputResolutionError) Is(target error) bool {
+	return target == ErrReferenceInputResolution
+}
+
+// InlineDatumsNotSupportedError indicates inline datums used with PlutusV1 scripts
+type InlineDatumsNotSupportedError struct {
+	PlutusVersion string
+}
+
+func (e InlineDatumsNotSupportedError) Error() string {
+	return fmt.Sprintf(
+		"inline datums are not supported with %s scripts - inline datums are a Babbage feature only available for PlutusV2+",
+		e.PlutusVersion,
+	)
+}
+
+// MissingScriptDataHashError indicates the transaction is missing a required ScriptDataHash
+type MissingScriptDataHashError struct{}
+
+func (MissingScriptDataHashError) Error() string {
+	return "transaction requires a script data hash but none was provided"
+}
+
+// Sentinel error for missing script data hash so callers can use errors.Is
+var ErrMissingScriptDataHash = errors.New("missing script data hash")
+
+func (MissingScriptDataHashError) Is(target error) bool {
+	return target == ErrMissingScriptDataHash
+}
+
+// ExtraneousScriptDataHashError indicates the transaction has a ScriptDataHash when none is needed
+type ExtraneousScriptDataHashError struct {
+	Provided Blake2b256
+}
+
+func (e ExtraneousScriptDataHashError) Error() string {
+	return fmt.Sprintf(
+		"transaction has script data hash %x but no Plutus scripts require it",
+		e.Provided[:],
+	)
+}
+
+// Sentinel error for extraneous script data hash so callers can use errors.Is
+var ErrExtraneousScriptDataHash = errors.New("extraneous script data hash")
+
+func (ExtraneousScriptDataHashError) Is(target error) bool {
+	return target == ErrExtraneousScriptDataHash
+}
+
+// ScriptDataHashMismatchError indicates the declared ScriptDataHash doesn't match the computed hash
+type ScriptDataHashMismatchError struct {
+	Declared Blake2b256
+	Computed Blake2b256
+}
+
+func (e ScriptDataHashMismatchError) Error() string {
+	return fmt.Sprintf(
+		"script data hash mismatch: declared %x, computed %x",
+		e.Declared[:],
+		e.Computed[:],
+	)
+}
+
+// Sentinel error for script data hash mismatch so callers can use errors.Is
+var ErrScriptDataHashMismatch = errors.New("script data hash mismatch")
+
+func (ScriptDataHashMismatchError) Is(target error) bool {
+	return target == ErrScriptDataHashMismatch
+}
+
+// MalformedScriptWitnessesError indicates Plutus script witnesses that cannot
+// be contextually decoded and validated.
+type MalformedScriptWitnessesError struct {
+	ScriptHashes []ScriptHash
+	Cause        error
+}
+
+func (e MalformedScriptWitnessesError) Error() string {
+	if e.Cause == nil {
+		return fmt.Sprintf("malformed script witnesses: %v", e.ScriptHashes)
+	}
+	return fmt.Sprintf(
+		"malformed script witnesses: %v: %v",
+		e.ScriptHashes,
+		e.Cause,
+	)
+}
+
+func (e MalformedScriptWitnessesError) Unwrap() error {
+	return e.Cause
+}
+
+// ErrMalformedScriptWitnesses identifies malformed Plutus script witnesses.
+var ErrMalformedScriptWitnesses = errors.New("malformed script witnesses")
+
+func (MalformedScriptWitnessesError) Is(target error) bool {
+	return target == ErrMalformedScriptWitnesses
+}
+
+// MalformedReferenceScriptsError indicates reference scripts in outputs that
+// cannot be contextually decoded and validated.
+type MalformedReferenceScriptsError struct {
+	ScriptHashes []ScriptHash
+}
+
+func (e MalformedReferenceScriptsError) Error() string {
+	return fmt.Sprintf("malformed reference scripts: %v", e.ScriptHashes)
+}
+
+// Sentinel error for malformed reference scripts so callers can use errors.Is
+var ErrMalformedReferenceScripts = errors.New("malformed reference scripts")
+
+func (MalformedReferenceScriptsError) Is(target error) bool {
+	return target == ErrMalformedReferenceScripts
+}
+
+// RefScriptSizePerTxTooLargeError indicates the total reference-script size in a
+// transaction's outputs exceeds the per-transaction limit.
+type RefScriptSizePerTxTooLargeError struct {
+	TxSize  uint64
+	MaxSize uint64
+}
+
+func (e RefScriptSizePerTxTooLargeError) Error() string {
+	return fmt.Sprintf(
+		"reference-script size per transaction too large: %d > %d",
+		e.TxSize, e.MaxSize,
+	)
+}
+
+var ErrRefScriptSizePerTxTooLarge = errors.New(
+	"reference-script size per transaction too large",
+)
+
+func (RefScriptSizePerTxTooLargeError) Is(target error) bool {
+	return target == ErrRefScriptSizePerTxTooLarge
+}
+
+// RefScriptSizePerBlockTooLargeError indicates the total reference-script size
+// in a block's transaction outputs exceeds the per-block limit.
+type RefScriptSizePerBlockTooLargeError struct {
+	BlockSize uint64
+	MaxSize   uint64
+}
+
+func (e RefScriptSizePerBlockTooLargeError) Error() string {
+	return fmt.Sprintf(
+		"reference-script size per block too large: %d > %d",
+		e.BlockSize, e.MaxSize,
+	)
+}
+
+var ErrRefScriptSizePerBlockTooLarge = errors.New(
+	"reference-script size per block too large",
+)
+
+func (RefScriptSizePerBlockTooLargeError) Is(target error) bool {
+	return target == ErrRefScriptSizePerBlockTooLarge
+}
+
+// ExtraneousRedeemerError indicates a redeemer whose tag/index does not
+// correspond to a valid script purpose in the transaction: the index is out
+// of range for its purpose category (spend/mint/cert/reward/voting/
+// proposing), or its tag is not one this validation recognizes as a valid
+// purpose (e.g. RedeemerTagGuarding, unless the caller has already
+// special-cased it).
+type ExtraneousRedeemerError struct {
+	RedeemerKey RedeemerKey
+}
+
+func (e ExtraneousRedeemerError) Error() string {
+	return fmt.Sprintf(
+		"extraneous redeemer: tag=%d, index=%d doesn't match any valid script purpose",
+		e.RedeemerKey.Tag,
+		e.RedeemerKey.Index,
+	)
+}
+
+// MissingRedeemerForScriptError indicates that an available Plutus script is
+// required by a concrete purpose but the witness set has no redeemer at that
+// purpose's exact tag and canonical index.
+type MissingRedeemerForScriptError struct {
+	ScriptHash  ScriptHash
+	RedeemerKey RedeemerKey
+	Tag         RedeemerTag
+	Index       uint32
+}
+
+func (e MissingRedeemerForScriptError) Error() string {
+	return fmt.Sprintf(
+		"missing redeemer for script %x: tag=%d, index=%d",
+		e.ScriptHash[:],
+		e.RedeemerKey.Tag,
+		e.RedeemerKey.Index,
+	)
+}
+
+// BlockExUnitsTooBigError indicates the sum of transaction execution units
+// across an entire block exceeds the protocol's maximum block execution-unit
+// budget (ppMaxBlockExUnits). This is a block-wide (BBODY) check in addition
+// to each transaction's own per-transaction ExUnits limit.
+type BlockExUnitsTooBigError struct {
+	TotalExUnits    ExUnits
+	MaxBlockExUnits ExUnits
+}
+
+func (e BlockExUnitsTooBigError) Error() string {
+	return fmt.Sprintf(
+		"block ExUnits too big: total %d/%d steps/memory, maximum %d/%d steps/memory",
+		e.TotalExUnits.Steps,
+		e.TotalExUnits.Memory,
+		e.MaxBlockExUnits.Steps,
+		e.MaxBlockExUnits.Memory,
+	)
+}
+
+// Sentinel error for block ExUnits too big so callers can use errors.Is
+var ErrBlockExUnitsTooBig = errors.New("block ExUnits too big")
+
+func (BlockExUnitsTooBigError) Is(target error) bool {
+	return target == ErrBlockExUnitsTooBig
+}
+
+// BlockBodySizeTooBigError indicates a block's serialized body size (the
+// exact CBOR bytes of the block minus its header) exceeds the protocol's
+// maximum block body size (ppMaxBlockBodySize).
+type BlockBodySizeTooBigError struct {
+	BlockBodySize    uint64
+	MaxBlockBodySize uint64
+}
+
+func (e BlockBodySizeTooBigError) Error() string {
+	return fmt.Sprintf(
+		"block body size too big: size %d, max %d",
+		e.BlockBodySize,
+		e.MaxBlockBodySize,
+	)
+}
+
+// Sentinel error for block body size too big so callers can use errors.Is
+var ErrBlockBodySizeTooBig = errors.New("block body size too big")
+
+func (BlockBodySizeTooBigError) Is(target error) bool {
+	return target == ErrBlockBodySizeTooBig
+}
+
+// BlockBodySizeMismatchError indicates that a block's serialized body size
+// differs from the size committed to by its signed header.
+type BlockBodySizeMismatchError struct {
+	BlockBodySize         uint64
+	DeclaredBlockBodySize uint64
+}
+
+func (e BlockBodySizeMismatchError) Error() string {
+	return fmt.Sprintf(
+		"block body size mismatch: size %d, declared %d",
+		e.BlockBodySize,
+		e.DeclaredBlockBodySize,
+	)
+}
+
+// ErrBlockBodySizeMismatch identifies a signed block body size mismatch.
+var ErrBlockBodySizeMismatch = errors.New("block body size mismatch")
+
+func (BlockBodySizeMismatchError) Is(target error) bool {
+	return target == ErrBlockBodySizeMismatch
+}
+
+// BlockHeaderSizeTooBigError indicates a block header's serialized size
+// exceeds the protocol's maximum block header size (ppMaxBlockHeaderSize).
+type BlockHeaderSizeTooBigError struct {
+	HeaderSize         uint64
+	MaxBlockHeaderSize uint64
+}
+
+func (e BlockHeaderSizeTooBigError) Error() string {
+	return fmt.Sprintf(
+		"block header size too big: size %d, max %d",
+		e.HeaderSize,
+		e.MaxBlockHeaderSize,
+	)
+}
+
+// Sentinel error for block header size too big so callers can use errors.Is
+var ErrBlockHeaderSizeTooBig = errors.New("block header size too big")
+
+func (BlockHeaderSizeTooBigError) Is(target error) bool {
+	return target == ErrBlockHeaderSizeTooBig
+}
+
+// GenesisDelegationStateUnavailableError indicates that a ledger state cannot
+// answer the genesis-delegation queries required to authorize a move
+// instantaneous rewards certificate.
+type GenesisDelegationStateUnavailableError struct{}
+
+func (GenesisDelegationStateUnavailableError) Error() string {
+	return "ledger state does not provide genesis delegation state"
+}
+
+// EpochStateUnavailableError indicates that a consensus rule cannot determine
+// the epoch containing a slot.
+type EpochStateUnavailableError struct{}
+
+func (EpochStateUnavailableError) Error() string {
+	return "ledger state does not provide epoch state"
+}
+
+// FuturePoolParametersStateUnavailableError indicates that PV11+ pool
+// registration validation cannot inspect deferred pool parameters.
+type FuturePoolParametersStateUnavailableError struct{}
+
+func (FuturePoolParametersStateUnavailableError) Error() string {
+	return "ledger state does not provide future pool parameters"
+}
+
+// ClassicProtocolParameterUpdateWindowStateUnavailableError indicates that a
+// ledger state cannot provide the PPUP epoch boundary needed for validation.
+type ClassicProtocolParameterUpdateWindowStateUnavailableError struct{}
+
+func (ClassicProtocolParameterUpdateWindowStateUnavailableError) Error() string {
+	return "classic protocol parameter update window state unavailable"
+}
+
+// ProtocolParameterUpdateProtocolVersionUnavailableError indicates that
+// version-dependent update validation lacks the current protocol version.
+type ProtocolParameterUpdateProtocolVersionUnavailableError struct{}
+
+func (ProtocolParameterUpdateProtocolVersionUnavailableError) Error() string {
+	return "protocol parameter update protocol version unavailable"
+}
+
+// ProtocolParameterUpdateCostModelError identifies an invalid cost model in a
+// classic protocol parameter update.
+type ProtocolParameterUpdateCostModelError struct {
+	Language uint
+	Expected int
+	Actual   int
+	Unknown  bool
+}
+
+// ProtocolParameterUpdateVersionError indicates that a proposed protocol
+// version cannot follow the current version.
+type ProtocolParameterUpdateVersionError struct {
+	CurrentMajor  uint
+	CurrentMinor  uint
+	ProposedMajor uint
+	ProposedMinor uint
+}
+
+func (e ProtocolParameterUpdateVersionError) Error() string {
+	return fmt.Sprintf(
+		"protocol parameter update version %d.%d cannot follow current version %d.%d",
+		e.ProposedMajor,
+		e.ProposedMinor,
+		e.CurrentMajor,
+		e.CurrentMinor,
+	)
+}
+
+func (e ProtocolParameterUpdateCostModelError) Error() string {
+	if e.Unknown {
+		return fmt.Sprintf("protocol parameter update contains unknown cost model language %d", e.Language)
+	}
+	return fmt.Sprintf(
+		"protocol parameter update cost model language %d has %d parameters, expected %d",
+		e.Language,
+		e.Actual,
+		e.Expected,
+	)
+}
+
+// ProtocolParameterUpdateDelegateError indicates that an update key is not a
+// currently delegated genesis key.
+type ProtocolParameterUpdateDelegateError struct {
+	Delegate Blake2b224
+}
+
+func (e ProtocolParameterUpdateDelegateError) Error() string {
+	return fmt.Sprintf("protocol parameter update key %s is not a current genesis delegate", e.Delegate)
+}
+
+// ProtocolParameterUpdateWitnessError indicates that an update lacks a
+// witness from its currently delegated genesis key.
+type ProtocolParameterUpdateWitnessError struct {
+	Delegate Blake2b224
+}
+
+func (e ProtocolParameterUpdateWitnessError) Error() string {
+	return fmt.Sprintf("protocol parameter update is missing witness for genesis delegate %s", e.Delegate)
+}
+
+// ProtocolParameterUpdateEpochError identifies an update targeting the wrong
+// current or next epoch.
+type ProtocolParameterUpdateEpochError struct {
+	Current      uint64
+	Expected     uint64
+	Proposed     uint64
+	ForNextEpoch bool
+}
+
+func (e ProtocolParameterUpdateEpochError) Error() string {
+	period := "current"
+	if e.ForNextEpoch {
+		period = "next"
+	}
+	return fmt.Sprintf("protocol parameter update targets epoch %d, expected %s epoch %d (current epoch %d)", e.Proposed, period, e.Expected, e.Current)
+}
+
+// MIRInsufficientGenesisSigsError indicates that a move instantaneous rewards
+// certificate was not authorized by a quorum of the currently delegated
+// genesis keys.
+type MIRInsufficientGenesisSigsError struct {
+	Provided uint
+	Required uint
+}
+
+func (e MIRInsufficientGenesisSigsError) Error() string {
+	return fmt.Sprintf(
+		"insufficient genesis delegate signatures for instantaneous rewards certificate: provided %d, required %d",
+		e.Provided,
+		e.Required,
+	)
+}

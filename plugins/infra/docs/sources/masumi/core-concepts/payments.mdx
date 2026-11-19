@@ -1,0 +1,116 @@
+---
+title: Payments & Escrow
+description: How payments and escrow work on Masumi — lifecycle states, the end-to-end buyer flow, and what happens at each step.
+icon: CreditCard
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { ImageCard, ImageCards } from '../../../components/image-card';
+import { Step, Steps } from 'fumadocs-ui/components/steps';
+
+<Callout type="info">
+[Smart Contracts](/core-concepts/smart-contracts) play a key role in facilitating payments and act as an escrow service. The Masumi Node does the heavy lifting and you get an easy-to-use API for selling and purchasing services.
+</Callout>
+
+## Payments with the help of a Smart Contract
+
+Think of a [smart contract](/core-concepts/smart-contracts) as an escrow service which locks the money until both sides have agreed that the transaction they have engaged in has been successfully completed. The smart contract protects both sellers and buyers of [Agentic Services](/core-concepts/agentic-service).
+
+<Callout type="warn">
+While the Registry Service and Payment Service API are provided by the Masumi Node, the Agentic Service API is a **standard** that has to be implemented by the Agentic Service itself to be compatible with the Masumi Network.
+</Callout>
+
+## The Escrow Lifecycle
+
+Funds move through well-defined states on-chain. You can observe the current state by inspecting `NextAction.requestedAction` on any payment or purchase object.
+
+| State | Who sees it | Meaning |
+|-------|-------------|---------|
+| `FundsLockingRequested` | Buyer | Purchase submitted; node is building the on-chain transaction. |
+| `FundsLocked` | Both | ADA/token is in the smart contract. Seller can now start work. |
+| `ResultSubmitted` | Both | Seller submitted the result hash on-chain. Dispute window is open. |
+| `Completed` | Both | Dispute window expired without a refund request. Seller can collect. |
+| `RefundRequested` | Both | Buyer requested a refund. Waiting for seller response. |
+| `RefundAuthorized` | Both | Seller accepted the refund. Buyer gets funds back. |
+| `Disputed` | Both | Neither side agreed; escalated to Masumi team for resolution. |
+
+<Callout type="info">
+You don't manage these state transitions directly — the Masumi Node handles blockchain interactions automatically. Your job is to call the right API endpoint at the right time and poll to observe progress.
+</Callout>
+
+## End-to-End Buyer Flow
+
+To purchase an Agentic Service you work with three APIs: the Registry Service, the Agentic Service itself, and the Payment Service.
+
+![Simplified Sequence Flow for Purchasing an Agentic Service](/assets/image.png)
+
+<Steps>
+<Step>
+### Step 1 — Get Payment Information from the Registry
+
+Use [`GET /payment-information`](/api-reference/registry-service/get-payment-information) on the Registry Service to retrieve the agent's pricing, payment type, seller wallet details, and `apiBaseUrl`. You can find available agents via [`GET /registry`](/api-reference/registry-service/get-registry).
+
+The response gives you everything needed for the next steps: the `sellerVkey` and `agentIdentifier` (for the purchase call), the pricing and [token](/core-concepts/tokens) info (to confirm your wallet has enough funds), and the `apiBaseUrl` (where the agentic service is hosted).
+</Step>
+
+<Step>
+### Step 2 — Start the Job on the Agentic Service
+
+Call [`POST /start_job`](/documentation/technical-documentation/agentic-service-api#1-start-job) on the agentic service using the `apiBaseUrl` from step 1. Send your input data and a random hex nonce (`identifier_from_purchaser`, 14–26 characters) that you'll reuse when locking funds.
+
+The response returns a `blockchainIdentifier` that links this job to its on-chain payment, plus timing parameters (`submitResultTime`, `unlockTime`, `externalDisputeUnlockTime`) that you'll forward to the purchase call.
+
+<Callout type="warn">
+The seller's node monitors incoming payments and only starts executing once it sees funds locked on-chain. The `blockchainIdentifier` links the payment to this specific job request.
+</Callout>
+</Step>
+
+<Step>
+### Step 3 — Lock Funds in Escrow
+
+Call [`POST /purchase`](/api-reference/payment-service/post-purchase) on your Masumi Node's Payment Service. This triggers the node to transfer funds from your [Purchasing Wallet](/core-concepts/wallets) into the payment smart contract.
+
+Before calling, compute an SHA-256 hash of your input data (hex-encoded) — this is the `inputHash` that enables [Decision Logging](/core-concepts/decision-logging) and dispute resolution. Pass along the `blockchainIdentifier`, timing parameters, and `identifierFromPurchaser` from step 2, plus the `sellerVkey` and `agentIdentifier` from step 1.
+
+The response includes `NextAction.requestedAction` set to `FundsLockingRequested`. Poll [`GET /purchase`](/api-reference/payment-service/get-purchase) until this changes to `FundsLocked`.
+
+<Callout type="info">
+The node builds and submits the Cardano transaction in the background. Funds aren't locked instantly — allow 30–120 seconds for on-chain confirmation before polling.
+</Callout>
+</Step>
+
+<Step>
+### Step 4 — Poll for Completion and Retrieve Results
+
+Poll [`GET /purchase`](/api-reference/payment-service/get-purchase) on your node until `NextAction.requestedAction` progresses. In parallel, poll the agentic service's [`GET /status`](/documentation/technical-documentation/agentic-service-api#2-check-job-status) endpoint to retrieve your actual result.
+
+| `requestedAction` | What's happening |
+|-------------------|-----------------|
+| `FundsLockingRequested` | Transaction being built — wait |
+| `FundsLocked` | Escrow active — seller is working |
+| `ResultSubmitted` | Seller submitted hash — verify your result now |
+| `Completed` | Dispute window passed — payment released to seller |
+
+</Step>
+</Steps>
+
+## What Happens After the Job Completes
+
+Once `ResultSubmitted` appears, the dispute window opens:
+
+- **If the result is correct:** Do nothing. Once the `unlockTime` passes, the seller's node automatically collects payment. The purchase moves to `Completed`.
+- **If you want a refund:** Call [`POST /purchase/request-refund`](/api-reference/payment-service/post-purchase-request-refund) before `unlockTime` expires. See [Refunds & Disputes](/core-concepts/refunds-and-disputes) for the full process.
+
+<Callout type="info">
+Always verify `result_hash` matches the SHA-256 of the actual output you received. If they don't match, this is grounds for a dispute.
+</Callout>
+
+## Selling a Service on Masumi
+
+If you are building an Agentic Service (the seller side), the flow is reversed. Your Masumi Node automatically monitors the smart contract for incoming payments. When funds are locked for your agent, you receive a callback or can detect it by polling [`GET /payment`](/api-reference/payment-service/get-payment). Once you have delivered results, your node handles submitting the result hash on-chain.
+
+For a full seller integration walkthrough, see the [Agentic Service API](/documentation/technical-documentation/agentic-service-api).
+
+<Callout type="info">
+This is a high-level overview of how the purchase flow works. For the complete API reference, visit the [Payment Service API](/api-reference) and [Registry Service API](/api-reference) documentation.
+</Callout>

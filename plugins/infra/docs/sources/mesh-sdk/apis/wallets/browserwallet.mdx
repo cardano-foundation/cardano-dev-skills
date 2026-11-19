@@ -1,0 +1,408 @@
+---
+title: "Browser Wallet (CIP-30)"
+description: "Connect to CIP-30 compatible browser wallets like Eternl, Nami, Lace, and Flint."
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+`MeshCardanoBrowserWallet` enables your dApp to connect with users' browser extension wallets following the [CIP-30](https://cips.cardano.org/cip/CIP-30) standard. This provides a consistent interface for wallet discovery, connection, transaction signing, and data queries across all compatible wallets.
+
+**Supported wallets include:** Eternl, Nami, Lace, Flint, Typhon, GeroWallet, and any CIP-30 compliant wallet.
+
+## Quick Start
+
+```tsx
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+// 1. Get installed wallets on user's device
+const wallets = MeshCardanoBrowserWallet.getInstalledWallets();
+
+// 2. Connect to a wallet
+const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+// 3. Get wallet balance
+const balance = await wallet.getBalanceMesh();
+
+// 4. Get wallet address
+const address = await wallet.getChangeAddressBech32();
+```
+
+## Wallet Discovery
+
+### getInstalledWallets
+
+Retrieve all CIP-30 compatible wallets installed on the user's device.
+
+```tsx
+const wallets = MeshCardanoBrowserWallet.getInstalledWallets();
+```
+
+**Returns:**
+
+```tsx
+[
+  {
+    id: "eternl",
+    name: "Eternl",
+    icon: "data:image/png;base64,...",
+    version: "0.1.0"
+  },
+  {
+    id: "nami",
+    name: "Nami",
+    icon: "data:image/png;base64,...",
+    version: "3.0.0"
+  }
+]
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `id` | `string` | Wallet identifier used for connection |
+| `name` | `string` | Display name of the wallet |
+| `icon` | `string` | Base64-encoded wallet icon for UI display |
+| `version` | `string` | Wallet extension version |
+
+## Connection
+
+### enable
+
+Connect to a specific wallet. This prompts the user to grant permission.
+
+```tsx
+const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+```
+
+**With CIP extensions:**
+
+```tsx
+// Enable CIP-95 (governance) support
+const wallet = await MeshCardanoBrowserWallet.enable("eternl", [{ cip: 95 }]);
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `walletName` | `string` | Yes | Wallet identifier from `getInstalledWallets()` |
+| `extensions` | `Extension[]` | No | CIP extensions to enable (e.g., `[{ cip: 95 }]`) |
+
+## Account Information
+
+### getNetworkId
+
+Get the network the wallet is connected to.
+
+```tsx
+const networkId = await wallet.getNetworkId();
+// 0 = Testnet, 1 = Mainnet
+```
+
+---
+
+### getChangeAddressBech32
+
+Get the address where transaction change should be sent.
+
+```tsx
+const changeAddress = await wallet.getChangeAddressBech32();
+// "addr_test1qz..."
+```
+
+---
+
+### getUsedAddressesBech32
+
+Get all addresses that have received funds.
+
+```tsx
+const usedAddresses = await wallet.getUsedAddressesBech32();
+// ["addr_test1qz...", "addr_test1qr..."]
+```
+
+---
+
+### getUnusedAddressesBech32
+
+Get addresses that have never received funds.
+
+```tsx
+const unusedAddresses = await wallet.getUnusedAddressesBech32();
+```
+
+---
+
+### getRewardAddressesBech32
+
+Get stake addresses associated with the wallet.
+
+```tsx
+const stakeAddresses = await wallet.getRewardAddressesBech32();
+// ["stake_test1uz..."]
+```
+
+## Balance & Assets
+
+### getBalanceMesh
+
+Get the complete balance including ADA and all native assets.
+
+```tsx
+const balance = await wallet.getBalanceMesh();
+```
+
+**Returns:**
+
+```tsx
+[
+  { unit: "lovelace", quantity: "796105407" },
+  { unit: "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e", quantity: "1" }
+]
+```
+
+## UTXOs & Collateral
+
+### getUtxosMesh
+
+Get all unspent transaction outputs controlled by the wallet.
+
+```tsx
+const utxos = await wallet.getUtxosMesh();
+```
+
+**Returns:**
+
+```tsx
+[
+  {
+    input: {
+      txHash: "16dcbb1f93b4f9d5e...",
+      outputIndex: 0
+    },
+    output: {
+      address: "addr_test1qz...",
+      amount: [
+        { unit: "lovelace", quantity: "1314550" },
+        { unit: "d9312da562da182b...", quantity: "1" }
+      ]
+    }
+  }
+]
+```
+
+---
+
+### getCollateralMesh
+
+Get UTXOs suitable for use as collateral in Plutus script transactions.
+
+```tsx
+const collateral = await wallet.getCollateralMesh();
+```
+
+Collateral UTXOs must contain only ADA (no native assets) and meet minimum value requirements.
+
+## Transaction Operations
+
+### signTx
+
+Sign a transaction with the wallet's private keys. Returns a witness set in CBOR hex format.
+
+```tsx
+// Single signature
+const witnessSet = await wallet.signTx(unsignedTx, false);
+
+// Partial signing (for multi-sig transactions)
+const witnessSet = await wallet.signTx(unsignedTx, true);
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tx` | `string` | Yes | Unsigned transaction CBOR hex |
+| `partialSign` | `boolean` | Yes | Set `true` for multi-signature transactions |
+
+---
+
+### signTxReturnFullTx
+
+Sign a transaction and return the full signed transaction with witnesses merged.
+
+```tsx
+const signedTx = await wallet.signTxReturnFullTx(unsignedTx, false);
+```
+
+This is useful when you need the complete transaction CBOR rather than just the witness set.
+
+---
+
+### submitTx
+
+Submit a signed transaction to the network.
+
+```tsx
+const txHash = await wallet.submitTx(signedTx);
+// "f4ec9833a3bf95403d395f699bc564938f3419537e7fb5084425d3838a4b6159"
+```
+
+---
+
+### signData
+
+Sign arbitrary data using CIP-8 message signing. Useful for authentication and proof of wallet ownership.
+
+```tsx
+const address = await wallet.getChangeAddressBech32();
+const signature = await wallet.signData(address, "Hello, Mesh!");
+```
+
+**Returns:**
+
+```tsx
+{
+  signature: "845846a2012...",
+  key: "a4010103272006215..."
+}
+```
+
+See <Link href="/guides/prove-wallet-ownership">Prove Wallet Ownership</Link> to verify signatures server-side.
+
+## Complete Example
+
+```tsx
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";
+
+// Setup provider
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+
+// Check installed wallets
+const installedWallets = MeshCardanoBrowserWallet.getInstalledWallets();
+console.log("Installed wallets:", installedWallets.map(w => w.name));
+
+// Connect to wallet
+const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+// Check connection
+const networkId = await wallet.getNetworkId();
+console.log("Connected to:", networkId === 0 ? "Testnet" : "Mainnet");
+
+// Get wallet info
+const address = await wallet.getChangeAddressBech32();
+const balance = await wallet.getBalanceMesh();
+const lovelace = balance.find(a => a.unit === 'lovelace')?.quantity || '0';
+console.log(`Address: ${address}`);
+console.log(`Balance: ${Number(lovelace) / 1_000_000} ADA`);
+
+// Build and send transaction
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxosMesh();
+
+const unsignedTx = await txBuilder
+  .txOut("addr_test1qz...", [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(address)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTxReturnFullTx(unsignedTx, false);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log(`Transaction submitted: ${txHash}`);
+```
+
+## React Integration
+
+For React applications, use the `@meshsdk/react` package for built-in wallet components and hooks.
+
+```tsx
+import { CardanoWallet, useWallet } from "@meshsdk/react";
+
+function App() {
+  const { connected, wallet } = useWallet();
+
+  return (
+    <div>
+      <CardanoWallet />
+      {connected && <p>Connected!</p>}
+    </div>
+  );
+}
+```
+
+See <Link href="/react/getting-started">React Getting Started</Link> for full integration details.
+
+## API Reference
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getInstalledWallets()` | `Wallet[]` | Static - Get installed wallets |
+| `enable(walletName, extensions?)` | `Promise<MeshCardanoBrowserWallet>` | Static - Connect to wallet |
+| `getNetworkId()` | `Promise<number>` | Network ID (0=testnet, 1=mainnet) |
+| `getUtxos()` | `Promise<string[]>` | UTXOs in CBOR hex format |
+| `getUtxosMesh()` | `Promise<UTxO[]>` | UTXOs in Mesh format |
+| `getCollateral()` | `Promise<string[]>` | Collateral UTXOs in CBOR hex format |
+| `getCollateralMesh()` | `Promise<UTxO[]>` | Collateral UTXOs in Mesh format |
+| `getBalance()` | `Promise<string>` | Balance in CBOR hex format |
+| `getBalanceMesh()` | `Promise<Asset[]>` | Balance as Asset array |
+| `getUsedAddresses()` | `Promise<string[]>` | Used addresses in hex format |
+| `getUsedAddressesBech32()` | `Promise<string[]>` | Used addresses in Bech32 |
+| `getUnusedAddresses()` | `Promise<string[]>` | Unused addresses in hex format |
+| `getUnusedAddressesBech32()` | `Promise<string[]>` | Unused addresses in Bech32 |
+| `getChangeAddress()` | `Promise<string>` | Change address in hex format |
+| `getChangeAddressBech32()` | `Promise<string>` | Change address in Bech32 |
+| `getRewardAddresses()` | `Promise<string[]>` | Reward addresses in hex format |
+| `getRewardAddressesBech32()` | `Promise<string[]>` | Reward addresses in Bech32 |
+| `signTx(tx, partialSign)` | `Promise<string>` | Sign transaction, return witness set |
+| `signTxReturnFullTx(tx, partialSign)` | `Promise<string>` | Sign and return full transaction |
+| `signData(address, data)` | `Promise<DataSignature>` | Sign arbitrary data |
+| `submitTx(tx)` | `Promise<string>` | Submit transaction |
+
+## Troubleshooting
+
+### Wallet not appearing in getInstalledWallets()
+- Ensure the wallet extension is installed and enabled
+- Refresh the page after installing a new wallet
+- Check that the wallet is unlocked
+
+### "User rejected the request" error
+The user declined the connection or signing prompt. Handle this gracefully:
+
+```tsx
+try {
+  const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+} catch (error) {
+  if (error.message.includes("rejected")) {
+    console.log("User declined connection");
+  }
+}
+```
+
+### "Account not set" error
+The wallet is locked or no account is selected. Prompt the user to unlock their wallet.
+
+### Transaction signing fails
+- Ensure UTXOs are up to date (call `getUtxosMesh()` before building)
+- Verify the transaction has sufficient funds for outputs + fees
+- For Plutus transactions, ensure collateral is set
+
+### Multi-signature transaction issues
+- Set `partialSign: true` when calling `signTx()`
+- Each signer must sign the transaction in sequence
+- The final signer can use `partialSign: false`
+
+## References
+
+- [CIP-30: Cardano dApp-Wallet Web Bridge](https://cips.cardano.org/cip/CIP-0030) - The standard implemented by this API for wallet-dApp communication
+- [CIP-95: Web-Wallet Bridge for Conway Governance](https://cips.cardano.org/cip/CIP-0095) - Extension for governance features (DRep keys, Conway-era certificates)
+- [CIP-8: Message Signing](https://cips.cardano.org/cip/CIP-0008) - The standard used by `signData` for arbitrary data signing
+- [Cardano Developer Portal](https://developers.cardano.org) - Official Cardano development resources
+
+## Related
+
+- <Link href="/apis/wallets/meshwallet">Headless Wallet</Link> - Server-side wallet for backend applications
+- <Link href="/react/getting-started">React Integration</Link> - UI components and hooks
+- <Link href="/guides/prove-wallet-ownership">Prove Wallet Ownership</Link> - Authentication with wallet signatures
+- <Link href="/apis/txbuilder/basics">Transaction Builder</Link> - Build transactions to sign

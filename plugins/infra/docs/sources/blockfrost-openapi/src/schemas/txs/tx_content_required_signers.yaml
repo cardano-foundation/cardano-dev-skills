@@ -1,0 +1,10 @@
+type: array
+items:
+  type: object
+  properties:
+    witness_hash:
+      type: string
+      example: d52e11f3e48436dd42dbec6d88c239732e503b8b7a32af58e5f87625
+      description: Hash of the witness
+  required:
+    - witness_hash

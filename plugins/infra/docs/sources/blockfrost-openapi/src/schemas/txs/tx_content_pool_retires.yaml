@@ -1,0 +1,20 @@
+type: array
+items:
+  type: object
+  properties:
+    cert_index:
+      type: integer
+      example: 0
+      description: Index of the certificate within the transaction
+    pool_id:
+      type: string
+      example: "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy"
+      description: Bech32 stake pool ID
+    retiring_epoch:
+      type: integer
+      example: 216
+      description: Epoch in which the pool becomes retired
+  required:
+    - cert_index
+    - pool_id
+    - retiring_epoch

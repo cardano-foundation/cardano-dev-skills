@@ -1,0 +1,24 @@
+---
+title: RabbitMq
+sidebar:
+  order: 32
+---
+
+Publishes each event as a json-encoded message to a [RabbitMQ](https://www.rabbitmq.com/)
+exchange. A good fit when your downstream consumers already speak AMQP and you want RabbitMQ
+to handle routing and delivery.
+
+## Configuration
+
+```toml title="daemon.toml"
+[sink]
+type = "Rabbitmq"
+uri = "amqp://rabbitmq:rabbitmq@127.0.0.1:5672"
+exchange = "events.exchange"
+routing_key = ""
+```
+
+- `type` (required): the literal value `Rabbitmq`.
+- `uri` (required): the connection URI of the RabbitMQ server.
+- `exchange` (required): the exchange to publish events to.
+- `routing_key` (optional): the routing key attached to each published message.

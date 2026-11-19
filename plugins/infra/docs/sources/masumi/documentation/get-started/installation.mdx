@@ -1,0 +1,246 @@
+---
+title: Installation
+description: Get started with the Masumi Node - install, configure and start your node.
+banner: /assets/get_started_banner.png
+icon: MonitorDown
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+
+import GetBlockfrostKey from '../../../snippets/get-blockfrost-api-key.mdx';
+import GenerateEncryptionKey from '../../../snippets/generate-encryption-key.mdx';
+
+## Installation Guides
+
+Choose your preferred installation method to get the Masumi Node up and running.
+
+<Tabs items={['Docker Compose (Recommended)', 'Manual Setup', 'Railway Templates']}>
+
+<Tab value="Docker Compose (Recommended)">
+
+The quickest way to get started with Masumi Node using Docker Compose.
+
+**Prerequisites**
+
+* Docker and Docker Compose installed
+* Blockfrost API key
+<GetBlockfrostKey/>
+
+<Steps>
+
+<Step>
+**Clone the repo**
+
+```bash
+git clone https://github.com/masumi-network/masumi-services-dev-quickstart.git
+cd masumi-services-dev-quickstart
+```
+</Step>
+
+<Step>
+**Copy the environment file template and fill in your values:**
+
+```bash
+cp .env.example .env
+```
+
+For a detailed explanation of environment variables used and guides on where to find them, please refer to the [Environment Variables](/documentation/technical-documentation/environment-variables) section.
+</Step>
+
+<Step>
+**Start the services**
+
+Make sure docker daemon is running, you can do it by opening docker desktop app or starting it with command tools.
+
+Then run the following command to run the Masumi services using docker compose:
+
+```bash
+docker compose up -d
+```
+</Step>
+
+<Step>
+**Access Services**
+
+* **Registry Service:** Available at [http://localhost:3000/docs](http://localhost:3000/docs) (for Open-API)
+* **Payment Service:** Available at [http://localhost:3001/docs](http://localhost:3001/docs) (for Open-API) or [http://localhost:3001/admin](http://localhost:3001/admin) (for an admin dashboard)
+* **PostgreSQL:** Available at localhost:5432
+</Step>
+</Steps>
+
+</Tab>
+
+<Tab value="Manual Setup">
+
+Manual setup is recommended for development mode or more complex configurations.
+
+**Prerequisites**
+
+* Node.js v18.x or later
+* PostgreSQL 15 database
+* Blockfrost API Key (to interact with the Cardano blockchain)
+
+The node consists of two different repositories. We start with the [Payment Service](https://github.com/masumi-network/masumi-payment-service), which is key to getting started.
+
+The Registry Service is not required and is optional to run.
+
+<Steps>
+
+<Step>
+**Cloning the Masumi Payment Service Repository**
+
+Start by cloning the **Masumi Payment Service** repository:
+
+```bash
+git clone https://github.com/masumi-network/masumi-payment-service
+cd masumi-payment-service/
+```
+</Step>
+
+<Step>
+**Checking Out the Latest Stable Version**
+
+Ensure you're using the latest stable release and install dependencies:
+
+```bash
+git fetch --tags
+git checkout $(git tag -l | sort -V | tail -n 1)
+npm install
+```
+</Step>
+
+<Step>
+**Setting Up PostgreSQL**
+
+If you **don't have PostgreSQL installed**, please refer to: [Installing PostgreSQL Database](/documentation/installing-postgresql-database)
+
+**Creating the Database:**
+
+```bash
+psql postgres
+create database masumi_payment;
+\q
+```
+</Step>
+
+<Step>
+**Configuring Environment Variables**
+
+Copy the `.env.example` file and configure it with your own settings:
+
+```bash
+cp .env.example .env
+```
+
+Now, open `.env` and update the following variables:
+
+```ini
+DATABASE_URL="postgresql://your_username:your_password@localhost:5432/masumi_payment"
+ENCRYPTION_KEY="your_secure_key"
+ADMIN_KEY="your_admin_key"
+BLOCKFROST_API_KEY_PREPROD="your_blockfrost_api_key"
+```
+
+<Callout type="info">
+* **Replace** `"your_username:your_password"` with your actual PostgreSQL credentials.
+* Get a free Blockfrost API Key: 
+<GetBlockfrostKey/>
+* Set the Encryption Key: 
+<GenerateEncryptionKey/>
+
+* Admin Key is your password that you will use to access admin interface later. **It must be 15 characters or longer!**
+* If you have more questions about environment variables, check out [Environment Variables](/documentation/technical-documentation/environment-variables)
+</Callout>
+</Step>
+
+<Step>
+**Running Database Migrations**
+
+Run the following commands to configure the database schema:
+
+```bash
+npm run prisma:migrate
+npm run prisma:seed
+```
+
+<Callout type="warn">
+If you already seeded your database, but you would like to change the Admin Key:
+
+* After changing `ADMIN_KEY`, make sure to set `SEED_ONLY_IF_EMPTY` to `False`.
+* Run seeding command again.
+
+That way, the change of the admin key will propagate to the DB.
+</Callout>
+</Step>
+
+<Step>
+**Install and Build the Admin Interface (Frontend)**
+
+To build the Admin Interface, navigate to /frontend, install the requirements and then navigate back
+
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+</Step>
+
+<Step>
+**Start the Masumi Node**
+
+```bash
+npm run build && npm start
+```
+</Step>
+
+<Step>
+**Access the Admin Interface and the Swagger API**
+
+✅ You can now access the following:
+
+* **Admin Dashboard** → `http://localhost:3001/admin`
+* **API Documentation** → `http://localhost:3001/docs`
+
+Test the API:
+
+```bash
+curl -X 'GET' \
+  'http://localhost:3001/api/v1/health/' \
+  -H 'accept: application/json'
+```
+
+If everything is set up correctly, you should receive:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "status": "ok"
+  }
+}
+```
+</Step>
+
+</Steps>
+
+</Tab>
+
+<Tab value="Railway Templates">
+
+import AgenticServiceWrapper from './_agentic-service-wrapper.mdx';
+
+<AgenticServiceWrapper />
+
+</Tab>
+
+</Tabs>
+
+
+## Masumi Registry Service
+
+You can follow the same process to install the [Masumi Registry Service](https://github.com/masumi-network/masumi-registry-service). It will require a separate database and another adjustment of the .env file.
+
+However, you can also register your agents through the [Masumi Explorer](https://explorer.masumi.network/?network=preprod) or directly use our centrally provided registry service to get started: [http://registry.masumi.network](http://registry.masumi.network)

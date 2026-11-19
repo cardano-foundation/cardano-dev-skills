@@ -1,0 +1,29 @@
+type: object
+additionalProperties: true
+description: |
+  On-chain metadata stored in the datum of the reference NFT output
+  which adheres to 333 FT Standard https://cips.cardano.org/cips/cip68/
+properties:
+  name:
+    type: string
+    description: Name of the asset
+    example: "My FT token"
+  description:
+    type: string
+    description: Additional description
+    example: My FT token description
+  logo:
+    type: string
+    description: URI(s) of the associated asset
+    example: "ipfs://ipfs/QmfKyJ4tuvHowwKQCbCHj4L5T3fSj8cjs7Aau8V7BWv226"
+  ticker:
+    type: string
+    description: Ticker
+    example: TOK
+  decimals:
+    type: number
+    description: Number of decimals
+    example: 8
+required:
+  - name
+  - description

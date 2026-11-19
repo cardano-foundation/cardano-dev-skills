@@ -1,0 +1,54 @@
+type: object
+properties:
+  drep_id:
+    type: string
+    description: Bech32 encoded DRep address
+  hex:
+    type: string
+    description: The raw bytes of the DRep
+  amount:
+    type: string
+    description: The total amount of voting power this DRep is delegated.
+  active:
+    type: boolean
+    description: Registration state of the DRep
+    deprecated: true
+  active_epoch:
+    type: integer
+    nullable: true
+    description: Epoch of the most recent registration
+    deprecated: true
+  has_script:
+    type: boolean
+    description: Flag indicating whether this DRep's credential is a script hash
+  retired:
+    type: boolean
+    description: Registration state of the DRep. Set to `true` if the DRep has been deregistered; otherwise, `false`.
+  expired:
+    type: boolean
+    description: Whether the DRep has been inactive for a consecutive number of epochs (determined by an epoch parameter `drep_activity`)
+  last_active_epoch:
+    type: integer
+    nullable: true
+    description: Epoch of the most recent action - registration, update, deregistration or voting
+
+required:
+  - drep_id
+  - hex
+  - amount
+  - active
+  - active_epoch
+  - has_script
+  - retired
+  - expired
+  - last_active_epoch
+example:
+  drep_id: drep15cfxz9exyn5rx0807zvxfrvslrjqfchrd4d47kv9e0f46uedqtc
+  hex: a61261172624e8333ceff098648d90f8e404e2e36d5b5f5985cbd35d
+  amount: "2000000"
+  active: true
+  active_epoch: 420
+  has_script: true
+  last_active_epoch: 509
+  retired: false
+  expired: false

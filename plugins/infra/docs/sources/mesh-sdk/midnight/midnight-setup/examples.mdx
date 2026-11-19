@@ -1,0 +1,580 @@
+---
+title: "Examples"
+description: "Complete working examples for Midnight Network integration with React"
+---
+
+This page provides complete, copy-paste-ready examples for common Midnight Network integration patterns. Each example includes all necessary imports and can be used as a starting point for your application.
+
+## Full React application
+
+A complete React application demonstrating wallet connection, contract deployment, and state management.
+
+### Project setup
+
+First, install all required dependencies:
+
+```bash
+npm install @meshsdk/midnight-setup \
+  @midnight-ntwrk/dapp-connector-api@3.0.0 \
+  @midnight-ntwrk/midnight-js-fetch-zk-config-provider@2.0.2 \
+  @midnight-ntwrk/midnight-js-http-client-proof-provider@2.0.2 \
+  @midnight-ntwrk/midnight-js-indexer-public-data-provider@2.0.2 \
+  @midnight-ntwrk/midnight-js-level-private-state-provider@2.0.2 \
+  @midnight-ntwrk/midnight-js-network-id@2.0.2
+```
+
+### Provider configuration
+
+Create `src/providers.ts`:
+
+```typescript
+import { FetchZkConfigProvider } from "@midnight-ntwrk/midnight-js-fetch-zk-config-provider";
+import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
+import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
+import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
+import type { MidnightSetupContractProviders } from "@meshsdk/midnight-setup";
+
+export async function setupProviders(): Promise<MidnightSetupContractProviders> {
+  const wallet = window.midnight?.mnLace;
+  if (!wallet) {
+    throw new Error("Please install Lace Beta Wallet for Midnight Network");
+  }
+
+  const walletAPI = await wallet.enable();
+  const walletState = await walletAPI.state();
+  const uris = await wallet.serviceUriConfig();
+
+  return {
+    privateStateProvider: levelPrivateStateProvider({
+      privateStateStoreName: "my-dapp-state",
+    }),
+    zkConfigProvider: new FetchZkConfigProvider(
+      window.location.origin,
+      fetch.bind(window),
+    ),
+    proofProvider: httpClientProofProvider(uris.proverServerUri),
+    publicDataProvider: indexerPublicDataProvider(
+      uris.indexerUri,
+      uris.indexerWsUri,
+    ),
+    walletProvider: {
+      coinPublicKey: walletState.coinPublicKey,
+      encryptionPublicKey: walletState.encryptionPublicKey,
+      balanceTx: (tx, newCoins) => {
+        return walletAPI.balanceAndProveTransaction(tx, newCoins);
+      },
+    },
+    midnightProvider: {
+      submitTx: (tx) => {
+        return walletAPI.submitTransaction(tx);
+      },
+    },
+  };
+}
+```
+
+### Wallet hook
+
+Create `src/hooks/useMidnightWallet.ts`:
+
+```typescript
+import { useState, useCallback } from 'react';
+
+interface WalletState {
+  address: string;
+  coinPublicKey: string;
+  encryptionPublicKey: string;
+}
+
+interface WalletHookReturn {
+  connectWallet: () => Promise<void>;
+  disconnectWallet: () => Promise<void>;
+  walletState: WalletState | null;
+  isConnected: boolean;
+  isLoading: boolean;
+  error: string | null;
+}
+
+export function useMidnightWallet(): WalletHookReturn {
+  const [walletState, setWalletState] = useState<WalletState | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const connectWallet = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const wallet = window.midnight?.mnLace;
+      if (!wallet) {
+        throw new Error("Please install Lace Beta Wallet for Midnight Network");
+      }
+
+      const walletAPI = await wallet.enable();
+      const state = await walletAPI.state();
+
+      setWalletState({
+        address: state.address,
+        coinPublicKey: state.coinPublicKey,
+        encryptionPublicKey: state.encryptionPublicKey,
+      });
+      setIsConnected(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Connection failed";
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const disconnectWallet = useCallback(async () => {
+    try {
+      const wallet = window.midnight?.mnLace;
+      if (wallet) {
+        await wallet.disconnect();
+        setWalletState(null);
+        setIsConnected(false);
+        setError(null);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Disconnect failed";
+      setError(message);
+    }
+  }, []);
+
+  return {
+    connectWallet,
+    disconnectWallet,
+    walletState,
+    isConnected,
+    isLoading,
+    error,
+  };
+}
+```
+
+### Contract hook
+
+Create `src/hooks/useMidnightContract.ts`:
+
+```typescript
+import { useState, useCallback } from 'react';
+import { MidnightSetupAPI } from '@meshsdk/midnight-setup';
+import { setupProviders } from '../providers';
+
+interface ContractHookReturn {
+  api: MidnightSetupAPI | null;
+  deployContract: (contractInstance: unknown) => Promise<MidnightSetupAPI>;
+  joinContract: (contractInstance: unknown, address: string) => Promise<MidnightSetupAPI>;
+  getContractState: () => Promise<unknown>;
+  getLedgerState: () => Promise<unknown>;
+  isLoading: boolean;
+  error: string | null;
+}
+
+export function useMidnightContract(): ContractHookReturn {
+  const [api, setApi] = useState<MidnightSetupAPI | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const deployContract = useCallback(async (contractInstance: unknown) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const providers = await setupProviders();
+      const newApi = await MidnightSetupAPI.deployContract(
+        providers,
+        contractInstance as never
+      );
+      setApi(newApi);
+      return newApi;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Deployment failed";
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const joinContract = useCallback(async (contractInstance: unknown, address: string) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const providers = await setupProviders();
+      const newApi = await MidnightSetupAPI.joinContract(
+        providers,
+        contractInstance as never,
+        address
+      );
+      setApi(newApi);
+      return newApi;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to join contract";
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const getContractState = useCallback(async () => {
+    if (!api) throw new Error('No contract API available');
+    return await api.getContractState();
+  }, [api]);
+
+  const getLedgerState = useCallback(async () => {
+    if (!api) throw new Error('No contract API available');
+    return await api.getLedgerState();
+  }, [api]);
+
+  return {
+    api,
+    deployContract,
+    joinContract,
+    getContractState,
+    getLedgerState,
+    isLoading,
+    error,
+  };
+}
+```
+
+### Main application component
+
+Create `src/App.tsx`:
+
+```typescript
+import React, { useState } from 'react';
+import { useMidnightWallet } from './hooks/useMidnightWallet';
+import { useMidnightContract } from './hooks/useMidnightContract';
+
+function App() {
+  const {
+    connectWallet,
+    disconnectWallet,
+    walletState,
+    isConnected,
+    isLoading: walletLoading,
+    error: walletError,
+  } = useMidnightWallet();
+
+  const {
+    api,
+    deployContract,
+    joinContract,
+    getContractState,
+    isLoading: contractLoading,
+    error: contractError,
+  } = useMidnightContract();
+
+  const [contractAddress, setContractAddress] = useState('');
+  const [contractState, setContractState] = useState<unknown>(null);
+
+  const isLoading = walletLoading || contractLoading;
+  const error = walletError || contractError;
+
+  async function handleDeploy() {
+    try {
+      // Replace with your actual contract class
+      const contractInstance = {}; // new MyContract({})
+      const newApi = await deployContract(contractInstance);
+      console.log('Deployed at:', newApi.deployedContractAddress);
+    } catch (err) {
+      console.error('Deploy failed:', err);
+    }
+  }
+
+  async function handleJoin() {
+    if (!contractAddress.trim()) {
+      alert('Please enter a contract address');
+      return;
+    }
+
+    try {
+      // Replace with your actual contract class
+      const contractInstance = {}; // new MyContract({})
+      await joinContract(contractInstance, contractAddress);
+      console.log('Joined contract:', contractAddress);
+    } catch (err) {
+      console.error('Join failed:', err);
+    }
+  }
+
+  async function handleGetState() {
+    try {
+      const state = await getContractState();
+      setContractState(state);
+    } catch (err) {
+      console.error('Get state failed:', err);
+    }
+  }
+
+  return (
+    <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
+      <h1>Midnight Network dApp</h1>
+
+      {error && (
+        <div style={{ padding: '1rem', background: '#fee', color: '#c00', marginBottom: '1rem' }}>
+          {error}
+        </div>
+      )}
+
+      <section style={{ marginBottom: '2rem' }}>
+        <h2>Step 1: Connect Wallet</h2>
+        {isConnected ? (
+          <div>
+            <p>Connected: {walletState?.address}</p>
+            <button onClick={disconnectWallet}>Disconnect</button>
+          </div>
+        ) : (
+          <button onClick={connectWallet} disabled={isLoading}>
+            {walletLoading ? 'Connecting...' : 'Connect Wallet'}
+          </button>
+        )}
+      </section>
+
+      <section style={{ marginBottom: '2rem' }}>
+        <h2>Step 2: Deploy or Join Contract</h2>
+        <div style={{ marginBottom: '1rem' }}>
+          <button onClick={handleDeploy} disabled={!isConnected || isLoading}>
+            {contractLoading ? 'Deploying...' : 'Deploy New Contract'}
+          </button>
+        </div>
+        <div>
+          <input
+            type="text"
+            placeholder="Contract Address"
+            value={contractAddress}
+            onChange={(e) => setContractAddress(e.target.value)}
+            style={{ marginRight: '0.5rem', padding: '0.5rem', width: '300px' }}
+          />
+          <button onClick={handleJoin} disabled={!isConnected || isLoading}>
+            Join Contract
+          </button>
+        </div>
+        {api && (
+          <p style={{ marginTop: '0.5rem', color: 'green' }}>
+            Connected to: {api.deployedContractAddress}
+          </p>
+        )}
+      </section>
+
+      {api && (
+        <section style={{ marginBottom: '2rem' }}>
+          <h2>Step 3: Read Contract State</h2>
+          <button onClick={handleGetState} disabled={isLoading}>
+            Get Contract State
+          </button>
+          {contractState && (
+            <pre style={{ background: '#f5f5f5', padding: '1rem', marginTop: '1rem' }}>
+              {JSON.stringify(contractState, null, 2)}
+            </pre>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
+export default App;
+```
+
+---
+
+## Error boundary component
+
+Wrap your application with an error boundary for graceful error handling:
+
+```typescript
+import React from 'react';
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+export class MidnightErrorBoundary extends React.Component<
+  ErrorBoundaryProps,
+  ErrorBoundaryState
+> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Midnight Error Boundary:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '2rem', textAlign: 'center' }}>
+          <h2>Something went wrong</h2>
+          <p>{this.state.error?.message}</p>
+          <button onClick={() => window.location.reload()}>
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// Usage in index.tsx
+import { MidnightErrorBoundary } from './components/ErrorBoundary';
+import App from './App';
+
+ReactDOM.render(
+  <MidnightErrorBoundary>
+    <App />
+  </MidnightErrorBoundary>,
+  document.getElementById('root')
+);
+```
+
+---
+
+## Error handling utilities
+
+Create reusable error handling functions:
+
+```typescript
+// src/utils/errors.ts
+
+export function handleMidnightError(error: Error): string {
+  const message = error.message.toLowerCase();
+
+  if (message.includes('install lace beta wallet')) {
+    return 'Please install the Lace Beta Wallet browser extension';
+  }
+
+  if (message.includes('user rejected')) {
+    return 'You rejected the request. Please try again.';
+  }
+
+  if (message.includes('insufficient funds')) {
+    return 'Your wallet does not have enough funds';
+  }
+
+  if (message.includes('contract not found')) {
+    return 'The contract address is invalid or does not exist';
+  }
+
+  if (message.includes('network')) {
+    return 'Network error. Please check your connection.';
+  }
+
+  return 'An unexpected error occurred. Please try again.';
+}
+
+export function isWalletInstalled(): boolean {
+  return typeof window !== 'undefined' && !!window.midnight?.mnLace;
+}
+
+export function formatAddress(address: string, chars = 6): string {
+  if (address.length <= chars * 2) return address;
+  return `${address.slice(0, chars)}...${address.slice(-chars)}`;
+}
+```
+
+---
+
+## TypeScript type declarations
+
+Add type declarations for the Midnight wallet global:
+
+```typescript
+// src/types/midnight.d.ts
+
+interface MidnightWalletAPI {
+  state(): Promise<{
+    address: string;
+    coinPublicKey: string;
+    encryptionPublicKey: string;
+  }>;
+  balanceAndProveTransaction(tx: unknown, newCoins: unknown): Promise<unknown>;
+  submitTransaction(tx: unknown): Promise<unknown>;
+}
+
+interface MidnightWallet {
+  enable(): Promise<MidnightWalletAPI>;
+  disconnect(): Promise<void>;
+  serviceUriConfig(): Promise<{
+    indexerUri: string;
+    indexerWsUri: string;
+    proverServerUri: string;
+  }>;
+}
+
+interface Midnight {
+  mnLace?: MidnightWallet;
+}
+
+declare global {
+  interface Window {
+    midnight?: Midnight;
+  }
+}
+
+export {};
+```
+
+---
+
+## Troubleshooting
+
+### Common issues and solutions
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Wallet not detected | Extension not installed | Install Lace Beta Wallet and refresh |
+| Connection rejected | User denied request | Retry and explain why wallet access is needed |
+| Deployment fails | Insufficient funds | Fund wallet with testnet tokens |
+| Contract not found | Invalid address | Verify the contract address is correct |
+| Network errors | Service unavailable | Check internet connection and retry |
+
+### Debug logging
+
+Enable detailed logging during development:
+
+```typescript
+import pino from 'pino';
+
+const logger = pino({ level: 'debug' });
+
+const api = await MidnightSetupAPI.deployContract(
+  providers,
+  contractInstance,
+  logger // Pass logger for debug output
+);
+```
+
+---
+
+## Next steps
+
+- [API Reference](/docs/midnight/midnight-setup/api) - Complete method documentation
+- [Wallet Integration](/docs/midnight/midnight-setup/wallet) - Advanced wallet features
+- [Getting Started](/docs/midnight/midnight-setup/getting-started) - Initial setup guide
+
+## Related resources
+
+- [GitHub Repository](https://github.com/MeshJS/midnight-setup) - Source code and more examples
+- [Midnight Network Documentation](https://docs.midnight.network/)
+- [Lace Beta Wallet](https://chromewebstore.google.com/detail/lace-midnight-preview/hgeekaiplokcnmakghbdfbgnlfheichg)

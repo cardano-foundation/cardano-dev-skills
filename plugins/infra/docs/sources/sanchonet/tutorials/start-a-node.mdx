@@ -1,0 +1,35 @@
+---
+sidebar_label: Start a SanchoNet node
+title: Start a SanchoNet node
+sidebar_position: 1
+slug: /tutorials/start-node
+---
+
+### Download or build cardano-node and cardano-cli binaries:
+
+* The latest version for SanchoNet is **9.1.0**. [See releases](https://github.com/IntersectMBO/cardano-node/releases).
+
+### Get configuration files
+
+```
+wget https://book.world.dev.cardano.org/environments/sanchonet/config.json
+wget https://book.world.dev.cardano.org/environments/sanchonet/topology.json
+wget https://book.world.dev.cardano.org/environments/sanchonet/byron-genesis.json
+wget https://book.world.dev.cardano.org/environments/sanchonet/shelley-genesis.json
+wget https://book.world.dev.cardano.org/environments/sanchonet/alonzo-genesis.json
+wget https://book.world.dev.cardano.org/environments/sanchonet/conway-genesis.json
+```
+
+### Run the node
+
+```
+cardano-node run --topology topology.json \
+--database-path db \
+--socket-path node.socket \
+--port 3001 \
+--config config.json
+```
+
+### Need help?
+
+For a step-by-step tutorial on how to build and run a node please visit  [Cardano node course | Building and running the node](https://cardano-course.gitbook.io/cardano-course/handbook/module-1-build-and-run-the-node/building-the-node).

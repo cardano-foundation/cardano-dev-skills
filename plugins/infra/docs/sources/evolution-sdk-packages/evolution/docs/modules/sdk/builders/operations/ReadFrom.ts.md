@@ -1,0 +1,51 @@
+---
+title: sdk/builders/operations/ReadFrom.ts
+nav_order: 130
+parent: Modules
+---
+
+## ReadFrom overview
+
+ReadFrom operation - adds UTxOs as reference inputs for reading on-chain data.
+
+Reference inputs allow reading UTxO data (datums, reference scripts) without consuming them.
+They are commonly used to:
+
+- Reference validators/scripts stored on-chain (reduces tx size)
+- Read datum values without spending the UTxO
+- Share scripts across multiple transactions
+
+Added in v2.0.0
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [programs](#programs)
+  - [createReadFromProgram](#createreadfromprogram)
+
+---
+
+# programs
+
+## createReadFromProgram
+
+Creates a ProgramStep for readFrom operation.
+Adds UTxOs as reference inputs that can be read but not consumed.
+
+Implementation:
+
+1. Validates that reference inputs array is not empty
+2. Validates that reference inputs are not already selected as regular inputs
+3. Adds UTxOs to state.referenceInputs
+4. Tracks reference script fees during fee calculation
+
+**Signature**
+
+```ts
+export declare const createReadFromProgram: (
+  params: ReadFromParams
+) => Effect.Effect<void, TransactionBuilderError, TxContext>
+```
+
+Added in v2.0.0

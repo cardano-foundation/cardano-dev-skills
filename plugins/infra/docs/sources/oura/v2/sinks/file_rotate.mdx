@@ -1,0 +1,34 @@
+---
+title: File Rotate
+sidebar:
+  order: 20
+---
+
+Saves events to the local file system as JSON, one event per line. Files are rotated once they
+reach a size limit, and old files can be compressed automatically. Reach for it when you want
+a durable, on-disk log of chain data without standing up a database or broker.
+
+## Configuration
+
+```toml title="daemon.toml"
+[sink]
+type = "FileRotate"
+output_path = "/var/oura/mainnet"
+output_format = "JSONL"
+max_bytes_per_file = 1_000_000
+max_total_files = 10
+compress_files = true
+```
+
+- `type` (required): the literal value `FileRotate`.
+- `output_path` (required): the path-like prefix for the output log files.
+- `output_format` (optional): the serialization format. The only option at the moment is
+  `JSONL` (JSON, one object per line).
+- `max_bytes_per_file` (optional): the size a file may reach before it's rotated.
+- `max_total_files` (optional): how many files to keep before the oldest are deleted.
+- `compress_files` (optional): when `true`, rotated files are gzip-compressed.
+
+:::caution
+On a busy network this sink can produce a lot of data. Set `max_total_files` (and ideally
+`compress_files`) so the logs are bounded — otherwise they'll grow until they fill the disk.
+:::

@@ -1,0 +1,124 @@
+---
+title: Bytes.ts
+nav_order: 23
+parent: Modules
+---
+
+## Bytes overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [composition](#composition)
+  - [bytesLengthBetween](#byteslengthbetween)
+  - [bytesLengthEquals](#byteslengthequals)
+  - [bytesLengthMax](#byteslengthmax)
+  - [bytesLengthMin](#byteslengthmin)
+- [conversions](#conversions)
+  - [fromHex](#fromhex)
+  - [toHex](#tohex)
+- [utils](#utils)
+  - [equals](#equals)
+
+---
+
+# composition
+
+## bytesLengthBetween
+
+Creates a curried filter that validates byte length is within a range (for Uint8Array).
+Preserves Context inference from the base schema.
+
+**Signature**
+
+```ts
+export declare const bytesLengthBetween: (
+  minBytes: number,
+  maxBytes: number
+) => <S extends Schema.Schema<any, any>>(baseSchema: S) => Schema.filter<S>
+```
+
+Added in v2.0.0
+
+## bytesLengthEquals
+
+Creates a curried filter that validates exact byte length (for Uint8Array).
+Preserves Context inference from the base schema.
+
+**Signature**
+
+```ts
+export declare const bytesLengthEquals: (
+  byteLength: number
+) => <S extends Schema.Schema<any, any>>(baseSchema: S) => Schema.filter<S>
+```
+
+Added in v2.0.0
+
+## bytesLengthMax
+
+Creates a curried filter that validates maximum byte length (for Uint8Array).
+Preserves Context inference from the base schema.
+
+**Signature**
+
+```ts
+export declare const bytesLengthMax: (
+  maxBytes: number,
+  moduleName: string
+) => <S extends Schema.Schema<any, Uint8Array>>(baseSchema: S) => Schema.filter<S>
+```
+
+Added in v2.0.0
+
+## bytesLengthMin
+
+Creates a curried filter that validates minimum byte length (for Uint8Array).
+Preserves Context inference from the base schema.
+
+**Signature**
+
+```ts
+export declare const bytesLengthMin: (
+  minBytes: number
+) => <S extends Schema.Schema<any, Uint8Array>>(baseSchema: S) => Schema.filter<S>
+```
+
+Added in v2.0.0
+
+# conversions
+
+## fromHex
+
+Convert hex string to Uint8Array. Throws on invalid input.
+
+**Signature**
+
+```ts
+export declare const fromHex: (i: string, overrideOptions?: ParseOptions) => Uint8Array
+```
+
+Added in v2.0.0
+
+## toHex
+
+Convert Uint8Array to hex string. Never fails.
+
+**Signature**
+
+```ts
+export declare const toHex: (a: Uint8Array, overrideOptions?: ParseOptions) => string
+```
+
+Added in v2.0.0
+
+# utils
+
+## equals
+
+**Signature**
+
+```ts
+export declare const equals: (a: Uint8Array, b: Uint8Array) => boolean
+```

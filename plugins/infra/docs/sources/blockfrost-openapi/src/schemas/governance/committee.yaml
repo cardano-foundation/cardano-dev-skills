@@ -1,0 +1,103 @@
+type: object
+properties:
+  gov_action_id:
+    type: string
+    nullable: true
+    description: CIP-129 Governance Action Identifier of the `NewCommittee` action that seated this committee. `null` for the Conway-genesis committee.
+  proposal_tx_hash:
+    type: string
+    nullable: true
+    description: Hash of the transaction containing the `NewCommittee` action that seated this committee. `null` for the Conway-genesis committee.
+  proposal_index:
+    type: integer
+    nullable: true
+    description: Index of the proposal within its transaction. `null` for the Conway-genesis committee.
+  is_dissolved:
+    type: boolean
+    description: True iff an enacted `NoConfidence` governance action has dissolved this committee.
+  quorum:
+    type: object
+    description: Voting threshold of the committee.
+    properties:
+      numerator:
+        type: integer
+      denominator:
+        type: integer
+    required:
+      - numerator
+      - denominator
+  members:
+    type: array
+    description: Members of the committee.
+    items:
+      type: object
+      properties:
+        cc_cold_id:
+          type: string
+          description: CIP-129 bech32 encoded cold credential (`cc_cold1...`).
+        cc_cold_hex:
+          type: string
+          description: Hex of the raw 28-byte cold key/script hash.
+        cc_cold_has_script:
+          type: boolean
+        cc_hot_id:
+          type: string
+          nullable: true
+          description: CIP-129 bech32 encoded current hot credential (`cc_hot1...`). `null` unless `status` is `authorized`.
+        cc_hot_hex:
+          type: string
+          nullable: true
+        cc_hot_has_script:
+          type: boolean
+          nullable: true
+        status:
+          type: string
+          enum: [authorized, not_authorized, resigned]
+          description: >-
+            `authorized` — member has a currently active hot key.
+            `not_authorized` — member has never authorized a hot key.
+            `resigned` — member's most recent on-chain event is a resignation certificate.
+        expiration_epoch:
+          type: integer
+          description: Epoch at which this member's term expires.
+      required:
+        - cc_cold_id
+        - cc_cold_hex
+        - cc_cold_has_script
+        - cc_hot_id
+        - cc_hot_hex
+        - cc_hot_has_script
+        - status
+        - expiration_epoch
+required:
+  - proposal_tx_hash
+  - proposal_index
+  - gov_action_id
+  - is_dissolved
+  - quorum
+  - members
+example:
+  proposal_tx_hash: null
+  proposal_index: null
+  gov_action_id: null
+  is_dissolved: false
+  quorum:
+    numerator: 2
+    denominator: 3
+  members:
+    - cc_cold_id: "cc_cold1zgkfeeu07qq9smfqfn0nrf2cqgr5x6jpu8x6lxgxay85t6cmt54xz"
+      cc_cold_hex: "12c9ce78ff8005436901336f8d2ac0411a1b520f0e6d7e6066907a2f"
+      cc_cold_has_script: false
+      cc_hot_id: "cc_hot1qf4xq9mlra5j68w8zjz2lvf3kc3rtsdtu98ka7zx4u6jvqyy39ww0"
+      cc_hot_hex: "0269808bbf8fb495a3b8e290a5f626362236c1abf853eddf08d79a930"
+      cc_hot_has_script: false
+      status: authorized
+      expiration_epoch: 580
+    - cc_cold_id: "cc_cold1zgxxx2trz0vyl5ksetnsrct5n5gznn3jmkj6dlpu4lz6lecz5h"
+      cc_cold_hex: "8cc6529626c4c9fa5a195ce03c2e93a204e7193b76967e8794fc59d6"
+      cc_cold_has_script: false
+      cc_hot_id: null
+      cc_hot_hex: null
+      cc_hot_has_script: null
+      status: not_authorized
+      expiration_epoch: 580

@@ -1,0 +1,114 @@
+---
+title: "Cardano SDK Guides: Build dApps with TypeScript"
+description: "Cardano dApp development tutorials with Mesh SDK. Build smart contracts, mint NFTs, and integrate wallets using TypeScript."
+icon: BookOpenIcon
+---
+
+import {linksGuides} from "@/data/links-guides";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+## Overview
+
+Mesh is an open-source TypeScript SDK for building decentralized applications on Cardano. These guides walk you through wallet integration, NFT minting, smart contract development, and production deployment.
+
+### What you can build
+
+| Category | Description |
+|----------|-------------|
+| **Wallet Integration** | Connect browser wallets, authenticate users with signatures |
+| **NFT Minting** | Create native tokens and mint NFT collections |
+| **Smart Contracts** | Interact with Plutus and Aiken contracts for vesting, marketplaces |
+| **Multi-Signature** | Coordinate transactions requiring multiple wallet signatures |
+| **Production Apps** | Security best practices and performance optimization |
+
+### Prerequisites
+
+Before starting any guide, ensure you have:
+
+- Node.js 18+ or Bun installed
+- A code editor (VS Code recommended)
+- A Cardano wallet browser extension (Eternl, Nami, or Lace)
+- Basic TypeScript/JavaScript knowledge
+
+## Quick Start
+
+Get a complete project running in under 2 minutes:
+
+```bash
+npx meshjs your-app-name
+cd your-app-name
+npm run dev
+```
+
+Open http://localhost:3000 to see your Cardano dApp.
+
+## Guides by Category
+
+### Getting Started
+
+- [Build Your First dApp with Next.js](/guides/nextjs) - Set up a Next.js app with wallet connection
+- [Run Standalone Scripts](/guides/standalone) - Execute TypeScript scripts directly
+- [Fix Node.js Polyfill Errors](/guides/node-specific-imports) - Resolve Buffer and crypto errors
+
+### NFT & Token Minting
+
+- [Mint an NFT Collection](/guides/nft-collection) - Create CIP-25 compliant NFTs
+- [Server-Side Minting with Node.js](/guides/minting-on-nodejs) - Mint and distribute tokens from backend
+- [Multi-Signature Minting](/guides/multisig-minting) - Coordinate browser and server wallet signatures
+
+### Smart Contracts
+
+- [Getting Started with Aiken](/guides/aiken) - Write and deploy your first smart contract
+- [Build a Vesting Contract](/guides/vesting) - Time-locked fund release
+- [NFT Marketplace Transactions](/guides/smart-contract-transactions) - List, buy, cancel, update NFTs
+
+### Authentication & Security
+
+- [Prove Wallet Ownership](/guides/prove-wallet-ownership) - Sign-in with Cardano using CIP-8
+- [Production Deployment](/guides/production-deployment) - Security checklist and best practices
+
+### Integration & Migration
+
+- [Create a Custom Provider](/guides/custom-provider) - Connect any blockchain data source
+- [Migrate from Lucid](/guides/migrate-from-lucid) - API mapping and migration patterns
+- [Compare Mesh with Alternatives](/guides/mesh-vs-alternatives) - Choose the right SDK
+
+## All Guides
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {linksGuides.map((card) => {
+    const Icon = card.icon;
+    return (
+      <Link key={card.title} href={card.link} className="no-underline">
+        <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+          {Icon && (
+            <div className="flex justify-center mb-4">
+              <Icon className="w-12 h-12 text-primary" />
+            </div>
+          )}
+          <CardTitle className="font-heading">{card.title}</CardTitle>
+          <CardDescription>{card.desc}</CardDescription>
+        </Card>
+      </Link>
+    );
+  })}
+</div>
+
+## Next Steps
+
+After completing a guide:
+
+- Explore the [Transaction Builder API](/apis/txbuilder) for advanced transaction patterns
+- Check the [Wallet APIs](/apis/wallets) for complete wallet functionality
+- Join the [Mesh Discord](https://discord.gg/dH48jH3BKa) for community support
+
+## Related Links
+
+- [API Reference](/apis) - Complete SDK documentation
+- [GitHub Repository](https://github.com/MeshJS/mesh) - Source code and examples
+- [Cardano Developer Portal](https://developers.cardano.org/) - Cardano ecosystem resources

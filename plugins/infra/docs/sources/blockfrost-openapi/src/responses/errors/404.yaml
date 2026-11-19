@@ -1,0 +1,19 @@
+description: Component not found
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 404
+        error:
+          type: string
+          example: "Not Found"
+        message:
+          type: string
+          example: "The requested component has not been found."
+      required:
+        - error
+        - message
+        - status_code

@@ -1,0 +1,137 @@
+type: object
+properties:
+  hash:
+    type: string
+    example: "1e043f100dce12d107f679685acd2fc0610e10f72a92d412794c9773d11d8477"
+    description: Transaction hash
+  block:
+    type: string
+    example: "356b7d7dbb696ccd12775c016941057a9dc70898d87a63fc752271bb46856940"
+    description: Block hash
+  block_height:
+    type: integer
+    example: 123456
+    description: Block number
+  block_time:
+    type: integer
+    example: 1635505891
+    description: Block creation time in UNIX time
+  slot:
+    type: integer
+    example: 42000000
+    description: Slot number
+  index:
+    type: integer
+    example: 1
+    description: Transaction index within the block
+  output_amount:
+    type: array
+    items:
+      type: object
+      description: The sum of all the UTXO per asset
+      properties:
+        unit:
+          type: string
+          format: Lovelace or concatenation of asset policy_id and hex-encoded asset_name
+          description: The unit of the value
+        quantity:
+          type: string
+          description: The quantity of the unit
+      required:
+        - unit
+        - quantity
+    example:
+      - unit: "lovelace"
+        quantity: "42000000"
+      - unit: "b0d07d45fe9514f80213f4020e5a61241458be626841cde717cb38a76e7574636f696e"
+        quantity: "12"
+  fees:
+    type: string
+    example: "182485"
+    description: Fees of the transaction in Lovelaces
+  deposit:
+    type: string
+    example: "0"
+    description: Deposit within the transaction in Lovelaces
+  size:
+    type: integer
+    example: 433
+    description: Size of the transaction in Bytes
+  invalid_before:
+    type: string
+    nullable: true
+    example: null
+    description: Left (included) endpoint of the timelock validity intervals
+  invalid_hereafter:
+    type: string
+    nullable: true
+    example: "13885913"
+    description: Right (excluded) endpoint of the timelock validity intervals
+  utxo_count:
+    type: integer
+    example: 4
+    description: Count of UTXOs within the transaction
+  withdrawal_count:
+    type: integer
+    example: 0
+    description: Count of the withdrawals within the transaction
+  mir_cert_count:
+    type: integer
+    example: 0
+    description: Count of the MIR certificates within the transaction
+  delegation_count:
+    type: integer
+    example: 0
+    description: Count of the delegations within the transaction
+  stake_cert_count:
+    type: integer
+    example: 0
+    description: Count of the stake keys (de)registration within the transaction
+  pool_update_count:
+    type: integer
+    example: 0
+    description: Count of the stake pool registration and update certificates within the transaction
+  pool_retire_count:
+    type: integer
+    example: 0
+    description: Count of the stake pool retirement certificates within the transaction
+  asset_mint_or_burn_count:
+    type: integer
+    example: 0
+    description: Count of asset mints and burns within the transaction
+  redeemer_count:
+    type: integer
+    example: 0
+    description: Count of redeemers within the transaction
+  valid_contract:
+    type: boolean
+    example: true
+    description: True if contract script passed validation
+  treasury_donation:
+    type: string
+    example: "0"
+    description: Treasury donation in Lovelaces
+required:
+  - hash
+  - block
+  - block_height
+  - block_time
+  - slot
+  - index
+  - output_amount
+  - fees
+  - deposit
+  - size
+  - invalid_before
+  - invalid_hereafter
+  - utxo_count
+  - withdrawal_count
+  - mir_cert_count
+  - delegation_count
+  - stake_cert_count
+  - pool_update_count
+  - pool_retire_count
+  - asset_mint_or_burn_count
+  - redeemer_count
+  - valid_contract
+  - treasury_donation

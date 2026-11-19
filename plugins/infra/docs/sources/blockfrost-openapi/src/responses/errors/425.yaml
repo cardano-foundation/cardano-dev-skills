@@ -1,0 +1,19 @@
+description: Mempool is already full, not accepting new txs straight away
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 425
+        error:
+          type: string
+          example: "Mempool Full"
+        message:
+          type: string
+          example: "Mempool is full, please try resubmitting again later."
+      required:
+        - error
+        - message
+        - status_code

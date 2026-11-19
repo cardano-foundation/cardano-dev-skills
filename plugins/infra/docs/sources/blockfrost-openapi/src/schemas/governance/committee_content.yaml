@@ -1,0 +1,18 @@
+type: array
+items:
+  type: object
+  properties:
+    cold_key:
+      type: string
+      description: Hex cold key
+    hot_key:
+      type: string
+      description: Hex hot key
+  required:
+    - hot_key
+    - cold_key
+example:
+  - cold_key: "5aea32cbcde22c8ba268d692c372901aaaafca4a335ffdca828089ec"
+    hot_key: "b41855e400020882ae44e868b341ffbad1c1b26cac70186d57387de4"
+  - cold_key: "5f1b4429fe3bda963a7b70ab81135112a785afcf55ccd695b122e794"
+    hot_key: "5aa349227e4068c85c03400396bcea13c7fd57d0ec78c604bc768fc5"

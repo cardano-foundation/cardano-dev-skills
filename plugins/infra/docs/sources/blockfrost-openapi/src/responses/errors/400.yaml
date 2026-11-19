@@ -1,0 +1,19 @@
+description: Bad request
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: "Bad Request"
+        message:
+          type: string
+          example: "Backend did not understand your request."
+      required:
+        - error
+        - message
+        - status_code

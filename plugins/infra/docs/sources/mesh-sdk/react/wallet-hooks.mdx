@@ -1,0 +1,938 @@
+---
+title: "Wallet Hooks"
+description: "React hooks for accessing wallet state, balances, addresses, assets, and network information in your Cardano dApp."
+---
+
+import Link from "next/link";
+
+## Overview
+
+Mesh provides React hooks that let you access wallet data and state from any component. These hooks simplify building Cardano dApps by handling wallet connections, balance queries, and state management.
+
+**Available hooks:**
+
+| Hook | Purpose |
+|------|---------|
+| `useWallet` | Wallet connection state and methods |
+| `useWalletList` | List of installed wallet extensions |
+| `useAddress` | Connected wallet's address |
+| `useAssets` | All assets in the wallet |
+| `useLovelace` | ADA balance in lovelace |
+| `useNetwork` | Connected network (mainnet/testnet) |
+
+## Quick Start
+
+Access wallet state from any component:
+
+```tsx
+import { useWallet, useLovelace, useAddress } from "@meshsdk/react";
+
+export default function WalletInfo() {
+  const { connected, name } = useWallet();
+  const lovelace = useLovelace();
+  const address = useAddress();
+
+  if (!connected) {
+    return <p>Connect your wallet to continue</p>;
+  }
+
+  return (
+    <div>
+      <p>Wallet: {name}</p>
+      <p>Balance: {parseInt(lovelace || "0") / 1_000_000} ADA</p>
+      <p>Address: {address}</p>
+    </div>
+  );
+}
+```
+
+## Installation
+
+```bash
+npm install @meshsdk/react
+```
+
+Wrap your app with the provider:
+
+```tsx
+import { MeshProvider } from "@meshsdk/react";
+
+export default function App({ Component, pageProps }) {
+  return (
+    <MeshProvider>
+      <Component {...pageProps} />
+    </MeshProvider>
+  );
+}
+```
+
+---
+
+## useWallet
+
+The primary hook for wallet connection state and methods. Returns the wallet instance, connection state, and functions to connect/disconnect.
+
+### Return Values
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `wallet` | `MeshCardanoBrowserWallet \| null` | Wallet instance with CIP-30 methods |
+| `connected` | `boolean` | `true` if a wallet is connected |
+| `connecting` | `boolean` | `true` while connection is in progress |
+| `name` | `string` | Name of the connected wallet |
+| `state` | `"NOT_CONNECTED" \| "CONNECTING" \| "CONNECTED"` | Current connection state |
+| `connect` | `(walletName: string) => Promise<void>` | Connect to a specific wallet |
+| `disconnect` | `() => void` | Disconnect the current wallet |
+| `error` | `Error \| null` | Error object if connection failed |
+
+### Basic Usage
+
+```tsx
+import { useWallet } from "@meshsdk/react";
+
+export default function WalletStatus() {
+  const { connected, name, connecting, error } = useWallet();
+
+  if (connecting) {
+    return <p>Connecting...</p>;
+  }
+
+  if (error) {
+    return <p>Error: {error.message}</p>;
+  }
+
+  if (!connected) {
+    return <p>No wallet connected</p>;
+  }
+
+  return <p>Connected to {name}</p>;
+}
+```
+
+### Programmatic Connection
+
+```tsx
+import { useWallet, useWalletList } from "@meshsdk/react";
+
+export default function WalletSelector() {
+  const { connect, disconnect, connected, name } = useWallet();
+  const wallets = useWalletList();
+
+  if (connected) {
+    return (
+      <div>
+        <p>Connected: {name}</p>
+        <button onClick={disconnect}>Disconnect</button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h3>Select a wallet:</h3>
+      {wallets.map((wallet) => (
+        <button key={wallet.name} onClick={() => connect(wallet.name)}>
+          <img src={wallet.icon} alt="" width={20} />
+          {wallet.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+### Using the Wallet Instance
+
+The `wallet` object is a [MeshCardanoBrowserWallet](/apis/wallets/browserwallet) instance with full CIP-30 support:
+
+```tsx
+import { useWallet } from "@meshsdk/react";
+
+export default function SignMessage() {
+  const { wallet, connected } = useWallet();
+
+  const handleSign = async () => {
+    if (!wallet) return;
+
+    const address = await wallet.getChangeAddress();
+    const signature = await wallet.signData(address, "Hello, Cardano!");
+    console.log("Signature:", signature);
+  };
+
+  if (!connected) {
+    return <p>Connect wallet first</p>;
+  }
+
+  return <button onClick={handleSign}>Sign Message</button>;
+}
+```
+
+### Handling Connection Errors
+
+```tsx
+import { useWallet } from "@meshsdk/react";
+
+export default function WalletConnect() {
+  const { connect, error, connected } = useWallet();
+
+  const handleConnect = async () => {
+    try {
+      await connect("nami");
+    } catch (err) {
+      console.error("Connection failed:", err);
+    }
+  };
+
+  return (
+    <div>
+      {error && (
+        <div className="text-red-500">
+          Connection failed: {error.message}
+        </div>
+      )}
+      {!connected && (
+        <button onClick={handleConnect}>Connect Nami</button>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## useWalletList
+
+Returns a list of wallet extensions installed in the user's browser.
+
+### Return Value
+
+Returns an array of wallet objects:
+
+```tsx
+type Wallet = {
+  name: string;      // Wallet identifier (e.g., "nami", "eternl")
+  icon: string;      // Base64 or URL of wallet icon
+  version: string;   // Wallet version
+};
+```
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `options.injectFn` | `() => Promise<void>` | Optional function to inject additional wallets |
+
+### Basic Usage
+
+```tsx
+import { useWalletList } from "@meshsdk/react";
+
+export default function InstalledWallets() {
+  const wallets = useWalletList();
+
+  if (wallets.length === 0) {
+    return <p>No wallets installed. Please install a Cardano wallet.</p>;
+  }
+
+  return (
+    <ul>
+      {wallets.map((wallet) => (
+        <li key={wallet.name}>
+          <img src={wallet.icon} alt={wallet.name} width={32} />
+          {wallet.name} (v{wallet.version})
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### With Custom Wallet Injection
+
+```tsx
+import { useWalletList } from "@meshsdk/react";
+import { checkIfMetamaskInstalled } from "./metamask-utils";
+
+export default function WalletList() {
+  const wallets = useWalletList({
+    injectFn: async () => await checkIfMetamaskInstalled("preprod"),
+  });
+
+  return (
+    <div>
+      {wallets.map((wallet) => (
+        <div key={wallet.name}>
+          <img src={wallet.icon} alt={wallet.name} width={24} />
+          {wallet.name}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### Building a Custom Wallet Selector
+
+```tsx
+import { useWallet, useWalletList } from "@meshsdk/react";
+import { useState } from "react";
+
+export default function CustomWalletSelector() {
+  const { connect, connected, connecting, name } = useWallet();
+  const wallets = useWalletList();
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (connected) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-green-500">Connected: {name}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={connecting}
+      >
+        {connecting ? "Connecting..." : "Connect Wallet"}
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full mt-2 bg-white shadow-lg rounded-lg p-2">
+          {wallets.length === 0 ? (
+            <p>No wallets found</p>
+          ) : (
+            wallets.map((wallet) => (
+              <button
+                key={wallet.name}
+                onClick={() => {
+                  connect(wallet.name);
+                  setIsOpen(false);
+                }}
+                className="flex items-center gap-2 w-full p-2 hover:bg-gray-100"
+              >
+                <img src={wallet.icon} alt="" width={24} height={24} />
+                {wallet.name}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## useAddress
+
+Returns the connected wallet's address.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `accountId` | `number` | `0` | Account index for wallets with multiple accounts |
+
+### Return Value
+
+| Type | Description |
+|------|-------------|
+| `string \| undefined` | Bech32 address or `undefined` if not connected |
+
+### Basic Usage
+
+```tsx
+import { useAddress } from "@meshsdk/react";
+
+export default function WalletAddress() {
+  const address = useAddress();
+
+  if (!address) {
+    return <p>Connect your wallet to see your address</p>;
+  }
+
+  return (
+    <div>
+      <p>Your address:</p>
+      <code className="break-all">{address}</code>
+    </div>
+  );
+}
+```
+
+### With Account Selection
+
+```tsx
+import { useAddress } from "@meshsdk/react";
+import { useState } from "react";
+
+export default function MultiAccountAddress() {
+  const [accountId, setAccountId] = useState(0);
+  const address = useAddress(accountId);
+
+  return (
+    <div>
+      <label>
+        Account:
+        <select
+          value={accountId}
+          onChange={(e) => setAccountId(Number(e.target.value))}
+        >
+          <option value={0}>Account 0</option>
+          <option value={1}>Account 1</option>
+          <option value={2}>Account 2</option>
+        </select>
+      </label>
+
+      {address && (
+        <p>Address: <code>{address}</code></p>
+      )}
+    </div>
+  );
+}
+```
+
+### Copy Address Button
+
+```tsx
+import { useAddress } from "@meshsdk/react";
+import { useState } from "react";
+
+export default function CopyableAddress() {
+  const address = useAddress();
+  const [copied, setCopied] = useState(false);
+
+  const copyToClipboard = () => {
+    if (address) {
+      navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  if (!address) return null;
+
+  return (
+    <div className="flex items-center gap-2">
+      <code className="truncate max-w-xs">{address}</code>
+      <button onClick={copyToClipboard}>
+        {copied ? "Copied!" : "Copy"}
+      </button>
+    </div>
+  );
+}
+```
+
+---
+
+## useAssets
+
+Returns all assets in the connected wallet from all UTXOs.
+
+### Return Value
+
+| Type | Description |
+|------|-------------|
+| `Asset[] \| undefined` | Array of assets or `undefined` if not connected |
+
+Each asset has the structure:
+
+```tsx
+type Asset = {
+  unit: string;      // Policy ID + asset name (hex)
+  quantity: string;  // Amount as string
+};
+```
+
+### Basic Usage
+
+```tsx
+import { useAssets } from "@meshsdk/react";
+
+export default function WalletAssets() {
+  const assets = useAssets();
+
+  if (!assets) {
+    return <p>Connect wallet to view assets</p>;
+  }
+
+  if (assets.length === 0) {
+    return <p>No assets found</p>;
+  }
+
+  return (
+    <div>
+      <h3>Your Assets ({assets.length})</h3>
+      <ul>
+        {assets.map((asset, index) => (
+          <li key={index}>
+            <code>{asset.unit}</code>: {asset.quantity}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+### Filter Native Tokens (Exclude ADA)
+
+```tsx
+import { useAssets } from "@meshsdk/react";
+
+export default function NativeTokens() {
+  const assets = useAssets();
+
+  // Filter out lovelace (ADA)
+  const nativeTokens = assets?.filter((asset) => asset.unit !== "lovelace");
+
+  if (!nativeTokens || nativeTokens.length === 0) {
+    return <p>No native tokens found</p>;
+  }
+
+  return (
+    <div>
+      <h3>Native Tokens</h3>
+      {nativeTokens.map((token, index) => {
+        const policyId = token.unit.slice(0, 56);
+        const assetName = token.unit.slice(56);
+
+        return (
+          <div key={index} className="border p-2 mb-2">
+            <p>Policy: {policyId}</p>
+            <p>Asset: {assetName || "(empty)"}</p>
+            <p>Quantity: {token.quantity}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+```
+
+### Display Asset as JSON
+
+```tsx
+import { useAssets } from "@meshsdk/react";
+
+export default function AssetsJson() {
+  const assets = useAssets();
+
+  return (
+    <pre className="bg-gray-100 p-4 overflow-auto">
+      {JSON.stringify(assets, null, 2)}
+    </pre>
+  );
+}
+```
+
+---
+
+## useLovelace
+
+Returns the ADA balance in lovelace (1 ADA = 1,000,000 lovelace).
+
+### Return Value
+
+| Type | Description |
+|------|-------------|
+| `string \| undefined` | Lovelace balance as string, or `undefined` if not connected |
+
+### Basic Usage
+
+```tsx
+import { useLovelace } from "@meshsdk/react";
+
+export default function Balance() {
+  const lovelace = useLovelace();
+
+  if (!lovelace) {
+    return <p>Connect wallet to view balance</p>;
+  }
+
+  const ada = parseInt(lovelace) / 1_000_000;
+
+  return <p>Balance: {ada.toFixed(6)} ADA</p>;
+}
+```
+
+### Formatted Balance Display
+
+```tsx
+import { useLovelace } from "@meshsdk/react";
+
+export default function FormattedBalance() {
+  const lovelace = useLovelace();
+
+  const formatAda = (lovelace: string) => {
+    const ada = parseInt(lovelace) / 1_000_000;
+    return new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6,
+    }).format(ada);
+  };
+
+  if (!lovelace) {
+    return <p className="text-gray-500">--</p>;
+  }
+
+  return (
+    <div className="text-2xl font-bold">
+      {formatAda(lovelace)} <span className="text-gray-500">ADA</span>
+    </div>
+  );
+}
+```
+
+### Balance with USD Conversion
+
+```tsx
+import { useLovelace } from "@meshsdk/react";
+import { useEffect, useState } from "react";
+
+export default function BalanceWithUsd() {
+  const lovelace = useLovelace();
+  const [adaPrice, setAdaPrice] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Fetch ADA price (example - use your preferred API)
+    fetch("https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=usd")
+      .then((res) => res.json())
+      .then((data) => setAdaPrice(data.cardano.usd))
+      .catch(console.error);
+  }, []);
+
+  if (!lovelace) {
+    return <p>Connect wallet to view balance</p>;
+  }
+
+  const ada = parseInt(lovelace) / 1_000_000;
+  const usd = adaPrice ? ada * adaPrice : null;
+
+  return (
+    <div>
+      <p className="text-2xl">{ada.toFixed(2)} ADA</p>
+      {usd !== null && (
+        <p className="text-gray-500">${usd.toFixed(2)} USD</p>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## useNetwork
+
+Returns the network the connected wallet is on.
+
+### Return Value
+
+| Type | Description |
+|------|-------------|
+| `number \| undefined` | Network ID: `0` = testnet, `1` = mainnet |
+
+### Basic Usage
+
+```tsx
+import { useNetwork } from "@meshsdk/react";
+
+export default function NetworkInfo() {
+  const network = useNetwork();
+
+  if (network === undefined) {
+    return <p>Connect wallet to see network</p>;
+  }
+
+  return (
+    <p>
+      Network: {network === 1 ? "Mainnet" : "Testnet"}
+    </p>
+  );
+}
+```
+
+### Network Badge
+
+```tsx
+import { useNetwork } from "@meshsdk/react";
+
+export default function NetworkBadge() {
+  const network = useNetwork();
+
+  if (network === undefined) return null;
+
+  const isMainnet = network === 1;
+
+  return (
+    <span
+      className={`px-2 py-1 rounded text-sm ${
+        isMainnet
+          ? "bg-green-100 text-green-800"
+          : "bg-yellow-100 text-yellow-800"
+      }`}
+    >
+      {isMainnet ? "Mainnet" : "Testnet"}
+    </span>
+  );
+}
+```
+
+### Network-Aware Component
+
+```tsx
+import { useNetwork, useWallet } from "@meshsdk/react";
+
+export default function NetworkAwareActions() {
+  const { connected } = useWallet();
+  const network = useNetwork();
+
+  if (!connected) {
+    return <p>Connect your wallet</p>;
+  }
+
+  if (network === 0) {
+    return (
+      <div className="bg-yellow-50 p-4 rounded">
+        <p className="text-yellow-800">
+          You are on testnet. Switch to mainnet for real transactions.
+        </p>
+        <button className="mt-2 bg-yellow-500 text-white px-4 py-2 rounded">
+          Test Transaction
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-green-50 p-4 rounded">
+      <p className="text-green-800">You are on mainnet.</p>
+      <button className="mt-2 bg-green-500 text-white px-4 py-2 rounded">
+        Send Transaction
+      </button>
+    </div>
+  );
+}
+```
+
+---
+
+## Complete Example
+
+A dashboard combining all hooks:
+
+```tsx
+import {
+  useWallet,
+  useWalletList,
+  useAddress,
+  useAssets,
+  useLovelace,
+  useNetwork,
+  CardanoWallet,
+} from "@meshsdk/react";
+
+export default function WalletDashboard() {
+  const { connected, name, disconnect } = useWallet();
+  const wallets = useWalletList();
+  const address = useAddress();
+  const assets = useAssets();
+  const lovelace = useLovelace();
+  const network = useNetwork();
+
+  if (!connected) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl mb-4">Connect Your Wallet</h1>
+        <CardanoWallet />
+
+        <div className="mt-8">
+          <h2 className="text-lg mb-2">Installed Wallets:</h2>
+          <ul>
+            {wallets.map((w) => (
+              <li key={w.name} className="flex items-center gap-2">
+                <img src={w.icon} alt="" width={20} />
+                {w.name}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    );
+  }
+
+  const adaBalance = lovelace ? (parseInt(lovelace) / 1_000_000).toFixed(2) : "0";
+  const nativeTokens = assets?.filter((a) => a.unit !== "lovelace") || [];
+
+  return (
+    <div className="p-8">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-2xl font-bold">Wallet Dashboard</h1>
+          <p className="text-gray-500">Connected to {name}</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <span
+            className={`px-2 py-1 rounded text-sm ${
+              network === 1
+                ? "bg-green-100 text-green-800"
+                : "bg-yellow-100 text-yellow-800"
+            }`}
+          >
+            {network === 1 ? "Mainnet" : "Testnet"}
+          </span>
+          <button
+            onClick={disconnect}
+            className="bg-red-500 text-white px-4 py-2 rounded"
+          >
+            Disconnect
+          </button>
+        </div>
+      </div>
+
+      {/* Balance */}
+      <div className="bg-gray-50 p-6 rounded-lg mb-6">
+        <h2 className="text-lg text-gray-600 mb-2">Balance</h2>
+        <p className="text-4xl font-bold">{adaBalance} ADA</p>
+      </div>
+
+      {/* Address */}
+      <div className="bg-gray-50 p-6 rounded-lg mb-6">
+        <h2 className="text-lg text-gray-600 mb-2">Address</h2>
+        <code className="break-all text-sm">{address}</code>
+      </div>
+
+      {/* Native Tokens */}
+      <div className="bg-gray-50 p-6 rounded-lg">
+        <h2 className="text-lg text-gray-600 mb-2">
+          Native Tokens ({nativeTokens.length})
+        </h2>
+        {nativeTokens.length === 0 ? (
+          <p className="text-gray-500">No native tokens</p>
+        ) : (
+          <ul className="space-y-2">
+            {nativeTokens.slice(0, 10).map((token, i) => (
+              <li key={i} className="flex justify-between">
+                <code className="text-sm truncate max-w-xs">
+                  {token.unit.slice(0, 20)}...
+                </code>
+                <span>{token.quantity}</span>
+              </li>
+            ))}
+            {nativeTokens.length > 10 && (
+              <li className="text-gray-500">
+                +{nativeTokens.length - 10} more tokens
+              </li>
+            )}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+## Troubleshooting
+
+### Hooks return undefined
+
+**Problem:** All hooks return `undefined` even after connecting.
+
+**Solutions:**
+1. Ensure `MeshProvider` wraps your app at the root level
+2. Wait for `connected` to be `true` before accessing data
+3. Check that the wallet extension is unlocked
+
+```tsx
+import { useWallet, useLovelace } from "@meshsdk/react";
+
+export default function SafeComponent() {
+  const { connected } = useWallet();
+  const lovelace = useLovelace();
+
+  // Always check connected first
+  if (!connected) {
+    return <p>Please connect your wallet</p>;
+  }
+
+  // Then check if data is loaded
+  if (!lovelace) {
+    return <p>Loading balance...</p>;
+  }
+
+  return <p>Balance: {lovelace}</p>;
+}
+```
+
+### useWalletList returns empty array
+
+**Problem:** No wallets appear in the list.
+
+**Solutions:**
+1. Ensure wallet extensions are installed and enabled
+2. Check that you're testing in a browser (not SSR)
+3. Refresh the page after installing a new wallet
+
+### "Cannot read properties of undefined"
+
+**Problem:** Accessing wallet properties throws errors.
+
+**Solution:** Use optional chaining and null checks:
+
+```tsx
+const { wallet, connected } = useWallet();
+
+// Safe access
+const handleAction = async () => {
+  if (!connected || !wallet) return;
+  const address = await wallet.getChangeAddress();
+};
+```
+
+### Balance doesn't update after transaction
+
+**Problem:** `useLovelace` shows stale data after sending/receiving.
+
+**Solution:** Wallet hooks auto-refresh, but you can force a reconnection:
+
+```tsx
+const { disconnect, connect, name } = useWallet();
+
+const refreshWallet = async () => {
+  disconnect();
+  await new Promise((r) => setTimeout(r, 100));
+  await connect(name);
+};
+```
+
+### TypeScript type errors
+
+**Problem:** TypeScript doesn't recognize hook return types.
+
+**Solution:** Import types from `@meshsdk/wallet` and `@meshsdk/core`:
+
+```tsx
+import type { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+import type { Asset } from "@meshsdk/core";
+import { useWallet, useAssets } from "@meshsdk/react";
+
+const { wallet } = useWallet() as { wallet: MeshCardanoBrowserWallet | null };
+const assets = useAssets() as Asset[] | undefined;
+```
+
+---
+
+## Related Links
+
+- [Getting Started](/docs/react/getting-started) - Installation and setup
+- [UI Components](/docs/react/ui-components) - Pre-built wallet button and badge
+- [Browser Wallet API](/apis/wallets/browserwallet) - Full CIP-30 wallet interface
+- [Transaction Builder](/apis/transaction) - Build and sign transactions
+- [GitHub Source](https://github.com/MeshJS/mesh/tree/main/packages/mesh-react) - Hook implementations

@@ -1,0 +1,33 @@
+get:
+  tags:
+    - Health
+  summary: Root endpoint
+  description: |
+    Root endpoint has no other function than to point end users to documentation.
+  responses:
+    "200":
+      description: Information pointing to the documentation.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              url:
+                type: string
+                example: "https://blockfrost.io/"
+              version:
+                type: string
+                example: "0.1.0"
+            required:
+              - url
+              - version
+    "400":
+      $ref: ../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../responses/errors/403.yaml
+    "429":
+      $ref: ../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../responses/errors/500.yaml

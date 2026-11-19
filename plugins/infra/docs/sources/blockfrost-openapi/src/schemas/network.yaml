@@ -1,0 +1,53 @@
+type: object
+properties:
+  supply:
+    type: object
+    properties:
+      max:
+        type: string
+        description: Maximum supply in Lovelaces
+        example: "45000000000000000"
+      total:
+        type: string
+        description: Current total (max supply - reserves) supply in Lovelaces
+        example: "32890715183299160"
+      circulating:
+        type: string
+        description: Current circulating (UTXOs + withdrawables) supply in Lovelaces
+        example: "32412601976210393"
+      locked:
+        type: string
+        description: Current supply locked by scripts in Lovelaces
+        example: "125006953355"
+      treasury:
+        type: string
+        description: Current supply locked in treasury
+        example: "98635632000000"
+      reserves:
+        type: string
+        description: Current supply locked in reserves
+        example: "46635632000000"
+    required:
+      - max
+      - total
+      - circulating
+      - locked
+      - treasury
+      - reserves
+  stake:
+    type: object
+    properties:
+      live:
+        type: string
+        example: "23204950463991654"
+        description: Current live stake in Lovelaces
+      active:
+        type: string
+        description: Current active stake in Lovelaces
+        example: "22210233523456321"
+    required:
+      - live
+      - active
+required:
+  - supply
+  - stake

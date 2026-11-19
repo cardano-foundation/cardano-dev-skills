@@ -1,0 +1,9 @@
+type: array
+items:
+  type: string
+  description: Hash of the transaction
+example:
+  - "8788591983aa73981fc92d6cddbbe643959f5a784e84b8bee0db15823f575a5b"
+  - "4eef6bb7755d8afbeac526b799f3e32a624691d166657e9d862aaeb66682c036"
+  - "52e748c4dec58b687b90b0b40d383b9fe1f24c1a833b7395cdf07dd67859f46f"
+  - "e8073fd5318ff43eca18a852527166aa8008bee9ee9e891f585612b7e4ba700b"

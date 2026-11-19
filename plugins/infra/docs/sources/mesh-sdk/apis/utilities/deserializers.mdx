@@ -1,0 +1,294 @@
+---
+title: "CBOR Deserializers"
+description: "Parse CBOR and bech32 encoded Cardano data into usable objects"
+---
+
+Use deserializer functions to parse Cardano on-chain data into JavaScript objects. These utilities convert bech32 addresses, CBOR-encoded datums, and pool identifiers into their component parts.
+
+## Overview
+
+Deserialization converts encoded on-chain data back into structured objects you can work with in your application. MeshJS provides deserializers for:
+
+- Bech32 addresses (extracting payment and stake credentials)
+- CBOR-encoded datums
+- Pool identifiers (bech32 to key hash)
+
+## Quick Start
+
+```tsx
+import { deserializeAddress } from "@meshsdk/core";
+
+const address = "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9";
+
+const { pubKeyHash, stakeCredentialHash } = deserializeAddress(address);
+console.log("Payment Key Hash:", pubKeyHash);
+console.log("Stake Key Hash:", stakeCredentialHash);
+```
+
+---
+
+## deserializeAddress
+
+Parse a bech32 address into its payment and staking components.
+
+### Function Signature
+
+```tsx
+deserializeAddress(bech32Address: string): DeserializedAddress
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `bech32Address` | `string` | Yes | A valid Cardano bech32 address |
+
+### Returns
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `pubKeyHash` | `string \| undefined` | The payment public key hash (if payment credential is a key) |
+| `scriptHash` | `string \| undefined` | The payment script hash (if payment credential is a script) |
+| `stakeCredentialHash` | `string \| undefined` | The stake credential hash |
+| `stakeScriptCredentialHash` | `string \| undefined` | The stake script hash (if stake credential is a script) |
+
+### Example: Deserialize a Base Address
+
+```tsx
+import { deserializeAddress } from "@meshsdk/core";
+
+const address = "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9";
+
+const result = deserializeAddress(address);
+
+console.log("Payment Key Hash:", result.pubKeyHash);
+// Output: 58c7c1dc7893c107...
+
+console.log("Stake Key Hash:", result.stakeCredentialHash);
+// Output: ea6e6bf9153...
+```
+
+### Example: Deserialize a Script Address
+
+```tsx
+import { deserializeAddress } from "@meshsdk/core";
+
+const scriptAddress = "addr_test1wz..."; // Script address
+
+const result = deserializeAddress(scriptAddress);
+
+if (result.scriptHash) {
+  console.log("This is a script address");
+  console.log("Script Hash:", result.scriptHash);
+} else {
+  console.log("This is a key address");
+  console.log("Public Key Hash:", result.pubKeyHash);
+}
+```
+
+### Example: Use With Native Scripts
+
+```tsx
+import { deserializeAddress, serializeNativeScript, NativeScript } from "@meshsdk/core";
+
+const walletAddress = "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9";
+
+// Extract the key hash from the address
+const { pubKeyHash } = deserializeAddress(walletAddress);
+
+// Use it to create a signature-based native script
+const nativeScript: NativeScript = {
+  type: "sig",
+  keyHash: pubKeyHash,
+};
+
+const { address } = serializeNativeScript(nativeScript, 0);
+console.log("Script Address:", address);
+```
+
+---
+
+## deserializeDatum
+
+Parse a CBOR-encoded datum into a JSON object.
+
+### Function Signature
+
+```tsx
+deserializeDatum(datumCbor: string): any
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `datumCbor` | `string` | Yes | The datum in CBOR hex format |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `any` | The deserialized datum as a JSON object |
+
+### Example
+
+```tsx
+import { deserializeDatum } from "@meshsdk/core";
+
+const datumCbor = "d8799f4100d8799fd8799fd8799f581caa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6ffd8799fd8799fd8799f581c9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6ffffffffd87a80ff1a001e84801a05f5e100ff";
+
+const datum = deserializeDatum(datumCbor);
+
+console.log("Deserialized Datum:", JSON.stringify(datum, null, 2));
+// Output: The datum structure as a JavaScript object
+```
+
+### Example: Parse Contract State
+
+```tsx
+import { deserializeDatum } from "@meshsdk/core";
+
+// Fetch a UTxO with inline datum from your provider
+const utxo = await provider.fetchAddressUTxOs(scriptAddress);
+const datumCbor = utxo[0].output.plutusData;
+
+if (datumCbor) {
+  const contractState = deserializeDatum(datumCbor);
+
+  console.log("Contract Owner:", contractState.fields[0]);
+  console.log("Locked Amount:", contractState.fields[1]);
+}
+```
+
+---
+
+## deserializePoolId
+
+Convert a pool ID from bech32 format to its Ed25519 key hash.
+
+### Function Signature
+
+```tsx
+deserializePoolId(poolId: string): string
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `poolId` | `string` | Yes | A pool ID in bech32 format (starts with `pool1...`) |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `string` | The pool's Ed25519 key hash (56 hex characters) |
+
+### Example
+
+```tsx
+import { deserializePoolId } from "@meshsdk/core";
+
+const poolId = "pool107k26e3wrqxwghju2py40ngngx2qcu48ppeg7lk0cm35jl2aenx";
+
+const keyHash = deserializePoolId(poolId);
+
+console.log("Pool Key Hash:", keyHash);
+// Output: 7f595acc9230339745c500494f9a1a0ca0c7255c21ca3dfb3f1bb8c9
+```
+
+### Example: Use in Delegation Transaction
+
+```tsx
+import { deserializePoolId, MeshTxBuilder } from "@meshsdk/core";
+
+const poolId = "pool107k26e3wrqxwghju2py40ngngx2qcu48ppeg7lk0cm35jl2aenx";
+const poolKeyHash = deserializePoolId(poolId);
+
+const txBuilder = new MeshTxBuilder();
+
+// Use the key hash in a delegation certificate
+await txBuilder
+  .delegateStakeCertificate(stakeKeyHash, poolKeyHash)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+---
+
+## Complete Example
+
+This example demonstrates deserializing various Cardano data types:
+
+```tsx
+import {
+  deserializeAddress,
+  deserializeDatum,
+  deserializePoolId,
+  serializeNativeScript,
+  NativeScript,
+} from "@meshsdk/core";
+
+// 1. Deserialize an Address
+const walletAddress = "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9";
+
+const addressInfo = deserializeAddress(walletAddress);
+console.log("Address Components:");
+console.log("  Payment Key Hash:", addressInfo.pubKeyHash);
+console.log("  Stake Key Hash:", addressInfo.stakeCredentialHash);
+
+// 2. Create a Native Script Using the Key Hash
+const nativeScript: NativeScript = {
+  type: "all",
+  scripts: [
+    {
+      type: "sig",
+      keyHash: addressInfo.pubKeyHash,
+    },
+    {
+      type: "after",
+      slot: "50000000",
+    },
+  ],
+};
+
+const { address: scriptAddress } = serializeNativeScript(nativeScript, 0);
+console.log("\nNative Script Address:", scriptAddress);
+
+// 3. Deserialize a Datum
+const datumCbor = "d8799f4100ff";
+const datum = deserializeDatum(datumCbor);
+console.log("\nDeserialized Datum:", datum);
+
+// 4. Deserialize a Pool ID
+const poolId = "pool107k26e3wrqxwghju2py40ngngx2qcu48ppeg7lk0cm35jl2aenx";
+const poolHash = deserializePoolId(poolId);
+console.log("\nPool Key Hash:", poolHash);
+```
+
+---
+
+## Troubleshooting
+
+### Invalid address format error
+
+Ensure the address is a valid Cardano bech32 address. Valid prefixes include:
+- `addr1...` or `addr_test1...` for base addresses
+- `stake1...` or `stake_test1...` for stake addresses
+
+### Datum deserialization returns unexpected structure
+
+The deserialized datum structure matches the Plutus data format. Constructor values appear as objects with `constructor` and `fields` properties. Verify your datum encoding matches the expected schema.
+
+### Pool ID not recognized
+
+Pool IDs must start with `pool1` (mainnet) or include the pool prefix. The bech32 encoding must be valid.
+
+---
+
+## Related
+
+- [Serializers](/apis/utilities/serializers) - Encode data for on-chain use
+- [Resolvers](/apis/utilities/resolvers) - Convert between different hash formats
+- [Data APIs](/apis/data) - Work with Cardano data types

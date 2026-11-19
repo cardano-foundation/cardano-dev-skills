@@ -1,0 +1,182 @@
+---
+title: "Support Us"
+description: "Help grow the Mesh ecosystem through community engagement, contributions, and advocacy."
+---
+import Link from 'fumadocs-core/link';
+import Image from 'next/image';
+import { cn } from '@/lib/cn';
+import { buttonVariants } from '@/components/ui/button';
+
+Mesh is an open-source project maintained by developers who believe in making Cardano accessible to everyone. Your support helps us continue building tools that empower the next generation of blockchain applications.
+
+## Ways to Support
+
+### Follow on Twitter
+
+Stay informed about new releases, features, and ecosystem updates. Engaging with our posts helps spread awareness to other developers.
+
+<div className="mt-4 mb-12">
+  <div className="flex items-center justify-between gap-6">
+    <div className="flex-1">
+      <div className="inline-flex items-center gap-3 mt-4">
+        <Link
+          href="https://x.com/meshsdk"
+          className={cn(
+            buttonVariants({ size: "sm", color: "primary" }),
+            "rounded-2xl",
+            "no-underline"
+          )}
+        >
+          <span className="text-lg font-semibold">Follow @meshsdk</span>
+        </Link>
+      </div>
+    </div>
+
+    <div className="flex-shrink-0 hidden md:block">
+      <Image
+        src="/support/x-logo.svg"
+        width={200}
+        height={200}
+        alt="Twitter/X logo"
+        className='invert dark:invert-0'
+      />
+    </div>
+  </div>
+</div>
+
+### Star the GitHub Repository
+
+GitHub stars help developers discover Mesh when searching for Cardano development tools. Each star increases our visibility in the ecosystem.
+
+<div className="mt-4 mb-12">
+  <div className="flex items-center justify-between gap-6">
+    <div className="flex-1">
+      <div className="inline-flex items-center gap-3">
+        <Link
+          href="https://github.com/MeshJS/mesh"
+          className={cn(
+            buttonVariants({ size: 'sm', color: 'primary' }),
+            'rounded-2xl',
+            'no-underline'
+          )}
+        >
+          <span className='text-lg font-semibold'>Star on GitHub</span>
+        </Link>
+      </div>
+    </div>
+
+    <div className="flex-shrink-0 hidden md:block">
+      <Image
+        src="/support/github-mark-white.svg"
+        width={250}
+        height={250}
+        alt="GitHub logo"
+        className='invert dark:invert-0'
+      />
+    </div>
+  </div>
+</div>
+
+### Join the Discord Community
+
+Connect with other Mesh developers, get help with your projects, and contribute to discussions about new features. Our Discord is the fastest way to get support.
+
+<div className="mt-4 mb-12">
+  <div className="flex items-center justify-between">
+    <div className="flex-1">
+      <div className="inline-flex items-center gap-3">
+        <Link
+          href="https://discord.com/invite/WvnCNqmAxy"
+          className={cn(
+            buttonVariants({ size: 'sm', color: 'primary' }),
+            'rounded-2xl',
+            'no-underline'
+          )}
+        >
+          <span className='text-lg font-semibold'>Join Discord</span>
+        </Link>
+      </div>
+    </div>
+
+    <div className="flex-shrink-0 hidden md:block">
+      <Image
+        src="/support/discord.png"
+        width={250}
+        height={250}
+        alt="Discord logo"
+        className='invert dark:invert-0'
+      />
+    </div>
+  </div>
+</div>
+
+### Add the Mesh Badge
+
+Display the Mesh badge in your application to show users you build on reliable infrastructure. The badge links to Mesh and helps grow our developer community.
+
+<div className="mt-4 mb-12">
+  <div className="flex items-center justify-between">
+    <div className="flex-1 max-w-prose">
+      ```tsx
+      import { MeshBadge } from '@meshsdk/react';
+
+      export default function Page() {
+        return (
+          <>
+            <MeshBadge />
+          </>
+        );
+      }
+      ```
+    </div>
+
+    <div className="flex-shrink-0 hidden xl:block">
+      <Image
+        src="/support/meshbadge.png"
+        width={250}
+        height={250}
+        alt="Mesh badge preview"
+        className='invert dark:invert-0'
+      />
+    </div>
+  </div>
+</div>
+
+### Donate
+
+Financial contributions help fund development, infrastructure, and community events. Every donation directly supports open-source Cardano tooling.
+
+<div className="mt-4 mb-12">
+  <div className="flex items-center justify-between gap-6">
+    <div className="flex-1">
+      <div className="inline-flex items-center gap-3">
+        <Link
+          href="/about/support-us"
+          className={cn(
+            buttonVariants({ size: 'sm', color: 'primary' }),
+            'rounded-2xl',
+            'no-underline'
+          )}
+        >
+          <span className='text-lg font-semibold'>Donation options coming soon</span>
+        </Link>
+      </div>
+    </div>
+  </div>
+</div>
+
+## Other Ways to Contribute
+
+| Contribution | Impact |
+|--------------|--------|
+| Report bugs | Help us identify and fix issues faster |
+| Submit PRs | Add features or fix problems directly |
+| Write tutorials | Help other developers learn Mesh |
+| Answer questions | Support newcomers in Discord |
+| Vote in Catalyst | Fund continued development |
+
+## Related Resources
+
+- [Project Catalyst](/about/catalyst) - Track our funded proposals
+- [Branding Assets](/about/branding) - Download official logos
+- [GitHub Issues](https://github.com/MeshJS/mesh/issues) - Report bugs or request features

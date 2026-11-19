@@ -1,0 +1,355 @@
+---
+title: "Modules"
+description: "Aiken is a functional programming language for Cardano smart contracts where code is organized into reusable bundles called modules. Modules are files containing functions, types, and constants, with their namespace determined by file path. Used to structure projects, share code between validators, import the standard library, and control visibility with pub."
+difficulty: "beginner"
+keywords: ["modules", "use", "import", "pub", "namespace", "opaque types", "standard library", "stdlib", "prelude", "aiken.toml", "dependencies"]
+topics: ["modules", "imports", "namespaces", "visibility", "stdlib"]
+prerequisites: ["functions", "custom-types"]
+related: ["functions", "custom-types", "tests"]
+---
+
+import { Tabs } from "nextra/components";
+import { Callout } from "nextra-theme-docs";
+
+# Modules
+
+Aiken programs are made up of bundles of functions and types called modules.
+Each module has its own namespace and can export types and values to be used
+by other modules in the program.
+
+```aiken
+// inside module lib/straw_hats/sunny.ak
+
+fn count_down() {
+  "3... 2... 1..."
+}
+
+fn blast_off() {
+  "BOOM!"
+}
+
+pub fn set_sail() {
+  [
+    count_down(),
+    blast_off(),
+  ]
+}
+```
+
+Here we can see a module named `straw_hats/sunny`, the name determined by the
+filename `lib/straw_hats/sunny.ak`. Typically all the modules for one
+project would live within a directory with the name of the project, such as
+`straw_hats` in this example.
+
+The `pub` keyword makes this type usable from other modules.
+
+For the functions `count_down` and `blast_off` we have omitted the `pub`
+keyword, so these functions are _private_ module functions. They can only be
+called by other functions within the same module.
+
+Functions, type-aliases and constants can all be exported from a module using
+the `pub` keyword.
+
+### Qualified imports
+
+To use functions or types from another module we need to import them using the
+`use` keyword.
+
+```aiken
+// inside module src/straw_hats/laugh_tale.ak
+
+use straw_hats/sunny
+
+pub fn find_the_one_piece() {
+  sunny.set_sail()
+}
+```
+
+#### Custom names
+
+It is also possible to give a module a custom name
+when importing it using the `as` keyword.
+
+```aiken
+use unix/dog
+use animal/dog as kitty
+```
+
+This may be useful to differentiate between multiple modules that would have
+the same default name when imported.
+
+The definition `use straw_hats/sunny` creates a new variable with the name
+`sunny` and the value of the `sunny` module.
+
+In the `find_the_one_piece` function we call the imported module's public `set_sail`
+function using the `.` operator. If we had attempted to call `count_down` it
+would result in a compile time error as this function is private to the
+`sunny` module.
+
+### Unqualified import
+
+Values and types can also be imported in an unqualified fashion.
+
+```ak
+use animal/dog.{Dog, stroke}
+
+pub fn foo() {
+  let puppy = Dog { name: "Zeus" }
+  stroke(puppy)
+}
+```
+
+This may be useful for values that are used frequently in a module, but
+generally qualified imports are preferred as it makes it clearer where the
+value is defined.
+
+You may also combine unqualified imports with custom names as such:
+
+```aiken
+use animal/dog.{Dog, stroke} as kitty
+```
+
+## Opaque types
+
+At times it may be useful to create a type and make the constructors and
+fields private so that users of this type can only use the type through
+publicly exported functions.
+
+For example we can create a `Counter` type which holds an int which can be
+incremented. We don't want the user to alter the `Int` value other than by
+incrementing it, so we can make the type opaque to prevent them from being
+able to do this.
+
+```aiken
+// The type is defined with the opaque keyword
+pub opaque type Counter {
+  Counter(value: Int)
+}
+
+pub fn new() {
+  Counter(0)
+}
+
+pub fn increment(counter: Counter) {
+  Counter(counter.value + 1)
+}
+```
+
+Because the `Counter` type has been marked as `opaque` it is not possible for
+code in other modules to construct or pattern match on counter values or
+access the `value` field. Instead other modules have to manipulate the opaque
+type using the exported functions from the module, in this case `new` and
+`increment`.
+
+<Callout type="warning">
+It isn't possible to downcast from `Data{:ak}` into an opaque type because it
+isn't generally possibly to know what restrictions applies to that type. For
+example, imagine a `Rational{:ak}` opaque type holding a pair of integer values as
+_numerator_ and _denominator_.
+
+By using an opaque type, one can ensure that the _denominator_ remains always
+non-negative, and that both numbers remain coprime. Hence, it is in many cases
+unsafe to downcast any arbitrary pair of integer into a `Rational` since there's
+more than just a structural equivalence at play.
+
+For the same reasons, it isn't possible to use an opaque type (or any type
+holding an opaque type) as a validator's datum and/or redeemer.
+
+</Callout>
+
+There's a _special treatment_ for an opaque type with only one constructor,
+and if that constructor has only 1 field. Under the hood, it behaves like a
+Haskell's `newtype`. This matters when we're dealing with CBOR.
+
+For example:
+
+```aiken
+pub opaque type NewType<a> { field: a }
+pub fn new_type(a) -> NewType<a> { NewType(a) }
+..
+trace new_type(43) // 43
+
+// Compare that to a non-opaque type:
+pub type Constr<a> { field: a }
+pub fn new_constr(a) -> Constr<a> { Constr(a) }
+..
+trace new_constr(43) // 121([_ 43])
+```
+
+## Well-known modules
+
+### The prelude module
+
+There are two modules that are built into the language, the first is the
+`aiken` prelude module. By default its types and values are automatically
+imported into every module you write, but you can still chose to import it the
+regular way. This may be useful if you have created a type or value with the
+same name as an item from the prelude.
+
+```aiken
+use aiken
+
+/// This definition locally overrides the `Option` type
+/// and the `Some` constructor.
+pub type Option {
+  Some
+}
+
+/// The original `Option` and `Some` can still be used
+pub fn go() -> aiken.Option<Int> {
+  aiken.Some(1)
+}
+```
+
+The content of the Prelude module is documented in [aiken-lang/prelude](https://aiken-lang.github.io/prelude/aiken.html)
+
+### The builtin module
+
+The second module that comes with the language is for exposing useful builtin
+functions from Plutus core. Most underlying platform functions are available
+here using a "snake_case" name. Much of Aiken's syntax ends up compiling to
+combinations of certain bultins but many aren't "exposed" through the syntax
+and need to be used directly. The standard library wraps these in a more
+Aiken-friendly interface so you'll probably never need to use these directly
+unless you're making your own standard library.
+
+```aiken
+use aiken/builtin
+
+fn eq(a, b) {
+    builtin.equals_integer(a, b)
+}
+
+// is implicitly used when doing:
+
+a == b
+```
+
+The content of the builtin module is documented in [aiken-lang/prelude](https://aiken-lang.github.io/prelude/aiken/builtin.html).
+
+## Conditional modules
+
+### Environments
+
+Since `v1.1.0`, Aiken supports conditional environment modules. Environment modules follow special rules:
+
+1. They must be located in an `env` directory at the root of the project.
+2. When used, at least one of them must be called `default.ak`; it is used by default when no explicit module is provided.
+3. Only one of them is available at the time, in a given compilation pass.
+4. From within other modules, they are always referred to as `env`, regardless of their _actual name_.
+
+So for example, imagine the following project structure:
+
+```
+.
+├── aiken.toml
+├── env
+│   ├── default.ak
+│   ├── preprod.ak
+│   └── preview.ak
+└── validators
+    └── main.ak
+```
+
+From within `main`, one can assume the existence of a module `env` and import it like any other module `use env{:ak}`. The content of the module depends on the `--env` argument passed to the command used to `check` or `build` the project. When `--env` is omitted, it is assumed to be `default.ak`. Note that each of those modules must define a similar API. Usually, they will export constants that are used throughout the validator but that depend on the execution environment.
+
+For example:
+
+```aiken filename="validators/main.ak"
+use env
+
+validator main() {
+  mint(redeemer, policy_id, self)  {
+    self.signatories
+      |> list.has(env.administrator)
+  }
+}
+```
+
+<Tabs items={['default', 'preprod', 'preview']}>
+
+<Tabs.Tab>
+
+```aiken filename="env/default.ak"
+pub const administrator = #"0000000000"
+```
+
+</Tabs.Tab>
+
+<Tabs.Tab>
+
+```aiken filename="env/preprod.ak"
+pub const administrator = #"12341234"
+```
+
+</Tabs.Tab>
+
+<Tabs.Tab>
+
+```aiken filename="env/preview.ak"
+pub const administrator = #"56785678"
+```
+
+</Tabs.Tab>
+</Tabs>
+
+The environment names are not restricted (other than the usual restriction for Aiken's module names). They can contain arbitrary logic and definitions and import other modules as well as other environment modules by explicitly importing them as `use {env}{:ak}` (e.g. `use preview`). Rules regarding import cycles, however, still apply.
+
+### Configurations
+
+Environment modules are quite flexible and expressive. They are useful when needing to wield complex dynamic configurations together which may even leverage other functions. In many cases though, their full power isn't needed and one only needs to define a handful of static constants. For these scenarios, Aiken provides a similar features called conditional configuration values.
+
+Those configurations are defined directly in the `aiken.toml` and can represent either integers, booleans, bytearrays or lists / tuples of thoses. Like environment, they expect one configuration to be named `default`. All values under it are then injected into a special module `config{:ak}` which can be imported in the usual ways.
+
+Here's a thorough example of a conditional configuration, with their Aiken's equivalent:
+
+```toml filename="aiken.toml"
+name = "aiken-lang/scratchpad"
+version = "1.0.0"
+
+[config.default]
+price = 1000000               # pub const price: Int = 1_000_000
+is_mainnet = true             # pub const is_mainnet: Bool = True
+network = "mainnet"           # pub const network: ByteArray = "mainnet"
+quotas = [1, 2, 3]            # pub const ratio: List<Int> = [1, 2, 3]
+asset = ["HOSKY", 42]         # pub const asset: (ByteArray, Int) = ("HOSKY", 42)
+[config.default.owner]        # pub const owner: ByteArray = #"0000111122223333"
+bytes = "0000111122223333"
+encoding = "hex"
+```
+
+Then, one can refer to any of the configuration value as they would from a standard module:
+
+```aiken
+use config
+
+fn main() {
+  if config.is_mainnet {
+    config.price * 2
+  } else {
+    ..
+  }
+}
+```
+
+Like conditional environment modules, the `--env` option drives the selection of the right configuration values. Yet unlike modules, configuration values cannot refer to other configuration values, and are limited to what the TOML syntax supports.
+
+## Documentation
+
+You may add user-facing documentation at the head of modules with a module
+documentation comment `////` (quadruple slash!) per line. Markdown is supported
+and this text block will be included with the module's entry in generated HTML
+documentation.
+
+### Hiding module
+
+At times, you may want to hide modules from the generated documentation because
+they may contains internal functions that are not relevant to expose to any
+users, but split out for various reasons.
+
+To hide a module, you can start the module documentation with the tag `@hidden`.
+
+```aiken
+//// @hidden
+//// Some more documentation
+```

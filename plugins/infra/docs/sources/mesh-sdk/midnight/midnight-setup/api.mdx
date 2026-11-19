@@ -1,0 +1,362 @@
+---
+title: "API Reference"
+description: "Complete reference for MidnightSetupAPI methods, types, and provider configuration"
+---
+
+This reference documents all methods, types, and configuration options available in the `@meshsdk/midnight-setup` package.
+
+## MidnightSetupAPI
+
+The main class for deploying and interacting with Midnight Network smart contracts.
+
+### Static methods
+
+#### deployContract
+
+Deploys a new smart contract to the Midnight Network.
+
+```typescript
+import { MidnightSetupAPI } from '@meshsdk/midnight-setup';
+import type { MidnightSetupContractProviders, ContractInstance } from '@meshsdk/midnight-setup';
+
+const api = await MidnightSetupAPI.deployContract(
+  providers: MidnightSetupContractProviders,
+  contractInstance: ContractInstance,
+  logger?: Logger
+);
+```
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `providers` | `MidnightSetupContractProviders` | Yes | Network and wallet provider configuration |
+| `contractInstance` | `ContractInstance` | Yes | Your compiled contract instance |
+| `logger` | `Logger` | No | Optional Pino logger for debugging |
+
+**Returns**
+
+`Promise<MidnightSetupAPI>` - An API instance connected to the deployed contract.
+
+**Example**
+
+```typescript
+import { MidnightSetupAPI } from '@meshsdk/midnight-setup';
+import { setupProviders } from './providers';
+import { MyContract } from './managed/MyContract';
+
+async function deploy() {
+  const providers = await setupProviders();
+  const contractInstance = new MyContract({});
+
+  const api = await MidnightSetupAPI.deployContract(providers, contractInstance);
+
+  console.log('Contract address:', api.deployedContractAddress);
+  return api;
+}
+```
+
+---
+
+#### joinContract
+
+Connects to an existing deployed contract.
+
+```typescript
+import { MidnightSetupAPI } from '@meshsdk/midnight-setup';
+
+const api = await MidnightSetupAPI.joinContract(
+  providers: MidnightSetupContractProviders,
+  contractInstance: ContractInstance,
+  contractAddress: string,
+  logger?: Logger
+);
+```
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `providers` | `MidnightSetupContractProviders` | Yes | Network and wallet provider configuration |
+| `contractInstance` | `ContractInstance` | Yes | Your compiled contract instance |
+| `contractAddress` | `string` | Yes | Address of the deployed contract |
+| `logger` | `Logger` | No | Optional Pino logger for debugging |
+
+**Returns**
+
+`Promise<MidnightSetupAPI>` - An API instance connected to the existing contract.
+
+**Example**
+
+```typescript
+import { MidnightSetupAPI } from '@meshsdk/midnight-setup';
+import { setupProviders } from './providers';
+import { MyContract } from './managed/MyContract';
+
+async function join(address: string) {
+  const providers = await setupProviders();
+  const contractInstance = new MyContract({});
+
+  const api = await MidnightSetupAPI.joinContract(
+    providers,
+    contractInstance,
+    address
+  );
+
+  console.log('Connected to:', address);
+  return api;
+}
+```
+
+---
+
+### Instance methods
+
+#### getContractState
+
+Retrieves the current state of the connected contract.
+
+```typescript
+const state = await api.getContractState();
+```
+
+**Returns**
+
+`Promise<ContractStateData>` - The current contract state.
+
+**Example**
+
+```typescript
+const state = await api.getContractState();
+console.log('Contract data:', state.data);
+console.log('Last updated:', state.timestamp);
+```
+
+---
+
+#### getLedgerState
+
+Retrieves and parses the current ledger state.
+
+```typescript
+const ledgerState = await api.getLedgerState();
+```
+
+**Returns**
+
+`Promise<LedgerStateData>` - The parsed ledger state.
+
+**Example**
+
+```typescript
+const ledgerState = await api.getLedgerState();
+console.log('Message:', ledgerState.ledgerState?.message);
+console.log('Block height:', ledgerState.blockHeight);
+```
+
+---
+
+### Instance properties
+
+#### deployedContractAddress
+
+The address of the deployed contract (available after deployment or joining).
+
+```typescript
+const address: string = api.deployedContractAddress;
+```
+
+---
+
+## Types
+
+Import types for TypeScript projects:
+
+```typescript
+import type {
+  ContractInstance,
+  ContractStateData,
+  DeployedContract,
+  DeployedMidnightSetupAPI,
+  LedgerStateData,
+  MidnightSetupContractProviders,
+} from '@meshsdk/midnight-setup';
+```
+
+### MidnightSetupContractProviders
+
+Configuration object containing all required providers.
+
+```typescript
+interface MidnightSetupContractProviders {
+  privateStateProvider: PrivateStateProvider;
+  zkConfigProvider: ZkConfigProvider;
+  proofProvider: ProofProvider;
+  publicDataProvider: PublicDataProvider;
+  walletProvider: WalletProvider;
+  midnightProvider: MidnightProvider;
+}
+```
+
+| Property | Description |
+|----------|-------------|
+| `privateStateProvider` | Manages local private state storage |
+| `zkConfigProvider` | Handles ZK circuit configuration fetching |
+| `proofProvider` | Generates zero-knowledge proofs |
+| `publicDataProvider` | Queries public blockchain data |
+| `walletProvider` | Integrates with Lace wallet for signing |
+| `midnightProvider` | Submits transactions to the network |
+
+---
+
+### ContractStateData
+
+The structure returned by `getContractState()`.
+
+```typescript
+interface ContractStateData {
+  data: unknown;
+  timestamp: number;
+  blockHeight: number;
+}
+```
+
+---
+
+### LedgerStateData
+
+The structure returned by `getLedgerState()`.
+
+```typescript
+interface LedgerStateData {
+  ledgerState: unknown;
+  blockHeight: number;
+  timestamp: number;
+}
+```
+
+---
+
+## Provider setup
+
+Complete provider configuration example:
+
+```typescript
+import { FetchZkConfigProvider } from "@midnight-ntwrk/midnight-js-fetch-zk-config-provider";
+import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
+import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
+import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
+import type { MidnightSetupContractProviders } from "@meshsdk/midnight-setup";
+
+export async function setupProviders(): Promise<MidnightSetupContractProviders> {
+  const wallet = window.midnight?.mnLace;
+  if (!wallet) {
+    throw new Error("Please install Lace Beta Wallet for Midnight Network");
+  }
+
+  const walletAPI = await wallet.enable();
+  const walletState = await walletAPI.state();
+  const uris = await wallet.serviceUriConfig();
+
+  return {
+    privateStateProvider: levelPrivateStateProvider({
+      privateStateStoreName: "my-dapp-state",
+    }),
+    zkConfigProvider: new FetchZkConfigProvider(
+      window.location.origin,
+      fetch.bind(window),
+    ),
+    proofProvider: httpClientProofProvider(uris.proverServerUri),
+    publicDataProvider: indexerPublicDataProvider(
+      uris.indexerUri,
+      uris.indexerWsUri,
+    ),
+    walletProvider: {
+      coinPublicKey: walletState.coinPublicKey,
+      encryptionPublicKey: walletState.encryptionPublicKey,
+      balanceTx: (tx, newCoins) => {
+        return walletAPI.balanceAndProveTransaction(tx, newCoins);
+      },
+    },
+    midnightProvider: {
+      submitTx: (tx) => {
+        return walletAPI.submitTransaction(tx);
+      },
+    },
+  };
+}
+```
+
+---
+
+## Error handling
+
+Wrap API calls in try-catch blocks for proper error handling:
+
+```typescript
+import { MidnightSetupAPI } from '@meshsdk/midnight-setup';
+
+async function safeDeployment() {
+  try {
+    const providers = await setupProviders();
+    const api = await MidnightSetupAPI.deployContract(providers, contractInstance);
+
+    const state = await api.getContractState();
+    return { success: true, api, state };
+  } catch (error) {
+    console.error('Deployment error:', error);
+
+    if (error instanceof Error) {
+      if (error.message.includes('Insufficient funds')) {
+        return { success: false, error: 'Not enough funds in wallet' };
+      }
+      if (error.message.includes('Contract not found')) {
+        return { success: false, error: 'Contract address is invalid' };
+      }
+    }
+
+    return { success: false, error: 'An unexpected error occurred' };
+  }
+}
+```
+
+---
+
+## Best practices
+
+1. **Always handle errors** - Wrap all API calls in try-catch blocks
+2. **Use TypeScript** - Import types for compile-time safety
+3. **Validate inputs** - Check contract addresses and parameters before calling
+4. **Monitor state changes** - Poll `getContractState()` or `getLedgerState()` for updates
+5. **Test on testnet** - Always test thoroughly before mainnet deployment
+6. **Log appropriately** - Pass a logger to deployment methods for debugging
+
+---
+
+## Troubleshooting
+
+### "Contract not found" error
+
+**Cause**: The contract address is invalid or the contract was not deployed.
+
+**Solution**: Verify the address is correct and the contract exists on the network.
+
+### "Insufficient funds" error
+
+**Cause**: The wallet does not have enough tokens for the transaction.
+
+**Solution**: Fund the wallet with testnet tokens and retry.
+
+### Provider connection failures
+
+**Cause**: Network services (indexer, prover) are unreachable.
+
+**Solution**: Check `wallet.serviceUriConfig()` returns valid URIs and verify network connectivity.
+
+---
+
+## Next steps
+
+- [Wallet Integration](/docs/midnight/midnight-setup/wallet) - Wallet connection details
+- [Examples](/docs/midnight/midnight-setup/examples) - Complete code samples
+- [Getting Started](/docs/midnight/midnight-setup/getting-started) - Initial setup guide

@@ -1,0 +1,274 @@
+---
+title: "Available Contracts"
+description: "Explore the zero-knowledge smart contract templates in the Midnight Contracts Wizard"
+---
+
+The Midnight Contracts Wizard includes five production-ready smart contract templates. Each template provides complete functionality with privacy-preserving zero-knowledge circuits built in.
+
+## Contract overview
+
+| Contract | ZK Circuits | Primary use case |
+|----------|-------------|------------------|
+| Tokenization | 7 | Asset tokenization, private investments |
+| Staking | 8 | Rewards, governance participation |
+| Identity | 1 | Credential verification, access control |
+| Oracle | 7 | External data feeds, price oracles |
+| Lending | 7 | DeFi protocols, collateralized loans |
+
+---
+
+## Tokenization Contract
+
+**7 ZK Circuits**
+
+A complete asset tokenization system with zero-knowledge privacy for investments and ownership tracking.
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| Private minting | Create tokens without revealing amounts |
+| Confidential balances | Hide holder balances from public view |
+| Private transfers | Move tokens without exposing transaction details |
+| Investment tracking | Track investments with ZK proofs |
+
+### Use cases
+
+- **Real estate tokenization** - Fractional property ownership with private holdings
+- **Securities issuance** - Confidential cap table management
+- **Private equity** - Track investments without public disclosure
+- **Fundraising** - Accept contributions with privacy guarantees
+
+### Example usage
+
+```typescript
+import { TokenizationContract } from './managed/tokenization';
+import { MidnightSetupAPI } from '@meshsdk/midnight-setup';
+
+const contract = new TokenizationContract({
+  name: "Property Token",
+  symbol: "PROP",
+  totalSupply: 1000000
+});
+
+const api = await MidnightSetupAPI.deployContract(providers, contract);
+```
+
+---
+
+## Staking Contract
+
+**8 ZK Circuits**
+
+A privacy-focused staking system with configurable rewards and lock periods.
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| Private stake amounts | Hide how much each user stakes |
+| Confidential rewards | Distribute rewards privately |
+| Flexible lock periods | Configure custom staking durations |
+| Slashing mechanisms | Penalize bad actors with ZK verification |
+
+### Use cases
+
+- **Network validation** - Stake to participate in consensus
+- **Governance** - Voting power based on private stake
+- **Yield generation** - Earn rewards on locked assets
+- **Long-term incentives** - Reward committed participants
+
+### Example usage
+
+```typescript
+import { StakingContract } from './managed/staking';
+import { MidnightSetupAPI } from '@meshsdk/midnight-setup';
+
+const contract = new StakingContract({
+  rewardRate: 0.05, // 5% annual
+  lockPeriod: 30 * 24 * 60 * 60 // 30 days in seconds
+});
+
+const api = await MidnightSetupAPI.deployContract(providers, contract);
+```
+
+---
+
+## Identity Contract
+
+**1 ZK Circuit**
+
+A complete identity management system for privacy-preserving credential verification.
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| Zero-knowledge proofs | Prove attributes without revealing data |
+| Selective disclosure | Share only what you choose |
+| Credential verification | Validate credentials privately |
+| Access control | Grant permissions based on verified attributes |
+
+### Use cases
+
+- **KYC compliance** - Verify identity without storing personal data
+- **Age verification** - Prove age without revealing birthdate
+- **Credential validation** - Check qualifications privately
+- **Gated access** - Control access based on verified attributes
+
+### Example usage
+
+```typescript
+import { IdentityContract } from './managed/identity';
+import { MidnightSetupAPI } from '@meshsdk/midnight-setup';
+
+const contract = new IdentityContract({
+  issuer: "trusted-issuer-address",
+  requiredAttributes: ["over18", "verified"]
+});
+
+const api = await MidnightSetupAPI.deployContract(providers, contract);
+```
+
+---
+
+## Oracle Contract
+
+**7 ZK Circuits**
+
+A decentralized oracle system with privacy-preserving data feeds.
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| Confidential data ingestion | Ingest data without public exposure |
+| Multi-source aggregation | Combine data from multiple sources |
+| Tamper-proof feeds | Ensure data integrity with ZK proofs |
+| Private validation | Verify data quality without revealing sources |
+
+### Use cases
+
+- **Price feeds** - Private asset pricing for DeFi
+- **Weather data** - Confidential environmental data
+- **Sports results** - Private outcome verification
+- **IoT streams** - Secure sensor data ingestion
+
+### Example usage
+
+```typescript
+import { OracleContract } from './managed/oracle';
+import { MidnightSetupAPI } from '@meshsdk/midnight-setup';
+
+const contract = new OracleContract({
+  feedId: "BTC-USD",
+  updateInterval: 60, // seconds
+  minSources: 3
+});
+
+const api = await MidnightSetupAPI.deployContract(providers, contract);
+```
+
+---
+
+## Lending Contract
+
+**7 ZK Circuits**
+
+A privacy-preserving decentralized lending protocol.
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| Confidential collateral | Hide collateral amounts |
+| Private loan amounts | Keep borrowed amounts private |
+| Interest rate privacy | Calculate interest without exposure |
+| ZK liquidation | Verify liquidation conditions privately |
+
+### Use cases
+
+- **DeFi lending platforms** - Build private lending pools
+- **Peer-to-peer lending** - Connect lenders and borrowers privately
+- **Collateralized loans** - Secure loans with hidden collateral
+- **Credit lines** - Establish private credit facilities
+
+### Example usage
+
+```typescript
+import { LendingContract } from './managed/lending';
+import { MidnightSetupAPI } from '@meshsdk/midnight-setup';
+
+const contract = new LendingContract({
+  collateralRatio: 150, // 150% collateralization
+  interestRate: 0.08, // 8% annual
+  liquidationThreshold: 120 // liquidate at 120%
+});
+
+const api = await MidnightSetupAPI.deployContract(providers, contract);
+```
+
+---
+
+## Combining contracts
+
+You can select multiple contracts to build comprehensive applications.
+
+### DeFi platform example
+
+Combine Tokenization + Oracle + Lending for a complete DeFi platform:
+
+```bash
+npx @meshsdk/midnight-contracts-wizard
+
+? Select contracts to include:
+  [x] Tokenization Contract
+  [x] Oracle Contract
+  [x] Lending & Borrowing Contract
+```
+
+This combination enables:
+- Issue tokens representing assets
+- Get real-time price feeds
+- Enable collateralized borrowing
+
+### Governance example
+
+Combine Staking + Identity for verified governance:
+
+```bash
+npx @meshsdk/midnight-contracts-wizard
+
+? Select contracts to include:
+  [x] Staking Contract
+  [x] Identity Contracts
+```
+
+This combination enables:
+- Stake tokens for voting power
+- Verify voter eligibility
+- Private vote counting
+
+---
+
+## Technical details
+
+Each contract template includes:
+
+| Component | Description |
+|-----------|-------------|
+| `.compact` source | Complete Compact contract code |
+| ZK circuits | Pre-configured zero-knowledge circuits |
+| TypeScript interfaces | Type definitions for integration |
+| Build scripts | Compilation and deployment helpers |
+
+## Next steps
+
+- [Project Structure](/docs/midnight/midnight-contracts-wizard/project-structure) - Understand generated files
+- [Midnight Setup](/docs/midnight/midnight-setup) - Deploy contracts to the network
+- [Usage](/docs/midnight/midnight-contracts-wizard/usage) - Generate your project
+
+## Related resources
+
+- [Compact Language Guide](https://docs.midnight.network/develop/tutorial/compact)
+- [Midnight Network Documentation](https://docs.midnight.network/)

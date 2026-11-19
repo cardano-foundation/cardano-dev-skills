@@ -1,0 +1,357 @@
+---
+title: Script Evaluation
+description: Plutus script execution and ExUnits calculation for transaction validation
+---
+
+import { Mermaid } from "@/components/mdx/mermaid"
+
+## Abstract
+
+Cardano transactions can include Plutus validators—programs written in UPLC (Untyped Plutus Core) that verify spending conditions, minting policies, or governance actions. Before submitting a transaction, the builder must execute these validators to calculate ExUnits (execution units: memory and CPU steps). ExUnits determine script execution costs, which contribute to transaction fees. Script evaluation transforms redeemers (validator inputs) from placeholders with zero ExUnits into validated entries with accurate resource consumption measurements.
+
+## Purpose and Scope
+
+**Purpose**: Execute Plutus validators to compute accurate ExUnits for script redeemers, ensuring transaction acceptance and correct fee calculation.
+
+**Scope**:
+- Executes UPLC validators in evaluation environment
+- Calculates ExUnits (memory + CPU steps) per redeemer
+- Supports custom evaluator implementations (provider-based or local UPLC)
+- Invalidates stale ExUnits when transaction structure changes
+- Integrates with fee calculation (ExUnits affect transaction size)
+
+**Out of Scope**:
+- Native script validation (handled on-chain, no execution costs)
+- Validator compilation (validators provided as compiled UPLC)
+- Redeemer construction (handled by transaction builder operations)
+- On-chain execution (evaluation predicts on-chain behavior)
+
+## Design Philosophy
+
+Plutus validators execute on-chain during transaction validation. Nodes run the UPLC code with the transaction context (inputs, outputs, redeemers, datums) and reject transactions if validators fail or exceed execution limits. The evaluation phase predicts this on-chain execution off-chain, determining how much memory and CPU time each validator will consume.
+
+This prediction serves two purposes: fee accuracy and submission safety. Fees depend on transaction size, which includes ExUnits in redeemer witness entries. Accurate ExUnits mean accurate fees—underestimated ExUnits produce transactions that are rejected by nodes. Overestimated ExUnits waste user funds on excessive fees. Evaluation ensures the fee calculation matches actual execution costs.
+
+The phase runs conditionally: only when scripts exist in the transaction. ADA-only transactions skip evaluation entirely. When scripts are present, evaluation runs after balance phase—once inputs, outputs, and initial fees are finalized. The resulting ExUnits update redeemer entries, changing transaction size, which triggers fee recalculation. The cycle repeats until the transaction stabilizes (balanced + evaluated + fees match).
+
+Evaluators are pluggable. The system supports provider-based evaluation (Ogmios, Blockfrost, Koios, Maestro) or custom local evaluation (Aiken UPLC, direct WASM bindings). Provider evaluation sends the transaction CBOR to a remote service; local evaluation runs UPLC directly in the application. Both approaches implement the same `Evaluator` interface, enabling transparent substitution.
+
+## Evaluation Flow
+
+Script evaluation follows a deterministic sequence within the evaluation phase:
+
+<Mermaid chart={`
+graph TD
+    Start([Start: Evaluation Phase]) --> CheckRedeemers{Has<br/>Redeemers?}
+    CheckRedeemers -->|No| SkipEval[Skip Evaluation<br/>no scripts present]
+    CheckRedeemers -->|Yes| CheckEvaluated{All Already<br/>Evaluated?}
+    
+    CheckEvaluated -->|Yes| SkipReeval[Skip Re-evaluation<br/>prevent infinite loop]
+    CheckEvaluated -->|No| GetEvaluator{Evaluator<br/>Available?}
+    
+    GetEvaluator -->|No| ErrorNoEvaluator[Error: No Evaluator<br/>scripts require evaluation]
+    GetEvaluator -->|Yes| BuildTransaction[Build Transaction CBOR<br/>assemble inputs/outputs/fees]
+    
+    BuildTransaction --> BuildContext[Prepare Evaluation Context<br/>cost models, ExUnits limits, slot config]
+    BuildContext --> CallEvaluator[Call Evaluator<br/>pass tx CBOR + UTxOs + context]
+    
+    CallEvaluator --> ReceiveResults{Results<br/>Received?}
+    ReceiveResults -->|No| ErrorEvalFailed[Error: Evaluation Failed<br/>validator error or network issue]
+    ReceiveResults -->|Yes| MatchResults[Match Results to Redeemers<br/>by tag and index]
+    
+    MatchResults --> UpdateExUnits[Update Redeemer ExUnits<br/>mem and steps from results]
+    UpdateExUnits --> RouteToFee[Route to Fee Calculation<br/>recalculate with new sizes]
+    
+    SkipEval --> RouteToFee
+    SkipReeval --> RouteToFee
+    ErrorNoEvaluator --> End([End: Error])
+    ErrorEvalFailed --> End
+    RouteToFee --> End([End: Success])
+    
+    style Start fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#000000
+    style End fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style CheckRedeemers fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckEvaluated fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style GetEvaluator fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style ReceiveResults fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style ErrorNoEvaluator fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#ffffff
+    style ErrorEvalFailed fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#ffffff
+`} />
+
+**Phase Steps:**
+
+1. **Redeemer Check**: Verify transaction contains redeemers (scripts). If redeemers map is empty, skip evaluation and proceed to fee calculation—no scripts means no execution costs.
+
+2. **Evaluation Status Check**: Determine if all redeemers already have non-zero ExUnits. If yes, skip re-evaluation to prevent infinite loops. This occurs when evaluation phase runs multiple times and previous pass already computed ExUnits.
+
+3. **Evaluator Resolution**: Retrieve evaluator from build options. Evaluator can come from explicit `BuildOptions.evaluator` or provider's `evaluateTx` method (wrapped automatically). If neither exists, fail with error—scripts cannot be evaluated without an evaluator.
+
+4. **Transaction Assembly**: Build the complete transaction CBOR including inputs (sorted canonically), outputs, fees, collateral, and redeemers with placeholder ExUnits. This represents the transaction structure that validators will execute against.
+
+5. **Context Preparation**: Assemble evaluation context containing cost models (protocol parameters), execution limits (max memory/steps), and slot configuration (for time-based validator logic).
+
+6. **Evaluator Invocation**: Call evaluator's `evaluate` method with transaction CBOR, additional UTxOs (selected inputs + reference inputs), and evaluation context. Evaluator executes validators and returns ExUnits per redeemer.
+
+7. **Result Matching**: Map evaluation results back to redeemers in transaction state. Results identify redeemers by `(tag, index)` pairs. For spend redeemers, index refers to input position; for mint, it's policy position. Match using input index mapping built during transaction assembly.
+
+8. **ExUnits Update**: Write ExUnits from evaluation results into redeemer entries. Each redeemer's `exUnits` field updates with actual `{mem, steps}` values from execution.
+
+9. **Fee Recalculation Trigger**: Route to fee calculation phase. Updated ExUnits change transaction size (redeemer witnesses are larger with real ExUnits vs zeros), requiring fee recalculation.
+
+## Evaluator Interface
+
+The evaluator abstraction enables multiple execution strategies through a common interface:
+
+<Mermaid chart={`
+graph TD
+    Start([Evaluator Interface]) --> DefineMethod[evaluate Method<br/>tx, utxos, context → results]
+    
+    DefineMethod --> ProviderBased{Implementation<br/>Type}
+    
+    ProviderBased -->|Provider| WrapProvider[Provider Evaluator<br/>wrap provider.evaluateTx]
+    ProviderBased -->|Custom| CustomImpl[Custom Evaluator<br/>local UPLC execution]
+    
+    WrapProvider --> ProviderFlow[Send Transaction CBOR<br/>to Provider API]
+    ProviderFlow --> ProviderParse[Parse Provider Response<br/>extract ExUnits]
+    ProviderParse --> ReturnProvider[Return EvalRedeemer Array]
+    
+    CustomImpl --> LocalExec[Execute UPLC Locally<br/>aiken-lang, plu-ts, etc]
+    LocalExec --> CalcExUnits[Calculate ExUnits<br/>from execution trace]
+    CalcExUnits --> ReturnCustom[Return EvalRedeemer Array]
+    
+    ReturnProvider --> Interface[Common Interface<br/>Effect<Array<EvalRedeemer>>]
+    ReturnCustom --> Interface
+    
+    Interface --> UsedBy[Used by Evaluation Phase<br/>transparent substitution]
+    UsedBy --> End([Pluggable Architecture])
+    
+    style Start fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#000000
+    style End fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style ProviderBased fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style Interface fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+    style WrapProvider fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+    style CustomImpl fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+`} />
+
+**Interface Contract:**
+
+The evaluator exposes a single `evaluate` method that accepts three parameters and returns execution results.
+
+**Input Parameters:**
+
+- **`tx`**: Complete transaction CBOR encoded as hex string. Contains all inputs, outputs, redeemers (with placeholder ExUnits), datums, and scripts needed for validation.
+
+- **`additionalUtxos`**: Array of UTxOs including both selected inputs being spent and reference inputs. Evaluator uses these to resolve script hashes, look up referenced datums, and provide full transaction context to validators.
+
+- **`context`**: Evaluation context with protocol parameters (cost models for PlutusV1/V2/V3), execution limits (maxTxExSteps, maxTxExMem), and slot configuration (for time-based validator logic).
+
+**Output:**
+
+Array of `EvalRedeemer` objects, each containing:
+- `redeemer_tag`: Type of redeemer (`"spend"`, `"mint"`, `"cert"`, `"reward"`)
+- `redeemer_index`: Position in transaction (input index for spend, policy index for mint)
+- `ex_units`: Computed execution units (`{mem: number, steps: number}`)
+
+## Provider-Based Evaluation
+
+The default evaluation strategy uses blockchain providers (Ogmios, Blockfrost, Koios, Maestro):
+
+**How It Works:**
+
+1. Transaction builder serializes the transaction to CBOR
+2. Evaluator sends CBOR + UTxOs to provider's evaluation endpoint
+3. Provider runs validators using its own UPLC interpreter
+4. Provider returns ExUnits per redeemer in provider-specific format
+5. Evaluator parses provider response into standard `EvalRedeemer` format
+6. Builder updates redeemer ExUnits from results
+
+**Advantages:**
+- No local UPLC dependencies (lighter bundle size)
+- Provider maintains interpreter updates (always protocol-compliant)
+- Works across all platforms (web, Node.js, mobile)
+- Handles cost model updates automatically
+
+**Trade-offs:**
+- Network latency (round-trip to provider)
+- Provider dependency (requires connectivity)
+- Rate limiting considerations (API quota)
+- Privacy consideration (provider sees transaction structure)
+
+**Provider Support:**
+
+- **Ogmios/Kupmios**: `evaluateTransaction` JSON-RPC method
+- **Blockfrost**: `/utils/txs/evaluate` and `/utils/txs/evaluate/utxos` endpoints
+- **Koios**: `evaluateTransaction` Ogmios-compatible method
+- **Maestro**: `/evaluate` endpoint with transaction CBOR
+
+All providers implement the same logical interface despite different wire formats. The SDK normalizes responses into the standard `EvalRedeemer` structure.
+
+## Custom UPLC Evaluation
+
+Advanced users can provide custom evaluators for local UPLC execution:
+
+**Implementation Pattern:**
+
+Custom evaluators wrap UPLC execution libraries in the SDK's evaluator interface. For example, wrapping Aiken's UPLC evaluator:
+
+1. Import the UPLC evaluation function from your chosen library (e.g., `eval_phase_two_raw` from `aiken-lang/uplc`)
+2. Wrap it using `createUPLCEvaluator` helper to match the SDK interface
+3. Pass the wrapped evaluator to `build()` options as the `evaluator` parameter
+4. The builder will use your custom evaluator instead of the provider's evaluation service
+
+**Custom Evaluator Benefits:**
+
+- **No Network Dependency**: Executes entirely locally (offline support)
+- **Privacy**: Transaction structure never leaves local environment
+- **Performance**: No network latency, instant evaluation
+- **Control**: Custom cost models or execution tracing
+- **Testing**: Deterministic evaluation for unit tests
+
+**Custom Evaluator Requirements:**
+
+Must implement `Evaluator` interface with `evaluate` method that:
+1. Accepts transaction CBOR, UTxOs, and evaluation context
+2. Executes UPLC validators with provided cost models and limits
+3. Returns `EvalRedeemer` array with ExUnits per redeemer
+4. Handles execution errors gracefully (map to `EvaluationError`)
+
+**Example Use Cases:**
+
+- **Aiken UPLC**: Use `aiken-lang/uplc` package's `eval_phase_two_raw` function
+- **Plu-ts**: Use Plu-ts UPLC interpreter with custom execution environment
+- **Testing**: Mock evaluator returning fixed ExUnits for deterministic tests
+- **Cost Analysis**: Custom evaluator that logs detailed execution traces
+
+## ExUnits Invalidation
+
+When transaction structure changes, previous ExUnits become invalid:
+
+<Mermaid chart={`
+graph TD
+    Start([Transaction Build Cycle]) --> InitialSelection[Initial Coin Selection<br/>select UTxOs for outputs]
+    InitialSelection --> HasScripts{Has Script<br/>Redeemers?}
+    
+    HasScripts -->|No| NoInvalidation[No Invalidation<br/>no scripts to evaluate]
+    HasScripts -->|Yes| InitExUnits[Initialize Redeemers<br/>ExUnits = 0,0]
+    
+    InitExUnits --> FirstEval[First Evaluation<br/>compute initial ExUnits]
+    FirstEval --> UpdateExUnits[Update Redeemers<br/>ExUnits = actual values]
+    
+    UpdateExUnits --> FeeRecalc[Fee Recalculation<br/>fees increase with ExUnits]
+    FeeRecalc --> CheckBalance{Balance<br/>Still Valid?}
+    
+    CheckBalance -->|Yes| CompleteBalance[Balance Complete<br/>no more changes]
+    CheckBalance -->|No| Reselection[Reselection Needed<br/>select more UTxOs for fees]
+    
+    Reselection --> InvalidateExUnits[Invalidate ExUnits<br/>reset to 0,0]
+    InvalidateExUnits --> ReasonInvalidation[Reason: Input Set Changed<br/>validator context different]
+    
+    ReasonInvalidation --> NextEval[Next Evaluation<br/>compute with new inputs]
+    NextEval --> UpdateAgain[Update ExUnits Again<br/>new calculated values]
+    
+    UpdateAgain --> CheckBalance
+    CompleteBalance --> End([Transaction Ready])
+    NoInvalidation --> End
+    
+    style Start fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#000000
+    style End fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style HasScripts fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckBalance fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style InvalidateExUnits fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#ffffff
+`} />
+
+**Why Invalidation Is Necessary:**
+
+Validators execute with transaction context: inputs, outputs, redeemers, datums. When reselection adds UTxOs, the input set changes. A validator that checks "input at index 2" now sees a different UTxO. Previously computed ExUnits assumed old input set—they no longer reflect actual execution with new inputs.
+
+**When Invalidation Occurs:**
+
+- **Reselection**: Coin selection adds more UTxOs to cover fees or minUTxO shortfall
+- **Input Changes**: Any operation that modifies the selected inputs array
+- **Output Changes**: Operations that add/remove outputs affecting validator logic
+- **Not on Fee Changes**: Fee updates alone don't invalidate (inputs/outputs unchanged)
+
+**How Invalidation Works:**
+
+The `EvaluationStateManager.invalidateExUnits` function creates a new redeemer map with all ExUnits set to `{mem: 0n, steps: 0n}`. Zero ExUnits signal "needs evaluation." The evaluation phase checks for zero ExUnits and re-runs validators to compute accurate values for the current transaction structure.
+
+**Loop Prevention:**
+
+Evaluation phase checks `allRedeemersEvaluated` before running. If all redeemers have non-zero ExUnits, skip evaluation even if phase is re-entered. This prevents infinite evaluation loops when transaction is already stable. The balance phase enforces MAX_ATTEMPTS to catch pathological cases where transaction never stabilizes.
+
+## Evaluation Context
+
+Evaluators require protocol-specific configuration for accurate execution:
+
+**Cost Models**: CBOR-encoded arrays defining operation costs for PlutusV1, PlutusV2, and PlutusV3. Each Plutus version has different opcodes and cost structures. Cost models come from protocol parameters (fetched from provider or provided explicitly).
+
+**Execution Limits**: Protocol enforces per-transaction limits:
+- `maxTxExSteps`: Maximum CPU steps for all scripts combined (e.g., 10 billion steps)
+- `maxTxExMem`: Maximum memory units for all scripts combined (e.g., 10 million mem units)
+
+Validators consuming more than these limits cause transaction rejection. Evaluation simulates these limits, enabling pre-submission validation.
+
+**Slot Configuration**: Time-based validators use slot numbers for timelock logic (valid after slot N, invalid before slot M). Slot configuration maps between POSIX time and Cardano slots:
+- `zeroTime`: POSIX timestamp (milliseconds) of slot zero
+- `zeroSlot`: Starting slot number (usually 0)
+- `slotLength`: Milliseconds per slot (e.g., 1000ms = 1 second per slot)
+
+This enables validators using `POSIXTime` or `Slot` to execute correctly during evaluation.
+
+**Context Assembly**: Evaluation phase fetches full protocol parameters from provider, extracts cost models and limits, combines with slot configuration from build options (network preset or explicit override), and packages into `EvaluationContext` object passed to evaluator.
+
+## Integration With Build Cycle
+
+Script evaluation integrates tightly with the transaction build state machine:
+
+**Entry Condition**: Evaluation phase runs after balance phase when transaction has scripts. The balance phase checks `redeemers.size > 0` and routes to evaluation if true. Scriptless transactions skip directly from balance to complete.
+
+**Fee Impact**: ExUnits affect transaction size. Redeemer witnesses in the transaction CBOR include ExUnits as part of their encoding. Larger ExUnits values (e.g., 10 million steps) occupy more bytes than smaller values. Fee calculation accounts for this size increase, so evaluation → fee recalc → potentially balance adjustment.
+
+**Re-evaluation Cycles**: Transaction may evaluate multiple times:
+1. First evaluation: after initial balance with estimated fees
+2. Fee recalculation increases fees based on ExUnits
+3. Balance phase detects fee increase, may trigger reselection
+4. Reselection invalidates ExUnits
+5. Evaluation runs again with new transaction structure
+6. Cycle repeats until transaction stabilizes
+
+**Attempt Limiting**: Balance phase tracks attempt count. If balance → evaluation → fee → balance cycle exceeds MAX_ATTEMPTS (default: 10), build fails with error. This prevents infinite loops from pathological validator behavior or computation instability.
+
+**Collateral Relationship**: Script transactions require collateral inputs (covered before evaluation in collateral phase). Collateral provides compensation to validators if scripts fail on-chain. Evaluation predicts success, but collateral guards against unpredictable on-chain conditions.
+
+## Error Handling
+
+Evaluation failures are fatal—scripts must evaluate successfully for submission:
+
+**Evaluator Unavailable**: If transaction has redeemers but no evaluator (no provider, no custom evaluator), evaluation phase fails immediately with `TransactionBuilderError`. Users must either provide a provider or custom evaluator to build script transactions.
+
+**Validator Execution Failure**: If a validator throws error during evaluation (invalid redeemer, datum mismatch, logic error), evaluator returns error. Evaluation phase propagates this as `TransactionBuilderError`, halting the build. Users must fix validator logic or transaction structure.
+
+**Zero Results**: If evaluator returns empty array despite having redeemers, evaluation phase fails. This indicates provider schema parsing issue or network error. Users should check provider connectivity and compatibility.
+
+**ExUnits Exceeding Limits**: If evaluated ExUnits exceed protocol limits (steps > maxTxExSteps or mem > maxTxExMem), transaction will be rejected on-chain. Evaluation phase doesn't enforce this check (provider may or may not), but submission will fail. Users should optimize validator logic or split across multiple transactions.
+
+**Provider Errors**: Network failures, rate limiting, or provider unavailability cause evaluator to fail. Evaluation phase wraps provider errors in `TransactionBuilderError` with original cause. Users should implement retry logic or fallback providers.
+
+## Performance Considerations
+
+Evaluation performance varies by strategy:
+
+**Provider Evaluation**: Network latency dominates (50-500ms typical). Provider-side execution is fast (1-10ms per validator), but round-trip time adds overhead. Batch evaluation (multiple transactions) amortizes latency.
+
+**Local UPLC Evaluation**: Execution time depends on validator complexity and UPLC interpreter performance. Aiken UPLC (Rust-based WASM) typically evaluates in 1-20ms per validator. Plu-ts (TypeScript) may be slower. No network overhead.
+
+**Re-evaluation Cost**: Each balance attempt re-evaluates. If transaction requires 3-5 balance attempts (common with complex scripts), evaluation runs 3-5 times. Using fast evaluators (local UPLC) reduces total build time.
+
+**Optimization Strategies**:
+- Use local evaluators for offline apps or high-throughput scenarios
+- Cache cost models and slot config (don't refetch per transaction)
+- Provide accurate fee estimates early to minimize balance attempts
+- Test validators locally before on-chain submission
+
+## Related Topics
+
+- [Transaction Flow](/docs/architecture/transaction-flow) - How script evaluation integrates into the build state machine
+- [Evaluation Phase](/docs/architecture/transaction-flow#5-evaluation-phase) - Detailed phase logic including re-evaluation triggers and ExUnits updates
+- [Balance Phase](/docs/architecture/transaction-flow#4-balance-phase) - How balance phase routes to evaluation and handles attempt limiting

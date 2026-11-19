@@ -1,0 +1,96 @@
+---
+sidebar_label: Delegate votes to a DRep
+title: Delegate votes to a DRep
+sidebar_position: 7
+slug: /tutorials/delegate-to-drep
+---
+
+Delegating your voting power to a SanchoNet delegate representative (DRep) operates much like delegating your stake to a stake pool. Voting power delegation involves the issuance of a delegation certificate from your stake key to the chosen SanchoNet DRep. Just as with stake delegation, the process of delegating votes to a SanchoNet DRep does not entail relinquishing control of your funds. Instead, the vote delegation certificate grants the selected DRep permission to vote on your behalf.
+
+In addition to the registered SanchoNet DReps, the system features a couple of default DReps:
+
+* --always-abstain: this option signals your intention not to participate in the voting procedures, indicating a choice to abstain from the voting process
+
+* --always-no-confidence: this option signifies your lack of trust in the current constitutional committee, indicating a vote of no confidence in their decisions
+
+### Prerequisites
+
+* Payment keys and address with funds
+* Stake key
+* Default SanchoNet DRep selection: `--always-abstain` or `--always-no-confidence`
+* SanchoNet DRep ID (key hash or script hash) of a registered DRep. See [useful cli queries](queries.mdx)
+* A SanchoNet node
+
+### Generating the vote delegation certificate
+
+1. Generate the vote delegation certificate.
+
+* Delegating to the `--always-abstain` default DRep:
+
+```shell
+cardano-cli conway stake-address vote-delegation-certificate \
+  --stake-verification-key-file stake.vkey \
+  --always-abstain \
+  --out-file vote-deleg.cert
+```
+
+* Delegating to the `--always-no-confidence` default DRep: 
+
+```shell
+cardano-cli conway stake-address vote-delegation-certificate \
+  --stake-verification-key-file stake.vkey \
+  --always-no-confidence \
+  --out-file vote-deleg.cert
+```
+
+* Delegating to a **key-based** registered SanchoNet DRep:
+
+```shell
+cardano-cli conway stake-address vote-delegation-certificate \
+  --stake-verification-key-file stake.vkey \
+  --drep-key-hash $(cat drep.id) \
+  --out-file vote-deleg.cert
+```
+* Delegating to a **script-based** (i.e. multisignature) registered SanchoNet DRep:
+
+```
+cardano-cli conway stake-address vote-delegation-certificate \
+--stake-verification-key-file stake.vkey \
+--drep-script-hash $(cat drep-multisig.id) \
+--out-file vote-deleg.cert
+```
+
+### Submitting the certificate in a transaction
+
+1. Submit the vote delegation certificate in a transaction.
+
+* Build:
+
+```
+cardano-cli conway transaction build \
+--testnet-magic 4 \
+--witness-override 2 \
+--tx-in $(cardano-cli query utxo --address $(cat payment.addr) --testnet-magic 4 --out-file  /dev/stdout | jq -r 'keys[0]') \
+--change-address $(cat payment.addr) \
+--certificate-file vote-deleg.cert \
+--out-file tx.raw
+```
+
+* Sign with payment and stake keys:
+
+```
+cardano-cli conway transaction sign \
+--tx-body-file tx.raw \
+--signing-key-file payment.skey \
+--signing-key-file stake.skey \
+--testnet-magic 4 \
+--out-file tx.signed
+```
+
+* Submit:
+
+```
+cardano-cli conway transaction submit \
+--testnet-magic 4 \
+--tx-file tx.signed
+```

@@ -1,0 +1,20 @@
+type: object
+properties:
+  script_hash:
+    type: string
+    example: "13a3efd825703a352a8f71f4e2758d08c28c564e8dfcce9f77776ad1"
+    description: Script hash
+  type:
+    type: string
+    enum: [timelock, plutusV1, plutusV2, plutusV3]
+    example: "plutusV1"
+    description: Type of the script language
+  serialised_size:
+    type: integer
+    nullable: true
+    description: The size of the CBOR serialised script, if a Plutus script
+    example: 3119
+required:
+  - script_hash
+  - type
+  - serialised_size

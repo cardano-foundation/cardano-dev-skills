@@ -1,0 +1,449 @@
+---
+title: Plutus Types  
+description: Pre-built type-safe schemas for common Cardano data structures
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+# Plutus Types
+
+Pre-built, battle-tested schemas for core Cardano data structures: credentials, addresses, values, output references, and CIP-68 metadata.
+
+These types are exported from `@evolution-sdk/evolution/plutus` and match the on-chain Plutus specification exactly—use them to eliminate encoding errors and ensure validator compatibility.
+
+## Available Types
+
+| Type | Use Case | Import |
+|------|----------|--------|
+| **Credential** | Reference wallets or scripts | `import { Credential } from "@evolution-sdk/evolution/plutus"` |
+| **Address** | Payment destinations with optional staking | `import { Address } from "@evolution-sdk/evolution/plutus"` |
+| **Value** | ADA and native token quantities | `import { Value } from "@evolution-sdk/evolution/plutus"` |
+| **OutputReference** | Identify specific UTxOs | `import { OutputReference } from "@evolution-sdk/evolution/plutus"` |
+| **CIP68Metadata** | NFT/FT metadata following CIP-68 | `import { CIP68Metadata } from "@evolution-sdk/evolution/plutus"` |
+
+## Quick Start
+
+```typescript twoslash
+import { Credential } from "@evolution-sdk/evolution/plutus"
+import { Bytes, Data } from "@evolution-sdk/evolution"
+
+// Use pre-built Credential type
+const cred: Credential.Credential = {
+  VerificationKey: {
+    hash: Bytes.fromHex("abc123def456abc123def456abc123def456abc123def456abc123de")
+  }
+}
+
+// Encode to CBOR
+const cbor = Credential.CredentialCodec.toCBORHex(cred)
+```
+
+## Working with Codecs
+
+All types provide codec methods for encoding and decoding. Choose based on your needs:
+
+> **Note**: Credential exports `CredentialCodec` (along with related codecs like `PaymentCredentialCodec`), while other types export just `Codec`. All provide the same encoding/decoding methods.
+
+**When building transactions**: Use `toCBORBytes()` for binary data
+**When storing/transmitting**: Use `toCBORHex()` for hex strings  
+**When debugging**: Use `toData()` to inspect PlutusData structure
+**When decoding**: Use `fromCBORHex()` or `fromCBORBytes()` with matching format
+
+```typescript twoslash
+import { Address } from "@evolution-sdk/evolution/plutus"
+import { Bytes, Data } from "@evolution-sdk/evolution"
+
+const address: Address.Address = {
+  payment_credential: {
+    VerificationKey: {
+      hash: Bytes.fromHex("abc123def456abc123def456abc123def456abc123def456abc123de")
+    }
+  },
+  stake_credential: undefined
+}
+
+// Encode to hex (for APIs, storage)
+const cborHex = Address.Codec.toCBORHex(address)
+
+// Encode to bytes (for transactions)
+const cborBytes = Address.Codec.toCBORBytes(address)
+
+// Decode from hex
+const decoded = Address.Codec.fromCBORHex(cborHex)
+
+// Inspect as PlutusData (debugging)
+const data = Address.Codec.toData(address)
+```
+
+## Credential
+
+Represents ownership—either a verification key (wallet) or script (smart contract).
+
+**When to use**: Reference who can spend funds or participate in staking. Required in addresses, multi-sig validators, and authorization checks.
+
+```typescript twoslash
+import { Credential } from "@evolution-sdk/evolution/plutus"
+import { Bytes, Data } from "@evolution-sdk/evolution"
+
+// Wallet credential
+const walletCred: Credential.Credential = {
+  VerificationKey: {
+    hash: Bytes.fromHex("abc123def456abc123def456abc123def456abc123def456abc123de")
+  }
+}
+
+// Smart contract credential
+const scriptCred: Credential.Credential = {
+  Script: {
+    hash: Bytes.fromHex("def456abc123def456abc123def456abc123def456abc123def456ab")
+  }
+}
+```
+
+## Address
+
+Cardano address with payment credential and optional stake credential.
+
+**When to use**: Specify transaction outputs, script addresses, or beneficiaries in datums.
+
+```typescript twoslash
+import { Address } from "@evolution-sdk/evolution/plutus"
+import { Bytes, Data } from "@evolution-sdk/evolution"
+
+// Base address (with staking)
+const baseAddress: Address.Address = {
+  payment_credential: {
+    VerificationKey: {
+      hash: Bytes.fromHex("abc123def456abc123def456abc123def456abc123def456abc123de")
+    }
+  },
+  stake_credential: {
+    Inline: {
+      credential: {
+        VerificationKey: {
+          hash: Bytes.fromHex("def456abc123def456abc123def456abc123def456abc123def456ab")
+        }
+      }
+    }
+  }
+}
+```
+
+### Address Variants
+
+```typescript twoslash
+import { Address } from "@evolution-sdk/evolution/plutus"
+import { Bytes, Data } from "@evolution-sdk/evolution"
+
+// Enterprise address (no staking)
+const enterpriseAddress: Address.Address = {
+  payment_credential: {
+    Script: {
+      hash: Bytes.fromHex("123456789abc123456789abc123456789abc123456789abc12345678")
+    }
+  },
+  stake_credential: undefined
+}
+
+// Pointer address (stake reference)
+const pointerAddress: Address.Address = {
+  payment_credential: {
+    VerificationKey: {
+      hash: Bytes.fromHex("abc123def456abc123def456abc123def456abc123def456abc123de")
+    }
+  },
+  stake_credential: {
+    Pointer: {
+      slot_number: 12345678n,
+      transaction_index: 2n,
+      certificate_index: 0n
+    }
+  }
+}
+```
+
+## Value
+
+Multi-asset value representing ADA and native tokens as nested maps.
+
+**When to use**: Transaction outputs, locked funds in datums, token quantities in minting/burning.
+
+```typescript twoslash
+import { Value } from "@evolution-sdk/evolution/plutus"
+import { Bytes, Data } from "@evolution-sdk/evolution"
+import { Text } from "@evolution-sdk/evolution"
+
+// ADA only
+const adaOnly: Value.Value = new Map([
+  [new Uint8Array(), new Map([
+    [new Uint8Array(), 5000000n] // 5 ADA in lovelace
+  ])]
+])
+
+// Multi-asset value (ADA + tokens)
+const policyId = Bytes.fromHex("a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8")
+
+const multiAsset: Value.Value = new Map([
+  // ADA (empty policyId/assetName)
+  [new Uint8Array(), new Map([
+    [new Uint8Array(), 2000000n]
+  ])],
+  // Custom tokens
+  [policyId, new Map([
+    [Text.toBytes("MyToken"), 100n],
+    [Text.toBytes("MyNFT"), 1n]
+  ])]
+])
+```
+
+## OutputReference
+
+Uniquely identifies a UTxO by transaction hash and output index.
+
+**When to use**: Lock specific UTxOs in datums (escrow), prevent double-spending, reference the "original" UTxO in state updates.
+
+```typescript twoslash
+import { OutputReference } from "@evolution-sdk/evolution/plutus"
+import { Bytes, Data } from "@evolution-sdk/evolution"
+
+const utxoRef: OutputReference.OutputReference = {
+  transaction_id: Bytes.fromHex(
+    "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+  ),
+  output_index: 0n
+}
+```
+
+## CIP68Metadata
+
+Reference token metadata following CIP-68 standard with versioning and extensibility.
+
+**When to use**: Minting NFTs or fungible tokens following the CIP-68 standard for on-chain metadata.
+
+### CIP-68 Token Labels
+
+| Label | Type | Description |
+|-------|------|-------------|
+| **100** | Reference NFT | Immutable metadata, always 1 quantity |
+| **222** | User NFT | Mutable metadata, user-held token |
+| **333** | Reference FT | Fungible token metadata |
+| **444** | Reference RFT | Rich fungible token (advanced features) |
+
+```typescript twoslash
+import { CIP68Metadata } from "@evolution-sdk/evolution/plutus"
+import { Bytes, Data } from "@evolution-sdk/evolution"
+import { Text } from "@evolution-sdk/evolution"
+
+// NFT metadata (label 222)
+const nftMetadata = Data.map([
+  [Text.toBytes("name"), Text.toBytes("SpaceAce #4242")],
+  [Text.toBytes("image"), Text.toBytes("ipfs://QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco")],
+  [Text.toBytes("rarity"), Text.toBytes("legendary")],
+  [Text.toBytes("attributes"), Data.map([
+    [Text.toBytes("class"), Text.toBytes("explorer")],
+    [Text.toBytes("power"), 9000n]
+  ])]
+])
+
+const datum: CIP68Metadata.CIP68Datum = {
+  metadata: nftMetadata,
+  version: 1n,
+  extra: []
+}
+
+// FT metadata (label 333) with decimals
+const ftMetadata = Data.map([
+  [Text.toBytes("name"), Text.toBytes("MyToken")],
+  [Text.toBytes("ticker"), Text.toBytes("MTK")],
+  [Text.toBytes("decimals"), 6n],
+  [Text.toBytes("url"), Text.toBytes("https://mytoken.io")]
+])
+
+const ftDatum: CIP68Metadata.CIP68Datum = {
+  metadata: ftMetadata,
+  version: 1n,
+  extra: [
+    Data.map([[Text.toBytes("mutable"), 1n]]) // custom extension
+  ]
+}
+```
+
+## Real-World Examples
+
+### Escrow Script Datum
+
+Time-locked escrow that holds funds for a beneficiary until a deadline. The validator checks the deadline has passed and the beneficiary signed before releasing funds.
+
+```typescript twoslash
+import {
+  Address,
+  Value,
+  OutputReference } from "@evolution-sdk/evolution/plutus"
+import { Bytes,
+  Data,
+} from "@evolution-sdk/evolution"
+
+interface EscrowDatum {
+  beneficiary: Address.Address
+  deadline: bigint
+  locked_value: Value.Value
+  original_utxo: OutputReference.OutputReference
+}
+
+const escrowDatum: EscrowDatum = {
+  beneficiary: {
+    payment_credential: {
+      VerificationKey: {
+        hash: Bytes.fromHex("abc123def456abc123def456abc123def456abc123def456abc123de")
+      }
+    },
+    stake_credential: undefined
+  },
+  deadline: 1735689600000n,
+  locked_value: new Map([
+    [new Uint8Array(), new Map([[new Uint8Array(), 10000000n]])] // 10 ADA
+  ]),
+  original_utxo: {
+    transaction_id: Bytes.fromHex("a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"),
+    output_index: 2n
+  }
+}
+```
+
+### Multi-Sig Validator Redeemer
+
+Threshold signature validator requiring M-of-N signers. The redeemer specifies which credentials must sign and how many signatures are needed (e.g., 2 of 3).
+
+```typescript twoslash
+import { Credential } from "@evolution-sdk/evolution/plutus"
+import { Bytes, Data } from "@evolution-sdk/evolution"
+
+interface MultiSigRedeemer {
+  required_signers: Credential.Credential[]
+  threshold: bigint
+}
+
+const redeemer: MultiSigRedeemer = {
+  required_signers: [
+    {
+      VerificationKey: {
+        hash: Bytes.fromHex("abc123def456abc123def456abc123def456abc123def456abc123de")
+      }
+    },
+    {
+      VerificationKey: {
+        hash: Bytes.fromHex("def456abc123def456abc123def456abc123def456abc123def456ab")
+      }
+    },
+    {
+      VerificationKey: {
+        hash: Bytes.fromHex("123456789abc123456789abc123456789abc123456789abc12345678")
+      }
+    }
+  ],
+  threshold: 2n // 2 of 3
+}
+```
+
+### NFT Minting with CIP-68
+
+Complete CIP-68 NFT mint creating both reference token (label 100, immutable metadata) and user token (label 222, transferable). Reference token stays locked at script address.
+
+```typescript twoslash
+import { CIP68Metadata, Value } from "@evolution-sdk/evolution/plutus"
+import { Bytes, Data } from "@evolution-sdk/evolution"
+import { Text } from "@evolution-sdk/evolution"
+
+// Metadata for both reference and user tokens
+const metadata = Data.map([
+  [Text.toBytes("name"), Text.toBytes("CryptoKitty #42")],
+  [Text.toBytes("image"), Text.toBytes("ipfs://Qm...")],
+  [Text.toBytes("dna"), Text.toBytes("0xabc123...")],
+  [Text.toBytes("traits"), Data.map([
+    [Text.toBytes("fur"), Text.toBytes("tabby")],
+    [Text.toBytes("eyes"), Text.toBytes("blue")]
+  ])]
+])
+
+const referenceDatum: CIP68Metadata.CIP68Datum = {
+  metadata,
+  version: 1n,
+  extra: []
+}
+
+// Mint value: reference (100) + user token (222)
+const policyId = Bytes.fromHex("a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8")
+const assetName = Text.toBytes("CryptoKitty42")
+
+// CIP-68 token name encoding: label prefix + asset name
+const referenceLabel = new Uint8Array([0x00, 0x0f, 0x42, 0x00]) // (100)
+const userLabel = new Uint8Array([0x00, 0x0f, 0x42, 0x02])      // (222)
+
+const mintValue: Value.Value = new Map([
+  [policyId, new Map([
+    [new Uint8Array([...referenceLabel, ...assetName]), 1n],
+    [new Uint8Array([...userLabel, ...assetName]), 1n]
+  ])]
+])
+```
+
+### DEX Order Datum
+
+Decentralized exchange limit order specifying what assets are offered, what's requested in return, and whether partial fills are allowed. Owner can cancel anytime.
+
+```typescript twoslash
+import { Credential, Value } from "@evolution-sdk/evolution/plutus"
+import { Bytes, Data } from "@evolution-sdk/evolution"
+import { Text } from "@evolution-sdk/evolution"
+
+interface DexOrderDatum {
+  owner: Credential.Credential
+  offered_value: Value.Value
+  requested_value: Value.Value
+  partial_fill: boolean
+}
+
+const orderDatum: DexOrderDatum = {
+  owner: {
+    VerificationKey: {
+      hash: Bytes.fromHex("abc123def456abc123def456abc123def456abc123def456abc123de")
+    }
+  },
+  offered_value: new Map([
+    [new Uint8Array(), new Map([[new Uint8Array(), 100000000n]])] // 100 ADA
+  ]),
+  requested_value: new Map([
+    [Bytes.fromHex("a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8"), new Map([
+      [Text.toBytes("USDC"), 10000000n] // 10 USDC (6 decimals)
+    ])]
+  ]),
+  partial_fill: true
+}
+```
+
+## Best Practices
+
+**Use as building blocks**: Import and compose these types—don't recreate Credential or Address types yourself. They match Plutus exactly.
+
+**Match validator types**: Your smart contract must expect these exact structures. Field names and order matter for CBOR encoding.
+
+**Test with real data**: Verify encoding/decoding with actual blockchain data to catch edge cases before deployment.
+
+**Leverage type safety**: Let TypeScript catch errors at compile time. If it type-checks with these types, CBOR encoding will be correct.
+
+## Next Steps
+
+<Cards>
+  <Card title="TSchema" href="/docs/encoding/tschema">
+    Build custom type-safe schemas for your own data structures
+  </Card>
+  <Card title="PlutusData" href="/docs/encoding/data">
+    Understand the five primitive PlutusData types
+  </Card>
+  <Card title="Smart Contracts" href="/docs/smart-contracts">
+    Use these types with Plutus validators
+  </Card>
+  <Card title="Transactions" href="/docs/transactions">
+    Build transactions with addresses, values, and references
+  </Card>
+</Cards>

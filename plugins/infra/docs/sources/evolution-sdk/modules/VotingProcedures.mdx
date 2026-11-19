@@ -1,0 +1,1088 @@
+---
+title: VotingProcedures.ts
+nav_order: 188
+parent: Modules
+---
+
+## VotingProcedures overview
+
+---
+
+<h2 className="text-delta">Table of contents</h2>
+
+- [arbitrary](#arbitrary)
+  - [arbitrary](#arbitrary-1)
+- [constructors](#constructors)
+  - [abstain](#abstain)
+  - [no](#no)
+  - [yes](#yes)
+- [encoding](#encoding)
+  - [toCBORBytes](#tocborbytes)
+  - [toCBORHex](#tocborhex)
+- [helpers](#helpers)
+  - [multiVote](#multivote)
+  - [singleVote](#singlevote)
+- [model](#model)
+  - [VotingProcedures (class)](#votingprocedures-class)
+    - [toJSON (method)](#tojson-method)
+    - [toString (method)](#tostring-method)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method)
+    - [[Equal.symbol] (method)](#equalsymbol-method)
+    - [[Hash.symbol] (method)](#hashsymbol-method)
+- [parsing](#parsing)
+  - [fromCBORBytes](#fromcborbytes)
+  - [fromCBORHex](#fromcborhex)
+- [pattern matching](#pattern-matching)
+  - [matchVote](#matchvote)
+  - [matchVoter](#matchvoter)
+- [predicates](#predicates)
+  - [isAbstainVote](#isabstainvote)
+  - [isConstitutionalCommitteeVoter](#isconstitutionalcommitteevoter)
+  - [isDRepVoter](#isdrepvoter)
+  - [isNoVote](#isnovote)
+  - [isStakePoolVoter](#isstakepoolvoter)
+  - [isYesVote](#isyesvote)
+- [schemas](#schemas)
+  - [CDDLSchema](#cddlschema)
+  - [ConstitutionalCommitteeVoter (class)](#constitutionalcommitteevoter-class)
+    - [toJSON (method)](#tojson-method-1)
+    - [toString (method)](#tostring-method-1)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method-1)
+    - [[Equal.symbol] (method)](#equalsymbol-method-1)
+    - [[Hash.symbol] (method)](#hashsymbol-method-1)
+  - [FromCBORBytes](#fromcborbytes-1)
+  - [FromCBORHex](#fromcborhex-1)
+  - [FromCDDL](#fromcddl)
+  - [NoVote (class)](#novote-class)
+    - [toJSON (method)](#tojson-method-2)
+    - [toString (method)](#tostring-method-2)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method-2)
+    - [[Equal.symbol] (method)](#equalsymbol-method-2)
+    - [[Hash.symbol] (method)](#hashsymbol-method-2)
+  - [Vote](#vote)
+  - [VoteCDDL](#votecddl)
+  - [VoteFromCDDL](#votefromcddl)
+  - [Voter](#voter)
+  - [VoterCDDL](#votercddl)
+  - [VoterFromCDDL](#voterfromcddl)
+  - [VotingProcedure (class)](#votingprocedure-class)
+    - [toJSON (method)](#tojson-method-3)
+    - [toString (method)](#tostring-method-3)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method-3)
+    - [[Equal.symbol] (method)](#equalsymbol-method-3)
+    - [[Hash.symbol] (method)](#hashsymbol-method-3)
+  - [VotingProcedureCDDL](#votingprocedurecddl)
+  - [VotingProcedureFromCDDL](#votingprocedurefromcddl)
+- [utils](#utils)
+  - [AbstainVote (class)](#abstainvote-class)
+    - [toJSON (method)](#tojson-method-4)
+    - [toString (method)](#tostring-method-4)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method-4)
+    - [[Equal.symbol] (method)](#equalsymbol-method-4)
+    - [[Hash.symbol] (method)](#hashsymbol-method-4)
+  - [DRepVoter (class)](#drepvoter-class)
+    - [toJSON (method)](#tojson-method-5)
+    - [toString (method)](#tostring-method-5)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method-5)
+    - [[Equal.symbol] (method)](#equalsymbol-method-5)
+    - [[Hash.symbol] (method)](#hashsymbol-method-5)
+  - [StakePoolVoter (class)](#stakepoolvoter-class)
+    - [toJSON (method)](#tojson-method-6)
+    - [toString (method)](#tostring-method-6)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method-6)
+    - [[Equal.symbol] (method)](#equalsymbol-method-6)
+    - [[Hash.symbol] (method)](#hashsymbol-method-6)
+  - [Vote (type alias)](#vote-type-alias)
+  - [Voter (type alias)](#voter-type-alias)
+  - [YesVote (class)](#yesvote-class)
+    - [toJSON (method)](#tojson-method-7)
+    - [toString (method)](#tostring-method-7)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method-7)
+    - [[Equal.symbol] (method)](#equalsymbol-method-7)
+    - [[Hash.symbol] (method)](#hashsymbol-method-7)
+
+---
+
+# arbitrary
+
+## arbitrary
+
+FastCheck arbitrary for VotingProcedures.
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<VotingProcedures>
+```
+
+Added in v2.0.0
+
+# constructors
+
+## abstain
+
+Create an Abstain vote.
+
+**Signature**
+
+```ts
+export declare const abstain: () => Vote
+```
+
+Added in v2.0.0
+
+## no
+
+Create a No vote.
+
+**Signature**
+
+```ts
+export declare const no: () => Vote
+```
+
+Added in v2.0.0
+
+## yes
+
+Create a Yes vote.
+
+**Signature**
+
+```ts
+export declare const yes: () => Vote
+```
+
+Added in v2.0.0
+
+# encoding
+
+## toCBORBytes
+
+Encode VotingProcedures to CBOR bytes.
+
+**Signature**
+
+```ts
+export declare const toCBORBytes: (data: VotingProcedures, options?: CBOR.CodecOptions) => any
+```
+
+Added in v2.0.0
+
+## toCBORHex
+
+Encode VotingProcedures to CBOR hex string.
+
+**Signature**
+
+```ts
+export declare const toCBORHex: (data: VotingProcedures, options?: CBOR.CodecOptions) => string
+```
+
+Added in v2.0.0
+
+# helpers
+
+## multiVote
+
+Create VotingProcedures for one voter voting on multiple proposals.
+
+Convenience function for submitting multiple votes from a single voter.
+
+**Signature**
+
+```ts
+export declare const multiVote: (
+  voter: Voter,
+  votes: ReadonlyArray<readonly [GovernanceAction.GovActionId, VotingProcedure]>
+) => VotingProcedures
+```
+
+Added in v2.0.0
+
+## singleVote
+
+Create VotingProcedures for a single vote.
+
+Convenience function for the common case of one voter voting on one proposal.
+
+**Signature**
+
+```ts
+export declare const singleVote: (
+  voter: Voter,
+  govActionId: GovernanceAction.GovActionId,
+  procedure: VotingProcedure
+) => VotingProcedures
+```
+
+Added in v2.0.0
+
+# model
+
+## VotingProcedures (class)
+
+VotingProcedures based on Conway CDDL specification.
+
+```
+voting_procedures = {+ voter => {+ gov_action_id => voting_procedure}}
+```
+
+A nested map structure where voters map to their votes on specific governance actions.
+
+**Signature**
+
+```ts
+export declare class VotingProcedures
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+Added in v2.0.0
+
+# parsing
+
+## fromCBORBytes
+
+Parse VotingProcedures from CBOR bytes.
+
+**Signature**
+
+```ts
+export declare const fromCBORBytes: (bytes: Uint8Array, options?: CBOR.CodecOptions) => VotingProcedures
+```
+
+Added in v2.0.0
+
+## fromCBORHex
+
+Parse VotingProcedures from CBOR hex string.
+
+**Signature**
+
+```ts
+export declare const fromCBORHex: (hex: string, options?: CBOR.CodecOptions) => VotingProcedures
+```
+
+Added in v2.0.0
+
+# pattern matching
+
+## matchVote
+
+Pattern match on a Vote.
+
+**Signature**
+
+```ts
+export declare const matchVote: <R>(patterns: {
+  NoVote: () => R
+  YesVote: () => R
+  AbstainVote: () => R
+}) => (vote: Vote) => R
+```
+
+Added in v2.0.0
+
+## matchVoter
+
+Pattern match on a Voter.
+
+**Signature**
+
+```ts
+export declare const matchVoter: <R>(patterns: {
+  ConstitutionalCommitteeVoter: (credential: Credential.Credential) => R
+  DRepVoter: (drep: DRep.DRep) => R
+  StakePoolVoter: (poolKeyHash: PoolKeyHash.PoolKeyHash) => R
+}) => (voter: Voter) => R
+```
+
+Added in v2.0.0
+
+# predicates
+
+## isAbstainVote
+
+Check if a vote is an Abstain vote.
+
+**Signature**
+
+```ts
+export declare const isAbstainVote: (vote: Vote) => vote is Schema.Schema.Type<typeof AbstainVote>
+```
+
+Added in v2.0.0
+
+## isConstitutionalCommitteeVoter
+
+Check if a voter is a Constitutional Committee voter.
+
+**Signature**
+
+```ts
+export declare const isConstitutionalCommitteeVoter: (
+  voter: Voter
+) => voter is Schema.Schema.Type<typeof ConstitutionalCommitteeVoter>
+```
+
+Added in v2.0.0
+
+## isDRepVoter
+
+Check if a voter is a DRep voter.
+
+**Signature**
+
+```ts
+export declare const isDRepVoter: (voter: Voter) => voter is Schema.Schema.Type<typeof DRepVoter>
+```
+
+Added in v2.0.0
+
+## isNoVote
+
+Check if a vote is a No vote.
+
+**Signature**
+
+```ts
+export declare const isNoVote: (vote: Vote) => vote is Schema.Schema.Type<typeof NoVote>
+```
+
+Added in v2.0.0
+
+## isStakePoolVoter
+
+Check if a voter is a Stake Pool voter.
+
+**Signature**
+
+```ts
+export declare const isStakePoolVoter: (voter: Voter) => voter is Schema.Schema.Type<typeof StakePoolVoter>
+```
+
+Added in v2.0.0
+
+## isYesVote
+
+Check if a vote is a Yes vote.
+
+**Signature**
+
+```ts
+export declare const isYesVote: (vote: Vote) => vote is Schema.Schema.Type<typeof YesVote>
+```
+
+Added in v2.0.0
+
+# schemas
+
+## CDDLSchema
+
+CDDL schema for VotingProcedures map structure.
+
+**Signature**
+
+```ts
+export declare const CDDLSchema: Schema.MapFromSelf<
+  Schema.Union<
+    [
+      Schema.Tuple2<Schema.Literal<[0n]>, typeof Schema.Uint8ArrayFromSelf>,
+      Schema.Tuple2<Schema.Literal<[1n]>, typeof Schema.Uint8ArrayFromSelf>,
+      Schema.Tuple2<Schema.Literal<[2n]>, typeof Schema.Uint8ArrayFromSelf>,
+      Schema.Tuple2<Schema.Literal<[3n]>, typeof Schema.Uint8ArrayFromSelf>,
+      Schema.Tuple2<Schema.Literal<[4n]>, typeof Schema.Uint8ArrayFromSelf>
+    ]
+  >,
+  Schema.MapFromSelf<
+    Schema.Tuple2<typeof Schema.Uint8ArrayFromSelf, typeof Schema.BigIntFromSelf>,
+    Schema.Tuple2<
+      Schema.Union<[Schema.Literal<[0n]>, Schema.Literal<[1n]>, Schema.Literal<[2n]>]>,
+      Schema.NullOr<Schema.Tuple2<typeof Schema.String, typeof Schema.Uint8ArrayFromSelf>>
+    >
+  >
+>
+```
+
+Added in v2.0.0
+
+## ConstitutionalCommitteeVoter (class)
+
+Voter types based on Conway CDDL specification.
+
+Conway / CML mapping:
+
+- [0, addr_keyhash] ConstitutionalCommitteeHotKeyHash
+- [1, script_hash] ConstitutionalCommitteeHotScriptHash
+- [2, addr_keyhash] DRepKeyHash
+- [3, script_hash] DRepScriptHash
+- [4, pool_keyhash] StakingPoolKeyHash
+
+**Signature**
+
+```ts
+export declare class ConstitutionalCommitteeVoter
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## FromCBORBytes
+
+CBOR bytes transformation schema for VotingProcedures.
+
+**Signature**
+
+```ts
+export declare const FromCBORBytes: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.transformOrFail<
+    typeof Schema.Uint8ArrayFromSelf,
+    Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+    never
+  >,
+  Schema.transformOrFail<
+    Schema.MapFromSelf<
+      Schema.Union<
+        [
+          Schema.Tuple2<Schema.Literal<[0n]>, typeof Schema.Uint8ArrayFromSelf>,
+          Schema.Tuple2<Schema.Literal<[1n]>, typeof Schema.Uint8ArrayFromSelf>,
+          Schema.Tuple2<Schema.Literal<[2n]>, typeof Schema.Uint8ArrayFromSelf>,
+          Schema.Tuple2<Schema.Literal<[3n]>, typeof Schema.Uint8ArrayFromSelf>,
+          Schema.Tuple2<Schema.Literal<[4n]>, typeof Schema.Uint8ArrayFromSelf>
+        ]
+      >,
+      Schema.MapFromSelf<
+        Schema.Tuple2<typeof Schema.Uint8ArrayFromSelf, typeof Schema.BigIntFromSelf>,
+        Schema.Tuple2<
+          Schema.Union<[Schema.Literal<[0n]>, Schema.Literal<[1n]>, Schema.Literal<[2n]>]>,
+          Schema.NullOr<Schema.Tuple2<typeof Schema.String, typeof Schema.Uint8ArrayFromSelf>>
+        >
+      >
+    >,
+    Schema.SchemaClass<VotingProcedures, VotingProcedures, never>,
+    never
+  >
+>
+```
+
+Added in v2.0.0
+
+## FromCBORHex
+
+CBOR hex transformation schema for VotingProcedures.
+
+**Signature**
+
+```ts
+export declare const FromCBORHex: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.Schema<Uint8Array, string, never>,
+  Schema.transform<
+    Schema.transformOrFail<
+      typeof Schema.Uint8ArrayFromSelf,
+      Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+      never
+    >,
+    Schema.transformOrFail<
+      Schema.MapFromSelf<
+        Schema.Union<
+          [
+            Schema.Tuple2<Schema.Literal<[0n]>, typeof Schema.Uint8ArrayFromSelf>,
+            Schema.Tuple2<Schema.Literal<[1n]>, typeof Schema.Uint8ArrayFromSelf>,
+            Schema.Tuple2<Schema.Literal<[2n]>, typeof Schema.Uint8ArrayFromSelf>,
+            Schema.Tuple2<Schema.Literal<[3n]>, typeof Schema.Uint8ArrayFromSelf>,
+            Schema.Tuple2<Schema.Literal<[4n]>, typeof Schema.Uint8ArrayFromSelf>
+          ]
+        >,
+        Schema.MapFromSelf<
+          Schema.Tuple2<typeof Schema.Uint8ArrayFromSelf, typeof Schema.BigIntFromSelf>,
+          Schema.Tuple2<
+            Schema.Union<[Schema.Literal<[0n]>, Schema.Literal<[1n]>, Schema.Literal<[2n]>]>,
+            Schema.NullOr<Schema.Tuple2<typeof Schema.String, typeof Schema.Uint8ArrayFromSelf>>
+          >
+        >
+      >,
+      Schema.SchemaClass<VotingProcedures, VotingProcedures, never>,
+      never
+    >
+  >
+>
+```
+
+Added in v2.0.0
+
+## FromCDDL
+
+CDDL transformation schema for VotingProcedures.
+
+**Signature**
+
+```ts
+export declare const FromCDDL: Schema.transformOrFail<
+  Schema.MapFromSelf<
+    Schema.Union<
+      [
+        Schema.Tuple2<Schema.Literal<[0n]>, typeof Schema.Uint8ArrayFromSelf>,
+        Schema.Tuple2<Schema.Literal<[1n]>, typeof Schema.Uint8ArrayFromSelf>,
+        Schema.Tuple2<Schema.Literal<[2n]>, typeof Schema.Uint8ArrayFromSelf>,
+        Schema.Tuple2<Schema.Literal<[3n]>, typeof Schema.Uint8ArrayFromSelf>,
+        Schema.Tuple2<Schema.Literal<[4n]>, typeof Schema.Uint8ArrayFromSelf>
+      ]
+    >,
+    Schema.MapFromSelf<
+      Schema.Tuple2<typeof Schema.Uint8ArrayFromSelf, typeof Schema.BigIntFromSelf>,
+      Schema.Tuple2<
+        Schema.Union<[Schema.Literal<[0n]>, Schema.Literal<[1n]>, Schema.Literal<[2n]>]>,
+        Schema.NullOr<Schema.Tuple2<typeof Schema.String, typeof Schema.Uint8ArrayFromSelf>>
+      >
+    >
+  >,
+  Schema.SchemaClass<VotingProcedures, VotingProcedures, never>,
+  never
+>
+```
+
+Added in v2.0.0
+
+## NoVote (class)
+
+Vote types based on Conway CDDL specification.
+
+```
+vote = 0 / 1 / 2  ; No / Yes / Abstain
+```
+
+**Signature**
+
+```ts
+export declare class NoVote
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## Vote
+
+Vote union schema.
+
+**Signature**
+
+```ts
+export declare const Vote: Schema.Union<[typeof NoVote, typeof YesVote, typeof AbstainVote]>
+```
+
+Added in v2.0.0
+
+## VoteCDDL
+
+CDDL schema for Vote.
+
+**Signature**
+
+```ts
+export declare const VoteCDDL: Schema.Union<[Schema.Literal<[0n]>, Schema.Literal<[1n]>, Schema.Literal<[2n]>]>
+```
+
+Added in v2.0.0
+
+## VoteFromCDDL
+
+CDDL transformation schema for Vote.
+
+**Signature**
+
+```ts
+export declare const VoteFromCDDL: Schema.transformOrFail<
+  Schema.Union<[Schema.Literal<[0n]>, Schema.Literal<[1n]>, Schema.Literal<[2n]>]>,
+  Schema.SchemaClass<NoVote | YesVote | AbstainVote, NoVote | YesVote | AbstainVote, never>,
+  never
+>
+```
+
+Added in v2.0.0
+
+## Voter
+
+Voter union schema.
+
+**Signature**
+
+```ts
+export declare const Voter: Schema.Union<[typeof ConstitutionalCommitteeVoter, typeof DRepVoter, typeof StakePoolVoter]>
+```
+
+Added in v2.0.0
+
+## VoterCDDL
+
+CDDL schema for Voter as tuple structure.
+
+```
+Maps to: [voter_type, voter_data]
+```
+
+**Signature**
+
+```ts
+export declare const VoterCDDL: Schema.Union<
+  [
+    Schema.Tuple2<Schema.Literal<[0n]>, typeof Schema.Uint8ArrayFromSelf>,
+    Schema.Tuple2<Schema.Literal<[1n]>, typeof Schema.Uint8ArrayFromSelf>,
+    Schema.Tuple2<Schema.Literal<[2n]>, typeof Schema.Uint8ArrayFromSelf>,
+    Schema.Tuple2<Schema.Literal<[3n]>, typeof Schema.Uint8ArrayFromSelf>,
+    Schema.Tuple2<Schema.Literal<[4n]>, typeof Schema.Uint8ArrayFromSelf>
+  ]
+>
+```
+
+Added in v2.0.0
+
+## VoterFromCDDL
+
+CDDL transformation schema for Voter.
+
+**Signature**
+
+```ts
+export declare const VoterFromCDDL: Schema.transformOrFail<
+  Schema.Union<
+    [
+      Schema.Tuple2<Schema.Literal<[0n]>, typeof Schema.Uint8ArrayFromSelf>,
+      Schema.Tuple2<Schema.Literal<[1n]>, typeof Schema.Uint8ArrayFromSelf>,
+      Schema.Tuple2<Schema.Literal<[2n]>, typeof Schema.Uint8ArrayFromSelf>,
+      Schema.Tuple2<Schema.Literal<[3n]>, typeof Schema.Uint8ArrayFromSelf>,
+      Schema.Tuple2<Schema.Literal<[4n]>, typeof Schema.Uint8ArrayFromSelf>
+    ]
+  >,
+  Schema.SchemaClass<
+    ConstitutionalCommitteeVoter | DRepVoter | StakePoolVoter,
+    ConstitutionalCommitteeVoter | DRepVoter | StakePoolVoter,
+    never
+  >,
+  never
+>
+```
+
+Added in v2.0.0
+
+## VotingProcedure (class)
+
+Voting procedure based on Conway CDDL specification.
+
+```
+voting_procedure = [ vote, anchor / null ]
+```
+
+**Signature**
+
+```ts
+export declare class VotingProcedure
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## VotingProcedureCDDL
+
+CDDL schema for VotingProcedure tuple structure.
+
+**Signature**
+
+```ts
+export declare const VotingProcedureCDDL: Schema.Tuple2<
+  Schema.Union<[Schema.Literal<[0n]>, Schema.Literal<[1n]>, Schema.Literal<[2n]>]>,
+  Schema.NullOr<Schema.Tuple2<typeof Schema.String, typeof Schema.Uint8ArrayFromSelf>>
+>
+```
+
+Added in v2.0.0
+
+## VotingProcedureFromCDDL
+
+CDDL transformation schema for VotingProcedure.
+
+**Signature**
+
+```ts
+export declare const VotingProcedureFromCDDL: Schema.transformOrFail<
+  Schema.Tuple2<
+    Schema.Union<[Schema.Literal<[0n]>, Schema.Literal<[1n]>, Schema.Literal<[2n]>]>,
+    Schema.NullOr<Schema.Tuple2<typeof Schema.String, typeof Schema.Uint8ArrayFromSelf>>
+  >,
+  Schema.SchemaClass<VotingProcedure, VotingProcedure, never>,
+  never
+>
+```
+
+Added in v2.0.0
+
+# utils
+
+## AbstainVote (class)
+
+**Signature**
+
+```ts
+export declare class AbstainVote
+```
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## DRepVoter (class)
+
+**Signature**
+
+```ts
+export declare class DRepVoter
+```
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## StakePoolVoter (class)
+
+**Signature**
+
+```ts
+export declare class StakePoolVoter
+```
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## Vote (type alias)
+
+**Signature**
+
+```ts
+export type Vote = typeof Vote.Type
+```
+
+## Voter (type alias)
+
+**Signature**
+
+```ts
+export type Voter = typeof Voter.Type
+```
+
+## YesVote (class)
+
+**Signature**
+
+```ts
+export declare class YesVote
+```
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```

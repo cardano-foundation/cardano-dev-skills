@@ -1,0 +1,329 @@
+---
+title: cose/Sign.ts
+nav_order: 44
+parent: Modules
+---
+
+## Sign overview
+
+COSE_Sign multi-signature structures (RFC 8152).
+
+Implements COSE_Sign for multi-signature messages with separate signature headers.
+
+Added in v2.0.0
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [Constructors](#constructors)
+  - [coseSignBuilderNew](#cosesignbuildernew)
+  - [coseSignNew](#cosesignnew)
+  - [coseSignatureNew](#cosesignaturenew)
+- [Model](#model)
+  - [COSESign (class)](#cosesign-class)
+    - [toJSON (method)](#tojson-method)
+    - [toString (method)](#tostring-method)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method)
+    - [[Equal.symbol] (method)](#equalsymbol-method)
+    - [[Hash.symbol] (method)](#hashsymbol-method)
+  - [COSESignBuilder (class)](#cosesignbuilder-class)
+    - [setExternalAad (method)](#setexternalaad-method)
+    - [hashPayloadWith224 (method)](#hashpayloadwith224-method)
+    - [makeDataToSign (method)](#makedatatosign-method)
+    - [build (method)](#build-method)
+  - [COSESignature (class)](#cosesignature-class)
+    - [toJSON (method)](#tojson-method-1)
+    - [toString (method)](#tostring-method-1)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method-1)
+    - [[Equal.symbol] (method)](#equalsymbol-method-1)
+    - [[Hash.symbol] (method)](#hashsymbol-method-1)
+- [Schemas](#schemas)
+  - [COSESignFromCBORBytes](#cosesignfromcborbytes)
+  - [COSESignFromCBORHex](#cosesignfromcborhex)
+  - [COSESignatureFromCBORBytes](#cosesignaturefromcborbytes)
+
+---
+
+# Constructors
+
+## coseSignBuilderNew
+
+Create a new COSESignBuilder.
+
+**Signature**
+
+```ts
+export declare const coseSignBuilderNew: (
+  headers: Headers,
+  payload: Uint8Array,
+  isPayloadExternal: boolean
+) => COSESignBuilder
+```
+
+Added in v2.0.0
+
+## coseSignNew
+
+Create a new COSESign.
+
+**Signature**
+
+```ts
+export declare const coseSignNew: (
+  headers: Headers,
+  payload: Uint8Array | undefined,
+  signatures: ReadonlyArray<COSESignature>
+) => COSESign
+```
+
+Added in v2.0.0
+
+## coseSignatureNew
+
+Create a new COSESignature.
+
+**Signature**
+
+```ts
+export declare const coseSignatureNew: (headers: Headers, signature: Ed25519Signature.Ed25519Signature) => COSESignature
+```
+
+Added in v2.0.0
+
+# Model
+
+## COSESign (class)
+
+COSE_Sign structure (RFC 8152) - multi-signature message.
+
+**Signature**
+
+```ts
+export declare class COSESign
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## COSESignBuilder (class)
+
+Builder for creating COSE_Sign structures (multi-signature).
+
+**Signature**
+
+```ts
+export declare class COSESignBuilder
+```
+
+Added in v2.0.0
+
+### setExternalAad (method)
+
+Set external additional authenticated data.
+
+**Signature**
+
+```ts
+setExternalAad(externalAad: Uint8Array): this
+```
+
+Added in v2.0.0
+
+### hashPayloadWith224 (method)
+
+Hash the payload with blake2b-224 and update headers.
+
+**Signature**
+
+```ts
+hashPayloadWith224(): this
+```
+
+Added in v2.0.0
+
+### makeDataToSign (method)
+
+Create the data that needs to be signed (Sig_structure).
+
+**Signature**
+
+```ts
+makeDataToSign(): Uint8Array
+```
+
+Added in v2.0.0
+
+### build (method)
+
+Build the final COSESign structure with the provided signatures.
+
+**Signature**
+
+```ts
+build(signatures: ReadonlyArray<COSESignature>): COSESign
+```
+
+Added in v2.0.0
+
+## COSESignature (class)
+
+Single COSE signature (for multi-signature COSESign).
+
+**Signature**
+
+```ts
+export declare class COSESignature
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+# Schemas
+
+## COSESignFromCBORBytes
+
+CBOR bytes transformation schema for COSESign.
+
+**Signature**
+
+```ts
+export declare const COSESignFromCBORBytes: (
+  options?: CBOR.CodecOptions
+) => Schema.transformOrFail<
+  Schema.transformOrFail<
+    typeof Schema.Uint8ArrayFromSelf,
+    Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+    never
+  >,
+  Schema.SchemaClass<COSESign, COSESign, never>,
+  never
+>
+```
+
+Added in v2.0.0
+
+## COSESignFromCBORHex
+
+CBOR hex transformation schema for COSESign.
+
+**Signature**
+
+```ts
+export declare const COSESignFromCBORHex: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.Schema<Uint8Array, string, never>,
+  Schema.transformOrFail<
+    Schema.transformOrFail<
+      typeof Schema.Uint8ArrayFromSelf,
+      Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+      never
+    >,
+    Schema.SchemaClass<COSESign, COSESign, never>,
+    never
+  >
+>
+```
+
+Added in v2.0.0
+
+## COSESignatureFromCBORBytes
+
+CBOR bytes transformation schema for COSESignature.
+
+**Signature**
+
+```ts
+export declare const COSESignatureFromCBORBytes: (
+  options?: CBOR.CodecOptions
+) => Schema.transformOrFail<
+  Schema.transformOrFail<
+    typeof Schema.Uint8ArrayFromSelf,
+    Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+    never
+  >,
+  Schema.SchemaClass<COSESignature, COSESignature, never>,
+  never
+>
+```
+
+Added in v2.0.0

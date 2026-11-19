@@ -1,0 +1,616 @@
+---
+title: "Build a Custom Blockchain Provider"
+description: "Create custom providers to connect Mesh SDK to any data source. Implement IFetcher and ISubmitter interfaces for your own infrastructure."
+---
+
+import Link from "fumadocs-core/link";
+import { HowToSchema } from "@/components/seo";
+
+<HowToSchema
+  name="Build a Custom Blockchain Provider"
+  description="Create a custom provider class that implements Mesh SDK interfaces to connect to any blockchain data source."
+  totalTime="PT60M"
+  steps={[
+    { name: "Understand interfaces", text: "Review IFetcher and ISubmitter interface requirements." },
+    { name: "Create provider class", text: "Create a TypeScript class implementing the required interfaces." },
+    { name: "Initialize constructor", text: "Set up network endpoints, API keys, and HTTP client." },
+    { name: "Implement methods", text: "Map your data source responses to Mesh's expected types." },
+    { name: "Test provider", text: "Verify each method returns correctly typed data." }
+  ]}
+/>
+
+## Overview
+
+In this guide, you build a custom provider class that connects Mesh SDK to your own blockchain data source. Custom providers let you use GraphQL endpoints, cardano-cli, websockets, or your own infrastructure while maintaining full compatibility with Mesh's transaction builder.
+
+### What you will build
+
+- A TypeScript provider class implementing `IFetcher` and `ISubmitter`
+- Methods to fetch UTxOs, protocol parameters, and account info
+- Transaction submission to the Cardano network
+
+### What you will learn
+
+- How provider interfaces work in Mesh SDK
+- Data mapping between external APIs and Mesh types
+- Error handling patterns for blockchain queries
+
+### Prerequisites
+
+- TypeScript project set up with Mesh SDK
+- Understanding of your target data source's API
+- Basic knowledge of Cardano data structures
+
+### Time to complete
+
+60 minutes
+
+## Quick Start
+
+Here is a minimal custom provider template:
+
+```typescript
+import type {
+  AccountInfo,
+  AssetMetadata,
+  Protocol,
+  UTxO,
+} from "@meshsdk/core";
+import { IFetcher, ISubmitter } from "@meshsdk/core";
+
+export class CustomProvider implements IFetcher, ISubmitter {
+  private baseUrl: string;
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
+
+  async fetchAccountInfo(address: string): Promise<AccountInfo> {
+    // Implement your logic
+    throw new Error("Not implemented");
+  }
+
+  async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
+    // Implement your logic
+    throw new Error("Not implemented");
+  }
+
+  async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
+    throw new Error("Not implemented");
+  }
+
+  async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
+    throw new Error("Not implemented");
+  }
+
+  async fetchHandleAddress(handle: string): Promise<string> {
+    throw new Error("Not implemented");
+  }
+
+  async fetchProtocolParameters(epoch?: number): Promise<Protocol> {
+    // Implement your logic
+    throw new Error("Not implemented");
+  }
+
+  async submitTx(tx: string): Promise<string> {
+    // Implement your logic
+    throw new Error("Not implemented");
+  }
+}
+```
+
+## Step-by-Step Guide
+
+### Step 1: Understand the interfaces
+
+Provider interfaces define the contract your class must follow. Any class implementing an interface must include all specified methods with matching signatures.
+
+**IFetcher interface** - Query blockchain data:
+
+```typescript
+import type {
+  AccountInfo,
+  AssetMetadata,
+  Protocol,
+  UTxO,
+} from "@meshsdk/core";
+
+export interface IFetcher {
+  fetchAccountInfo(address: string): Promise<AccountInfo>;
+  fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]>;
+  fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]>;
+  fetchAssetMetadata(asset: string): Promise<AssetMetadata>;
+  fetchHandleAddress(handle: string): Promise<string>;
+  fetchProtocolParameters(epoch?: number): Promise<Protocol>;
+}
+```
+
+**ISubmitter interface** - Submit transactions:
+
+```typescript
+export interface ISubmitter {
+  submitTx(tx: string): Promise<string>;
+}
+```
+
+**What to expect:** Your provider must implement all methods from the interfaces you choose to implement.
+
+### Step 2: Create the provider class
+
+Create a new file `src/providers/custom-provider.ts`:
+
+```typescript
+import type {
+  AccountInfo,
+  AssetMetadata,
+  Protocol,
+  UTxO,
+} from "@meshsdk/core";
+import { IFetcher, ISubmitter } from "@meshsdk/core";
+import axios, { AxiosInstance } from "axios";
+
+export class CustomProvider implements IFetcher, ISubmitter {
+  private readonly axiosInstance: AxiosInstance;
+
+  constructor(baseUrl: string, apiKey?: string) {
+    this.axiosInstance = axios.create({
+      baseURL: baseUrl,
+      headers: apiKey ? { "Authorization": `Bearer ${apiKey}` } : {},
+    });
+  }
+
+  // Methods will be implemented in the following steps
+}
+```
+
+Install axios if you have not already:
+
+```bash
+npm install axios
+```
+
+**What to expect:** A provider class with HTTP client configured and ready for method implementation.
+
+### Step 3: Implement fetchAddressUTxOs
+
+This method retrieves all UTxOs for an address. It is the most commonly used fetcher method.
+
+```typescript
+async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
+  try {
+    // Example: query your API for UTxOs
+    const { data } = await this.axiosInstance.get(`/addresses/${address}/utxos`, {
+      params: asset ? { asset } : {},
+    });
+
+    // Map your API response to Mesh's UTxO type
+    return data.map((utxo: any): UTxO => ({
+      input: {
+        outputIndex: utxo.output_index,
+        txHash: utxo.tx_hash,
+      },
+      output: {
+        address: utxo.address,
+        amount: utxo.amount.map((a: any) => ({
+          unit: a.unit,
+          quantity: a.quantity,
+        })),
+        dataHash: utxo.data_hash || undefined,
+        plutusData: utxo.inline_datum || undefined,
+        scriptRef: utxo.reference_script || undefined,
+        scriptHash: utxo.script_hash || undefined,
+      },
+    }));
+  } catch (error) {
+    console.error("Failed to fetch UTxOs:", error);
+    throw error;
+  }
+}
+```
+
+**What to expect:** An array of UTxO objects with the correct structure for Mesh.
+
+### Step 4: Implement fetchProtocolParameters
+
+This method retrieves current protocol parameters used for transaction building.
+
+```typescript
+async fetchProtocolParameters(epoch?: number): Promise<Protocol> {
+  try {
+    const { data } = await this.axiosInstance.get("/protocol-parameters", {
+      params: epoch ? { epoch } : {},
+    });
+
+    // Map your API response to Mesh's Protocol type
+    return {
+      coinsPerUTxOSize: data.coins_per_utxo_size,
+      collateralPercent: data.collateral_percent,
+      decentralisation: data.decentralisation || 0,
+      epoch: data.epoch_no,
+      keyDeposit: data.key_deposit,
+      maxBlockExMem: data.max_block_ex_mem.toString(),
+      maxBlockExSteps: data.max_block_ex_steps.toString(),
+      maxBlockHeaderSize: data.max_bh_size,
+      maxBlockSize: data.max_block_size,
+      maxCollateralInputs: data.max_collateral_inputs,
+      maxTxExMem: data.max_tx_ex_mem.toString(),
+      maxTxExSteps: data.max_tx_ex_steps.toString(),
+      maxTxSize: data.max_tx_size,
+      maxValSize: data.max_val_size.toString(),
+      minFeeA: data.min_fee_a,
+      minFeeB: data.min_fee_b,
+      minPoolCost: data.min_pool_cost,
+      poolDeposit: data.pool_deposit,
+      priceMem: data.price_mem,
+      priceStep: data.price_step,
+    };
+  } catch (error) {
+    console.error("Failed to fetch protocol parameters:", error);
+    throw error;
+  }
+}
+```
+
+**What to expect:** A Protocol object with all required fields for transaction building.
+
+### Step 5: Implement fetchAccountInfo
+
+This method retrieves staking information for an address.
+
+```typescript
+async fetchAccountInfo(address: string): Promise<AccountInfo> {
+  try {
+    const { data } = await this.axiosInstance.get(`/accounts/${address}`);
+
+    return {
+      active: data.active,
+      balance: data.controlled_amount,
+      rewards: data.withdrawable_amount,
+      poolId: data.pool_id || undefined,
+    };
+  } catch (error) {
+    console.error("Failed to fetch account info:", error);
+    throw error;
+  }
+}
+```
+
+**What to expect:** Account staking details including balance and rewards.
+
+### Step 6: Implement submitTx
+
+This method submits signed transactions to the network.
+
+```typescript
+async submitTx(tx: string): Promise<string> {
+  try {
+    const { data, status } = await this.axiosInstance.post(
+      "/tx/submit",
+      tx,
+      {
+        headers: {
+          "Content-Type": "application/cbor",
+        },
+      }
+    );
+
+    if (status === 200 || status === 202) {
+      return data.tx_hash || data;
+    }
+
+    throw new Error(`Submission failed with status ${status}`);
+  } catch (error: any) {
+    if (error.response?.data) {
+      throw new Error(`Transaction rejected: ${JSON.stringify(error.response.data)}`);
+    }
+    throw error;
+  }
+}
+```
+
+**What to expect:** The transaction hash on successful submission.
+
+### Step 7: Implement remaining methods
+
+Complete the provider with the remaining interface methods:
+
+```typescript
+async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
+  try {
+    const { data } = await this.axiosInstance.get(`/assets/${asset}/addresses`);
+
+    return data.map((item: any) => ({
+      address: item.address,
+      quantity: item.quantity,
+    }));
+  } catch (error) {
+    console.error("Failed to fetch asset addresses:", error);
+    throw error;
+  }
+}
+
+async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
+  try {
+    const { data } = await this.axiosInstance.get(`/assets/${asset}`);
+
+    return {
+      ...data.onchain_metadata,
+    };
+  } catch (error) {
+    console.error("Failed to fetch asset metadata:", error);
+    throw error;
+  }
+}
+
+async fetchHandleAddress(handle: string): Promise<string> {
+  try {
+    // ADA Handle resolution - format handle name without $
+    const handleName = handle.replace(/^\$/, "");
+    const { data } = await this.axiosInstance.get(`/handles/${handleName}`);
+
+    return data.address;
+  } catch (error) {
+    console.error("Failed to fetch handle address:", error);
+    throw error;
+  }
+}
+```
+
+**What to expect:** A complete provider implementing all required methods.
+
+## Complete Example
+
+Here is the complete custom provider implementation:
+
+```typescript
+import type {
+  AccountInfo,
+  AssetMetadata,
+  Protocol,
+  UTxO,
+} from "@meshsdk/core";
+import { IFetcher, ISubmitter } from "@meshsdk/core";
+import axios, { AxiosInstance } from "axios";
+
+export class CustomProvider implements IFetcher, ISubmitter {
+  private readonly axiosInstance: AxiosInstance;
+
+  constructor(baseUrl: string, apiKey?: string) {
+    this.axiosInstance = axios.create({
+      baseURL: baseUrl,
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      timeout: 30000,
+    });
+  }
+
+  async fetchAccountInfo(address: string): Promise<AccountInfo> {
+    try {
+      const { data } = await this.axiosInstance.get(`/accounts/${address}`);
+      return {
+        active: data.active,
+        balance: data.controlled_amount,
+        rewards: data.withdrawable_amount,
+        poolId: data.pool_id || undefined,
+      };
+    } catch (error) {
+      console.error("Failed to fetch account info:", error);
+      throw error;
+    }
+  }
+
+  async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
+    try {
+      const { data } = await this.axiosInstance.get(`/addresses/${address}/utxos`, {
+        params: asset ? { asset } : {},
+      });
+
+      return data.map((utxo: any): UTxO => ({
+        input: {
+          outputIndex: utxo.output_index,
+          txHash: utxo.tx_hash,
+        },
+        output: {
+          address: utxo.address,
+          amount: utxo.amount.map((a: any) => ({
+            unit: a.unit,
+            quantity: a.quantity,
+          })),
+          dataHash: utxo.data_hash || undefined,
+          plutusData: utxo.inline_datum || undefined,
+          scriptRef: utxo.reference_script || undefined,
+          scriptHash: utxo.script_hash || undefined,
+        },
+      }));
+    } catch (error) {
+      console.error("Failed to fetch UTxOs:", error);
+      throw error;
+    }
+  }
+
+  async fetchAssetAddresses(
+    asset: string
+  ): Promise<{ address: string; quantity: string }[]> {
+    try {
+      const { data } = await this.axiosInstance.get(`/assets/${asset}/addresses`);
+      return data.map((item: any) => ({
+        address: item.address,
+        quantity: item.quantity,
+      }));
+    } catch (error) {
+      console.error("Failed to fetch asset addresses:", error);
+      throw error;
+    }
+  }
+
+  async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
+    try {
+      const { data } = await this.axiosInstance.get(`/assets/${asset}`);
+      return { ...data.onchain_metadata };
+    } catch (error) {
+      console.error("Failed to fetch asset metadata:", error);
+      throw error;
+    }
+  }
+
+  async fetchHandleAddress(handle: string): Promise<string> {
+    try {
+      const handleName = handle.replace(/^\$/, "");
+      const { data } = await this.axiosInstance.get(`/handles/${handleName}`);
+      return data.address;
+    } catch (error) {
+      console.error("Failed to fetch handle address:", error);
+      throw error;
+    }
+  }
+
+  async fetchProtocolParameters(epoch?: number): Promise<Protocol> {
+    try {
+      const { data } = await this.axiosInstance.get("/protocol-parameters", {
+        params: epoch ? { epoch } : {},
+      });
+
+      return {
+        coinsPerUTxOSize: data.coins_per_utxo_size,
+        collateralPercent: data.collateral_percent,
+        decentralisation: data.decentralisation || 0,
+        epoch: data.epoch_no,
+        keyDeposit: data.key_deposit,
+        maxBlockExMem: data.max_block_ex_mem.toString(),
+        maxBlockExSteps: data.max_block_ex_steps.toString(),
+        maxBlockHeaderSize: data.max_bh_size,
+        maxBlockSize: data.max_block_size,
+        maxCollateralInputs: data.max_collateral_inputs,
+        maxTxExMem: data.max_tx_ex_mem.toString(),
+        maxTxExSteps: data.max_tx_ex_steps.toString(),
+        maxTxSize: data.max_tx_size,
+        maxValSize: data.max_val_size.toString(),
+        minFeeA: data.min_fee_a,
+        minFeeB: data.min_fee_b,
+        minPoolCost: data.min_pool_cost,
+        poolDeposit: data.pool_deposit,
+        priceMem: data.price_mem,
+        priceStep: data.price_step,
+      };
+    } catch (error) {
+      console.error("Failed to fetch protocol parameters:", error);
+      throw error;
+    }
+  }
+
+  async submitTx(tx: string): Promise<string> {
+    try {
+      const { data, status } = await this.axiosInstance.post("/tx/submit", tx, {
+        headers: { "Content-Type": "application/cbor" },
+      });
+
+      if (status === 200 || status === 202) {
+        return data.tx_hash || data;
+      }
+
+      throw new Error(`Submission failed with status ${status}`);
+    } catch (error: any) {
+      if (error.response?.data) {
+        throw new Error(`Transaction rejected: ${JSON.stringify(error.response.data)}`);
+      }
+      throw error;
+    }
+  }
+}
+```
+
+Use the custom provider with Mesh:
+
+```typescript
+import { MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+import { CustomProvider } from "./providers/custom-provider";
+
+const provider = new CustomProvider("https://your-api.com", "your-api-key");
+const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+
+const unsignedTx = await txBuilder
+  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await provider.submitTx(signedTx);
+```
+
+## Troubleshooting
+
+### Type mismatches in return values
+
+**Cause:** Your API response structure differs from Mesh's expected types.
+
+**Solution:** Check the type definitions in `@meshsdk/core`. Map each field explicitly in your implementation. Use TypeScript's strict mode to catch mismatches.
+
+### Network timeout errors
+
+**Cause:** API requests take too long or the endpoint is unreachable.
+
+**Solution:** Configure appropriate timeouts in your axios instance. Implement retry logic for transient failures:
+
+```typescript
+import axiosRetry from "axios-retry";
+
+axiosRetry(this.axiosInstance, {
+  retries: 3,
+  retryDelay: axiosRetry.exponentialDelay,
+});
+```
+
+### Transaction submission returns error
+
+**Cause:** The transaction is malformed or fails validation.
+
+**Solution:** Parse the error response from your API. Common issues include insufficient funds, missing collateral, or script validation failures. Log the full error for debugging.
+
+### Missing optional fields cause errors
+
+**Cause:** Your API does not return all fields that Mesh expects.
+
+**Solution:** Use optional chaining and provide defaults:
+
+```typescript
+dataHash: utxo.data_hash || undefined,
+scriptRef: utxo.reference_script ?? undefined,
+```
+
+### Rate limiting from your API
+
+**Cause:** Too many requests in a short period.
+
+**Solution:** Implement request queuing or caching for frequently accessed data like protocol parameters:
+
+```typescript
+private protocolParamsCache: { params: Protocol; timestamp: number } | null = null;
+private CACHE_TTL = 60000; // 1 minute
+
+async fetchProtocolParameters(epoch?: number): Promise<Protocol> {
+  if (this.protocolParamsCache &&
+      Date.now() - this.protocolParamsCache.timestamp < this.CACHE_TTL) {
+    return this.protocolParamsCache.params;
+  }
+
+  const params = await this.fetchProtocolParametersFromApi(epoch);
+  this.protocolParamsCache = { params, timestamp: Date.now() };
+  return params;
+}
+```
+
+## Related Links
+
+- <Link href="https://github.com/MeshJS/mesh/tree/main/packages/mesh-provider/src">Existing provider implementations</Link>
+- <Link href="/providers">Built-in providers documentation</Link>
+- <Link href="/apis/txbuilder">Transaction Builder API</Link>
+- <Link href="https://github.com/MeshJS/mesh/pulls">Submit your provider as a PR</Link>

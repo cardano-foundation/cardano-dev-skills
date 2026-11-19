@@ -1,0 +1,261 @@
+---
+sidebar_label: Register a multisignature DRep
+title: Registering a multisignature delegate representative (DRep)
+sidebar_position: 6.1
+slug: /tutorials/multisig-drep-registration
+---
+
+In certain scenarios, a Delegate Representative (DRep) may comprise multiple individuals collectively involved in decision-making processes. 
+Registering a multisignature DRep proves to be an optimal mechanism for such collaborative setups.
+
+We can utilize Native scripts to register a multisignature DRep. In this example, we will establish a multisignature DRep composed of three sets of keys, 
+where the endorsement of two out of the three sets is necessary. 
+
+### Pre-requisites
+
+* Payment address with funds
+* A SanchoNet node
+
+### Generate SanchoNet DRep keys and an ID
+
+:::info
+Each individual member of the DRep must generate a DRep key pair and calculate its verification key hash (a DRep ID). Later on we will 
+use the key hashes to build the Native script. 
+:::
+
+1. Generate a DRep key pair:
+
+```shell
+cardano-cli conway governance drep key-gen \
+--verification-key-file drep1.vkey \
+--signing-key-file drep1.skey
+```
+```json
+{
+    "type": "DRepSigningKey_ed25519",
+    "description": "Delegate Representative Signing Key",
+    "cborHex": "5820eba7053fdc9cb3b8aacf142d3d4ad575bb48fb92f4082d81605ac8e2ccfead5d"
+}
+```
+```json
+{
+    "type": "DRepVerificationKey_ed25519",
+    "description": "Delegate Representative Verification Key",
+    "cborHex": "5820c19e0e939609531cfd04dcfa5bf1a5f3e245aa88e163759341aba296af34cc7e"
+}
+```
+
+2. Get the DRep ID (verification key hash) in "hex" format:
+
+```shell
+cardano-cli conway governance drep id \
+--drep-verification-key-file drep1.vkey \
+--output-format hex \
+--out-file drep1.id
+```
+```shell
+cat drep1.id
+e6d27c194fd18f39e080073e5ea02aa78abe4b6c84d78a498302461c
+```
+
+### Build the Native script
+
+Multi-signature scripts can be written using JSON syntax. This is the format that the `cardano-cli` tool accepts. In this example we want the script 
+to evaluate to `True` if and only if **at least two valid sigantures are present**, this is captured by the fields `type` and `required`. 
+
+3. Use a text editor to build your script, let's name it `drep-multisig.json`: 
+
+```json
+{
+  "type": "atLeast",
+  "required": 2,
+  "scripts": [
+    {
+      "type": "sig",
+      "keyHash": "e6d27c194fd18f39e080073e5ea02aa78abe4b6c84d78a498302461c"
+    },
+    {
+      "type": "sig",
+      "keyHash": "5ab00e8cd1142fcffc5f7a2c2e3549874afd89e26995d7686c2714d4"
+    },
+    {
+      "type": "sig",
+      "keyHash": "db5a8cbb0df0359c36541727229993b21371f834202733c9bbabc1fd"
+    }
+  ]
+}
+```
+
+We can choose a different type of script, for example type "any", where the script evaluates to `True` with a single valid signature from the list:
+
+```json
+{
+  "type": "any",
+  "scripts": [
+    {
+      "type": "sig",
+      "keyHash": "e6d27c194fd18f39e080073e5ea02aa78abe4b6c84d78a498302461c"
+    },
+    {
+      "type": "sig",
+      "keyHash": "5ab00e8cd1142fcffc5f7a2c2e3549874afd89e26995d7686c2714d4"
+    },
+    {
+      "type": "sig",
+      "keyHash": "db5a8cbb0df0359c36541727229993b21371f834202733c9bbabc1fd"
+    }
+  ]
+}
+```
+
+Or for a more strict setup we can use type "all", where all the signatures are required:
+
+```json
+{
+  "type": "all",
+  "scripts": [
+    {
+      "type": "sig",
+      "keyHash": "e6d27c194fd18f39e080073e5ea02aa78abe4b6c84d78a498302461c"
+    },
+    {
+      "type": "sig",
+      "keyHash": "5ab00e8cd1142fcffc5f7a2c2e3549874afd89e26995d7686c2714d4"
+    },
+    {
+      "type": "sig",
+      "keyHash": "db5a8cbb0df0359c36541727229993b21371f834202733c9bbabc1fd"
+    }
+  ]
+}
+```
+
+### Generate the DRep registration certificate
+
+4. We'll need the script hash (the DRep ID), calculate it with:
+
+```shell
+cardano-cli hash script \
+  --script-file drep-multisig.json \
+  --out-file drep-multisig.id
+```
+```shell 
+cat drep-multisig.id
+d862ee2eb3ce246b23ff7e1f62ae0705013e793787485cb6e1845356
+```
+5. Get the DRep deposit amount and store in a variable:
+
+```shell
+drepDeposit=$(cardano-cli conway query gov-state --testnet-magic 4 | jq -r .currentPParams.dRepDeposit)
+```
+
+6. Generate the DRep registration certificate:
+```shell
+cardano-cli conway governance drep registration-certificate \
+  --drep-script-hash "$(cat drep-multisig.id)" \
+  --key-reg-deposit-amt "$drepDeposit" \
+  --out-file drep-multisig-reg.cert
+```
+
+### Submit the Registration certificate in a transaction
+
+7. Build the transaction. Note that we use `--witness-override 4` because this tranaction will contain up to 4 signatures, 1 from the payment key
+and up to 3 members of the DRep.
+
+```shell
+cardano-cli conway transaction build \
+  --testnet-magic 4 \
+  --tx-in $(cardano-cli conway query utxo --address $(cat payment.addr) --testnet-magic 4 --output-json | jq -r 'keys[0]') \
+  --change-address $(cat payment.addr) \
+  --witness-override 4 \
+  --certificate-file drep-multisig-reg.cert \
+  --certificate-script-file drep-multisig.json \
+  --out-file tx.raw
+```
+
+8. Each member of the DRep will witness the transaction with its individual keys from step 1. In addition, we need the witness from the payment
+address to pay for the transaction fee. 
+
+Witnessing the transaction with the payment key:
+
+```shell
+cardano-cli conway transaction witness \
+  --testnet-magic 4 \
+  --tx-body-file tx.raw \
+  --signing-key-file payment.skey \
+  --out-file payment.witness
+```
+
+Witnessing the transaction with the DRep keys from each memeber:
+
+```shell
+cardano-cli conway transaction witness \
+  --testnet-magic 4 \
+  --tx-body-file tx.raw \
+  --signing-key-file drep1.skey \
+  --out-file drep1.witness
+```
+
+```shell
+cardano-cli conway transaction witness \
+  --testnet-magic 4 \
+  --tx-body-file tx.raw \
+  --signing-key-file drep2.skey \
+  --out-file drep2.witness
+```
+```shell
+cardano-cli conway transaction witness \
+  --testnet-magic 4 \
+  --tx-body-file tx.raw \
+  --signing-key-file drep3.skey \
+  --out-file drep3.witness
+```
+
+9. Assemble the tranaction with all the witnesses from previous step:
+
+```shell
+cardano-cli conway transaction assemble \
+  --tx-body-file tx.raw \
+  --witness-file  payment.witness \
+  --witness-file  drep1.witness \
+  --witness-file  drep2.witness \
+  --witness-file  drep3.witness \
+  --out-file tx.signed
+```
+
+10. Submit the transaction
+
+```shell
+cardano-cli conway transaction submit \
+  --testnet-magic 4 \
+  --tx-file tx.signed
+```
+
+11. Query the DRep state to confirm
+
+```shell
+cardano-cli conway query drep-state \
+  --testnet-magic 4 \
+  --drep-script-hash $(cat drep-multisig.id)
+```
+```json
+[
+    [
+        {
+            "scriptHash": "d862ee2eb3ce246b23ff7e1f62ae0705013e793787485cb6e1845356"
+        },
+        {
+            "anchor": null,
+            "deposit": 2000000,
+            "expiry": 270
+        }
+    ]
+]
+```
+
+Awesome! Now, we just need to [delegate voting power to our DRep!](delegate-to-drep.mdx) 
+
+
+
+
+

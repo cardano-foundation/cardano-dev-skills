@@ -1,0 +1,66 @@
+---
+title: Transfers
+---
+
+The simplest Tx3 transactions move value from one party to another. They consume a UTxO, produce one output for the recipient, and return any leftover value as change. Every block uses two pre-bound identifiers: `Ada` (the chain's primary asset) and `fees` (the resolved transaction fee).
+
+## Send Ada
+
+A parameterised template that sends `quantity` lovelace from `Sender` to `Receiver`.
+
+```tx3
+party Sender;
+
+party Receiver;
+
+tx transfer(
+    quantity: Int
+) {
+    input source {
+        from: Sender,
+        min_amount: Ada(quantity),
+    }
+
+    output {
+        to: Receiver,
+        amount: Ada(quantity),
+    }
+
+    output {
+        to: Sender,
+        amount: source - Ada(quantity) - fees,
+    }
+}
+```
+
+`min_amount: Ada(quantity)` is a lower bound — the resolver picks a real UTxO with at least that much value. The change output subtracts both the transferred amount *and* `fees` from `source`, which forces the resolver to pick a UTxO large enough to cover fees as well.
+
+## Transfer respecting minimum UTxO size
+
+Cardano outputs must carry a minimum amount of Ada to be valid. The built-in `min_utxo(<output_name>)` returns that minimum for a named output, computed from its contents.
+
+```tx3
+party Sender;
+party Receiver;
+
+tx transfer_min(
+    quantity: Int
+) {
+    input source {
+        from: Sender,
+        min_amount: fees + min_utxo(minimal_utxo) + min_utxo(change),
+    }
+
+    output minimal_utxo {
+        to: Receiver,
+        amount: min_utxo(minimal_utxo),
+    }
+
+    output change {
+      to: Sender,
+      amount: source - fees - min_utxo(minimal_utxo),
+    }
+}
+```
+
+Both outputs reference themselves by name. The resolver evaluates `min_utxo` after the rest of the output is known, so cyclic-looking definitions like `amount: min_utxo(self_name)` resolve cleanly.

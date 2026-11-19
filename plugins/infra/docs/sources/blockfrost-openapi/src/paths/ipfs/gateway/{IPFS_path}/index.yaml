@@ -1,0 +1,48 @@
+servers:
+  - url: https://ipfs.blockfrost.io/api/v0
+get:
+  tags:
+    - IPFS » Gateway
+  summary: Relay to an IPFS gateway
+  description: |
+    Retrieve an object from the IPFS gateway (useful if you do not want to rely on a public gateway, such as `ipfs.blockfrost.dev`).
+
+    <p>
+      <span class="hosted">Hosted</span> Endpoint only available for hosted variant.
+    </p>
+  x-codeSamples:
+    - lang: "Shell"
+      label: "cURL"
+      source: |
+        curl "https://ipfs.blockfrost.io/api/v0/ipfs/gateway/{IPFS_path}" \
+          -H "project_id: $PROJECT_ID" \
+  parameters:
+    - in: path
+      required: true
+      name: IPFS_path
+      schema:
+        type: string
+        description: Path to the IPFS object
+  responses:
+    "200":
+      # TODO: If no type is specified then generated TS type is never instead of unknown
+      # https://github.com/drwpow/openapi-typescript/issues/1039
+      # As a workaround return binary data
+      description: Returns the object content
+      content:
+        application/octet-stream:
+          schema:
+            type: string
+            format: binary
+    "400":
+      $ref: ../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../responses/errors/500.yaml

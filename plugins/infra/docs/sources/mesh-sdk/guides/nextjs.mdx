@@ -1,0 +1,317 @@
+---
+title: "Build Your First Cardano dApp with Next.js"
+description: "Create a Cardano dApp using Next.js and Mesh SDK. Connect wallets, query assets, and build your first blockchain application."
+---
+
+import Link from "fumadocs-core/link";
+import { HowToSchema } from "@/components/seo";
+
+<HowToSchema
+  name="Develop your first Web3 App with Next.js and Mesh"
+  description="Set up a Next.js application and connect it to the Cardano blockchain using Mesh. Create a simple application that allows users to connect their wallets and view assets."
+  totalTime="PT30M"
+  steps={[
+    { name: "Create Next.js app", text: "Create a new Next.js application using npx create-next-app@latest." },
+    { name: "Install Mesh SDK", text: "Install Mesh packages with npm install @meshsdk/core @meshsdk/react." },
+    { name: "Add MeshProvider", text: "Wrap your application with MeshProvider for wallet state management." },
+    { name: "Add wallet component", text: "Add the CardanoWallet component to enable wallet connection." },
+    { name: "Display wallet assets", text: "Use the useWallet hook to fetch and display user assets." }
+  ]}
+/>
+
+## Overview
+
+In this guide, you build a Next.js application that connects to Cardano wallets and displays user assets. This is the foundation for any Cardano dApp. Mesh SDK implements the [CIP-30](https://cips.cardano.org/cip/CIP-0030) dApp-wallet web bridge standard, providing a consistent interface across all compatible Cardano wallets.
+
+### What you will build
+
+- A Next.js application with Mesh SDK integration
+- Wallet connection using the CardanoWallet component
+- Asset display for connected wallets
+
+### Prerequisites
+
+- Node.js 18+ installed
+- A Cardano wallet browser extension (Eternl, Nami, or Lace)
+- Basic React/Next.js knowledge
+
+### Time to complete
+
+30 minutes
+
+## Quick Start
+
+Use the Mesh CLI to scaffold a complete project instantly:
+
+```bash
+npx meshjs your-app-name
+cd your-app-name
+npm run dev
+```
+
+Open http://localhost:3000 to see your dApp. Skip the rest of this guide if you use the CLI.
+
+## Step-by-Step Setup
+
+### Step 1: Create a Next.js project
+
+Create a new Next.js application with TypeScript:
+
+```bash
+npx create-next-app@latest my-cardano-dapp --typescript
+cd my-cardano-dapp
+```
+
+When prompted, select these options:
+
+| Option | Recommended |
+|--------|-------------|
+| ESLint | Yes |
+| Tailwind CSS | Yes |
+| `src/` directory | Yes |
+| App Router | No (use Pages Router) |
+| Turbopack | No |
+| Import alias | No |
+
+**What to expect:** A new `my-cardano-dapp` directory with the Next.js project structure.
+
+### Step 2: Verify the setup
+
+Start the development server:
+
+```bash
+npm run dev
+```
+
+**What to expect:** Open http://localhost:3000 to see the default Next.js welcome page. Press `Ctrl+C` to stop the server.
+
+### Step 3: Install Mesh SDK
+
+Install the Mesh packages:
+
+```bash
+npm install @meshsdk/core @meshsdk/react
+```
+
+- `@meshsdk/core` - Core blockchain functionality (wallets, transactions, providers)
+- `@meshsdk/react` - React components and hooks for wallet integration
+
+**What to expect:** The packages install without errors. Your `package.json` now includes both dependencies.
+
+### Step 4: Add MeshProvider
+
+The `MeshProvider` context manages wallet state across your application.
+
+Open `src/pages/_app.tsx` and replace its contents:
+
+```tsx
+import "@/styles/globals.css";
+import "@meshsdk/react/styles.css";
+import type { AppProps } from "next/app";
+import { MeshProvider } from "@meshsdk/react";
+
+export default function App({ Component, pageProps }: AppProps) {
+  return (
+    <MeshProvider>
+      <Component {...pageProps} />
+    </MeshProvider>
+  );
+}
+```
+
+**What to expect:** Your app now has access to wallet state through React context.
+
+### Step 5: Create the wallet connection page
+
+Replace the contents of `src/pages/index.tsx`:
+
+```tsx
+import { useState } from "react";
+import type { NextPage } from "next";
+import { CardanoWallet, useWallet } from "@meshsdk/react";
+
+const Home: NextPage = () => {
+  const { connected, wallet } = useWallet();
+  const [assets, setAssets] = useState<null | any[]>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function getAssets() {
+    if (wallet) {
+      setLoading(true);
+      const walletAssets = await wallet.getAssets();
+      setAssets(walletAssets);
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center p-24">
+      <h1 className="text-4xl font-bold mb-8">My Cardano dApp</h1>
+
+      <div className="mb-8">
+        <CardanoWallet />
+      </div>
+
+      {connected && (
+        <div className="text-center">
+          <button
+            onClick={getAssets}
+            disabled={loading}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            {loading ? "Loading..." : "Get Wallet Assets"}
+          </button>
+
+          {assets && (
+            <pre className="mt-4 p-4 bg-gray-100 rounded text-left overflow-auto max-w-xl">
+              {JSON.stringify(assets, null, 2)}
+            </pre>
+          )}
+        </div>
+      )}
+    </main>
+  );
+};
+
+export default Home;
+```
+
+**What to expect:** A page with a wallet connection button. After connecting, a button appears to fetch and display wallet assets.
+
+### Step 6: Test your dApp
+
+Start the development server:
+
+```bash
+npm run dev
+```
+
+1. Open http://localhost:3000
+2. Click the wallet button to connect your Cardano wallet
+3. Approve the connection in your wallet extension
+4. Click "Get Wallet Assets" to see your tokens
+
+**What to expect:** Your wallet connects and displays any assets you hold. If you have no assets, the list will be empty or show only ADA.
+
+## Complete Example
+
+Here is the complete code for both files:
+
+**src/pages/_app.tsx**
+
+```tsx
+import "@/styles/globals.css";
+import "@meshsdk/react/styles.css";
+import type { AppProps } from "next/app";
+import { MeshProvider } from "@meshsdk/react";
+
+export default function App({ Component, pageProps }: AppProps) {
+  return (
+    <MeshProvider>
+      <Component {...pageProps} />
+    </MeshProvider>
+  );
+}
+```
+
+**src/pages/index.tsx**
+
+```tsx
+import { useState } from "react";
+import type { NextPage } from "next";
+import { CardanoWallet, useWallet } from "@meshsdk/react";
+
+const Home: NextPage = () => {
+  const { connected, wallet } = useWallet();
+  const [assets, setAssets] = useState<null | any[]>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function getAssets() {
+    if (wallet) {
+      setLoading(true);
+      const walletAssets = await wallet.getAssets();
+      setAssets(walletAssets);
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center p-24">
+      <h1 className="text-4xl font-bold mb-8">My Cardano dApp</h1>
+
+      <div className="mb-8">
+        <CardanoWallet />
+      </div>
+
+      {connected && (
+        <div className="text-center">
+          <button
+            onClick={getAssets}
+            disabled={loading}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            {loading ? "Loading..." : "Get Wallet Assets"}
+          </button>
+
+          {assets && (
+            <pre className="mt-4 p-4 bg-gray-100 rounded text-left overflow-auto max-w-xl">
+              {JSON.stringify(assets, null, 2)}
+            </pre>
+          )}
+        </div>
+      )}
+    </main>
+  );
+};
+
+export default Home;
+```
+
+## Next Steps
+
+Now that you have a working dApp foundation:
+
+- <Link href="/apis/wallets/browserwallet">Display wallet address and ADA balance</Link> - Explore the BrowserWallet API
+- <Link href="/apis/txbuilder">Build transactions</Link> - Send ADA and tokens
+- <Link href="/guides/prove-wallet-ownership">Add authentication</Link> - Verify wallet ownership with signatures
+- <Link href="/guides/aiken">Integrate smart contracts</Link> - Work with Aiken validators
+
+## Troubleshooting
+
+### Wallet not appearing
+
+**Cause:** No Cardano wallet extension is installed.
+
+**Solution:** Install a Cardano wallet extension like [Eternl](https://eternl.io/), [Nami](https://namiwallet.io/), or [Lace](https://www.lace.io/).
+
+### Buffer is not defined error
+
+**Cause:** Mesh uses Node.js APIs that require polyfills in the browser.
+
+**Solution:** See the <Link href="/guides/node-specific-imports">polyfill configuration guide</Link> for your framework.
+
+### Connection rejected
+
+**Cause:** The user declined the wallet connection request.
+
+**Solution:** This is expected behavior. Prompt the user to try again if they want to connect.
+
+### Assets not loading
+
+**Cause:** The wallet may be on a different network or have no assets.
+
+**Solution:** Ensure your wallet is on the correct network (mainnet or testnet) and has assets to display.
+
+## References
+
+- [Cardano Developer Portal](https://developers.cardano.org) - Official Cardano development resources and documentation
+- [CIP-30: Cardano dApp-Wallet Web Bridge](https://cips.cardano.org/cip/CIP-0030) - The standard that Mesh SDK implements for wallet connectivity
+- [Cardano eUTXO Model](https://docs.cardano.org/about-cardano/learn/eutxo-explainer/) - Understanding Cardano's extended UTXO transaction model
+- [MeshJS GitHub Repository](https://github.com/MeshJS/mesh) - Mesh SDK source code and contributions
+
+## Related Links
+
+- <Link href="/apis/wallets/browserwallet">BrowserWallet API</Link> - Complete wallet interaction methods
+- <Link href="/apis/txbuilder">Transaction Builder</Link> - Build and submit transactions
+- <Link href="https://docs.cardano.org/cardano-testnets/tools/faucet">Cardano Testnet Faucet</Link> - Get free test ADA
+- <Link href="/svelte">Svelte Integration</Link> - Use Mesh with Svelte

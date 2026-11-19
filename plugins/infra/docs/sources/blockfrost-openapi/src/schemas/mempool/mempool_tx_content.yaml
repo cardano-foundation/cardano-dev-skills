@@ -1,0 +1,232 @@
+type: object
+properties:
+  tx:
+    type: object
+    properties:
+      hash:
+        type: string
+        example: "1e043f100dce12d107f679685acd2fc0610e10f72a92d412794c9773d11d8477"
+        description: Transaction hash
+      output_amount:
+        type: array
+        items:
+          type: object
+          description: The sum of all the UTXO per asset
+          properties:
+            unit:
+              type: string
+              format: Lovelace or concatenation of asset policy_id and hex-encoded asset_name
+              description: The unit of the value
+            quantity:
+              type: string
+              description: The quantity of the unit
+          required:
+            - unit
+            - quantity
+        example:
+          - unit: "lovelace"
+            quantity: "42000000"
+          - unit: "b0d07d45fe9514f80213f4020e5a61241458be626841cde717cb38a76e7574636f696e"
+            quantity: "12"
+      fees:
+        type: string
+        example: "182485"
+        description: Fees of the transaction in Lovelaces
+      deposit:
+        type: string
+        example: "0"
+        description: Deposit within the transaction in Lovelaces
+      size:
+        type: integer
+        example: 433
+        description: Size of the transaction in Bytes
+      invalid_before:
+        type: string
+        nullable: true
+        example: null
+        description: Left (included) endpoint of the timelock validity intervals
+      invalid_hereafter:
+        type: string
+        nullable: true
+        example: "13885913"
+        description: Right (excluded) endpoint of the timelock validity intervals
+      utxo_count:
+        type: integer
+        example: 4
+        description: Count of UTXOs within the transaction
+      withdrawal_count:
+        type: integer
+        example: 0
+        description: Count of the withdrawals within the transaction
+      mir_cert_count:
+        type: integer
+        example: 0
+        description: Count of the MIR certificates within the transaction
+      delegation_count:
+        type: integer
+        example: 0
+        description: Count of the delegations within the transaction
+      stake_cert_count:
+        type: integer
+        example: 0
+        description: Count of the stake keys (de)registration within the transaction
+      pool_update_count:
+        type: integer
+        example: 0
+        description: Count of the stake pool registration and update certificates within the transaction
+      pool_retire_count:
+        type: integer
+        example: 0
+        description: Count of the stake pool retirement certificates within the transaction
+      asset_mint_or_burn_count:
+        type: integer
+        example: 0
+        description: Count of asset mints and burns within the transaction
+      redeemer_count:
+        type: integer
+        example: 0
+        description: Count of redeemers within the transaction
+      valid_contract:
+        type: boolean
+        example: true
+        description: True if contract script passed validation
+    required:
+      - hash
+      - output_amount
+      - fees
+      - deposit
+      - size
+      - invalid_before
+      - invalid_hereafter
+      - utxo_count
+      - withdrawal_count
+      - mir_cert_count
+      - delegation_count
+      - stake_cert_count
+      - pool_update_count
+      - pool_retire_count
+      - asset_mint_or_burn_count
+      - redeemer_count
+      - valid_contract
+  inputs:
+    type: array
+    items:
+      type: object
+      properties:
+        address:
+          type: string
+          example: "addr1q9ld26v2lv8wvrxxmvg90pn8n8n5k6tdst06q2s856rwmvnueldzuuqmnsye359fqrk8hwvenjnqultn7djtrlft7jnq7dy7wv"
+          description: Input address
+        tx_hash:
+          type: string
+          example: "1a0570af966fb355a7160e4f82d5a80b8681b7955f5d44bec0dce628516157f0"
+          description: Hash of the UTXO transaction
+        output_index:
+          type: integer
+          example: 0
+          description: UTXO index in the transaction
+        collateral:
+          type: boolean
+          example: false
+          description: Whether the input is a collateral consumed on script validation failure
+        reference:
+          type: boolean
+          example: false
+          description: Whether the input is a reference transaction input
+      required:
+        # - address Note: We can't be sure we would retrieve input address for every mempool tx
+        - tx_hash
+        - output_index
+        - collateral
+  outputs:
+    type: array
+    items:
+      type: object
+      properties:
+        address:
+          type: string
+          example: "addr1q9ld26v2lv8wvrxxmvg90pn8n8n5k6tdst06q2s856rwmvnueldzuuqmnsye359fqrk8hwvenjnqultn7djtrlft7jnq7dy7wv"
+          description: Output address
+        amount:
+          type: array
+          items:
+            type: object
+            description: The sum of all the UTXO per asset
+            properties:
+              unit:
+                type: string
+                format: Lovelace or concatenation of asset policy_id and hex-encoded asset_name
+                description: The unit of the value
+              quantity:
+                type: string
+                description: The quantity of the unit
+            required:
+              - unit
+              - quantity
+          example:
+            - unit: "lovelace"
+              quantity: "42000000"
+            - unit: "b0d07d45fe9514f80213f4020e5a61241458be626841cde717cb38a76e7574636f696e"
+              quantity: "12"
+        output_index:
+          type: integer
+          example: 0
+          description: UTXO index in the transaction
+        data_hash:
+          type: string
+          nullable: true
+          description: The hash of the transaction output datum
+          example: "9e478573ab81ea7a8e31891ce0648b81229f408d596a3483e6f4f9b92d3cf710"
+        inline_datum:
+          type: string
+          nullable: true
+          description: CBOR encoded inline datum
+          example: "19a6aa"
+        collateral:
+          type: boolean
+          example: false
+          description: Whether the output is a collateral output
+        reference_script_hash:
+          type: string
+          nullable: true
+          description: The hash of the reference script of the output
+          example: "13a3efd825703a352a8f71f4e2758d08c28c564e8dfcce9f77776ad1"
+      required:
+        - address
+        - amount
+        - output_index
+        - data_hash
+        - inline_datum
+        - collateral
+        - reference_script_hash
+  redeemers:
+    type: array
+    items:
+      type: object
+      properties:
+        tx_index:
+          type: integer
+          example: 0
+          description: Index of the redeemer within the transaction
+        purpose:
+          type: string
+          enum: [spend, mint, cert, reward, vote, propose]
+          example: "spend"
+          description: Validation purpose
+        unit_mem:
+          type: string
+          example: "1700"
+          description: The budget in Memory to run a script
+        unit_steps:
+          type: string
+          example: "476468"
+          description: The budget in CPU steps to run a script
+      required:
+        - tx_index
+        - purpose
+        - unit_mem
+        - unit_steps
+required:
+  - tx
+  - inputs
+  - outputs

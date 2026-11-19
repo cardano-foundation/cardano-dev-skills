@@ -1,0 +1,87 @@
+type: array
+items:
+  type: object
+  properties:
+    address:
+      type: string
+      description: Bech32 encoded address holding the UTxO
+      example: "addr1qxfdlum57a0083mnth9y583jvdcv5a9nwj5lzv9v34t9tl7wmz90ahznykuhr4ykwvfrge8yc63c6lpf7345yd5h59nq885d05"
+    tx_hash:
+      type: string
+      description: Transaction hash of the UTXO
+    output_index:
+      type: integer
+      description: UTXO index in the transaction
+    amount:
+      type: array
+      items:
+        type: object
+        description: The sum of all the UTXO per asset
+        properties:
+          unit:
+            type: string
+            format: Lovelace or concatenation of asset policy_id and hex-encoded asset_name
+            description: The unit of the value
+          quantity:
+            type: string
+            description: The quantity of the unit
+        required:
+          - unit
+          - quantity
+    block:
+      type: string
+      description: Block hash of the UTXO
+    block_height:
+      type: integer
+      description: Block number of the UTXO
+      example: 5804427
+    block_time:
+      type: integer
+      description: UNIX time of the block
+      example: 1622754311
+    data_hash:
+      type: string
+      nullable: true
+      description: The hash of the transaction output datum
+    inline_datum:
+      type: string
+      nullable: true
+      description: CBOR encoded inline datum
+      example: "19a6aa"
+    inline_datum_json:
+      type: object
+      nullable: true
+      description: JSON representation of the inline datum
+    reference_script_hash:
+      type: string
+      nullable: true
+      description: The hash of the reference script of the output
+      example: "13a3efd825703a352a8f71f4e2758d08c28c564e8dfcce9f77776ad1"
+  required:
+    - address
+    - tx_hash
+    - output_index
+    - amount
+    - block
+    - block_height
+    - block_time
+    - data_hash
+    - inline_datum
+    - inline_datum_json
+    - reference_script_hash
+example:
+  - address: "addr1qxfdlum57a0083mnth9y583jvdcv5a9nwj5lzv9v34t9tl7wmz90ahznykuhr4ykwvfrge8yc63c6lpf7345yd5h59nq885d05"
+    tx_hash: "47abf925faa462fe7ddbf906e65b4f8a27da52c3638ec4ee4fffb2298096aced"
+    output_index: 0
+    amount:
+      - unit: "lovelace"
+        quantity: "1444443"
+      - unit: "750900e4999ebe0d58f19b634768ba25e525aaf12403bfe8fe130501424f4f4b"
+        quantity: "1000"
+    block: "8dadf03917c51b36c7580a49162224f71845a5492976e0449319da6e8eea243e"
+    block_height: 5804427
+    block_time: 1622754311
+    data_hash: null
+    inline_datum: null
+    inline_datum_json: null
+    reference_script_hash: null

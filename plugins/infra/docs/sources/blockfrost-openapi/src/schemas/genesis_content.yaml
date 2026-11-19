@@ -1,0 +1,53 @@
+type: object
+properties:
+  active_slots_coefficient:
+    type: number
+    example: 0.05
+    description: The proportion of slots in which blocks should be issued
+  update_quorum:
+    type: integer
+    example: 5
+    description: Determines the quorum needed for votes on the protocol parameter updates
+  max_lovelace_supply:
+    type: string
+    example: "45000000000000000"
+    description: The total number of lovelace in the system
+  network_magic:
+    type: integer
+    example: 764824073
+    description: Network identifier
+  epoch_length:
+    type: integer
+    example: 432000
+    description: Number of slots in an epoch
+  system_start:
+    type: integer
+    example: 1506203091
+    description: Time of slot 0 in UNIX time
+  slots_per_kes_period:
+    type: integer
+    example: 129600
+    description: Number of slots in an KES period
+  slot_length:
+    type: integer
+    example: 1
+    description: Duration of one slot in seconds
+  max_kes_evolutions:
+    type: integer
+    example: 62
+    description: The maximum number of time a KES key can be evolved before a pool operator must create a new operational certificate
+  security_param:
+    type: integer
+    example: 2160
+    description: Security parameter k
+required:
+  - active_slots_coefficient
+  - update_quorum
+  - max_lovelace_supply
+  - network_magic
+  - epoch_length
+  - system_start
+  - slots_per_kes_period
+  - slot_length
+  - max_kes_evolutions
+  - security_param

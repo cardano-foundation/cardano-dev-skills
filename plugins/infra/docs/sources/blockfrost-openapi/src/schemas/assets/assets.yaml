@@ -1,0 +1,21 @@
+type: array
+items:
+  type: object
+  properties:
+    asset:
+      type: string
+      format: Concatenation of the policy_id and hex-encoded asset_name
+      description: Asset identifier
+    quantity:
+      type: string
+      description: Current asset quantity
+  required:
+    - asset
+    - quantity
+example:
+  - asset: "b0d07d45fe9514f80213f4020e5a61241458be626841cde717cb38a76e7574636f696e"
+    quantity: "1"
+  - asset: "b0d07d45fe9514f80213f4020e5a61241458be626841cde717cb38a76e75d"
+    quantity: "100000"
+  - asset: "6804edf9712d2b619edb6ac86861fe93a730693183a262b165fcc1ba1bc99cad"
+    quantity: "18605647"

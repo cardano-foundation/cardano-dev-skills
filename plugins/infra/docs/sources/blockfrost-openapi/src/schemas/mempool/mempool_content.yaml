@@ -1,0 +1,11 @@
+type: array
+items:
+  type: object
+  properties:
+    tx_hash:
+      type: string
+      description: Hash of the transaction
+  required:
+    - tx_hash
+example:
+  - tx_hash: "1a0570af966fb355a7160e4f82d5a80b8681b7955f5d44bec0dce628516157f0"

@@ -1,0 +1,209 @@
+---
+title: "Getting Started"
+description: "Install and configure @meshsdk/midnight-setup to build your first Midnight Network dApp"
+---
+
+This guide walks you through installing the Midnight SDK, configuring providers, and deploying your first smart contract. By the end, you will have a working Midnight integration ready for development.
+
+## Prerequisites
+
+Before you start, ensure you have:
+
+- **Node.js 18+** - [Download Node.js](https://nodejs.org/)
+- **Lace Beta Wallet** - [Install from Chrome Web Store](https://chromewebstore.google.com/detail/lace-midnight-preview/hgeekaiplokcnmakghbdfbgnlfheichg)
+- A funded wallet on Midnight testnet
+
+## Step 1: Install dependencies
+
+Install the core package and required Midnight Network dependencies:
+
+```bash
+npm install @meshsdk/midnight-setup \
+  @midnight-ntwrk/dapp-connector-api@3.0.0 \
+  @midnight-ntwrk/midnight-js-fetch-zk-config-provider@2.0.2 \
+  @midnight-ntwrk/midnight-js-http-client-proof-provider@2.0.2 \
+  @midnight-ntwrk/midnight-js-indexer-public-data-provider@2.0.2 \
+  @midnight-ntwrk/midnight-js-level-private-state-provider@2.0.2 \
+  @midnight-ntwrk/midnight-js-network-id@2.0.2
+```
+
+## Step 2: Create the providers configuration
+
+Create a `providers.ts` file that configures all the necessary providers for Midnight Network:
+
+```typescript
+import { FetchZkConfigProvider } from "@midnight-ntwrk/midnight-js-fetch-zk-config-provider";
+import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
+import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
+import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
+import type { MidnightSetupContractProviders } from "@meshsdk/midnight-setup";
+
+export async function setupProviders(): Promise<MidnightSetupContractProviders> {
+  // Check for Lace wallet
+  const wallet = window.midnight?.mnLace;
+  if (!wallet) {
+    throw new Error("Please install Lace Beta Wallet for Midnight Network");
+  }
+
+  // Connect to wallet and get configuration
+  const walletAPI = await wallet.enable();
+  const walletState = await walletAPI.state();
+  const uris = await wallet.serviceUriConfig();
+
+  return {
+    privateStateProvider: levelPrivateStateProvider({
+      privateStateStoreName: "my-dapp-state",
+    }),
+    zkConfigProvider: new FetchZkConfigProvider(
+      window.location.origin,
+      fetch.bind(window),
+    ),
+    proofProvider: httpClientProofProvider(uris.proverServerUri),
+    publicDataProvider: indexerPublicDataProvider(
+      uris.indexerUri,
+      uris.indexerWsUri,
+    ),
+    walletProvider: {
+      coinPublicKey: walletState.coinPublicKey,
+      encryptionPublicKey: walletState.encryptionPublicKey,
+      balanceTx: (tx, newCoins) => {
+        return walletAPI.balanceAndProveTransaction(tx, newCoins);
+      },
+    },
+    midnightProvider: {
+      submitTx: (tx) => {
+        return walletAPI.submitTransaction(tx);
+      },
+    },
+  };
+}
+```
+
+## Step 3: Deploy a contract
+
+Use `MidnightSetupAPI` to deploy your smart contract:
+
+```typescript
+import { MidnightSetupAPI } from "@meshsdk/midnight-setup";
+import { setupProviders } from "./providers";
+
+async function deployContract() {
+  // Set up providers with wallet connection
+  const providers = await setupProviders();
+
+  // Create your contract instance
+  const contractInstance = new MyContract({});
+
+  // Deploy the contract
+  const api = await MidnightSetupAPI.deployContract(
+    providers,
+    contractInstance,
+  );
+
+  console.log("Contract deployed at:", api.deployedContractAddress);
+  return api;
+}
+```
+
+## Step 4: Interact with the contract
+
+Once deployed, you can read state and call contract methods:
+
+```typescript
+// Get contract state
+const contractState = await api.getContractState();
+console.log("Contract data:", contractState.data);
+
+// Get ledger state
+const ledgerState = await api.getLedgerState();
+console.log("Ledger state:", ledgerState.ledgerState?.message);
+```
+
+## Step 5: Join an existing contract
+
+To connect to an already-deployed contract:
+
+```typescript
+import { MidnightSetupAPI } from "@meshsdk/midnight-setup";
+import { setupProviders } from "./providers";
+
+async function joinContract(contractAddress: string) {
+  const providers = await setupProviders();
+  const contractInstance = new MyContract({});
+
+  const api = await MidnightSetupAPI.joinContract(
+    providers,
+    contractInstance,
+    contractAddress,
+  );
+
+  console.log("Connected to contract:", contractAddress);
+  return api;
+}
+```
+
+## Project structure
+
+A typical Midnight dApp project looks like this:
+
+```
+my-midnight-dapp/
+├── src/
+│   ├── providers.ts       # Provider configuration
+│   ├── contracts/         # Your Compact contracts
+│   │   └── MyContract.compact
+│   ├── managed/           # Compiled contract output
+│   │   └── MyContract.ts
+│   └── app.tsx            # Application entry point
+├── package.json
+└── tsconfig.json
+```
+
+## What the providers do
+
+| Provider | Purpose |
+|----------|---------|
+| `privateStateProvider` | Stores private state locally using LevelDB |
+| `zkConfigProvider` | Fetches zero-knowledge circuit configurations |
+| `proofProvider` | Generates ZK proofs via HTTP prover service |
+| `publicDataProvider` | Queries public blockchain data from the indexer |
+| `walletProvider` | Signs and balances transactions via Lace wallet |
+| `midnightProvider` | Submits transactions to the Midnight Network |
+
+## Troubleshooting
+
+### Wallet not detected
+
+If you see "Please install Lace Beta Wallet":
+
+1. Verify the Lace Beta extension is installed in your browser
+2. Refresh the page after installation
+3. Ensure the wallet is unlocked and connected to Midnight testnet
+
+### Transaction failures
+
+Common causes of transaction failures:
+
+- **Insufficient funds**: Ensure your wallet has testnet tokens
+- **Network issues**: Check that the prover and indexer services are reachable
+- **Contract errors**: Review your contract logic and input parameters
+
+### Provider connection errors
+
+If providers fail to connect:
+
+1. Check that `wallet.serviceUriConfig()` returns valid URIs
+2. Verify your internet connection
+3. Ensure the Midnight testnet services are operational
+
+## Next steps
+
+- [Wallet Integration](/docs/midnight/midnight-setup/wallet) - Deep dive into Lace wallet features
+- [API Reference](/docs/midnight/midnight-setup/api) - Complete method documentation
+- [Examples](/docs/midnight/midnight-setup/examples) - Full working code samples
+
+## Related resources
+
+- [Midnight Network Documentation](https://docs.midnight.network/)
+- [GitHub Repository](https://github.com/MeshJS/midnight-setup)
+- [Lace Beta Wallet](https://chromewebstore.google.com/detail/lace-midnight-preview/hgeekaiplokcnmakghbdfbgnlfheichg)

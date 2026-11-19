@@ -1,0 +1,10 @@
+type: object
+properties:
+  json_value:
+    type: object
+    additionalProperties: true
+    description: JSON content of the datum
+required:
+  - json_value
+example:
+  json_value: { "int": 42 }

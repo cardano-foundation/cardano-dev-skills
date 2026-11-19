@@ -1,0 +1,33 @@
+type: array
+items:
+  type: object
+  properties:
+    time:
+      type: integer
+      description: Starting time of the call count interval (ends midnight UTC) in UNIX time
+    calls:
+      type: integer
+      description: Sum of all calls for a particular day and endpoint
+    endpoint:
+      type: string
+      description: Endpoint parent name
+  required:
+    - time
+    - calls
+    - endpoint
+example:
+  - time: 1612543814
+    calls: 182
+    endpoint: "block"
+  - time: 1612543814
+    calls: 42
+    endpoint: "epoch"
+  - time: 1612543812
+    calls: 775
+    endpoint: "block"
+  - time: 1612523884
+    calls: 4
+    endpoint: "epoch"
+  - time: 1612553884
+    calls: 89794
+    endpoint: "block"

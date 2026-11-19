@@ -1,0 +1,108 @@
+---
+title: "llms.txt"
+description: "AI-friendly documentation file for code editors like Cursor, Windsurf, and other AI tools"
+---
+import Link from "fumadocs-core/link";
+
+Mesh provides an `llms.txt` file that contains all documentation and code examples in a standardized, AI-friendly format. You can plug this file into any AI code editor to get instant access to up-to-date Mesh documentation.
+
+## Overview
+
+The `llms.txt` file follows an [emerging standard](https://llmstxt.org/) for providing documentation to large language models. It contains:
+
+- Complete API reference for all Mesh packages
+- Working code examples with imports
+- Common patterns and best practices
+- Troubleshooting guides
+
+Because the file uses standardized markdown formatting, AI tools can parse and index it consistently across different platforms.
+
+## Use Cases
+
+- **Cursor** - Add as a doc source for context-aware code completion
+- **Windsurf** - Reference in conversations for accurate Mesh code generation
+- **ChatGPT/Claude** - Upload as context for Mesh-specific questions
+- **Custom AI pipelines** - Parse programmatically for RAG systems
+
+## Quick Start
+
+### Cursor
+
+1. Open Cursor settings
+2. Navigate to **Features** > **Docs**
+3. Click **Add new doc**
+4. Paste: `https://meshjs.dev/llms.txt`
+5. Click **Add**
+
+Once indexed, reference Mesh docs in any chat by typing `@Docs` and selecting the Mesh documentation.
+
+### Windsurf
+
+1. In a Windsurf chat, type: `@https://meshjs.dev/llms.txt`
+2. The AI now has full Mesh context for your conversation
+
+### ChatGPT or Claude
+
+1. Download the file: <Link href="/llms.txt">meshjs.dev/llms.txt</Link>
+2. Upload to your conversation as a file attachment
+3. Ask questions about Mesh SDK
+
+### Programmatic Access
+
+```typescript
+import { fetch } from "undici";
+
+async function getMeshDocs(): Promise<string> {
+  const response = await fetch("https://meshjs.dev/llms.txt");
+  return response.text();
+}
+```
+
+## File Location
+
+Access the file directly at: <Link href="/llms.txt">meshjs.dev/llms.txt</Link>
+
+## Benefits Over Traditional Docs
+
+| Traditional Documentation | llms.txt |
+|---------------------------|----------|
+| Requires manual searching | AI searches contextually |
+| May be outdated in AI training data | Always current |
+| Split across multiple pages | Single, complete file |
+| Formatted for humans only | Optimized for both humans and AI |
+
+## How to Use in Your Projects
+
+Once you add `llms.txt` to your AI tool, you can ask questions like:
+
+- "How do I build a transaction that sends 5 ADA using Mesh?"
+- "Show me how to connect a browser wallet with CIP-30"
+- "Generate a minting transaction for an NFT collection"
+- "What's the correct order of methods for MeshTxBuilder?"
+
+The AI responds with accurate, up-to-date code based on the latest Mesh documentation.
+
+## Troubleshooting
+
+### File not indexing in Cursor
+
+- Verify the URL is correct: `https://meshjs.dev/llms.txt`
+- Check your internet connection
+- Try removing and re-adding the doc source
+- Restart Cursor after adding
+
+### AI gives outdated information
+
+- Re-index the documentation in your AI tool's settings
+- The `llms.txt` file updates with each Mesh release
+
+### File is too large for upload
+
+- Some AI tools have file size limits
+- Use the MCP server instead for real-time access: [MCP Setup](/docs/ai/mcp)
+
+## Related Resources
+
+- [MCP Server](/docs/ai/mcp) - Real-time AI integration for VS Code, Cursor, and Claude Desktop
+- [Agent Skills](/docs/ai/skills) - Deep Mesh knowledge for AI coding assistants
+- [MeshAI Chatbot](/docs/ai/chatbot) - Browser-based AI assistant

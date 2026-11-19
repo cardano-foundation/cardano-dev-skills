@@ -1,0 +1,517 @@
+---
+title: "Mesh Data Builders"
+description: "Build Cardano data structures with simple JavaScript primitives"
+---
+
+Use Mesh data utilities to construct Cardano data with minimal boilerplate. These functions use native JavaScript types with thin wrappers for constructors and booleans.
+
+## Overview
+
+Mesh data utilities provide:
+
+- Simple, JavaScript-native syntax
+- Minimal wrapper overhead
+- Direct use of primitives (numbers, strings, arrays, maps)
+- Quick prototyping and development
+
+The `m` prefix distinguishes Mesh data functions from JSON data functions.
+
+## Quick Start
+
+```tsx
+import { mConStr0, mBool } from "@meshsdk/core";
+
+// Build a simple datum using native types
+const datum = mConStr0([
+  "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6", // string as ByteString
+  1000000n, // bigint as Integer
+]);
+
+// Use in a transaction
+const txBuilder = new MeshTxBuilder();
+await txBuilder
+  .txOut(scriptAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .txOutInlineDatumValue(datum, "Mesh")
+  .complete();
+```
+
+---
+
+## Type Mappings
+
+Mesh data uses native JavaScript types:
+
+| Cardano Type | Mesh Data Representation |
+|--------------|--------------------------|
+| Integer | `number` or `bigint` |
+| ByteString | `string` (hex) |
+| List | `Array` |
+| Map | `Map` |
+| Constructor | `MConstr` object |
+| Boolean | `MBool` object |
+
+---
+
+## Constructor Utilities
+
+Build Plutus constructor data types.
+
+### mConStr
+
+Create a constructor with a specific index.
+
+#### Function Signature
+
+```tsx
+mConStr(alternative: number, fields: any[]): MConstr
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `alternative` | `number` | Yes | The constructor index (0, 1, 2, etc.) |
+| `fields` | `any[]` | Yes | Array of fields for the constructor |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `MConstr` | Object with `alternative` and `fields` properties |
+
+#### Example
+
+```tsx
+import { mConStr } from "@meshsdk/core";
+
+// Create a constructor with index 0
+const lockDatum = mConStr(0, [
+  "owner-pub-key-hash",
+  1704067200000n,
+]);
+
+// Create a constructor with index 1
+const unlockRedeemer = mConStr(1, []);
+
+// Result structure: { alternative: 0, fields: [...] }
+```
+
+### mConStr0, mConStr1, mConStr2
+
+Shorthand functions for common constructor indices.
+
+#### Function Signatures
+
+```tsx
+mConStr0(fields: any[]): MConStr  // constructor index 0
+mConStr1(fields: any[]): MConStr  // constructor index 1
+mConStr2(fields: any[]): MConStr  // constructor index 2
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fields` | `any[]` | Yes | Array of fields for the constructor |
+
+#### Example
+
+```tsx
+import { mConStr0, mConStr1 } from "@meshsdk/core";
+
+// Common pattern: mConStr0 for "success", mConStr1 for "failure"
+const successResult = mConStr0(["data-hash", 1000000n]);
+const failureResult = mConStr1(["error-message"]);
+
+// Enum-like usage for redeemers
+const mintRedeemer = mConStr0([]);
+const burnRedeemer = mConStr1([]);
+const updateRedeemer = mConStr2(["new-value"]);
+```
+
+---
+
+## Boolean Utility
+
+### mBool
+
+Create a boolean value in Mesh data format.
+
+#### Function Signature
+
+```tsx
+mBool(b: boolean): MBool
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `b` | `boolean` | Yes | The boolean value |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `MBool` | Constructor representing true (index 1) or false (index 0) |
+
+#### Example
+
+```tsx
+import { mBool } from "@meshsdk/core";
+
+const isActive = mBool(true);   // { alternative: 1, fields: [] }
+const isComplete = mBool(false); // { alternative: 0, fields: [] }
+```
+
+---
+
+## Using Native Types
+
+### Integers
+
+Use `number` for small values and `bigint` for precision:
+
+```tsx
+import { mConStr0 } from "@meshsdk/core";
+
+// Small integers can use number
+const smallAmount = mConStr0([100]);
+
+// Large integers should use bigint
+const largeAmount = mConStr0([1000000000000000000n]);
+
+// Always use bigint for ADA amounts (lovelace)
+const adaAmount = 5000000n; // 5 ADA
+```
+
+### Byte Strings
+
+Use hex-encoded strings:
+
+```tsx
+import { mConStr0 } from "@meshsdk/core";
+
+// Key hashes
+const ownerKeyHash = "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6";
+
+// Policy IDs
+const policyId = "426117329844ccb3b0ba877220ff06a5bdf21eab3fb33e2f3a3f8e69";
+
+// Asset names (hex-encoded)
+const assetName = "4d657368546f6b656e"; // "MeshToken" in hex
+
+const datum = mConStr0([ownerKeyHash, policyId, assetName]);
+```
+
+### Lists
+
+Use native JavaScript arrays:
+
+```tsx
+import { mConStr0 } from "@meshsdk/core";
+
+// List of amounts
+const amounts = [100n, 200n, 300n];
+
+// List of key hashes (signers)
+const requiredSigners = [
+  "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+  "bb048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b7",
+];
+
+// Nested structure
+const datum = mConStr0([
+  "owner",
+  amounts,
+  requiredSigners,
+]);
+```
+
+### Maps
+
+Use native JavaScript Map:
+
+```tsx
+import { mConStr0 } from "@meshsdk/core";
+
+// Token balances
+const balances = new Map([
+  ["token-a", 100n],
+  ["token-b", 200n],
+]);
+
+// Nested map for multi-asset value
+const value = new Map([
+  ["", new Map([["", 5000000n]])], // ADA
+  [
+    "426117329844ccb3b0ba877220ff06a5bdf21eab3fb33e2f3a3f8e69",
+    new Map([["4d657368546f6b656e", 100n]]),
+  ],
+]);
+
+const datum = mConStr0([balances]);
+```
+
+---
+
+## Address Utilities
+
+### mPubKeyAddress
+
+Create a public key address in Mesh data format.
+
+#### Function Signature
+
+```tsx
+mPubKeyAddress(pubKeyHash: string, stakeCredential?: string): MPubKeyAddress
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pubKeyHash` | `string` | Yes | The payment key hash (56 hex characters) |
+| `stakeCredential` | `string` | No | Optional stake credential hash |
+
+#### Example
+
+```tsx
+import { mPubKeyAddress } from "@meshsdk/core";
+
+// Enterprise address
+const addr1 = mPubKeyAddress("aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6");
+
+// Base address with stake
+const addr2 = mPubKeyAddress(
+  "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+  "9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6"
+);
+```
+
+### mScriptAddress
+
+Create a script address in Mesh data format.
+
+#### Function Signature
+
+```tsx
+mScriptAddress(scriptHash: string, stakeCredential?: string): MScriptAddress
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `scriptHash` | `string` | Yes | The script hash (56 hex characters) |
+| `stakeCredential` | `string` | No | Optional stake credential hash |
+
+#### Example
+
+```tsx
+import { mScriptAddress } from "@meshsdk/core";
+
+const contractAddr = mScriptAddress(
+  "5867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f"
+);
+```
+
+---
+
+## Reference Utilities
+
+### mOutputReference / mTxOutRef
+
+Create transaction output references.
+
+```tsx
+import { mOutputReference, mTxOutRef } from "@meshsdk/core";
+
+const utxoRef = mOutputReference(
+  "a0bd47e8938e7c41d4c1d7c22033892319d28f86fdace791d45c51946553791b",
+  0
+);
+
+// Alias
+const ref = mTxOutRef(
+  "a0bd47e8938e7c41d4c1d7c22033892319d28f86fdace791d45c51946553791b",
+  0
+);
+```
+
+### mAssetClass
+
+Create an asset class identifier.
+
+```tsx
+import { mAssetClass } from "@meshsdk/core";
+
+// ADA
+const ada = mAssetClass("", "");
+
+// Native token
+const token = mAssetClass(
+  "426117329844ccb3b0ba877220ff06a5bdf21eab3fb33e2f3a3f8e69",
+  "4d657368546f6b656e"
+);
+```
+
+---
+
+## Other Utilities
+
+### mTuple
+
+Create a tuple (pair) of values.
+
+```tsx
+import { mTuple } from "@meshsdk/core";
+
+const pair = mTuple("key-hash", 1000000n);
+```
+
+### mMaybeStakingHash
+
+Create an optional staking hash.
+
+```tsx
+import { mMaybeStakingHash } from "@meshsdk/core";
+
+const withStake = mMaybeStakingHash("9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6");
+const noStake = mMaybeStakingHash(null);
+```
+
+---
+
+## Complete Example
+
+This example shows building datum and redeemer for a vesting contract:
+
+```tsx
+import {
+  mConStr0,
+  mConStr1,
+  mPubKeyAddress,
+  mBool,
+  MeshTxBuilder,
+} from "@meshsdk/core";
+
+// Build the vesting datum
+const vestingDatum = mConStr0([
+  // Beneficiary address
+  mPubKeyAddress(
+    "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+    "9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6"
+  ),
+  // Deadline (POSIX time)
+  1704067200000n,
+  // Amount in lovelace
+  50000000n,
+]);
+
+// Build the claim redeemer
+const claimRedeemer = mConStr0([]);
+
+// Build with nested structures
+const complexDatum = mConStr0([
+  "owner-hash",
+  1704067200000n,
+  // List of allowed signers
+  [
+    "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+    "bb048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b7",
+  ],
+  // Token amounts map
+  new Map([
+    ["token-a", 100n],
+    ["token-b", 200n],
+  ]),
+  // Is active flag
+  mBool(true),
+]);
+
+// Use in transaction
+const txBuilder = new MeshTxBuilder();
+
+await txBuilder
+  .spendingPlutusScript("V2")
+  .txIn(utxo.txHash, utxo.outputIndex)
+  .txInScript(vestingScriptCbor)
+  .txInDatumValue(vestingDatum, "Mesh")
+  .txInRedeemerValue(claimRedeemer, "Mesh")
+  .txOut(beneficiaryAddress, [{ unit: "lovelace", quantity: "50000000" }])
+  .invalidBefore(1704067200)
+  .changeAddress(beneficiaryAddress)
+  .selectUtxosFrom(beneficiaryUtxos)
+  .complete();
+```
+
+---
+
+## Comparison with JSON Data
+
+| Feature | Mesh Data | JSON Data |
+|---------|-----------|-----------|
+| Syntax | Minimal | Verbose |
+| Validation | None | Automatic |
+| Integer | `1000000n` | `integer(1000000)` |
+| ByteString | `"aa048..."` | `byteString("aa048...")` |
+| List | `[1n, 2n]` | `list([integer(1), integer(2)])` |
+| Constructor | `mConStr0([...])` | `conStr0([...])` |
+
+Choose Mesh data for:
+- Quick prototyping
+- Simple scripts
+- Minimal code
+
+Choose JSON data for:
+- Production applications
+- Complex validations
+- Type safety
+
+---
+
+## Troubleshooting
+
+### BigInt serialization issues
+
+Ensure you use `bigint` (with `n` suffix) for large numbers:
+
+```tsx
+// Correct
+const amount = 1000000000000000000n;
+
+// Incorrect - may lose precision
+const amount = 1000000000000000000;
+```
+
+### String vs ByteString confusion
+
+Hex strings in Mesh data are treated as byte strings. For text, convert to hex first:
+
+```tsx
+// Convert text to hex
+const textToHex = (text: string) => Buffer.from(text).toString("hex");
+
+const assetName = textToHex("MeshToken"); // "4d657368546f6b656e"
+```
+
+### Constructor index mismatch
+
+Ensure constructor indices match your Plutus/Aiken type definitions:
+
+```tsx
+// Aiken enum: type Action { Mint, Burn, Update }
+const mintAction = mConStr0([]);   // Index 0 = Mint
+const burnAction = mConStr1([]);   // Index 1 = Burn
+const updateAction = mConStr2([]); // Index 2 = Update
+```
+
+---
+
+## Related
+
+- [JSON Data](/apis/data/json) - Data with validation
+- [Data Overview](/apis/data/overview) - Compare data formats
+- [Value](/apis/data/value) - Work with multi-asset values
+- [Transaction Builder](/apis/txbuilder) - Use data in transactions

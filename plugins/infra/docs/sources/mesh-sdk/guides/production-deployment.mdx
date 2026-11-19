@@ -1,0 +1,434 @@
+---
+title: "Deploy Cardano dApps to Production"
+description: "Security best practices, deployment checklists, and error handling for production Cardano dApps with Mesh SDK."
+---
+
+import Link from "fumadocs-core/link";
+import { HowToSchema } from "@/components/seo";
+
+<HowToSchema
+  name="Deploy Cardano dApps to Production"
+  description="Comprehensive checklist for deploying secure, reliable Cardano dApps to production environments."
+  totalTime="PT90M"
+  steps={[
+    { name: "Secure private keys", text: "Use browser wallets for users, isolate server-side signing." },
+    { name: "Validate transactions", text: "Check amounts, addresses, and metadata before building." },
+    { name: "Configure providers", text: "Set up primary and fallback providers with health checks." },
+    { name: "Implement error handling", text: "Handle failures gracefully with user-friendly messages." },
+    { name: "Set up monitoring", text: "Track transaction metrics and infrastructure health." }
+  ]}
+/>
+
+## Overview
+
+Deploying Cardano dApps to production requires attention to security, reliability, and user experience. This guide covers essential practices for enterprise-grade deployments.
+
+### What you will learn
+
+- Private key management best practices
+- Transaction validation patterns
+- Provider configuration and failover
+- Error handling strategies
+- Monitoring and alerting setup
+
+### Prerequisites
+
+- A working Cardano dApp (see <Link href="/guides/nextjs">Next.js guide</Link>)
+- Basic understanding of deployment environments
+- Access to production infrastructure
+
+### Time to complete
+
+90 minutes to review and implement
+
+## Security Best Practices
+
+### Private Key Management
+
+**Never expose private keys in client-side code.** For production applications:
+
+**Browser wallets for users:**
+
+Let users manage their own keys through wallet extensions. The `MeshCardanoBrowserWallet` class handles CIP-30 wallet connections without your application touching private keys:
+
+```typescript
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+// User controls their own keys
+const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+const signedTx = await wallet.signTx(unsignedTx, false);
+```
+
+**Server-side signing:**
+
+When your application must sign transactions (automated systems, treasury):
+
+```typescript
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+
+// Store mnemonic in environment variables or secret manager
+const mnemonic = process.env.TREASURY_MNEMONIC;
+
+// Never log or expose the mnemonic
+const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+  networkId: 1,
+  walletAddressType: AddressType.Base,
+  fetcher: provider,
+  submitter: provider,
+  mnemonic: mnemonic.split(" "),
+});
+```
+
+**Security checklist:**
+
+- [ ] Use environment variables for credentials
+- [ ] Run signing services in isolated network segments
+- [ ] Implement audit logging for all signing operations
+- [ ] Consider hardware security modules (HSMs) for high-value operations
+- [ ] Rotate keys periodically
+
+### Transaction Validation
+
+Validate all parameters before building transactions:
+
+```typescript
+function validateTransaction(params: {
+  recipient: string;
+  amount: string;
+}) {
+  // Check amount is positive and within bounds
+  const lovelace = BigInt(params.amount);
+  if (lovelace <= 0n) {
+    throw new Error("Amount must be positive");
+  }
+  if (lovelace > 45_000_000_000_000_000n) {
+    throw new Error("Amount exceeds maximum supply");
+  }
+
+  // Validate address format
+  if (!params.recipient.startsWith("addr")) {
+    throw new Error("Invalid Cardano address");
+  }
+
+  // Check minimum UTxO requirement
+  if (lovelace < 1_000_000n) {
+    throw new Error("Amount below minimum UTxO");
+  }
+}
+```
+
+### API Key Protection
+
+Never expose provider API keys in client-side code:
+
+```typescript
+// BAD: Key exposed in browser bundle
+const provider = new BlockfrostProvider("proj_live_abc123");
+
+// GOOD: Proxy through your backend
+const response = await fetch("/api/blockchain/utxos", {
+  method: "POST",
+  body: JSON.stringify({ address }),
+});
+```
+
+**API route example:**
+
+```typescript
+// app/api/blockchain/utxos/route.ts
+import { BlockfrostProvider } from "@meshsdk/core";
+
+const provider = new BlockfrostProvider(process.env.BLOCKFROST_KEY!);
+
+export async function POST(request: Request) {
+  const { address } = await request.json();
+  const utxos = await provider.fetchAddressUTxOs(address);
+  return Response.json(utxos);
+}
+```
+
+## Deployment Checklist
+
+### Pre-Launch Infrastructure
+
+| Task | Status |
+|------|--------|
+| Provider API keys stored securely (not in client bundle) | [ ] |
+| Backend proxy configured for blockchain queries | [ ] |
+| Rate limiting implemented on API endpoints | [ ] |
+| Error monitoring and alerting configured | [ ] |
+| Load testing completed for expected traffic | [ ] |
+
+### Smart Contracts
+
+| Task | Status |
+|------|--------|
+| Contracts audited by independent party | [ ] |
+| Testnet deployment validated thoroughly | [ ] |
+| Contract addresses verified on mainnet | [ ] |
+| Reference scripts deployed if used | [ ] |
+| Monitoring configured for contract interactions | [ ] |
+
+### Application
+
+| Task | Status |
+|------|--------|
+| Console.log statements removed from production build | [ ] |
+| Source maps disabled or properly secured | [ ] |
+| CSP headers configured appropriately | [ ] |
+| HTTPS enforced with valid certificates | [ ] |
+| Input validation comprehensive | [ ] |
+
+## Provider Configuration
+
+### Provider Selection
+
+For production applications, consider:
+
+| Provider | Strength | Consideration |
+|----------|----------|---------------|
+| Blockfrost | Reliability, documentation | Rate limits on free tier |
+| Koios | Free tier, decentralized | Self-hosted option available |
+| Maestro | Rich data, marketplace support | Enterprise pricing |
+| Self-hosted Ogmios | Full control, no rate limits | Infrastructure overhead |
+
+### Provider Failover
+
+Implement automatic failover when providers fail:
+
+```typescript
+class ResilientProvider implements IFetcher {
+  private providers: IFetcher[];
+  private currentIndex = 0;
+
+  constructor(providers: IFetcher[]) {
+    this.providers = providers;
+  }
+
+  async fetchAddressUTxOs(address: string, asset?: string) {
+    for (let attempt = 0; attempt < this.providers.length; attempt++) {
+      try {
+        const index = (this.currentIndex + attempt) % this.providers.length;
+        return await this.providers[index].fetchAddressUTxOs(address, asset);
+      } catch (error) {
+        console.warn(`Provider ${attempt} failed, trying next`);
+      }
+    }
+    throw new Error("All providers failed");
+  }
+
+  // Implement other IFetcher methods similarly
+}
+
+// Usage
+const provider = new ResilientProvider([
+  new BlockfrostProvider(process.env.BLOCKFROST_KEY!),
+  new KoiosProvider("mainnet"),
+]);
+```
+
+### Network Selection
+
+| Network | Use Case |
+|---------|----------|
+| Preview | Testing new features, unstable |
+| Preprod | Production-like testing, staging |
+| Mainnet | Production deployment |
+
+## Error Handling
+
+### Transaction Failures
+
+Handle failures gracefully with user-friendly messages:
+
+```typescript
+async function submitTransaction(unsignedTx: string) {
+  try {
+    const signedTx = await wallet.signTx(unsignedTx);
+    const txHash = await wallet.submitTx(signedTx);
+    return { success: true, txHash };
+  } catch (error: any) {
+    // Parse and categorize errors
+    if (error.message.includes("INSUFFICIENT_FUNDS")) {
+      return {
+        success: false,
+        error: "Insufficient funds. Please add more ADA to your wallet.",
+      };
+    }
+
+    if (error.message.includes("UTXO_ALREADY_SPENT")) {
+      return {
+        success: false,
+        error: "Transaction conflict. Please try again.",
+      };
+    }
+
+    if (error.message.includes("User rejected")) {
+      return {
+        success: false,
+        error: "Transaction cancelled.",
+      };
+    }
+
+    // Log technical details for debugging
+    console.error("Transaction failed:", error);
+
+    return {
+      success: false,
+      error: "Transaction failed. Please try again later.",
+    };
+  }
+}
+```
+
+### UTxO Contention
+
+In high-traffic applications, UTxOs may be spent between query and submission:
+
+```typescript
+async function buildWithRetry(
+  buildFn: () => Promise<string>,
+  maxRetries = 3
+) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await buildFn();
+    } catch (error: any) {
+      if (
+        error.message.includes("UTXO_ALREADY_SPENT") &&
+        attempt < maxRetries - 1
+      ) {
+        // Wait briefly and retry with fresh UTxOs
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+```
+
+## Performance Optimization
+
+### Bundle Size
+
+Minimize client bundle size:
+
+```typescript
+// Import specific functions instead of entire package
+import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";
+
+// Use dynamic imports for wallet-specific features
+const ConnectWallet = dynamic(() => import("./ConnectWallet"), {
+  ssr: false,
+});
+```
+
+### Caching
+
+Reduce redundant blockchain queries:
+
+```typescript
+class CachedProvider implements IFetcher {
+  private provider: IFetcher;
+  private cache = new Map<string, { data: any; expiry: number }>();
+
+  constructor(provider: IFetcher) {
+    this.provider = provider;
+  }
+
+  async fetchProtocolParameters(epoch?: number) {
+    const cacheKey = `protocol-${epoch || "current"}`;
+    const cached = this.cache.get(cacheKey);
+
+    if (cached && cached.expiry > Date.now()) {
+      return cached.data;
+    }
+
+    const data = await this.provider.fetchProtocolParameters(epoch);
+
+    // Cache for 1 hour (protocol params rarely change)
+    this.cache.set(cacheKey, {
+      data,
+      expiry: Date.now() + 3600000,
+    });
+
+    return data;
+  }
+
+  // Implement other methods with appropriate cache TTLs
+}
+```
+
+## Monitoring
+
+### Key Metrics
+
+Track these metrics for production dApps:
+
+**Transaction metrics:**
+- Submission success rate
+- Average confirmation time
+- Failed transaction breakdown by error type
+- Transaction fee distribution
+
+**User metrics:**
+- Wallet connection success rate
+- Transaction abandonment rate
+- Error frequency by type
+
+**Infrastructure metrics:**
+- Provider response times
+- API endpoint latency
+- Error rates by endpoint
+
+### Alerting
+
+Configure alerts for:
+
+- Sustained transaction failure rates above 5%
+- Provider connectivity issues lasting > 1 minute
+- Smart contract interaction anomalies
+- Unusual transaction patterns
+
+## Next Steps
+
+- <Link href="/providers">Configure providers</Link> for your deployment
+- <Link href="/guides/aiken">Review smart contract security</Link>
+- <Link href="https://discord.gg/dH48jH3BKa">Join the community</Link> for support
+
+## Troubleshooting
+
+### Transactions timing out
+
+**Cause:** Network congestion or provider issues.
+
+**Solution:** Implement longer timeouts and retry logic. Consider using multiple providers for redundancy.
+
+### Wallet connection failing in production
+
+**Cause:** CSP headers blocking wallet extension communication.
+
+**Solution:** Configure Content Security Policy to allow wallet connections:
+
+```javascript
+// next.config.js
+const securityHeaders = [
+  {
+    key: "Content-Security-Policy",
+    value: "default-src 'self'; script-src 'self' 'unsafe-eval';",
+  },
+];
+```
+
+### Rate limiting errors
+
+**Cause:** Exceeding provider API limits.
+
+**Solution:** Implement request queuing, caching, or upgrade to a higher tier. Consider self-hosted options for high-traffic applications.
+
+## Related Links
+
+- <Link href="/providers">Blockchain Providers</Link>
+- <Link href="/guides/aiken">Smart Contract Security</Link>
+- <Link href="https://discord.gg/dH48jH3BKa">Mesh Discord Community</Link>

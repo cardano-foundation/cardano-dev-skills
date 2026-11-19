@@ -1,0 +1,31 @@
+---
+title: Node-to-Client
+sidebar:
+  label: N2C
+  order: 2
+---
+
+The Node-to-Client (N2C) source connects to a **local** Cardano node over a unix socket,
+using the Ouroboros ChainSync mini-protocol in "full blocks" mode. Because it talks to the
+node directly over a socket, it's the lowest-overhead option when you run the node yourself.
+
+## Configuration
+
+```toml title="daemon.toml"
+[source]
+type = "N2C"
+socket_path = "<socket location>"
+```
+
+- `type` (required): the literal value `N2C`.
+- `socket_path` (required): the path to the node's unix socket file.
+
+## Examples
+
+Connecting to a local Cardano node over its unix socket:
+
+```toml title="daemon.toml"
+[source]
+type = "N2C"
+socket_path = "/opt/cardano/cnode/sockets/node0.socket"
+```

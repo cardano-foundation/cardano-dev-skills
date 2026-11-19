@@ -1,0 +1,55 @@
+---
+title: AWS SQS
+sidebar:
+  order: 40
+---
+
+Sends each event as a json-encoded message to an [AWS SQS](https://aws.amazon.com/sqs/) queue.
+The sink submits a `SendMessage` request per event and waits for the queue to acknowledge it
+before moving on. It supports both Standard and FIFO queues — see the trade-off below.
+
+:::note
+Authentication uses the standard AWS provider chain — no credentials go in the config. See
+[AWS credentials](/oura/v2/sinks/#aws-credentials) for the supported options.
+:::
+
+## Configuration
+
+```toml title="daemon.toml"
+[sink]
+type = "AwsSqs"
+region = "us-west-2"
+queue_url = "https://sqs.us-west-2.amazonaws.com/xxxxxx/my-queue.fifo"
+group_id = "my_group"
+```
+
+- `type` (required): the literal value `AwsSqs`.
+- `region` (required): the AWS region where the queue lives.
+- `queue_url` (required): the queue URL provided by AWS (not the ARN).
+- `group_id` (optional, default = `oura-sink`): the message group id used for FIFO queues.
+
+For a FIFO queue, also enable **content-based deduplication** on the queue itself.
+
+## FIFO vs Standard queues
+
+Oura processes events in chain order, preserving the sequence of blocks and the order of
+transactions within each block.
+
+- A **FIFO** queue carries that ordering guarantee through to your consumer — the events come
+  out in the same order they appeared on chain. This matters when processing one event depends
+  on the state left by an earlier one.
+- A **Standard** queue offers "at least once" delivery without strict ordering. If each event
+  can be processed in isolation, or your processing is idempotent, a Standard queue relaxes
+  the constraints and gives you better throughput.
+
+:::note
+Rollbacks can still happen upstream at the chain level, and your consumer needs to unwind the
+side-effects of orphaned blocks. The [rollback buffer](/oura/v2/filters/rollback_buffer)
+filter mitigates this by only forwarding blocks once they're sufficiently deep.
+:::
+
+:::caution[256 KB payload limit]
+SQS caps messages at 256 KB. That's plenty for individual events, but may be too small if your
+pipeline enables `include_cbor_hex`. If you need the raw CBOR, use the
+[AWS S3 sink](/oura/v2/sinks/aws_s3) instead, which stores CBOR blocks directly in a bucket.
+:::

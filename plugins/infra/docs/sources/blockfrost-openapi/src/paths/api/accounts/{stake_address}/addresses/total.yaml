@@ -1,0 +1,34 @@
+get:
+  tags:
+    - Cardano » Accounts
+  summary: Detailed information about account associated addresses
+  description: |
+    Obtain summed details about all addresses associated with a given account.
+    <b>Be careful</b>, as an account could be part of a mangled address and does not necessarily mean the addresses are owned by user as the account.
+  parameters:
+    - in: path
+      name: stake_address
+      required: true
+      schema:
+        type: string
+      description: Bech32 address.
+      example: "addr1qxqs59lphg8g6qndelq8xwqn60ag3aeyfcp33c2kdp46a09re5df3pzwwmyq946axfcejy5n4x0y99wqpgtp2gd0k09qsgy6pz"
+  responses:
+    "200":
+      description: Return the Address details.
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../../schemas/accounts/account_addresses_total.yaml
+    "400":
+      $ref: "../../../../../responses/errors/400.yaml"
+    "403":
+      $ref: "../../../../../responses/errors/403.yaml"
+    "404":
+      $ref: "../../../../../responses/errors/404.yaml"
+    "429":
+      $ref: "../../../../../responses/errors/429.yaml"
+    "418":
+      $ref: "../../../../../responses/errors/418.yaml"
+    "500":
+      $ref: "../../../../../responses/errors/500.yaml"

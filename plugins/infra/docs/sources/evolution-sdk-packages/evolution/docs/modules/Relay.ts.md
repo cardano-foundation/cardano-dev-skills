@@ -1,0 +1,399 @@
+---
+title: Relay.ts
+nav_order: 111
+parent: Modules
+---
+
+## Relay overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [FastCheck](#fastcheck)
+  - [arbitrary](#arbitrary)
+- [constructors](#constructors)
+  - [fromMultiHostName](#frommultihostname)
+  - [fromSingleHostAddr](#fromsinglehostaddr)
+  - [fromSingleHostName](#fromsinglehostname)
+- [encoding](#encoding)
+  - [toCBORBytes](#tocborbytes)
+  - [toCBORHex](#tocborhex)
+- [model](#model)
+  - [Relay (type alias)](#relay-type-alias)
+- [parsing](#parsing)
+  - [fromCBORBytes](#fromcborbytes)
+  - [fromCBORHex](#fromcborhex)
+- [predicates](#predicates)
+  - [isMultiHostName](#ismultihostname)
+  - [isSingleHostAddr](#issinglehostaddr)
+  - [isSingleHostName](#issinglehostname)
+- [schemas](#schemas)
+  - [FromCBORBytes](#fromcborbytes-1)
+  - [FromCBORHex](#fromcborhex-1)
+  - [Relay](#relay)
+- [transformation](#transformation)
+  - [match](#match)
+- [utils](#utils)
+  - [FromCDDL](#fromcddl)
+
+---
+
+# FastCheck
+
+## arbitrary
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<
+  SingleHostAddr.SingleHostAddr | SingleHostName.SingleHostName | MultiHostName.MultiHostName
+>
+```
+
+Added in v2.0.0
+
+# constructors
+
+## fromMultiHostName
+
+Create a Relay from a MultiHostName.
+
+**Signature**
+
+```ts
+export declare const fromMultiHostName: (multiHostName: MultiHostName.MultiHostName) => Relay
+```
+
+Added in v2.0.0
+
+## fromSingleHostAddr
+
+Create a Relay from a SingleHostAddr.
+
+**Signature**
+
+```ts
+export declare const fromSingleHostAddr: (singleHostAddr: SingleHostAddr.SingleHostAddr) => Relay
+```
+
+Added in v2.0.0
+
+## fromSingleHostName
+
+Create a Relay from a SingleHostName.
+
+**Signature**
+
+```ts
+export declare const fromSingleHostName: (singleHostName: SingleHostName.SingleHostName) => Relay
+```
+
+Added in v2.0.0
+
+# encoding
+
+## toCBORBytes
+
+Convert Relay to CBOR bytes.
+
+**Signature**
+
+```ts
+export declare const toCBORBytes: (data: Relay, options?: CBOR.CodecOptions) => any
+```
+
+Added in v2.0.0
+
+## toCBORHex
+
+Convert Relay to CBOR hex.
+
+**Signature**
+
+```ts
+export declare const toCBORHex: (data: Relay, options?: CBOR.CodecOptions) => string
+```
+
+Added in v2.0.0
+
+# model
+
+## Relay (type alias)
+
+Type alias for Relay.
+
+**Signature**
+
+```ts
+export type Relay = typeof Relay.Type
+```
+
+Added in v2.0.0
+
+# parsing
+
+## fromCBORBytes
+
+Parse Relay from CBOR bytes.
+
+**Signature**
+
+```ts
+export declare const fromCBORBytes: (
+  bytes: Uint8Array,
+  options?: CBOR.CodecOptions
+) => SingleHostAddr.SingleHostAddr | SingleHostName.SingleHostName | MultiHostName.MultiHostName
+```
+
+Added in v2.0.0
+
+## fromCBORHex
+
+Parse Relay from CBOR hex.
+
+**Signature**
+
+```ts
+export declare const fromCBORHex: (
+  hex: string,
+  options?: CBOR.CodecOptions
+) => SingleHostAddr.SingleHostAddr | SingleHostName.SingleHostName | MultiHostName.MultiHostName
+```
+
+Added in v2.0.0
+
+# predicates
+
+## isMultiHostName
+
+Check if a Relay is a MultiHostName.
+
+**Signature**
+
+```ts
+export declare const isMultiHostName: (relay: Relay) => relay is MultiHostName.MultiHostName
+```
+
+Added in v2.0.0
+
+## isSingleHostAddr
+
+Check if a Relay is a SingleHostAddr.
+
+**Signature**
+
+```ts
+export declare const isSingleHostAddr: (relay: Relay) => relay is SingleHostAddr.SingleHostAddr
+```
+
+Added in v2.0.0
+
+## isSingleHostName
+
+Check if a Relay is a SingleHostName.
+
+**Signature**
+
+```ts
+export declare const isSingleHostName: (relay: Relay) => relay is SingleHostName.SingleHostName
+```
+
+Added in v2.0.0
+
+# schemas
+
+## FromCBORBytes
+
+CBOR bytes transformation schema for Relay.
+For union types, we create a union of the child CBOR schemas.
+
+**Signature**
+
+```ts
+export declare const FromCBORBytes: (
+  options?: CBOR.CodecOptions
+) => Schema.Union<
+  [
+    Schema.transform<
+      Schema.transformOrFail<
+        typeof Schema.Uint8ArrayFromSelf,
+        Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+        never
+      >,
+      Schema.transformOrFail<
+        Schema.Tuple<
+          [
+            Schema.Literal<[0n]>,
+            Schema.NullOr<typeof Schema.BigIntFromSelf>,
+            Schema.NullOr<typeof Schema.Uint8ArrayFromSelf>,
+            Schema.NullOr<typeof Schema.Uint8ArrayFromSelf>
+          ]
+        >,
+        Schema.SchemaClass<SingleHostAddr.SingleHostAddr, SingleHostAddr.SingleHostAddr, never>,
+        never
+      >
+    >,
+    Schema.transform<
+      Schema.transformOrFail<
+        typeof Schema.Uint8ArrayFromSelf,
+        Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+        never
+      >,
+      Schema.transformOrFail<
+        Schema.Tuple<[Schema.Literal<[1n]>, Schema.NullOr<typeof Schema.BigIntFromSelf>, typeof Schema.String]>,
+        Schema.SchemaClass<SingleHostName.SingleHostName, SingleHostName.SingleHostName, never>,
+        never
+      >
+    >,
+    Schema.transform<
+      Schema.transformOrFail<
+        typeof Schema.Uint8ArrayFromSelf,
+        Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+        never
+      >,
+      Schema.transformOrFail<
+        Schema.Tuple2<Schema.Literal<[2n]>, typeof Schema.String>,
+        Schema.SchemaClass<MultiHostName.MultiHostName, MultiHostName.MultiHostName, never>,
+        never
+      >
+    >
+  ]
+>
+```
+
+Added in v2.0.0
+
+## FromCBORHex
+
+CBOR hex transformation schema for Relay.
+
+**Signature**
+
+```ts
+export declare const FromCBORHex: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.Schema<Uint8Array, string, never>,
+  Schema.Union<
+    [
+      Schema.transform<
+        Schema.transformOrFail<
+          typeof Schema.Uint8ArrayFromSelf,
+          Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+          never
+        >,
+        Schema.transformOrFail<
+          Schema.Tuple<
+            [
+              Schema.Literal<[0n]>,
+              Schema.NullOr<typeof Schema.BigIntFromSelf>,
+              Schema.NullOr<typeof Schema.Uint8ArrayFromSelf>,
+              Schema.NullOr<typeof Schema.Uint8ArrayFromSelf>
+            ]
+          >,
+          Schema.SchemaClass<SingleHostAddr.SingleHostAddr, SingleHostAddr.SingleHostAddr, never>,
+          never
+        >
+      >,
+      Schema.transform<
+        Schema.transformOrFail<
+          typeof Schema.Uint8ArrayFromSelf,
+          Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+          never
+        >,
+        Schema.transformOrFail<
+          Schema.Tuple<[Schema.Literal<[1n]>, Schema.NullOr<typeof Schema.BigIntFromSelf>, typeof Schema.String]>,
+          Schema.SchemaClass<SingleHostName.SingleHostName, SingleHostName.SingleHostName, never>,
+          never
+        >
+      >,
+      Schema.transform<
+        Schema.transformOrFail<
+          typeof Schema.Uint8ArrayFromSelf,
+          Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+          never
+        >,
+        Schema.transformOrFail<
+          Schema.Tuple2<Schema.Literal<[2n]>, typeof Schema.String>,
+          Schema.SchemaClass<MultiHostName.MultiHostName, MultiHostName.MultiHostName, never>,
+          never
+        >
+      >
+    ]
+  >
+>
+```
+
+Added in v2.0.0
+
+## Relay
+
+Union schema for Relay representing various relay configurations.
+relay = [ single_host_addr // single_host_name // multi_host_name ]
+
+**Signature**
+
+```ts
+export declare const Relay: Schema.Union<
+  [typeof SingleHostAddr.SingleHostAddr, typeof SingleHostName.SingleHostName, typeof MultiHostName.MultiHostName]
+>
+```
+
+Added in v2.0.0
+
+# transformation
+
+## match
+
+Pattern match on a Relay to handle different relay types.
+
+**Signature**
+
+```ts
+export declare const match: <A, B, C>(
+  relay: Relay,
+  cases: {
+    SingleHostAddr: (addr: SingleHostAddr.SingleHostAddr) => A
+    SingleHostName: (name: SingleHostName.SingleHostName) => B
+    MultiHostName: (multi: MultiHostName.MultiHostName) => C
+  }
+) => A | B | C
+```
+
+Added in v2.0.0
+
+# utils
+
+## FromCDDL
+
+**Signature**
+
+```ts
+export declare const FromCDDL: Schema.Union<
+  [
+    Schema.transformOrFail<
+      Schema.Tuple<
+        [
+          Schema.Literal<[0n]>,
+          Schema.NullOr<typeof Schema.BigIntFromSelf>,
+          Schema.NullOr<typeof Schema.Uint8ArrayFromSelf>,
+          Schema.NullOr<typeof Schema.Uint8ArrayFromSelf>
+        ]
+      >,
+      Schema.SchemaClass<SingleHostAddr.SingleHostAddr, SingleHostAddr.SingleHostAddr, never>,
+      never
+    >,
+    Schema.transformOrFail<
+      Schema.Tuple<[Schema.Literal<[1n]>, Schema.NullOr<typeof Schema.BigIntFromSelf>, typeof Schema.String]>,
+      Schema.SchemaClass<SingleHostName.SingleHostName, SingleHostName.SingleHostName, never>,
+      never
+    >,
+    Schema.transformOrFail<
+      Schema.Tuple2<Schema.Literal<[2n]>, typeof Schema.String>,
+      Schema.SchemaClass<MultiHostName.MultiHostName, MultiHostName.MultiHostName, never>,
+      never
+    >
+  ]
+>
+```

@@ -1,0 +1,43 @@
+---
+title: Rollback Buffer
+sidebar:
+  order: 6
+---
+
+The `RollbackBuffer` filter softens the impact of chain rollbacks on downstream stages. It
+holds blocks in memory until they reach a configured depth, only forwarding the ones that are
+unlikely to be rolled back. Reach for it when your sink writes to storage where undoing
+orphaned data is expensive or awkward.
+
+## Why it helps
+
+Rollbacks happen routinely, but a block's chance of being orphaned drops sharply the deeper it
+sits in the chain. Without buffering, every rollback forces your sink to clear the orphaned
+records before writing new ones — the cost of which varies by storage engine, and can be
+prohibitive.
+
+With the buffer in place, only blocks past the `min_depth` threshold are sent downstream:
+
+- If a rollback lands **within** the buffer, it's resolved in memory and your sink never sees
+  it.
+- If a rollback lands **outside** the buffer, Oura falls back to the normal behavior and emits
+  a rollback event for the sink to handle manually.
+
+## Configuration
+
+```toml title="daemon.toml"
+[[filters]]
+type = "RollbackBuffer"
+min_depth = 6
+```
+
+- `type` (required): the literal value `RollbackBuffer`.
+- `min_depth` (required): how many confirmations a block needs before it's forwarded. Higher
+  values mean fewer rollback events, at the cost of more latency.
+
+:::caution[Trade-off: latency]
+The pipeline won't emit anything until the buffer fills, and each event reaches the sink a
+fixed delay later (proportional to `min_depth`). Throughput is unaffected once the buffer is
+primed, thanks to Oura's pipelining — but a rollback empties the buffer and adds the warm-up
+delay again.
+:::

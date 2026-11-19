@@ -1,0 +1,26 @@
+type: array
+items:
+  type: object
+  properties:
+    label:
+      type: string
+      description: Metadata label
+    cip10:
+      type: string
+      nullable: true
+      description: CIP10 defined description
+    count:
+      type: string
+      description: The count of metadata entries with a specific label
+  required:
+    - label
+    - cip10
+    - count
+example:
+  - { label: "1990", cip10: null, count: "1" }
+  - { label: "1967", cip10: "nut.link metadata oracles registry", count: "3" }
+  - {
+      label: "1968",
+      cip10: "nut.link metadata oracles data points",
+      count: "16321",
+    }

@@ -1,0 +1,20 @@
+{
+  "name": "cardano-dev-skills",
+  "interface": {
+    "displayName": "Cardano Dev Skills (packaging proof)"
+  },
+  "plugins": [
+    {
+      "name": "cardano-dev-skills",
+      "source": {"source": "local", "path": "./"},
+      "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
+      "category": "Developer Tools"
+    },
+    {
+      "name": "cardano-infra-skills",
+      "source": {"source": "local", "path": "./plugins/infra"},
+      "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
+      "category": "Developer Tools"
+    }
+  ]
+}

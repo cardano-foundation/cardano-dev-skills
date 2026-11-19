@@ -1,0 +1,54 @@
+type: object
+properties:
+  epoch:
+    type: integer
+    example: 225
+    description: Epoch number
+  start_time:
+    type: integer
+    example: 1603403091
+    description: Unix time of the start of the epoch
+  end_time:
+    type: integer
+    example: 1603835086
+    description: Unix time of the end of the epoch
+  first_block_time:
+    type: integer
+    example: 1603403092
+    description: Unix time of the first block of the epoch
+  last_block_time:
+    type: integer
+    example: 1603835084
+    description: Unix time of the last block of the epoch
+  block_count:
+    type: integer
+    example: 21298
+    description: Number of blocks within the epoch
+  tx_count:
+    type: integer
+    example: 17856
+    description: Number of transactions within the epoch
+  output:
+    type: string
+    example: "7849943934049314"
+    description: Sum of all the transactions within the epoch in Lovelaces
+  fees:
+    type: string
+    example: "4203312194"
+    description: Sum of all the fees within the epoch in Lovelaces
+  active_stake:
+    type: string
+    nullable: true
+    example: "784953934049314"
+    description: Sum of all the active stakes within the epoch in Lovelaces
+required:
+  - epoch
+  - start_time
+  - end_time
+  - first_block_time
+  - last_block_time
+  - block_count
+  - tx_count
+  - output
+  - fees
+  - active_stake

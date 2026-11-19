@@ -1,0 +1,292 @@
+---
+title: "Transaction Builder"
+description: "Build Cardano transactions with automatic UTXO selection, fee calculation, and change handling using Mesh SDK."
+---
+
+import Link from "next/link";
+import { HowToSchema, FAQSchema } from "@/components/seo";
+
+<HowToSchema
+  name="Build Cardano Transactions with Mesh SDK"
+  description="Create and submit Cardano transactions with automatic UTXO selection, fee calculation, and change handling."
+  totalTime="PT5M"
+  steps={[
+    { name: "Install Mesh core", text: "Run npm install @meshsdk/core to add transaction building capabilities." },
+    { name: "Configure a provider", text: "Set up Blockfrost or another provider to fetch UTXOs and submit transactions." },
+    { name: "Create MeshTxBuilder", text: "Initialize MeshTxBuilder with your provider." },
+    { name: "Build and submit", text: "Define outputs, call complete(), then sign and submit." }
+  ]}
+/>
+
+<FAQSchema
+  faqs={[
+    {
+      question: "How does Mesh handle UTXO selection?",
+      answer: "Mesh analyzes your outputs and selects optimal UTXOs from your wallet to cover the transaction. It considers token requirements, minimizes inputs, and handles change automatically."
+    },
+    {
+      question: "Does Mesh calculate fees automatically?",
+      answer: "Yes. When you call complete(), Mesh calculates the exact fee based on transaction size and protocol parameters."
+    },
+    {
+      question: "Can I build complex multi-output transactions?",
+      answer: "Yes. MeshTxBuilder supports multiple outputs, native tokens, metadata, smart contract interactions, and multi-signature requirements."
+    },
+    {
+      question: "What happens if my transaction fails?",
+      answer: "Mesh provides descriptive error messages for common issues like insufficient funds, invalid addresses, or missing collateral."
+    }
+  ]}
+/>
+
+MeshTxBuilder simplifies Cardano transaction construction. Specify outputs, and Mesh handles UTXO selection, fee calculation, and change management automatically.
+
+## Quick start
+
+```bash
+npm install @meshsdk/core @meshsdk/react
+```
+
+### Basic transaction
+
+```typescript
+import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+const provider = new BlockfrostProvider("<your-api-key>");
+const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const unsignedTx = await txBuilder
+  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(await wallet.getChangeAddressBech32())
+  .selectUtxosFrom(await wallet.getUtxosMesh())
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, false);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+---
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| Automatic UTXO selection | Optimal input selection based on outputs |
+| Fee calculation | Precise fee using protocol parameters |
+| Change handling | Automatic change output with correct address |
+| Native token support | Send tokens with automatic minimum ADA |
+| Metadata | Attach transaction metadata |
+| Smart contracts | Interact with Plutus scripts |
+| Multi-signature | Create transactions requiring multiple signers |
+| Validity intervals | Set transaction validity windows |
+
+---
+
+## Common patterns
+
+### Send ADA
+
+```typescript
+const tx = await txBuilder
+  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "10000000" }])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+### Send native tokens
+
+```typescript
+const tx = await txBuilder
+  .txOut(recipientAddress, [
+    { unit: policyId + assetName, quantity: "1" },
+    { unit: "lovelace", quantity: "2000000" }
+  ])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+### Send to multiple recipients
+
+```typescript
+const tx = await txBuilder
+  .txOut(address1, [{ unit: "lovelace", quantity: "5000000" }])
+  .txOut(address2, [{ unit: "lovelace", quantity: "3000000" }])
+  .txOut(address3, [{ unit: "lovelace", quantity: "7000000" }])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+### Add metadata
+
+```typescript
+const tx = await txBuilder
+  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .metadataValue("674", { msg: ["Transaction message"] })
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+### Mint tokens
+
+```typescript
+const tx = await txBuilder
+  .mint("1", policyId, tokenName)
+  .mintingScript(mintingScript)
+  .mintRedeemerValue(redeemer)
+  .txOut(recipientAddress, [
+    { unit: policyId + tokenName, quantity: "1" },
+    { unit: "lovelace", quantity: "2000000" }
+  ])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+### Interact with smart contracts
+
+```typescript
+const tx = await txBuilder
+  .spendingPlutusScriptV2()
+  .txIn(scriptUtxo.input.txHash, scriptUtxo.input.outputIndex)
+  .txInInlineDatumPresent()
+  .txInRedeemerValue(redeemer)
+  .txInScript(script)
+  .txOut(recipientAddress, scriptUtxo.output.amount)
+  .txOutInlineDatumValue(newDatum)
+  .requiredSignerHash(signerPkh)
+  .changeAddress(changeAddress)
+  .txInCollateral(collateralUtxo.input.txHash, collateralUtxo.input.outputIndex)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+---
+
+## Advanced patterns
+
+### Manual UTXO selection
+
+```typescript
+const tx = await txBuilder
+  .txIn(specificUtxo.input.txHash, specificUtxo.input.outputIndex)
+  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(changeAddress)
+  .complete();
+```
+
+### Validity intervals
+
+```typescript
+const slot = await provider.resolveSlotNo("now");
+
+const tx = await txBuilder
+  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .invalidBefore(slot)
+  .invalidHereafter(slot + 600) // Valid for ~10 minutes
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+### Required signers
+
+```typescript
+const tx = await txBuilder
+  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .requiredSignerHash(additionalSignerPkh)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+---
+
+## Error handling
+
+```typescript
+try {
+  const tx = await txBuilder
+    .txOut(recipientAddress, amount)
+    .changeAddress(changeAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  const signedTx = await wallet.signTx(tx);
+  const txHash = await wallet.submitTx(signedTx);
+  console.log("Transaction submitted:", txHash);
+} catch (error) {
+  if (error.message.includes("Insufficient")) {
+    showError("Not enough ADA to complete this transaction");
+  } else if (error.message.includes("User")) {
+    showInfo("Transaction cancelled");
+  } else {
+    showError("Transaction failed. Please try again.");
+  }
+}
+```
+
+---
+
+## Integration with React
+
+```tsx
+import { useWallet } from "@meshsdk/react";
+import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";
+
+function SendButton({ recipient, amount }) {
+  const { wallet } = useWallet();
+  const provider = new BlockfrostProvider("<api-key>");
+
+  async function handleSend() {
+    const txBuilder = new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+    });
+
+    const tx = await txBuilder
+      .txOut(recipient, [{ unit: "lovelace", quantity: amount }])
+      .changeAddress(await wallet.getChangeAddress())
+      .selectUtxosFrom(await wallet.getUtxos())
+      .complete();
+
+    const signedTx = await wallet.signTx(tx);
+    const txHash = await wallet.submitTx(signedTx);
+    return txHash;
+  }
+
+  return <button onClick={handleSend}>Send {Number(amount) / 1_000_000} ADA</button>;
+}
+```
+
+---
+
+## Why MeshTxBuilder
+
+| Benefit | Details |
+|---------|---------|
+| Eliminates UTXO complexity | Describe what to send, not how |
+| Prevents common errors | Validates before submission |
+| Simplifies smart contracts | High-level APIs for scripts |
+| Protocol-aware | Stays current with updates |
+
+---
+
+## Related resources
+
+| Resource | Link |
+|----------|------|
+| Wallet integration | [/resources/solutions/wallet-integration](/resources/solutions/wallet-integration) |
+| React components | [/resources/solutions/react-components](/resources/solutions/react-components) |
+| Transaction failures | [/resources/challenges/transaction-failures](/resources/challenges/transaction-failures) |
+| UTXO model | [/resources/challenges/utxo-model](/resources/challenges/utxo-model) |
+| Transaction documentation | [/apis/txbuilder](/apis/txbuilder) |

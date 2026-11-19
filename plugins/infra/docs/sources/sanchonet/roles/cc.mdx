@@ -1,0 +1,64 @@
+---
+description: Become a SanchoNet constitutional committee member"
+title: 'Constitutional committee'
+sidebar_position: 1
+---
+
+
+## The Constitution
+
+The Constitution is an off-chain document with its hash registered on-chain. A provisional Constitution, containing essential provisions and safeguards necessary 
+for the implementation of CIP-1694, has been published [here](https://constitution.gov.tools/en/interim-constitution). This provisional document is intended as a 
+temporary measure. The final Constitution, which will require  ratification by Ada holders, is expected to be approved by late 2024 or early 2025.
+
+In addition, the Constitution is supplemented by a set of "Guardrails" to ensure the blockchain operates securely and sustainably. These guardrails are designed 
+to prevent unexpected issues with the operation of the Cardano Blockchain. They aim to guide the selection of sensible parameter settings and mitigate potential 
+problems related to security, performance, or functionality. Some of these guardrails are automatable and will be enforced via an on-chain script or built-in 
+ledger rules.
+
+## The Guardrails Script
+
+The Constitution is accompanied by a guardrails script. At any given time, there can only be one guardrails script, and its hash is also registered on-chain. The 
+guardrails script enforces limits on protocol parameter changes and treasury withdrawals. This script is executed whenever a governance action attempts to change 
+protocol parameters or make a treasury withdrawal. If the proposal adheres to the guardrails, it is accepted on-chain and can be considered by the governance bodies: 
+the Constitutional Committee, DReps, and SPOs. Conversely, if the proposed change exceeds the guardrails, the action is deemed unconstitutional upon submission, and 
+the transaction is rejected, reducing the risk of introducing undesirable changes to the protocol parameters.
+
+## Constitutional Committee
+
+The Constitutional Committee is a group of individuals or entities, each associated with a pair of Ed25519 credentials or a script, collectively responsible 
+for safeguarding the integrity of the constitution within the Cardano blockchain ecosystem.
+
+The Constitutional Committee operates based on a social contract with the network's actors, focusing solely on voting for actions that align with the constitution. 
+This ensures the upholding of the fundamental principles and values of the blockchain.
+
+It's important to note that the Constitutional Committee has the authority to reject certain governance actions by voting 'no.' However, committee members should 
+exercise this power judiciously, using it only when actions clearly conflict with the constitution.
+
+As the guardian of the blockchain's integrity, the Constitutional Committee ensures that the network operates in harmony with its established principles. Through 
+responsible decision-making and adherence to the constitution, the committee contributes to the sustainable and prosperous future of the blockchain ecosystem.
+
+## Becoming a constitutional committee member
+
+Becoming a member of the constitutional committee involves off-chain procedures. The detailed process to join will be outlined in the upcoming weeks. 
+Similar to how SPOs manage their cold/KES keys, committee members will utilize a cold/hot key setup. Hence, developing a solid understanding of the generation 
+and secure management of these keys becomes crucial for those aspiring to join the committee.
+
+In general, the constitutional committee member will need to:
+
+1. Run a node
+2. Request funds from the faucet
+3. Generate cold/hot credentials (keys or scripts)
+4. Generate their corresponding key hash or script hash. 
+5. Be elected on a governance action. 
+6. Once elected, create a corresponding cold -> hot authorization certificate and submit it on-chain
+7. Review active governance actions
+8. Engage in discussions with other constitutional committee members to assess the constitutionality of governance actions
+9. Cast votes
+10. Include anchors (URL/hash) in their votes.
+
+Moreover, the committee members might be required to perform specific tests, such as issuing a new hot key and authorizing it, resigning from committee 
+members, or voting on new committee members.
+
+Detailed tutorials will be provided upon the launch of associated features. These tutorials will offer step-by-step guidance to ensure a smooth and 
+effortless walkthrough of the process.

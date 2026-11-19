@@ -1,0 +1,183 @@
+---
+title: sdk/builders/Unfrack.ts
+nav_order: 149
+parent: Modules
+---
+
+## Unfrack overview
+
+Unfrack UTxO Optimization Module
+
+Implements Unfrack.It principles for efficient wallet structure:
+
+- Token bundling: Group tokens into optimally-sized UTxOs
+- Fungible isolation: Place each fungible token on its own UTxO
+- NFT grouping: Group NFTs by policy ID
+- ADA optimization: Roll up or subdivide ADA-only
+
+Named in respect to the Unfrack.It website
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [builders](#builders)
+  - [createUnfrackedChangeOutputs](#createunfrackedchangeoutputs)
+  - [First Principles:](#first-principles)
+  - [Strategy:](#strategy)
+  - [Affordability Check:](#affordability-check)
+- [utils](#utils)
+  - [TokenBundle (interface)](#tokenbundle-interface)
+  - [TokenInfo (interface)](#tokeninfo-interface)
+  - [UnfrackResult (type alias)](#unfrackresult-type-alias)
+  - [calculateAdaSubdivision](#calculateadasubdivision)
+  - [calculateTokenBundles](#calculatetokenbundles)
+  - [extractTokens](#extracttokens)
+  - [groupByPolicy](#groupbypolicy)
+
+---
+
+# builders
+
+## createUnfrackedChangeOutputs
+
+Creates optimal change outputs by distributing change assets across multiple UTxOs.
+
+## First Principles:
+
+1. **Single Responsibility**: Create valid change outputs that optimally distribute the given assets
+2. **Validity Guarantee**: All outputs MUST meet their minUTxO requirements (protocol constraint)
+3. **Asset Conservation**: All input assets must appear in outputs (no assets lost)
+4. **Token Separation**: Tokens are bundled by policy to avoid mixing unnecessary assets
+5. **ADA Efficiency**: Remaining ADA is either separated (if significant) or distributed (if small)
+
+## Strategy:
+
+1. **No tokens**: Return single ADA-only output
+2. **With tokens**:
+   - Create token bundles with minimum required ADA (minUTxO)
+   - Calculate remaining ADA after bundles
+   - If remaining >= threshold AND affordable: Create separate ADA output (subdivision)
+   - Otherwise: Distribute remaining across bundles (spread)
+
+## Affordability Check:
+
+Before creating a separate ADA output, verify that:
+
+- remaining >= subdivideThreshold (user preference)
+- remaining >= minUTxO for ADA-only output (protocol requirement)
+
+If either check fails, fall back to spreading the remaining ADA across token bundles.
+This ensures all outputs are always valid.
+
+**Signature**
+
+```ts
+export declare const createUnfrackedChangeOutputs: (
+  changeAddress: CoreAddress.Address,
+  changeAssets: CoreAssets.Assets,
+  options: UnfrackOptions | undefined,
+  coinsPerUtxoByte: bigint
+) => Effect.Effect<ReadonlyArray<TxOut.TransactionOutput>, Error, never>
+```
+
+Added in v2.0.0
+
+# utils
+
+## TokenBundle (interface)
+
+Bundle result - multiple UTxOs each containing bundled tokens
+
+**Signature**
+
+```ts
+export interface TokenBundle {
+  readonly tokens: ReadonlyArray<TokenInfo>
+  readonly adaAmount: bigint // Minimum ADA for this bundle
+}
+```
+
+## TokenInfo (interface)
+
+Token classification for unfracking decisions
+
+**Signature**
+
+```ts
+export interface TokenInfo {
+  readonly policyId: string
+  readonly assetName: string
+  readonly quantity: bigint
+  readonly isFungible: boolean // True if fungible token, false if NFT
+}
+```
+
+## UnfrackResult (type alias)
+
+Result of unfrack change output creation
+
+**Signature**
+
+```ts
+export type UnfrackResult = {
+  /**
+   * The change outputs if unfrack was affordable, undefined otherwise
+   */
+  changeOutputs?: ReadonlyArray<TxOut.TransactionOutput>
+  /**
+   * Total minimum lovelace required for all outputs
+   * This is the sum of minUTxO for all N outputs
+   */
+  totalMinLovelace: bigint
+}
+```
+
+## calculateAdaSubdivision
+
+Calculate ADA subdivision amounts based on percentages
+
+**Signature**
+
+```ts
+export declare const calculateAdaSubdivision: (
+  leftoverAda: bigint,
+  options: UnfrackOptions
+) => Effect.Effect<ReadonlyArray<bigint>, never, never>
+```
+
+## calculateTokenBundles
+
+Calculate bundles based on unfrack configuration
+Now calculates proper minUTxO for each bundle using CBOR
+
+**Signature**
+
+```ts
+export declare const calculateTokenBundles: (
+  tokens: ReadonlyArray<TokenInfo>,
+  options: UnfrackOptions,
+  changeAddress: CoreAddress.Address,
+  coinsPerUtxoByte: bigint
+) => Effect.Effect<ReadonlyArray<TokenBundle>, Error, never>
+```
+
+## extractTokens
+
+Extract tokens from assets
+
+**Signature**
+
+```ts
+export declare const extractTokens: (assets: CoreAssets.Assets) => ReadonlyArray<TokenInfo>
+```
+
+## groupByPolicy
+
+Group tokens by policy ID
+
+**Signature**
+
+```ts
+export declare const groupByPolicy: (tokens: ReadonlyArray<TokenInfo>) => Map<string, ReadonlyArray<TokenInfo>>
+```

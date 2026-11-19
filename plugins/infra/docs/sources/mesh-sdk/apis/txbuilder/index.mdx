@@ -1,0 +1,72 @@
+---
+title: "Cardano Transaction Builder"
+description: "Build Cardano transactions with fine-grained control using low-level APIs."
+icon: BanknotesIcon
+---
+
+import { linksTxbuilder } from "@/data/links-txbuilders";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+## Overview
+
+`MeshTxBuilder` is a powerful, low-level API for constructing Cardano transactions. It provides complete control over every aspect of transaction building, from simple ADA transfers to complex smart contract interactions, staking operations, and governance actions.
+
+**When to use MeshTxBuilder:**
+- Building custom transaction logic beyond standard transfers
+- Creating multi-signature transactions
+- Minting and burning native assets
+- Interacting with Plutus smart contracts
+- Managing stake delegation and rewards
+- Participating in on-chain governance
+
+## Quick Start
+
+```tsx
+import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";
+
+// Initialize provider and builder
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+// Get wallet data
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+
+// Build a simple transfer
+const unsignedTx = await txBuilder
+  .txOut("addr_test1qz...", [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+// Sign and submit
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+## Documentation
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {linksTxbuilder.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## Related
+
+- <Link href="/apis/txparser">Transaction Parser</Link> - Parse and test transactions
+- <Link href="/providers">Providers</Link> - Blockchain data providers
+- <Link href="/apis/wallets">Wallets</Link> - Wallet integration options

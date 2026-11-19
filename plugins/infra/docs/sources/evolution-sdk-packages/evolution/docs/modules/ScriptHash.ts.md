@@ -1,0 +1,215 @@
+---
+title: ScriptHash.ts
+nav_order: 116
+parent: Modules
+---
+
+## ScriptHash overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [arbitrary](#arbitrary)
+  - [arbitrary](#arbitrary-1)
+- [computation](#computation)
+  - [fromScript](#fromscript)
+- [encoding](#encoding)
+  - [toBytes](#tobytes)
+  - [toHex](#tohex)
+- [parsing](#parsing)
+  - [fromBytes](#frombytes)
+  - [fromHex](#fromhex)
+- [schemas](#schemas)
+  - [FromBytes](#frombytes-1)
+  - [FromHex](#fromhex-1)
+  - [ScriptHash (class)](#scripthash-class)
+    - [toJSON (method)](#tojson-method)
+    - [toString (method)](#tostring-method)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method)
+    - [[Equal.symbol] (method)](#equalsymbol-method)
+    - [[Hash.symbol] (method)](#hashsymbol-method)
+
+---
+
+# arbitrary
+
+## arbitrary
+
+FastCheck arbitrary for generating random ScriptHash instances.
+Used for property-based testing to generate valid test data.
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<ScriptHash>
+```
+
+Added in v2.0.0
+
+# computation
+
+## fromScript
+
+Compute a script hash (policy id) from any Script variant.
+
+Conway-era rule: prepend a 1-byte language tag to the script bytes, then hash with blake2b-224.
+
+- 0x00: native/multisig (hash over CBOR of native_script)
+- 0x01: Plutus V1 (hash over raw script bytes)
+- 0x02: Plutus V2 (hash over raw script bytes)
+- 0x03: Plutus V3 (hash over raw script bytes)
+
+**Signature**
+
+```ts
+export declare const fromScript: (script: Script.Script) => ScriptHash
+```
+
+Added in v2.0.0
+
+# encoding
+
+## toBytes
+
+Convert a ScriptHash to raw bytes.
+
+**Signature**
+
+```ts
+export declare const toBytes: (a: ScriptHash, overrideOptions?: ParseOptions) => Uint8Array
+```
+
+Added in v2.0.0
+
+## toHex
+
+Convert a ScriptHash to a hex string.
+
+**Signature**
+
+```ts
+export declare const toHex: (a: ScriptHash, overrideOptions?: ParseOptions) => string
+```
+
+Added in v2.0.0
+
+# parsing
+
+## fromBytes
+
+Parse a ScriptHash from raw bytes.
+Expects exactly 28 bytes.
+
+**Signature**
+
+```ts
+export declare const fromBytes: (i: Uint8Array, overrideOptions?: ParseOptions) => ScriptHash
+```
+
+Added in v2.0.0
+
+## fromHex
+
+Parse a ScriptHash from a hex string.
+Expects exactly 56 hex characters (28 bytes).
+
+**Signature**
+
+```ts
+export declare const fromHex: (i: string, overrideOptions?: ParseOptions) => ScriptHash
+```
+
+Added in v2.0.0
+
+# schemas
+
+## FromBytes
+
+Schema for transforming between Uint8Array and ScriptHash.
+
+**Signature**
+
+```ts
+export declare const FromBytes: Schema.transform<
+  Schema.SchemaClass<Uint8Array, Uint8Array, never>,
+  Schema.SchemaClass<ScriptHash, ScriptHash, never>
+>
+```
+
+Added in v2.0.0
+
+## FromHex
+
+Schema for transforming between hex string and ScriptHash.
+
+**Signature**
+
+```ts
+export declare const FromHex: Schema.transform<
+  Schema.filter<Schema.Schema<Uint8Array, string, never>>,
+  Schema.transform<Schema.SchemaClass<Uint8Array, Uint8Array, never>, Schema.SchemaClass<ScriptHash, ScriptHash, never>>
+>
+```
+
+Added in v2.0.0
+
+## ScriptHash (class)
+
+Schema for ScriptHash representing a script hash credential.
+
+```
+script_hash = hash28
+```
+
+Follows CIP-0019 binary representation.
+
+Stores raw 28-byte value for performance.
+
+**Signature**
+
+```ts
+export declare class ScriptHash
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```

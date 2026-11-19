@@ -1,0 +1,793 @@
+---
+title: "Multi-Asset Value"
+description: "Manipulate multi-asset values with conversion, operation, and comparison utilities"
+---
+
+Use the MeshValue class and value utilities to work with Cardano multi-asset values. These tools simplify converting between formats, performing arithmetic operations, and comparing values.
+
+## Overview
+
+Working with Cardano values (ADA + native tokens) is complex. MeshValue provides:
+
+- **Convertors** - Transform between Asset[], Value, and data types
+- **Operators** - Add, subtract, and merge values
+- **Accessors** - Get quantities and list units
+- **Comparators** - Compare values for validation
+
+## Quick Start
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+// Create from assets
+const value = MeshValue.fromAssets([
+  { unit: "lovelace", quantity: "5000000" },
+  { unit: "policyId...assetName", quantity: "100" },
+]);
+
+// Add more assets
+value.addAsset({ unit: "lovelace", quantity: "1000000" });
+
+// Check if sufficient
+const required = MeshValue.fromAssets([
+  { unit: "lovelace", quantity: "3000000" },
+]);
+const hasSufficient = value.geq(required); // true
+```
+
+---
+
+## Convertors
+
+Convert between different value representations.
+
+### fromAssets
+
+Create a MeshValue from an array of assets.
+
+#### Function Signature
+
+```tsx
+static fromAssets(assets: Asset[]): MeshValue
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `assets` | `Asset[]` | Yes | Array of assets with `unit` and `quantity` |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `MeshValue` | A new MeshValue instance |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const assets = [
+  { unit: "lovelace", quantity: "5000000" },
+  { unit: "c21d710605bb00e69f3c175150552fc498316d80e7efdb1b186db38c000643b04d65736820676f6f64", quantity: "100" },
+];
+
+const value = MeshValue.fromAssets(assets);
+console.log(value.value);
+// { lovelace: 5000000n, "c21d710605bb00...": 100n }
+```
+
+### toAssets
+
+Convert MeshValue to an array of assets.
+
+#### Function Signature
+
+```tsx
+toAssets(): Asset[]
+```
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `Asset[]` | Array of assets with `unit` and `quantity` |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const value = new MeshValue();
+value.addAsset({ unit: "lovelace", quantity: "5000000" });
+value.addAsset({ unit: "policyId...assetName", quantity: "100" });
+
+const assets = value.toAssets();
+console.log(assets);
+// [
+//   { unit: "lovelace", quantity: "5000000" },
+//   { unit: "policyId...assetName", quantity: "100" }
+// ]
+```
+
+### fromValue
+
+Create MeshValue from Plutus Value (JSON representation).
+
+#### Function Signature
+
+```tsx
+static fromValue(plutusValue: Value): MeshValue
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `plutusValue` | `Value` | Yes | The Plutus Value in JSON format |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `MeshValue` | A new MeshValue instance |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+import { value as createValue } from "@meshsdk/core";
+
+const assets = [{ unit: "lovelace", quantity: "1000000" }];
+const plutusValue = createValue(assets);
+
+const meshValue = MeshValue.fromValue(plutusValue);
+const recoveredAssets = meshValue.toAssets();
+console.log(recoveredAssets);
+// [{ unit: "lovelace", quantity: "1000000" }]
+```
+
+### toData
+
+Convert MeshValue to Mesh Data format.
+
+#### Function Signature
+
+```tsx
+toData(): MValue
+```
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `MValue` | Value in Mesh Data format (nested Maps) |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const value = MeshValue.fromAssets([
+  { unit: "lovelace", quantity: "5000000" },
+  { unit: "policyId1234assetName", quantity: "100" },
+]);
+
+const data = value.toData();
+// Map { "" => Map { "" => 5000000n }, "policyId" => Map { "assetName" => 100n } }
+```
+
+### toJSON
+
+Convert MeshValue to JSON Data format.
+
+#### Function Signature
+
+```tsx
+toJSON(): Value
+```
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `Value` | Value in JSON Data format (AssocMap) |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const value = MeshValue.fromAssets([
+  { unit: "lovelace", quantity: "1000000" },
+  { unit: "c21d710605bb00e69f3c175150552fc498316d80e7efdb1b186db38c000643b04d65736820676f6f64", quantity: "500" },
+]);
+
+const jsonValue = value.toJSON();
+// AssocMap structure for use in transactions
+```
+
+### value (function)
+
+Convert assets to Plutus Value in JSON format.
+
+#### Function Signature
+
+```tsx
+value(assets: Asset[]): Value
+```
+
+#### Example
+
+```tsx
+import { value } from "@meshsdk/core";
+
+const val = [{ unit: "lovelace", quantity: "1000000" }];
+const plutusValue = value(val);
+```
+
+### mValue (function)
+
+Convert assets to Plutus Value in Mesh Data format.
+
+#### Function Signature
+
+```tsx
+mValue(assets: Asset[]): MValue
+```
+
+#### Example
+
+```tsx
+import { mValue } from "@meshsdk/core";
+
+const val = [{ unit: "lovelace", quantity: "1000000" }];
+const meshValue = mValue(val);
+// Map { "" => Map { "" => 1000000n } }
+```
+
+---
+
+## Operators
+
+Perform arithmetic operations on values.
+
+### addAsset
+
+Add a single asset to the value.
+
+#### Function Signature
+
+```tsx
+addAsset(asset: Asset): MeshValue
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `asset` | `Asset` | Yes | Asset to add |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `MeshValue` | The same instance (for chaining) |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const value = new MeshValue();
+value.addAsset({ unit: "lovelace", quantity: "5000000" });
+value.addAsset({ unit: "lovelace", quantity: "1000000" }); // Adds to existing
+
+console.log(value.get("lovelace")); // 6000000n
+```
+
+### addAssets
+
+Add multiple assets to the value.
+
+#### Function Signature
+
+```tsx
+addAssets(assets: Asset[]): MeshValue
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `assets` | `Asset[]` | Yes | Array of assets to add |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `MeshValue` | The same instance (for chaining) |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const value = new MeshValue();
+value.addAssets([
+  { unit: "lovelace", quantity: "5000000" },
+  { unit: "policyId...assetName", quantity: "100" },
+  { unit: "lovelace", quantity: "1000000" }, // Adds to first lovelace
+]);
+
+console.log(value.get("lovelace")); // 6000000n
+```
+
+### negateAsset
+
+Subtract a single asset from the value.
+
+#### Function Signature
+
+```tsx
+negateAsset(asset: Asset): MeshValue
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `asset` | `Asset` | Yes | Asset to subtract |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `MeshValue` | The same instance (for chaining) |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const value = new MeshValue();
+value.value = { lovelace: 10n };
+value.negateAsset({ unit: "lovelace", quantity: "5" });
+
+console.log(value.get("lovelace")); // 5n
+```
+
+### negateAssets
+
+Subtract multiple assets from the value.
+
+#### Function Signature
+
+```tsx
+negateAssets(assets: Asset[]): MeshValue
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `assets` | `Asset[]` | Yes | Array of assets to subtract |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `MeshValue` | The same instance (for chaining) |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const value = new MeshValue();
+value.value = {
+  lovelace: 20n,
+  "baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc817001234": 10n,
+};
+
+value.negateAssets([
+  { unit: "lovelace", quantity: "5" },
+  { unit: "baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc817001234", quantity: "3" },
+]);
+
+console.log(value.value);
+// { lovelace: 15n, "baefdc6c5b191be...": 7n }
+```
+
+### merge
+
+Combine two MeshValue instances.
+
+#### Function Signature
+
+```tsx
+merge(other: MeshValue): MeshValue
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `other` | `MeshValue` | Yes | Value to merge |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `MeshValue` | The same instance (for chaining) |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const value1 = new MeshValue();
+value1.value = { lovelace: 20n, "token1": 10n };
+
+const value2 = new MeshValue();
+value2.value = { lovelace: 10n, "token1": 5n };
+
+const merged = value1.merge(value2);
+console.log(merged.value);
+// { lovelace: 30n, "token1": 15n }
+```
+
+---
+
+## Accessors
+
+Retrieve information from values.
+
+### get
+
+Get the quantity of a specific unit.
+
+#### Function Signature
+
+```tsx
+get(unit: string): bigint
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `unit` | `string` | Yes | The unit to query (e.g., "lovelace") |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `bigint` | The quantity (0n if not present) |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const value = new MeshValue({ lovelace: 5000000n });
+
+console.log(value.get("lovelace")); // 5000000n
+console.log(value.get("nonexistent")); // 0n
+```
+
+### units
+
+Get all units present in the value.
+
+#### Function Signature
+
+```tsx
+units(): string[]
+```
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `string[]` | Array of unit identifiers |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const value = new MeshValue({
+  lovelace: 20n,
+  "baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc817001234": 10n,
+});
+
+const allUnits = value.units();
+console.log(allUnits);
+// ["lovelace", "baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc817001234"]
+```
+
+---
+
+## Comparators
+
+Compare values for validation.
+
+### geq
+
+Check if the value is greater than or equal to another value (all units).
+
+#### Function Signature
+
+```tsx
+geq(other: MeshValue): boolean
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `other` | `MeshValue` | Yes | Value to compare against |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `boolean` | `true` if this >= other for all units |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const available = new MeshValue({
+  lovelace: 20n,
+  "token1": 10n,
+});
+
+const required = new MeshValue({
+  lovelace: 10n,
+  "token1": 5n,
+});
+
+console.log(available.geq(required)); // true
+
+const insufficient = new MeshValue({
+  lovelace: 25n, // More than available
+});
+
+console.log(available.geq(insufficient)); // false
+```
+
+### geqUnit
+
+Check if a specific unit is greater than or equal to another value.
+
+#### Function Signature
+
+```tsx
+geqUnit(unit: string, other: MeshValue): boolean
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `unit` | `string` | Yes | The unit to compare |
+| `other` | `MeshValue` | Yes | Value to compare against |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `boolean` | `true` if this unit >= other unit |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const value = new MeshValue({ lovelace: 20n, "token1": 10n });
+const target = new MeshValue({ lovelace: 10n, "token1": 15n });
+
+console.log(value.geqUnit("lovelace", target)); // true (20 >= 10)
+console.log(value.geqUnit("token1", target)); // false (10 < 15)
+```
+
+### leq
+
+Check if the value is less than or equal to another value (all units).
+
+#### Function Signature
+
+```tsx
+leq(other: MeshValue): boolean
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `other` | `MeshValue` | Yes | Value to compare against |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `boolean` | `true` if this value is less than or equal to other for all units |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const value = new MeshValue({ lovelace: 20n, "token1": 10n });
+const limit = new MeshValue({ lovelace: 30n, "token1": 15n });
+
+console.log(value.leq(limit)); // true
+```
+
+### leqUnit
+
+Check if a specific unit is less than or equal to another value.
+
+#### Function Signature
+
+```tsx
+leqUnit(unit: string, other: MeshValue): boolean
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `unit` | `string` | Yes | The unit to compare |
+| `other` | `MeshValue` | Yes | Value to compare against |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `boolean` | `true` if this unit is less than or equal to other unit |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const value = new MeshValue({ lovelace: 20n, "token1": 10n });
+const target = new MeshValue({ lovelace: 30n, "token1": 15n });
+
+console.log(value.leqUnit("lovelace", target)); // true (20 ≤ 30)
+console.log(value.leqUnit("token1", target)); // true (10 ≤ 15)
+```
+
+### isEmpty
+
+Check if the value contains no assets.
+
+#### Function Signature
+
+```tsx
+isEmpty(): boolean
+```
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `boolean` | `true` if no assets present |
+
+#### Example
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+const emptyValue = new MeshValue();
+console.log(emptyValue.isEmpty()); // true
+
+const value = new MeshValue({ lovelace: 5000000n });
+console.log(value.isEmpty()); // false
+```
+
+---
+
+## Complete Example
+
+This example demonstrates a complete value validation workflow:
+
+```tsx
+import { MeshValue } from "@meshsdk/common";
+
+// Scenario: Validate a swap transaction
+
+// User's available balance
+const userBalance = MeshValue.fromAssets([
+  { unit: "lovelace", quantity: "10000000" },
+  { unit: "policyIdAssetName", quantity: "500" },
+]);
+
+// Required for the swap
+const swapCost = MeshValue.fromAssets([
+  { unit: "lovelace", quantity: "2000000" }, // tx fee
+  { unit: "policyIdAssetName", quantity: "100" }, // tokens to swap
+]);
+
+// Check if user can afford the swap
+if (userBalance.geq(swapCost)) {
+  console.log("User can proceed with swap");
+
+  // Calculate remaining balance
+  const remaining = MeshValue.fromAssets(userBalance.toAssets());
+  remaining.negateAssets(swapCost.toAssets());
+
+  console.log("Remaining after swap:", remaining.toAssets());
+  // [{ unit: "lovelace", quantity: "8000000" }, { unit: "policyIdAssetName", quantity: "400" }]
+} else {
+  console.log("Insufficient balance");
+
+  // Show what's missing
+  const lovelaceNeeded = swapCost.get("lovelace") - userBalance.get("lovelace");
+  if (lovelaceNeeded > 0n) {
+    console.log(`Need ${lovelaceNeeded} more lovelace`);
+  }
+}
+
+// Convert to Plutus format for smart contract
+const plutusValue = userBalance.toJSON();
+const meshDataValue = userBalance.toData();
+```
+
+---
+
+## Troubleshooting
+
+### Quantity mismatch between formats
+
+When converting between formats, quantities are preserved as bigint. Ensure you handle string conversion properly:
+
+```tsx
+// From string quantity
+const asset = { unit: "lovelace", quantity: "5000000" };
+
+// In MeshValue
+const value = MeshValue.fromAssets([asset]);
+console.log(value.get("lovelace")); // 5000000n (bigint)
+
+// Back to Asset[]
+const assets = value.toAssets();
+console.log(assets[0].quantity); // "5000000" (string)
+```
+
+### Comparing values with different units
+
+`geq` returns `false` if the compared value has units not present in this value:
+
+```tsx
+const value = new MeshValue({ lovelace: 1000000n });
+const required = new MeshValue({ lovelace: 500000n, "token1": 10n });
+
+console.log(value.geq(required)); // false - missing token1
+```
+
+### Empty unit after subtraction
+
+Subtracting the exact amount leaves a zero value:
+
+```tsx
+const value = new MeshValue({ lovelace: 100n });
+value.negateAsset({ unit: "lovelace", quantity: "100" });
+
+console.log(value.get("lovelace")); // 0n
+console.log(value.isEmpty()); // May still be false if unit exists with 0
+```
+
+---
+
+## Related
+
+- [JSON Data](/apis/data/json) - Value utilities in JSON format
+- [Mesh Data](/apis/data/mesh) - Value utilities in Mesh format
+- [Data Overview](/apis/data/overview) - Compare data formats
+- [Transaction Builder](/apis/txbuilder) - Use values in transactions

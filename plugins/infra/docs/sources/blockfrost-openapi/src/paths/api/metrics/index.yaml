@@ -1,0 +1,24 @@
+get:
+  tags:
+    - Metrics
+  summary: Blockfrost usage metrics
+  description: History of your Blockfrost usage metrics in the past 30 days.
+  responses:
+    "200":
+      description: Return the last 30 days of metrics
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/metrics/metrics.yaml
+    "400":
+      $ref: ../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../responses/errors/500.yaml

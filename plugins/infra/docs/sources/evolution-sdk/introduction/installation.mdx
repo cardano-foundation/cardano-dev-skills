@@ -1,0 +1,82 @@
+---
+title: Installation
+description: How to install Evolution SDK
+---
+
+# Installation
+
+Evolution SDK is a pure TypeScript library with zero runtime dependencies on Cardano Multiplatform Library (CML). This means lighter bundle sizes, better IDE support, and tree-shakeable exports—you only ship what you use. It works seamlessly with modern build tools and supports both Node.js and browser environments.
+
+Install it for any Cardano project: dApps, wallets, transaction tools, or when migrating from other SDKs like Lucid.
+
+## Quick Install
+
+<Tabs items={["npm", "yarn", "pnpm"]}>
+<Tab value="npm">
+```bash
+npm install @evolution-sdk/evolution
+```
+</Tab>
+<Tab value="yarn">
+```bash
+yarn add @evolution-sdk/evolution
+```
+</Tab>
+<Tab value="pnpm">
+```bash
+pnpm add @evolution-sdk/evolution
+```
+</Tab>
+</Tabs>
+
+## Requirements
+
+- **Node.js**: 18.0.0 or higher
+- **TypeScript**: 5.0.0 or higher (for TypeScript projects)
+- **ESM Support**: Modern bundlers with ES module support
+
+## Monorepo Setup
+
+If you're using Evolution SDK in a monorepo with pnpm workspaces:
+
+```bash
+pnpm add @evolution-sdk/evolution
+```
+
+The SDK works seamlessly with pnpm's workspace structure and maintains type safety across packages.
+
+## Browser Usage
+
+For browser environments, ensure your build tool supports:
+
+- ES2020+ target
+- Dynamic imports
+- BigInt support
+
+Most modern frameworks (React, Vue, Svelte) bundle Evolution SDK without issues.
+
+## Verify Installation
+
+Test that everything is working:
+
+```ts twoslash
+import { preprod, Client } from "@evolution-sdk/evolution"
+
+const client = Client.make(preprod)
+  .withBlockfrost({
+    baseUrl: "https://cardano-preprod.blockfrost.io/api/v0",
+    projectId: "your-project-id"
+  })
+  .withSeed({
+    mnemonic: "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    accountIndex: 0
+  })
+
+console.log("Evolution SDK loaded successfully!")
+```
+
+## Next Steps
+
+- [Create a wallet](/docs/wallets)
+- [Connect a provider](/docs/clients/providers)
+- [Build your first transaction](/docs/introduction/getting-started)

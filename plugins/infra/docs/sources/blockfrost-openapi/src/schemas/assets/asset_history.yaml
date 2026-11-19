@@ -1,0 +1,28 @@
+type: array
+items:
+  type: object
+  properties:
+    tx_hash:
+      type: string
+      description: Hash of the transaction containing the asset action
+    action:
+      type: string
+      enum: [minted, burned]
+      description: Action executed upon the asset policy
+    amount:
+      type: string
+      description: Asset amount of the specific action
+  required:
+    - tx_hash
+    - action
+    - amount
+example:
+  - tx_hash: "2dd15e0ef6e6a17841cb9541c27724072ce4d4b79b91e58432fbaa32d9572531"
+    amount: "10"
+    action: "minted"
+  - tx_hash: "9c190bc1ac88b2ab0c05a82d7de8b71b67a9316377e865748a89d4426c0d3005"
+    amount: "5"
+    action: "burned"
+  - tx_hash: "1a0570af966fb355a7160e4f82d5a80b8681b7955f5d44bec0dde628516157f0"
+    amount: "5"
+    action: "burned"

@@ -1,0 +1,632 @@
+---
+title: "JSON Data Utilities"
+description: "Build Cardano data structures with validated JSON utilities"
+---
+
+Use JSON data utilities to construct Cardano data with strong type validation. These functions create properly formatted JSON objects that can be used as datums, redeemers, and other on-chain data.
+
+## Overview
+
+JSON data utilities provide:
+
+- Type-safe data construction
+- Input validation
+- Named functions matching Plutus/Aiken conventions
+- Easy debugging with readable output
+
+All utilities return typed objects and validate inputs automatically.
+
+## Quick Start
+
+```tsx
+import { conStr0, byteString, integer, list } from "@meshsdk/core";
+
+// Build a simple datum
+const datum = conStr0([
+  byteString("aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6"),
+  integer(1000000),
+]);
+
+// Use in a transaction
+const txBuilder = new MeshTxBuilder();
+await txBuilder
+  .txOut(scriptAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .txOutInlineDatumValue(datum, "JSON")
+  .complete();
+```
+
+---
+
+## Constructor Utilities
+
+Build Plutus constructor data types.
+
+### conStr
+
+Create a constructor with a specific index.
+
+#### Function Signature
+
+```tsx
+conStr(constructor: number, fields: any[]): Constr
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `constructor` | `number` | Yes | The constructor index (0, 1, 2, etc.) |
+| `fields` | `any[]` | Yes | Array of fields for the constructor |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `Constr` | The constructor object in JSON format |
+
+#### Example
+
+```tsx
+import { conStr, byteString, integer } from "@meshsdk/core";
+
+// Create a constructor with index 0
+const lockDatum = conStr(0, [
+  byteString("owner-pub-key-hash"),
+  integer(1704067200000),
+]);
+
+// Create a constructor with index 1
+const unlockRedeemer = conStr(1, []);
+```
+
+### conStr0, conStr1, conStr2
+
+Shorthand functions for common constructor indices.
+
+#### Function Signatures
+
+```tsx
+conStr0(fields: any[]): Constr  // constructor index 0
+conStr1(fields: any[]): Constr  // constructor index 1
+conStr2(fields: any[]): Constr  // constructor index 2
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fields` | `any[]` | Yes | Array of fields for the constructor |
+
+#### Example
+
+```tsx
+import { conStr0, conStr1, byteString, integer } from "@meshsdk/core";
+
+// Common pattern: conStr0 for "normal" case, conStr1 for "alternative"
+const someDatum = conStr0([byteString("data"), integer(100)]);
+const noneDatum = conStr1([]);
+
+// Enum-like usage
+const mint = conStr0([]);
+const burn = conStr1([]);
+```
+
+---
+
+## Primitive Utilities
+
+Build primitive data types.
+
+### integer
+
+Create an integer value.
+
+#### Function Signature
+
+```tsx
+integer(int: number | bigint): Integer
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `int` | `number \| bigint` | Yes | The integer value |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `Integer` | The integer object in JSON format |
+
+#### Example
+
+```tsx
+import { integer } from "@meshsdk/core";
+
+// Number value
+const amount = integer(1000000);
+
+// BigInt for large values
+const largeAmount = integer(1000000000000000000n);
+```
+
+#### Alias: posixTime
+
+Use `posixTime` for timestamp values (same functionality):
+
+```tsx
+import { posixTime } from "@meshsdk/core";
+
+const deadline = posixTime(1704067200000);
+```
+
+### byteString
+
+Create a byte string from hex.
+
+#### Function Signature
+
+```tsx
+byteString(bytes: string): ByteString
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `bytes` | `string` | Yes | Hexadecimal string (validated) |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `ByteString` | The byte string object in JSON format |
+
+#### Example
+
+```tsx
+import { byteString } from "@meshsdk/core";
+
+const hash = byteString("aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6");
+```
+
+#### Specialized Aliases
+
+Use specialized functions for better semantics and validation:
+
+```tsx
+import {
+  builtinByteString,
+  scriptHash,
+  pubKeyHash,
+  policyId,
+  currencySymbol,
+  assetName,
+  tokenName,
+} from "@meshsdk/core";
+
+// All create ByteString but with semantic meaning
+const script = scriptHash("5867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f");
+const key = pubKeyHash("aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6");
+const policy = policyId("426117329844ccb3b0ba877220ff06a5bdf21eab3fb33e2f3a3f8e69");
+const asset = assetName("4d657368546f6b656e");
+```
+
+### bool
+
+Create a boolean value.
+
+#### Function Signature
+
+```tsx
+bool(b: boolean): Bool
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `b` | `boolean` | Yes | The boolean value |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `Bool` | The boolean object (constructor 0 for false, 1 for true) |
+
+#### Example
+
+```tsx
+import { bool } from "@meshsdk/core";
+
+const isActive = bool(true);
+const isComplete = bool(false);
+```
+
+---
+
+## Collection Utilities
+
+Build lists and maps.
+
+### list
+
+Create a list of items.
+
+#### Function Signature
+
+```tsx
+list<T>(pList: T[], validation?: boolean): List<T>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pList` | `T[]` | Yes | Array of items |
+| `validation` | `boolean` | No | Enable type validation. Defaults to `true` |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `List<T>` | The list object in JSON format |
+
+#### Example
+
+```tsx
+import { list, integer, byteString, bool } from "@meshsdk/core";
+
+// List of integers
+const amounts = list([
+  integer(100),
+  integer(200),
+  integer(300),
+]);
+
+// Mixed type list
+const mixedData = list([
+  byteString("aa048e4c..."),
+  integer(1000000),
+  bool(true),
+]);
+```
+
+### assocMap
+
+Create an associative map (dictionary).
+
+#### Function Signature
+
+```tsx
+assocMap<K, V>(mapItems: [K, V][], validation?: boolean): AssocMap<K, V>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `mapItems` | `[K, V][]` | Yes | Array of key-value tuples |
+| `validation` | `boolean` | No | Enable type validation. Defaults to `true` |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `AssocMap<K, V>` | The map object in JSON format |
+
+#### Example
+
+```tsx
+import { assocMap, byteString, integer } from "@meshsdk/core";
+
+// Token amounts map
+const tokenAmounts = assocMap([
+  [byteString("aa"), integer(1000000)],
+  [byteString("bb"), integer(2000000)],
+]);
+
+// Nested map for multi-asset value
+const value = assocMap([
+  [
+    currencySymbol(""),
+    assocMap([[tokenName(""), integer(5000000)]]),
+  ],
+  [
+    currencySymbol("426117329844ccb3b0ba877220ff06a5bdf21eab3fb33e2f3a3f8e69"),
+    assocMap([[tokenName("4d657368546f6b656e"), integer(100)]]),
+  ],
+]);
+```
+
+---
+
+## Address Utilities
+
+Build address data structures.
+
+### pubKeyAddress
+
+Create a public key address object.
+
+#### Function Signature
+
+```tsx
+pubKeyAddress(pubKeyHash: string, stakeCredential?: string): PubKeyAddress
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pubKeyHash` | `string` | Yes | The payment key hash (56 hex characters) |
+| `stakeCredential` | `string` | No | Optional stake credential hash |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `PubKeyAddress` | The address object in JSON format |
+
+#### Example
+
+```tsx
+import { pubKeyAddress } from "@meshsdk/core";
+
+// Enterprise address (no stake)
+const addr1 = pubKeyAddress("aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6");
+
+// Base address (with stake)
+const addr2 = pubKeyAddress(
+  "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+  "9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6"
+);
+```
+
+### scriptAddress
+
+Create a script address object.
+
+#### Function Signature
+
+```tsx
+scriptAddress(scriptHash: string, stakeCredential?: string): ScriptAddress
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `scriptHash` | `string` | Yes | The script hash (56 hex characters) |
+| `stakeCredential` | `string` | No | Optional stake credential hash |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `ScriptAddress` | The address object in JSON format |
+
+#### Example
+
+```tsx
+import { scriptAddress } from "@meshsdk/core";
+
+const contractAddr = scriptAddress(
+  "5867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f"
+);
+```
+
+---
+
+## Reference Utilities
+
+Build transaction and asset references.
+
+### outputReference / txOutRef
+
+Create a transaction output reference.
+
+#### Function Signature
+
+```tsx
+outputReference(txHash: string, outputIndex: number): OutputReference
+txOutRef(txHash: string, outputIndex: number): TxOutRef  // Alias
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `txHash` | `string` | Yes | The transaction hash (64 hex characters) |
+| `outputIndex` | `number` | Yes | The output index |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `OutputReference` | The reference object in JSON format |
+
+#### Example
+
+```tsx
+import { outputReference, txOutRef } from "@meshsdk/core";
+
+const utxoRef = outputReference(
+  "a0bd47e8938e7c41d4c1d7c22033892319d28f86fdace791d45c51946553791b",
+  0
+);
+
+// Same as above
+const ref = txOutRef(
+  "a0bd47e8938e7c41d4c1d7c22033892319d28f86fdace791d45c51946553791b",
+  0
+);
+```
+
+### assetClass
+
+Create an asset class identifier.
+
+#### Function Signature
+
+```tsx
+assetClass(policyId: string, assetName: string): AssetClass
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `policyId` | `string` | Yes | The policy ID (56 hex characters, or empty for ADA) |
+| `assetName` | `string` | Yes | The asset name in hex (or empty for ADA) |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `AssetClass` | The asset class object in JSON format |
+
+#### Example
+
+```tsx
+import { assetClass } from "@meshsdk/core";
+
+// ADA
+const ada = assetClass("", "");
+
+// Native token
+const token = assetClass(
+  "426117329844ccb3b0ba877220ff06a5bdf21eab3fb33e2f3a3f8e69",
+  "4d657368546f6b656e"
+);
+```
+
+---
+
+## Other Utilities
+
+### tuple
+
+Create a tuple (pair) of values.
+
+```tsx
+import { tuple, byteString, integer } from "@meshsdk/core";
+
+const pair = tuple(byteString("key"), integer(100));
+```
+
+### maybeStakingHash
+
+Create an optional staking hash.
+
+```tsx
+import { maybeStakingHash } from "@meshsdk/core";
+
+const withStake = maybeStakingHash("9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6");
+const noStake = maybeStakingHash(null);
+```
+
+### dict
+
+Create a dictionary (alternative to assocMap).
+
+```tsx
+import { dict, byteString, integer } from "@meshsdk/core";
+
+const amounts = dict([
+  [byteString("aa"), integer(100)],
+  [byteString("bb"), integer(200)],
+]);
+```
+
+---
+
+## Complete Example
+
+This example shows building complex datum structures for a token swap contract:
+
+```tsx
+import {
+  conStr0,
+  byteString,
+  integer,
+  list,
+  assocMap,
+  pubKeyAddress,
+  assetClass,
+  currencySymbol,
+  tokenName,
+  MeshTxBuilder,
+} from "@meshsdk/core";
+
+// Build the swap datum
+const swapDatum = conStr0([
+  // Owner address
+  pubKeyAddress(
+    "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+    "9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6"
+  ),
+  // Offered asset
+  assetClass(
+    "426117329844ccb3b0ba877220ff06a5bdf21eab3fb33e2f3a3f8e69",
+    "4d657368546f6b656e"
+  ),
+  integer(100),
+  // Requested asset (ADA)
+  assetClass("", ""),
+  integer(5000000),
+]);
+
+// Build the accept redeemer
+const acceptRedeemer = conStr0([]);
+
+// Build the transaction
+const txBuilder = new MeshTxBuilder();
+
+await txBuilder
+  .spendingPlutusScript("V2")
+  .txIn(utxo.txHash, utxo.outputIndex)
+  .txInScript(swapScriptCbor)
+  .txInDatumValue(swapDatum, "JSON")
+  .txInRedeemerValue(acceptRedeemer, "JSON")
+  .txOut(ownerAddress, [
+    { unit: "lovelace", quantity: "5000000" },
+  ])
+  .txOut(buyerAddress, [
+    {
+      unit: "426117329844ccb3b0ba877220ff06a5bdf21eab3fb33e2f3a3f8e694d657368546f6b656e",
+      quantity: "100",
+    },
+  ])
+  .changeAddress(buyerAddress)
+  .selectUtxosFrom(buyerUtxos)
+  .complete();
+```
+
+---
+
+## Troubleshooting
+
+### Invalid hex string error
+
+Byte strings must be valid hexadecimal. Check that:
+- The string contains only characters 0-9 and a-f (case insensitive)
+- The length is even (each byte is 2 hex characters)
+
+### Constructor index mismatch
+
+Ensure your constructor indices match your Plutus/Aiken type definitions. Index 0 is the first constructor, index 1 is the second, etc.
+
+### Validation errors
+
+If validation fails, check that all nested objects are also built using JSON data utilities. Raw JavaScript values may not pass validation.
+
+---
+
+## Related
+
+- [Mesh Data](/apis/data/mesh) - Simpler data construction
+- [Data Overview](/apis/data/overview) - Compare data formats
+- [Value](/apis/data/value) - Work with multi-asset values
+- [Transaction Builder](/apis/txbuilder) - Use data in transactions

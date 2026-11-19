@@ -1,0 +1,168 @@
+---
+title: sdk/builders/RedeemerBuilder.ts
+nav_order: 142
+parent: Modules
+---
+
+## RedeemerBuilder overview
+
+Deferred redeemer construction for dynamic index resolution.
+
+Cardano redeemers must reference inputs/policies by their sorted index in the
+final transaction. But coin selection may add new inputs, changing all indices.
+This creates a chicken-and-egg problem: you need indices to build redeemers,
+but indices aren't known until the transaction is finalized.
+
+The solution is three modes:
+
+- Static: When you know the redeemer value upfront (no index needed)
+- Self: When redeemer depends on THIS input's final index
+- Batch: When redeemer depends on MULTIPLE inputs' final indices
+
+Added in v2.0.0
+
+---
+
+<h2 className="text-delta">Table of contents</h2>
+
+- [types](#types)
+  - [BatchRedeemerBuilder (interface)](#batchredeemerbuilder-interface)
+  - [BatchRedeemerFn (type alias)](#batchredeemerfn-type-alias)
+  - [IndexedInput (interface)](#indexedinput-interface)
+  - [RedeemerArg (type alias)](#redeemerarg-type-alias)
+  - [SelfRedeemerFn (type alias)](#selfredeemerfn-type-alias)
+- [utils](#utils)
+  - [isBatchBuilder](#isbatchbuilder)
+  - [isSelfFn](#isselffn)
+  - [isStaticData](#isstaticdata)
+
+---
+
+# types
+
+## BatchRedeemerBuilder (interface)
+
+Batch redeemer builder for multi-input coordination.
+
+When multiple UTxOs need to share information about each other's indices,
+use batch mode. The `all` function receives all specified inputs with their
+resolved indices.
+
+**Signature**
+
+```ts
+export interface BatchRedeemerBuilder {
+  /** Function invoked with all inputs' resolved indices. */
+  readonly all: BatchRedeemerFn
+  /** Which UTxOs to include in the batch. */
+  readonly inputs: ReadonlyArray<UTxO.UTxO>
+}
+```
+
+Added in v2.0.0
+
+## BatchRedeemerFn (type alias)
+
+Batch-mode function: constructs a single redeemer from multiple inputs.
+
+Called once with all indexed inputs, returns one redeemer shared by all.
+Use when multiple inputs need coordinated redeemer values.
+
+**Signature**
+
+```ts
+export type BatchRedeemerFn = (inputs: ReadonlyArray<IndexedInput>) => Data.Data
+```
+
+Added in v2.0.0
+
+## IndexedInput (interface)
+
+An input with its resolved transaction index.
+
+Provided to redeemer functions after coin selection completes.
+Contains both the final sorted index and the original UTxO for reference.
+
+**Signature**
+
+```ts
+export interface IndexedInput {
+  /** The final 0-based index of this input in the sorted transaction inputs. */
+  readonly index: number
+  /** The original UTxO being spent. */
+  readonly utxo: UTxO.UTxO
+}
+```
+
+Added in v2.0.0
+
+## RedeemerArg (type alias)
+
+Redeemer argument for collectFrom and mint operations.
+
+Supports three modes:
+
+- Static (`Data`): Direct redeemer value, no deferred computation
+- Self (`SelfRedeemerFn`): Per-input function, receives `{ index, utxo }`
+- Batch (`BatchRedeemerBuilder`): Multi-input function, receives array
+
+The appropriate mode is auto-detected at runtime:
+
+- Function → Self mode
+- Object with `all` property → Batch mode
+- Otherwise → Static mode
+
+**Signature**
+
+```ts
+export type RedeemerArg = Data.Data | SelfRedeemerFn | BatchRedeemerBuilder
+```
+
+Added in v2.0.0
+
+## SelfRedeemerFn (type alias)
+
+Self-mode function: constructs a redeemer for a single script input.
+
+Called once per script-locked UTxO with its resolved index.
+The same function is invoked for each script UTxO in the collection.
+
+**Signature**
+
+```ts
+export type SelfRedeemerFn = (input: IndexedInput) => Data.Data
+```
+
+Added in v2.0.0
+
+# utils
+
+## isBatchBuilder
+
+**Signature**
+
+```ts
+export declare const isBatchBuilder: (arg: RedeemerArg) => arg is BatchRedeemerBuilder
+```
+
+Added in v2.0.0 @category guards
+
+## isSelfFn
+
+**Signature**
+
+```ts
+export declare const isSelfFn: (arg: RedeemerArg) => arg is SelfRedeemerFn
+```
+
+Added in v2.0.0 @category guards
+
+## isStaticData
+
+**Signature**
+
+```ts
+export declare const isStaticData: (arg: RedeemerArg) => arg is Data.Data
+```
+
+Added in v2.0.0 @category guards

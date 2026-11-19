@@ -1,0 +1,84 @@
+---
+title: "Cardano Data Types"
+icon: CircleStackIcon
+description: "Parse and manipulate Cardano data types for smart contract development"
+---
+
+import { linksData } from "@/data/links-data";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+MeshJS provides comprehensive utilities for working with Cardano data. Use these tools to construct datums, redeemers, and other on-chain data structures in multiple formats.
+
+## Overview
+
+Cardano smart contracts require data in specific formats. MeshJS supports three data representation formats:
+
+| Format | Best For | Description |
+|--------|----------|-------------|
+| [Mesh Data](/apis/data/mesh) | Quick prototyping | Simple JavaScript primitives with minimal wrappers |
+| [JSON Data](/apis/data/json) | Web3 applications | Strong type validation for frontend-backend communication |
+| [CBOR](/apis/data/overview#cbor) | Interoperability | Raw binary format for cross-library compatibility |
+
+## Quick Start
+
+Install the MeshJS SDK:
+
+```bash
+npm install @meshsdk/core
+```
+
+Choose your preferred data format:
+
+```tsx
+// Mesh Data format - simple and quick
+import { mConStr0, mConStr1 } from "@meshsdk/core";
+const datum = mConStr0(["owner-key-hash", 1000000n]);
+
+// JSON Data format - validated types
+import { conStr0, byteString, integer } from "@meshsdk/core";
+const datum = conStr0([byteString("owner-key-hash"), integer(1000000)]);
+```
+
+## Browse Data APIs
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {linksData.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## When to Use Each Format
+
+### Use Mesh Data When
+
+- You need to quickly prototype smart contract interactions
+- You want minimal boilerplate code
+- You are comfortable with JavaScript primitives
+
+### Use JSON Data When
+
+- You need strong input validation
+- You are building production web applications
+- You want type safety for complex data structures
+
+### Use CBOR When
+
+- You are integrating with other serialization libraries
+- You need the raw binary representation
+- You are working with data from external sources
+
+## Related
+
+- [Utilities](/apis/utilities) - Serialize and deserialize data
+- [Transaction Builder](/apis/txbuilder) - Use data in transactions
+- [Smart Contracts](/apis/txbuilder/smart-contracts) - Apply data to contract interactions

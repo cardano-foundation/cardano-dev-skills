@@ -2,7 +2,7 @@
  "labels": {
   "e01": {
    "grade": "partial",
-   "notes": "ChainSync streams headers, BlockFetch downloads the bodies (N2N only); dev-portal, Oura N2N and gOuroboros BlockFetch pages each contrast the two. Dolos configuration schema lists what a from-origin N2N sync needs (genesis, magic, peer); the Dolos public relay page it replaces was deleted. Nothing says a node can serve old blocks over BlockFetch but not ChainSync. ChainSync README and protocol-ID table dropped: neither contrasts the two protocols alone.",
+   "notes": "ChainSync streams headers, BlockFetch downloads the bodies (N2N only); dev-portal, Oura N2N and gOuroboros BlockFetch pages each contrast the two. The Dolos configuration schema carries what a from-origin N2N sync needs, in two sections that are each required: `chain` (genesis, magic and default peer built in per network) and `upstream` (a peer followed over node-to-node); the Dolos public relay page that covered both was deleted. Nothing says a node can serve old blocks over BlockFetch but not ChainSync. ChainSync README and protocol-ID table dropped: neither contrasts the two protocols alone.",
    "targets": [
     [
      {
@@ -34,9 +34,11 @@
       "heading": "`chain`",
       "path": "docs/sources/dolos/content/configuration/schema.mdx",
       "start_line": 182
-     },
+     }
+    ],
+    [
      {
-      "end_line": 277,
+      "end_line": 282,
       "found_by": "grep:peer_address",
       "heading": "`upstream`",
       "path": "docs/sources/dolos/content/configuration/schema.mdx",

@@ -223,7 +223,7 @@
     "corpus_id": "fccc396b7a1e64e2f81972bedbb9f987d728025df8fe9a5a3c951321e80553f1",
     "corpus_mismatch_allowed": false,
     "frozen_corpus_id": "fccc396b7a1e64e2f81972bedbb9f987d728025df8fe9a5a3c951321e80553f1",
-    "labels_sha256": "914df1526741c1c51d8496dbccf7d3ed621ecf58d423cd497b58a19527fe6661",
+    "labels_sha256": "e07a4cdb440b2e4a85049a25a7b9eee00200b86ad186499c9c4f81cbbd1c6a0e",
     "questions_sha256": "55895fc28b405838853182f30d9c6d32073fe264e1da8e76b11ed90c8fc355c3",
     "scorer_version": "kb-eval-scorer/1"
   },

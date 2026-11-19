@@ -139,8 +139,33 @@ FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 # CommonMark fence: at most three leading spaces, no tab indentation.
 COMMONMARK_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 CONTEXT_BLOCK_RE = re.compile(
-    r"<!-- BEGIN cardano-dev-skills v\d+ -->(.*?)"
-    r"<!-- END cardano-dev-skills v\d+ -->", re.S)
+    r"<!-- BEGIN cardano-dev-skills v(\d+) -->(.*?)"
+    r"<!-- END cardano-dev-skills v(\d+) -->", re.S)
+# The new-skill template must open every new skill with the general text, so a
+# template that drifted would seed each new skill with a stale block. Only the
+# heredoc that writes the scaffolded SKILL.md is checked: a block anywhere
+# else in the script never reaches a new skill.
+NEW_SKILL_TEMPLATE = REPO_ROOT / "scripts" / "new-skill.sh"
+# A heredoc operator (not a `<<<` here-string) and its delimiter word, quoted
+# ('D', "D" or \D) or bare.
+HEREDOC_RE = re.compile(
+    r"(?<!<)<<(?!<)(-?)[ \t]*"
+    r"(?:'([^'\n]+)'|\"([^\"\n]+)\"|(\\?)([A-Za-z_][A-Za-z0-9_]*))")
+# The one accepted shape of the command that writes the template, matched
+# against the whole line: `cat > ".../SKILL.md" << 'DELIM'` (or `<<-`, or a
+# double-quoted delimiter) and nothing else, so a redirect that sits in a
+# trailing comment or beside a second command is never taken for it.
+TEMPLATE_COMMAND_RE = re.compile(
+    r"cat[ \t]+>[ \t]*\"[^\"\n]*SKILL\.md\"[ \t]*<<(-?)[ \t]*"
+    r"(?:'([^'\n]+)'|\"([^\"\n]+)\")")
+# Every context block shipped before the canonical vN is kept as a `## vK`
+# section of HISTORICAL_BLOCKS_FILE: a user's unedited older block that is
+# missing there would be treated as the user's own edit.
+HISTORY_HEADING_RE = re.compile(r"## v(\d+)[ \t]*")
+HEADING_LEVEL_1_2_RE = re.compile(r"#{1,2}(?:[ \t]|$)")
+
+# Line kinds yielded by fence_lines().
+TEXT, OPEN, CODE, CLOSE = "text", "open", "code", "close"
 
 errors: list[str] = []
 warnings: list[str] = []
@@ -173,12 +198,9 @@ def parse_frontmatter(path: Path) -> dict | None:
 
 def check_bundled_doc_paths(path: Path, text: str) -> None:
     """Flag bare or dead citations of docs/sources/ outside fenced code."""
-    in_fence = False
-    for lineno, line in enumerate(text.splitlines(), 1):
-        if line.lstrip().startswith("```"):
-            in_fence = not in_fence
-            continue
-        if in_fence:
+    for lineno, (kind, line) in enumerate(
+            fence_lines(text, backtick_toggle=True), 1):
+        if kind != TEXT:
             continue
         if BARE_DOC_PATH_RE.search(line):
             error(f"{path}:{lineno}: cite bundled docs as ../../docs/sources/..., "
@@ -326,16 +348,15 @@ def load_grounding_texts() -> dict[str | None, str] | None:
         error(f"Missing {GROUNDING_DOC} (canonical grounding texts)")
         return None
     fenced: list[str] = []
-    current: list[str] | None = None
-    for line in GROUNDING_DOC.read_text(encoding="utf-8").splitlines():
-        if line.lstrip().startswith("```"):
-            if current is None:
-                current = []
-            else:
-                fenced.append("\n".join(current))
-                current = None
-        elif current is not None:
+    current: list[str] = []
+    for kind, line in fence_lines(GROUNDING_DOC.read_text(encoding="utf-8"),
+                                  backtick_toggle=True):
+        if kind == OPEN:
+            current = []
+        elif kind == CODE:
             current.append(line)
+        elif kind == CLOSE:
+            fenced.append("\n".join(current))
     texts: dict[str | None, str] = {}
     for block in fenced:
         for match in GROUNDING_REGION_RE.finditer(block):
@@ -355,42 +376,138 @@ def load_grounding_texts() -> dict[str | None, str] | None:
     return texts
 
 
-def fence_segments(text: str, commonmark_indent: bool = False
-                   ) -> list[tuple[bool, str]]:
-    """Split `text` into consecutive (inside_fence, text) segments.
+def fence_lines(text: str, commonmark_indent: bool = False,
+                backtick_toggle: bool = False) -> list[tuple[str, str]]:
+    """Classify each line of `text` as (kind, line), kind one of TEXT, or the
+    OPEN, CODE or CLOSE line of a fence. Every fence reader here uses this.
 
-    The fence lines belong to their fenced segment. A fence opens on FENCE_RE
-    (an info string may follow). It closes only on a line holding optional
-    indent, then a run of the opening character at least as long as the
-    opening run, then nothing but spaces or tabs. Any other line stays code,
-    including a fence line with an info string or of the other character.
-    With `commonmark_indent`, an opener or closer counts only with at most
-    three leading spaces and no tab, as in CommonMark; a line indented further
-    is not a fence line.
+    By default a fence opens on FENCE_RE (an info string may follow). It
+    closes only on a line holding optional indent, then a run of the opening
+    character at least as long as the opening run, then nothing but spaces or
+    tabs. Any other line stays code, including a fence line with an info
+    string or of the other character. With `commonmark_indent`, an opener or
+    closer counts only with at most three leading spaces and no tab, as in
+    CommonMark; a line indented further is not a fence line.
+
+    With `backtick_toggle`, any line whose first non-blank characters are
+    three backticks opens a fence when outside one and closes it when inside,
+    whatever follows; tildes never fence. That looser rule is what the
+    citation check and the canonical grounding texts are read with.
     """
+    if commonmark_indent and backtick_toggle:
+        raise ValueError("commonmark_indent and backtick_toggle are exclusive")
     opener_re = COMMONMARK_FENCE_RE if commonmark_indent else FENCE_RE
-    segments: list[tuple[bool, str]] = []
-    current: list[str] = []
+    lines: list[tuple[str, str]] = []
     fence: str | None = None
     for line in text.splitlines():
-        if fence is None:
+        if backtick_toggle:
+            if line.lstrip().startswith("```"):
+                kind, fence = (OPEN, "```") if fence is None else (CLOSE, None)
+            else:
+                kind = TEXT if fence is None else CODE
+        elif fence is None:
             match = opener_re.match(line)
             if match:
-                segments.append((False, "\n".join(current)))
-                current, fence = [line], match.group(1)
+                kind, fence = OPEN, match.group(1)
             else:
-                current.append(line)
+                kind = TEXT
         else:
-            current.append(line)
+            kind = CODE
             closer = line.lstrip().rstrip(" \t")
             indent = line[:len(line) - len(line.lstrip())]
-            if commonmark_indent and not re.fullmatch(" {0,3}", indent):
-                continue
-            if len(closer) >= len(fence) and closer == fence[0] * len(closer):
-                segments.append((True, "\n".join(current)))
-                current, fence = [], None
-    segments.append((fence is not None, "\n".join(current)))
+            if ((not commonmark_indent or re.fullmatch(" {0,3}", indent))
+                    and len(closer) >= len(fence)
+                    and closer == fence[0] * len(closer)):
+                kind, fence = CLOSE, None
+        lines.append((kind, line))
+    return lines
+
+
+def fence_segments(text: str, commonmark_indent: bool = False
+                   ) -> list[tuple[bool, str]]:
+    """Split `text` into consecutive (inside_fence, text) segments, reading
+    fences as fence_lines() does. The fence lines belong to their fenced
+    segment; an unclosed fence runs to the end of `text`."""
+    segments: list[tuple[bool, str]] = []
+    current: list[str] = []
+    inside = False
+    for kind, line in fence_lines(text, commonmark_indent=commonmark_indent):
+        if kind == OPEN:
+            segments.append((False, "\n".join(current)))
+            current, inside = [line], True
+        elif kind == CLOSE:
+            current.append(line)
+            segments.append((True, "\n".join(current)))
+            current, inside = [], False
+        else:
+            current.append(line)
+    segments.append((inside, "\n".join(current)))
     return segments
+
+
+def skill_md_heredoc(script: str, label: str) -> str | None:
+    """Return the body of the one heredoc in `script` opened by a template
+    command, a whole line matching TEMPLATE_COMMAND_RE: the text the script
+    writes into a new skill.
+
+    Heredocs are read in order, so a line inside one heredoc's body is never
+    taken for a command. A body runs to the line that is exactly its
+    delimiter (`<<-` also strips leading tabs, from the body as well). Lines
+    starting with `#` outside a body are comments, and a line that follows
+    one ending in a backslash continues that command, so it is never a
+    template command. Only a quoted delimiter is accepted: an unquoted one
+    would put the body through expansion, so it would not be the text
+    written. A missing, duplicated or unterminated template heredoc is an
+    error naming `label`, and returns None."""
+    found: list[tuple[int, str, bool, list[str] | None]] = []
+    # Heredocs opened on the current command line, waiting for their bodies:
+    # (start line, delimiter, strip tabs, body lines or None if not the
+    # template).
+    pending: list[tuple[int, str, bool, list[str] | None]] = []
+    continued = False
+    for number, line in enumerate(script.splitlines(), 1):
+        if pending:
+            start, delimiter, strip_tabs, body = pending[0]
+            text = line.lstrip("\t") if strip_tabs else line
+            if text == delimiter:
+                pending.pop(0)
+            elif body is not None:
+                body.append(text)
+            continue
+        if line.lstrip().startswith("#"):
+            continue
+        command = None if continued else TEMPLATE_COMMAND_RE.fullmatch(
+            line.strip())
+        trailing = len(line) - len(line.rstrip("\\"))
+        continued = trailing % 2 == 1
+        if command:
+            template_body: list[str] = []
+            entry = (number, command.group(2) or command.group(3),
+                     command.group(1) == "-", template_body)
+            found.append(entry)
+            pending.append(entry)
+            continue
+        for match in HEREDOC_RE.finditer(line):
+            pending.append((number,
+                            match.group(2) or match.group(3)
+                            or match.group(5),
+                            match.group(1) == "-", None))
+    if not found:
+        error(f"{label}: no heredoc writes SKILL.md (expected exactly one "
+              "line of the form cat > \".../SKILL.md\" << 'DELIM', with "
+              "nothing else on it)")
+        return None
+    if len(found) > 1:
+        lines = ", ".join(str(entry[0]) for entry in found)
+        error(f"{label}: {len(found)} heredocs write SKILL.md (lines "
+              f"{lines}); exactly one is allowed")
+        return None
+    start, delimiter = found[0][0], found[0][1]
+    if any(entry[0] == start for entry in pending):
+        error(f"{label}: the SKILL.md heredoc on line {start} is "
+              f"unterminated (no {delimiter} line closes it)")
+        return None
+    return "\n".join(found[0][3])
 
 
 def check_grounding_region(label: str, parts: list[str],
@@ -446,16 +563,82 @@ def validate_grounding(skill_dirs: list[Path]) -> None:
             f"skill {name}", [part for inside, part in segments if not inside],
             GROUNDING_VARIANTS.get(name), canonical)
 
+    if NEW_SKILL_TEMPLATE.exists():
+        label = (f"{NEW_SKILL_TEMPLATE.relative_to(REPO_ROOT).as_posix()} "
+                 "(new-skill template)")
+        template = skill_md_heredoc(
+            NEW_SKILL_TEMPLATE.read_text(encoding="utf-8"), label)
+        if template is not None:
+            check_grounding_region(label, [template], None, canonical)
+    else:
+        error(f"Missing {NEW_SKILL_TEMPLATE} (new-skill template)")
+
     context_md = SKILLS_DIR / "cardano-context" / "SKILL.md"
     if not context_md.exists():
         return
-    blocks = CONTEXT_BLOCK_RE.findall(context_md.read_text(encoding="utf-8"))
+    blocks = list(CONTEXT_BLOCK_RE.finditer(
+        context_md.read_text(encoding="utf-8")))
     if len(blocks) != 1:
         error(f"skill cardano-context: expected exactly one canonical context "
               f"block, found {len(blocks)}")
         return
-    check_grounding_region("skill cardano-context (context block)", [blocks[0]],
-                           None, canonical)
+    check_grounding_region("skill cardano-context (context block)",
+                           [blocks[0].group(2)], None, canonical)
+
+
+def validate_context_history() -> None:
+    """Require HISTORICAL_BLOCKS_FILE to record every context block before
+    the canonical vN in cardano-context's SKILL.md: a `## vK` section holding
+    at least one fenced block for each 1 <= K < N, and no section for vN or
+    later. Fences are read with CommonMark indentation, as the file's other
+    check reads them; a heading counts only at the start of a line, outside
+    fences, and runs to the next level-1 or level-2 heading."""
+    context_md = SKILLS_DIR / "cardano-context" / "SKILL.md"
+    if not context_md.exists():
+        return
+    blocks = list(CONTEXT_BLOCK_RE.finditer(
+        context_md.read_text(encoding="utf-8")))
+    if len(blocks) != 1:
+        return  # validate_grounding reports the block count
+    begin, end = blocks[0].group(1), blocks[0].group(3)
+    if int(begin) != int(end):
+        error(f"skill cardano-context: canonical context block opens as "
+              f"v{begin} but closes as v{end}")
+        return
+    current_version = int(begin)
+    label = HISTORICAL_BLOCKS_FILE.relative_to(REPO_ROOT).as_posix()
+    if not HISTORICAL_BLOCKS_FILE.exists():
+        if current_version > 1:
+            error(f"Missing {label} (must record every context block before "
+                  f"v{current_version})")
+        return
+
+    fenced_blocks: dict[int, int] = {}
+    section: int | None = None
+    for inside, part in fence_segments(
+            HISTORICAL_BLOCKS_FILE.read_text(encoding="utf-8"),
+            commonmark_indent=True):
+        if inside:
+            if section is not None:
+                fenced_blocks[section] += 1
+            continue
+        for line in part.split("\n"):
+            heading = HISTORY_HEADING_RE.fullmatch(line)
+            if heading:
+                section = int(heading.group(1))
+                fenced_blocks.setdefault(section, 0)
+            elif HEADING_LEVEL_1_2_RE.match(line):
+                section = None
+    for version in range(1, current_version):
+        if not fenced_blocks.get(version):
+            error(f"{label}: no '## v{version}' section with a fenced block; "
+                  f"the canonical context block is v{current_version}, so "
+                  "every earlier version must be recorded")
+    for version in sorted(fenced_blocks):
+        if version >= current_version:
+            error(f"{label}: '## v{version}' section, but the canonical "
+                  f"context block in SKILL.md is v{current_version}; only "
+                  "earlier versions belong here")
 
 
 def load_json(path: Path) -> dict | None:
@@ -740,8 +923,12 @@ def main() -> int:
             skill_dirs.append(skill_dir)
             skill_count += 1
 
-        # Validate the grounding block in every skill and the context block.
+        # Validate the grounding block in every skill, the new-skill template
+        # and the context block.
         validate_grounding(skill_dirs)
+
+        # Validate that every earlier context block is still recorded.
+        validate_context_history()
 
         # Validate the shared authoring contract and both host adapters.
         validate_agent_compatibility()

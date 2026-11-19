@@ -3,8 +3,8 @@
     "cardano-infra-docs": {
       "type": "stdio",
       "command": "python3",
-      "args": ["-I", "-B", "${PLUGIN_ROOT}/scripts/kb/mcp_server.py"],
-      "cwd": "${PLUGIN_ROOT}"
+      "args": ["-I", "-B", "scripts/kb/mcp_server.py"],
+      "cwd": "."
     }
   }
 }

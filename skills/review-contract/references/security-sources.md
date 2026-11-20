@@ -4,11 +4,13 @@ Every entry in this list is vetted by the cardano-dev-skills maintainers.
 
 This list is the evidence boundary for a contract review. Base every finding on the code under review and on the
 bundled `docs/sources/` corpus, citing the exact file. The bundled entries below are its security-specific starting
-points: they ship with the plugin, need no network access, and are preferred whenever they cover the point. The web
-entries are for points the bundled corpus does not settle. You may offer to consult them; read one only after the
-user accepts the offer in their next message. A web entry covers its listed URL and the files under it in the same
-repository; a page it merely links to is not covered. No other web page is evidence for a finding or for the
-verdict. If a point rests on your own knowledge, say so.
+points: they ship with the plugin, need no network access, and are preferred whenever they cover the point. You may
+offer to consult a web entry, for example as corroborating precedent; read one only after the user accepts the offer
+in their next message. A GitHub entry covers its repository page and the files on the default branch it names, at
+`https://github.com/<owner>/<repo>/blob/<branch>/` or `/tree/<branch>/` and
+`https://raw.githubusercontent.com/<owner>/<repo>/<branch>/`. Other branches, tags, commits, forks, issues, pull
+requests, releases pages and links out of the repository are not covered. The MLabs entry covers its one page only.
+No other web page is evidence for a finding or for the verdict. If a point rests on your own knowledge, say so.
 
 ## Bundled entries
 
@@ -68,6 +70,7 @@ Audit process:
   - Last vetted: 2026-11-20
 - **Cardano CTF** — https://github.com/Invariant-0/cardano-ctf
   - Publisher: Invariant0 (formerly Vacuumlabs Auditing)
+  - Default branch: `main`
   - Evidence for: exploit examples; a purposely vulnerable contract and its exploit for a given class. Not a
     class definition.
   - Caveats: the last commit on the default branch was 2026-04-03. The original series targets an old Aiken
@@ -76,6 +79,7 @@ Audit process:
   - Last vetted: 2026-11-20
 - **Published audit reports** — https://github.com/vacuumlabs/audits and https://github.com/Invariant-0/audit-reports
   - Publisher: Vacuumlabs Auditing, continued as Invariant0
+  - Default branch: `master` (vacuumlabs/audits), `main` (Invariant-0/audit-reports)
   - Evidence for: audit precedent; how a professional auditor classified a pattern in a named protocol version.
   - Caveats: a dated historical record. Each report describes the protocol version audited on its date, not the
     protocol's current version. The one EVM report in the Vacuumlabs list is not Cardano evidence.

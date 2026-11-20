@@ -330,6 +330,11 @@ retriever is built, so a change still in place then refuses too. Label grounding
 corpus directly before that manifest is taken, so a file changed and then restored while
 labels are being grounded is not caught; do not edit `docs/sources/` while a command runs.
 
+The E01 set's grep baseline is `scripts/kb/eval/sets/e01/baseline-grep.json`. It is valid only
+for the corpus id it records. When the weekly refresh moves or deletes a file a label points
+at, re-check the affected labels against the current corpus and re-freeze the set before
+scoring.
+
 ## Documentation governance
 
 Docs (`AGENTS.md`, `CLAUDE.md`, `README.md`, `docs/DESIGN.md`,

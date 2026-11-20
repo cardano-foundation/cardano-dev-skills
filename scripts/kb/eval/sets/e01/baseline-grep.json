@@ -1,0 +1,4709 @@
+{
+  "aggregate": {
+    "cov@10": 0.231322,
+    "cov@5": 0.126437,
+    "file@10": 0.293103,
+    "file@5": 0.189655,
+    "mrr": 0.138008,
+    "n": 58,
+    "sec@10": 0.155172,
+    "sec@5": 0.086207
+  },
+  "by_slice": {
+    "conceptual": {
+      "cov@10": 0.365385,
+      "cov@5": 0.230769,
+      "file@10": 0.307692,
+      "file@5": 0.307692,
+      "mrr": 0.240258,
+      "n": 13,
+      "sec@10": 0.307692,
+      "sec@5": 0.230769
+    },
+    "cross_source": {
+      "cov@10": 0.2,
+      "cov@5": 0.1,
+      "file@10": 0.3,
+      "file@5": 0.3,
+      "mrr": 0.13393,
+      "n": 10,
+      "sec@10": 0.1,
+      "sec@5": 0.0
+    },
+    "howto": {
+      "cov@10": 0.076923,
+      "cov@5": 0.076923,
+      "file@10": 0.307692,
+      "file@5": 0.230769,
+      "mrr": 0.098715,
+      "n": 13,
+      "sec@10": 0.076923,
+      "sec@5": 0.076923
+    },
+    "identifier": {
+      "cov@10": 0.208333,
+      "cov@5": 0.125,
+      "file@10": 0.333333,
+      "file@5": 0.083333,
+      "mrr": 0.068384,
+      "n": 12,
+      "sec@10": 0.166667,
+      "sec@5": 0.083333
+    },
+    "infra": {
+      "cov@10": 0.666667,
+      "cov@5": 0.208333,
+      "file@10": 0.5,
+      "file@5": 0.0,
+      "mrr": 0.316964,
+      "n": 4,
+      "sec@10": 0.25,
+      "sec@5": 0.0
+    },
+    "paraphrase": {
+      "cov@10": 0.083333,
+      "cov@5": 0.0,
+      "file@10": 0.0,
+      "file@5": 0.0,
+      "mrr": 0.028346,
+      "n": 6,
+      "sec@10": 0.0,
+      "sec@5": 0.0
+    }
+  },
+  "by_split": {
+    "calibration": {
+      "cov@10": 0.2375,
+      "cov@5": 0.025,
+      "file@10": 0.35,
+      "file@5": 0.1,
+      "mrr": 0.076996,
+      "n": 20,
+      "sec@10": 0.15,
+      "sec@5": 0.0
+    },
+    "held_out": {
+      "cov@10": 0.22807,
+      "cov@5": 0.179825,
+      "file@10": 0.263158,
+      "file@5": 0.236842,
+      "mrr": 0.17012,
+      "n": 38,
+      "sec@10": 0.157895,
+      "sec@5": 0.131579
+    }
+  },
+  "by_split_slice": {
+    "calibration": {
+      "conceptual": {
+        "cov@10": 0.35,
+        "cov@5": 0.0,
+        "file@10": 0.2,
+        "file@5": 0.2,
+        "mrr": 0.087147,
+        "n": 5,
+        "sec@10": 0.2,
+        "sec@5": 0.0
+      },
+      "cross_source": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.007692,
+        "n": 2,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "howto": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.666667,
+        "file@5": 0.333333,
+        "mrr": 0.032695,
+        "n": 3,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "identifier": {
+        "cov@10": 0.166667,
+        "cov@5": 0.0,
+        "file@10": 0.333333,
+        "file@5": 0.0,
+        "mrr": 0.032091,
+        "n": 6,
+        "sec@10": 0.166667,
+        "sec@5": 0.0
+      },
+      "infra": {
+        "cov@10": 0.666667,
+        "cov@5": 0.166667,
+        "file@10": 0.666667,
+        "file@5": 0.0,
+        "mrr": 0.255952,
+        "n": 3,
+        "sec@10": 0.333333,
+        "sec@5": 0.0
+      },
+      "paraphrase": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.030303,
+        "n": 1,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      }
+    },
+    "held_out": {
+      "conceptual": {
+        "cov@10": 0.375,
+        "cov@5": 0.375,
+        "file@10": 0.375,
+        "file@5": 0.375,
+        "mrr": 0.335952,
+        "n": 8,
+        "sec@10": 0.375,
+        "sec@5": 0.375
+      },
+      "cross_source": {
+        "cov@10": 0.25,
+        "cov@5": 0.125,
+        "file@10": 0.375,
+        "file@5": 0.375,
+        "mrr": 0.165489,
+        "n": 8,
+        "sec@10": 0.125,
+        "sec@5": 0.0
+      },
+      "howto": {
+        "cov@10": 0.1,
+        "cov@5": 0.1,
+        "file@10": 0.2,
+        "file@5": 0.2,
+        "mrr": 0.118521,
+        "n": 10,
+        "sec@10": 0.1,
+        "sec@5": 0.1
+      },
+      "identifier": {
+        "cov@10": 0.25,
+        "cov@5": 0.25,
+        "file@10": 0.333333,
+        "file@5": 0.166667,
+        "mrr": 0.104677,
+        "n": 6,
+        "sec@10": 0.166667,
+        "sec@5": 0.166667
+      },
+      "infra": {
+        "cov@10": 0.666667,
+        "cov@5": 0.333333,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.5,
+        "n": 1,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "paraphrase": {
+        "cov@10": 0.1,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.027955,
+        "n": 5,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      }
+    }
+  },
+  "identity": {
+    "corpus_id": "fccc396b7a1e64e2f81972bedbb9f987d728025df8fe9a5a3c951321e80553f1",
+    "corpus_mismatch_allowed": false,
+    "frozen_corpus_id": "fccc396b7a1e64e2f81972bedbb9f987d728025df8fe9a5a3c951321e80553f1",
+    "labels_sha256": "e07a4cdb440b2e4a85049a25a7b9eee00200b86ad186499c9c4f81cbbd1c6a0e",
+    "questions_sha256": "55895fc28b405838853182f30d9c6d32073fe264e1da8e76b11ed90c8fc355c3",
+    "scorer_version": "kb-eval-scorer/1"
+  },
+  "k": 100,
+  "negatives": {
+    "mean_top_score": 0.71075,
+    "n": 2,
+    "top_scores": {
+      "e25": 0.5882,
+      "e45": 0.8333
+    }
+  },
+  "per_question": [
+    {
+      "grade": "partial",
+      "id": "e01",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.013513513513513514,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "conceptual",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 1663,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.9474,
+          "start_line": 1244
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6842,
+          "start_line": 1344
+        },
+        {
+          "end_line": 159,
+          "path": "docs/sources/developer-portal/developers/curriculum/production/self-hosting.md",
+          "score": 0.6842,
+          "start_line": 21
+        },
+        {
+          "end_line": 816,
+          "path": "docs/sources/ouroboros-leios/leios-design/README.md",
+          "score": 0.6316,
+          "start_line": 762
+        },
+        {
+          "end_line": 88,
+          "path": "docs/sources/kupo/README.md",
+          "score": 0.6316,
+          "start_line": 71
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5789,
+          "start_line": 453
+        },
+        {
+          "end_line": 238,
+          "path": "docs/sources/gouroboros/README.md",
+          "score": 0.5789,
+          "start_line": 16
+        },
+        {
+          "end_line": 701,
+          "path": "docs/sources/ouroboros-leios/technical-report-2.md",
+          "score": 0.5263,
+          "start_line": 651
+        },
+        {
+          "end_line": 1077,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5263,
+          "start_line": 993
+        },
+        {
+          "end_line": 906,
+          "path": "docs/sources/cardano-node-wiki/reference/shelley-genesis.md",
+          "score": 0.5263,
+          "start_line": 804
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e02",
+      "metrics": {
+        "cov@10": 0.5,
+        "cov@5": 0.0,
+        "file@10": 1.0,
+        "file@5": 0.0,
+        "mrr": 0.14285714285714285,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "infra",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 97,
+          "path": "docs/sources/dolos/content/architecture/data-layer.mdx",
+          "score": 0.6667,
+          "start_line": 72
+        },
+        {
+          "end_line": 160,
+          "path": "docs/sources/dingo/node_mithril.go",
+          "score": 0.6667,
+          "start_line": 81
+        },
+        {
+          "end_line": 1054,
+          "path": "docs/sources/mithril/website/root/manual/develop/nodes/mithril-client.md",
+          "score": 0.6111,
+          "start_line": 606
+        },
+        {
+          "end_line": 1060,
+          "path": "docs/sources/mithril/website/versioned_docs/version-maintained/manual/develop/nodes/mithril-client.md",
+          "score": 0.6111,
+          "start_line": 612
+        },
+        {
+          "end_line": 159,
+          "path": "docs/sources/developer-portal/developers/curriculum/production/self-hosting.md",
+          "score": 0.6111,
+          "start_line": 21
+        },
+        {
+          "end_line": 1663,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.6111,
+          "start_line": 1244
+        },
+        {
+          "end_line": 522,
+          "path": "docs/sources/mithril/website/root/manual/getting-started/bootstrap-cardano-node.md",
+          "score": 0.6111,
+          "start_line": 476
+        },
+        {
+          "end_line": 522,
+          "path": "docs/sources/mithril/website/versioned_docs/version-maintained/manual/getting-started/bootstrap-cardano-node.md",
+          "score": 0.6111,
+          "start_line": 476
+        },
+        {
+          "end_line": 47,
+          "path": "docs/sources/cips/CIP-0165/README.md",
+          "score": 0.6111,
+          "start_line": 29
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5556,
+          "start_line": 1344
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e03",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.017543859649122806,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "identifier",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 821,
+          "path": "docs/sources/mithril/website/root/manual/develop/nodes/mithril-aggregator.md",
+          "score": 0.5625,
+          "start_line": 561
+        },
+        {
+          "end_line": 789,
+          "path": "docs/sources/mithril/website/versioned_docs/version-maintained/manual/develop/nodes/mithril-aggregator.md",
+          "score": 0.5625,
+          "start_line": 538
+        },
+        {
+          "end_line": 540,
+          "path": "docs/sources/mithril/website/root/manual/operate/run-aggregator-node.md",
+          "score": 0.5625,
+          "start_line": 247
+        },
+        {
+          "end_line": 536,
+          "path": "docs/sources/mithril/website/versioned_docs/version-maintained/manual/operate/run-aggregator-node.md",
+          "score": 0.5625,
+          "start_line": 247
+        },
+        {
+          "end_line": 1202,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/cardano-ticker/02-building-the-ticker.md",
+          "score": 0.5625,
+          "start_line": 190
+        },
+        {
+          "end_line": 159,
+          "path": "docs/sources/developer-portal/developers/curriculum/production/self-hosting.md",
+          "score": 0.5,
+          "start_line": 21
+        },
+        {
+          "end_line": 144,
+          "path": "docs/sources/hydra/docs/how-to/incremental-decommit.md",
+          "score": 0.5,
+          "start_line": 5
+        },
+        {
+          "end_line": 447,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/qr-code-payments/01-getting-started.md",
+          "score": 0.5,
+          "start_line": 64
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4375,
+          "start_line": 1344
+        },
+        {
+          "end_line": 271,
+          "path": "docs/sources/developer-portal/operators/monitoring/new-tracing-system/cardano-tracer.md",
+          "score": 0.4375,
+          "start_line": 218
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e04",
+      "metrics": {
+        "cov@10": 0.75,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.16666666666666666,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "conceptual",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 851,
+          "path": "docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md",
+          "score": 0.75,
+          "start_line": 802
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk-packages/evolution/docs/modules/sdk/builders/TransactionBuilder.ts.md",
+          "score": 0.625,
+          "start_line": 218
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk/modules/sdk/builders/TransactionBuilder.mdx",
+          "score": 0.625,
+          "start_line": 218
+        },
+        {
+          "end_line": 312,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.625,
+          "start_line": 269
+        },
+        {
+          "end_line": 213,
+          "path": "docs/sources/cips/CPS-0037/README.md",
+          "score": 0.625,
+          "start_line": 135
+        },
+        {
+          "end_line": 912,
+          "path": "docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md",
+          "score": 0.625,
+          "start_line": 894
+        },
+        {
+          "end_line": 41,
+          "path": "docs/sources/cips/CPS-0037/README.md",
+          "score": 0.625,
+          "start_line": 17
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/aiken-design-patterns/lib/aiken-design-patterns/linked-list.ak",
+          "score": 0.625,
+          "start_line": 1
+        },
+        {
+          "end_line": 685,
+          "path": "docs/sources/cip-113-programmable-tokens/documentation/08-INTEGRATION-GUIDES.md",
+          "score": 0.5625,
+          "start_line": 656
+        },
+        {
+          "end_line": 105,
+          "path": "docs/sources/scalus/docs/design/js-api.md",
+          "score": 0.5625,
+          "start_line": 22
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e05",
+      "metrics": {
+        "cov@10": 1.0,
+        "cov@5": 0.0,
+        "file@10": 1.0,
+        "file@5": 1.0,
+        "mrr": 0.16666666666666666,
+        "sec@10": 1.0,
+        "sec@5": 0.0
+      },
+      "slice": "conceptual",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk-packages/evolution/docs/modules/sdk/builders/TransactionBuilder.ts.md",
+          "score": 0.6429,
+          "start_line": 218
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk/modules/sdk/builders/TransactionBuilder.mdx",
+          "score": 0.6429,
+          "start_line": 218
+        },
+        {
+          "end_line": 25,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/security/vulnerabilities/time-handling.md",
+          "score": 0.6429,
+          "start_line": 1
+        },
+        {
+          "end_line": 175,
+          "path": "docs/sources/aiken/example--vesting/mesh.mdx",
+          "score": 0.6429,
+          "start_line": 88
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/aiken-stdlib/aiken/interval.ak",
+          "score": 0.6429,
+          "start_line": 1
+        },
+        {
+          "end_line": 82,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/security/vulnerabilities/time-handling.md",
+          "score": 0.5714,
+          "start_line": 47
+        },
+        {
+          "end_line": 46,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/security/vulnerabilities/time-handling.md",
+          "score": 0.5714,
+          "start_line": 26
+        },
+        {
+          "end_line": 122,
+          "path": "docs/sources/aiken/fundamentals/what-i-wish-i-knew.mdx",
+          "score": 0.5714,
+          "start_line": 81
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5714,
+          "start_line": 1344
+        },
+        {
+          "end_line": 721,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-08-26-onchain-stdlib-api-design.md",
+          "score": 0.5714,
+          "start_line": 653
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e06",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.05555555555555555,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "conceptual",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 71,
+          "path": "docs/sources/cips/CIP-0112/README.md",
+          "score": 0.8333,
+          "start_line": 20
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk-packages/evolution/docs/modules/sdk/builders/TransactionBuilder.ts.md",
+          "score": 0.75,
+          "start_line": 218
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk/modules/sdk/builders/TransactionBuilder.mdx",
+          "score": 0.75,
+          "start_line": 218
+        },
+        {
+          "end_line": 129,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/00-RESEARCH-REPORT.md",
+          "score": 0.75,
+          "start_line": 27
+        },
+        {
+          "end_line": 81,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/security/vulnerabilities/staking-and-certificates.md",
+          "score": 0.6667,
+          "start_line": 55
+        },
+        {
+          "end_line": 102,
+          "path": "docs/sources/aiken/language-tour/validators.mdx",
+          "score": 0.6667,
+          "start_line": 15
+        },
+        {
+          "end_line": 324,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/raw-nft-marketplace.md",
+          "score": 0.6667,
+          "start_line": 242
+        },
+        {
+          "end_line": 147,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/security/vulnerabilities/unchecked-inputs.md",
+          "score": 0.6667,
+          "start_line": 121
+        },
+        {
+          "end_line": 207,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/write-a-validator.md",
+          "score": 0.6667,
+          "start_line": 177
+        },
+        {
+          "end_line": 21,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/advanced/design-patterns/overview.md",
+          "score": 0.6667,
+          "start_line": 12
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e07",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "identifier",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk-packages/evolution/docs/modules/sdk/builders/TransactionBuilder.ts.md",
+          "score": 0.6316,
+          "start_line": 218
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk/modules/sdk/builders/TransactionBuilder.mdx",
+          "score": 0.6316,
+          "start_line": 218
+        },
+        {
+          "end_line": 361,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.6316,
+          "start_line": 313
+        },
+        {
+          "end_line": 312,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.5789,
+          "start_line": 269
+        },
+        {
+          "end_line": 29,
+          "path": "docs/sources/cip30-test-wallet/docs/fixture-api.md",
+          "score": 0.5263,
+          "start_line": 5
+        },
+        {
+          "end_line": 36,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.5263,
+          "start_line": 21
+        },
+        {
+          "end_line": 22,
+          "path": "docs/sources/cip30-test-wallet/docs/known-consumer-issues.md",
+          "score": 0.5263,
+          "start_line": 5
+        },
+        {
+          "end_line": 48,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.5263,
+          "start_line": 37
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4737,
+          "start_line": 1344
+        },
+        {
+          "end_line": 1107,
+          "path": "docs/sources/cips/CIP-0190/README.md",
+          "score": 0.4737,
+          "start_line": 996
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e08",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "identifier",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 421,
+          "path": "docs/sources/cips/CIP-0188/README.md",
+          "score": 0.5833,
+          "start_line": 388
+        },
+        {
+          "end_line": 995,
+          "path": "docs/sources/cips/CIP-0190/README.md",
+          "score": 0.5833,
+          "start_line": 939
+        },
+        {
+          "end_line": 1003,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-08-26-onchain-stdlib-api-design.md",
+          "score": 0.5833,
+          "start_line": 894
+        },
+        {
+          "end_line": 129,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/00-RESEARCH-REPORT.md",
+          "score": 0.5,
+          "start_line": 27
+        },
+        {
+          "end_line": 36,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.5,
+          "start_line": 21
+        },
+        {
+          "end_line": 1107,
+          "path": "docs/sources/cips/CIP-0190/README.md",
+          "score": 0.5,
+          "start_line": 996
+        },
+        {
+          "end_line": 129,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/wallet-authentication.md",
+          "score": 0.5,
+          "start_line": 48
+        },
+        {
+          "end_line": 1344,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/07-efficiency-constraints.md",
+          "score": 0.5,
+          "start_line": 1188
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4167,
+          "start_line": 1344
+        },
+        {
+          "end_line": 1116,
+          "path": "docs/sources/cips/CIP-0186/README.md",
+          "score": 0.4167,
+          "start_line": 1084
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e09",
+      "metrics": {
+        "cov@10": 1.0,
+        "cov@5": 0.0,
+        "file@10": 1.0,
+        "file@5": 0.0,
+        "mrr": 0.125,
+        "sec@10": 1.0,
+        "sec@5": 0.0
+      },
+      "slice": "infra",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6316,
+          "start_line": 1344
+        },
+        {
+          "end_line": 1663,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.5789,
+          "start_line": 1244
+        },
+        {
+          "end_line": 1077,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5263,
+          "start_line": 993
+        },
+        {
+          "end_line": 2730,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.5263,
+          "start_line": 2419
+        },
+        {
+          "end_line": 91,
+          "path": "docs/sources/cardano-node-wiki/Cardano-Haskell-Node-Capabilities.md",
+          "score": 0.5263,
+          "start_line": 52
+        },
+        {
+          "end_line": 498,
+          "path": "docs/sources/gouroboros/protocol/PROTOCOL_LIMITS.md",
+          "score": 0.5263,
+          "start_line": 411
+        },
+        {
+          "end_line": 74,
+          "path": "docs/sources/dolos/content/migration/dolos-v2.mdx",
+          "score": 0.5263,
+          "start_line": 44
+        },
+        {
+          "end_line": 51,
+          "path": "docs/sources/developer-portal/developers/curriculum/production/network-protocol.md",
+          "score": 0.5263,
+          "start_line": 23
+        },
+        {
+          "end_line": 144,
+          "path": "docs/sources/hydra/docs/how-to/incremental-decommit.md",
+          "score": 0.5263,
+          "start_line": 5
+        },
+        {
+          "end_line": 39,
+          "path": "docs/sources/cips/CIP-0137/README.md",
+          "score": 0.5263,
+          "start_line": 30
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e10",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.045454545454545456,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "howto",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4,
+          "start_line": 1344
+        },
+        {
+          "end_line": 73,
+          "path": "docs/sources/developer-portal/developers/curriculum/start-building/local-testing.md",
+          "score": 0.4,
+          "start_line": 56
+        },
+        {
+          "end_line": 821,
+          "path": "docs/sources/mithril/website/root/manual/develop/nodes/mithril-aggregator.md",
+          "score": 0.35,
+          "start_line": 561
+        },
+        {
+          "end_line": 1077,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.35,
+          "start_line": 993
+        },
+        {
+          "end_line": 456,
+          "path": "docs/sources/ouroboros-leios/leios-design/README.md",
+          "score": 0.35,
+          "start_line": 449
+        },
+        {
+          "end_line": 188,
+          "path": "docs/sources/cip-113-programmable-tokens-platform/README.md",
+          "score": 0.35,
+          "start_line": 161
+        },
+        {
+          "end_line": 892,
+          "path": "docs/sources/ogmios/content/changelog/_index.md",
+          "score": 0.35,
+          "start_line": 857
+        },
+        {
+          "end_line": 1160,
+          "path": "docs/sources/ouroboros-leios/leios-design/README.md",
+          "score": 0.35,
+          "start_line": 1135
+        },
+        {
+          "end_line": 67,
+          "path": "docs/sources/yaci-devkit/known-issues.mdx",
+          "score": 0.35,
+          "start_line": 57
+        },
+        {
+          "end_line": 789,
+          "path": "docs/sources/mithril/website/versioned_docs/version-maintained/manual/develop/nodes/mithril-aggregator.md",
+          "score": 0.3,
+          "start_line": 538
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e11",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.030303030303030304,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "paraphrase",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.8235,
+          "start_line": 1344
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.7059,
+          "start_line": 453
+        },
+        {
+          "end_line": 633,
+          "path": "docs/sources/cardano-constitution/cardano-constitution-2/cardano-constitution-2.txt.md",
+          "score": 0.7059,
+          "start_line": 425
+        },
+        {
+          "end_line": 1077,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5882,
+          "start_line": 993
+        },
+        {
+          "end_line": 906,
+          "path": "docs/sources/cardano-node-wiki/reference/shelley-genesis.md",
+          "score": 0.5882,
+          "start_line": 804
+        },
+        {
+          "end_line": 120,
+          "path": "docs/sources/cips/CPS-0017/README.md",
+          "score": 0.5882,
+          "start_line": 93
+        },
+        {
+          "end_line": 1257,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5882,
+          "start_line": 1242
+        },
+        {
+          "end_line": 2730,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.5294,
+          "start_line": 2419
+        },
+        {
+          "end_line": 240,
+          "path": "docs/sources/dolos/contracts/export-preparation.md",
+          "score": 0.5294,
+          "start_line": 113
+        },
+        {
+          "end_line": 63,
+          "path": "docs/sources/cips/CPS-0017/README.md",
+          "score": 0.5294,
+          "start_line": 24
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e12",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "identifier",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 870,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5714,
+          "start_line": 795
+        },
+        {
+          "end_line": 301,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.5714,
+          "start_line": 54
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4762,
+          "start_line": 1344
+        },
+        {
+          "end_line": 821,
+          "path": "docs/sources/mithril/website/root/manual/develop/nodes/mithril-aggregator.md",
+          "score": 0.4762,
+          "start_line": 561
+        },
+        {
+          "end_line": 789,
+          "path": "docs/sources/mithril/website/versioned_docs/version-maintained/manual/develop/nodes/mithril-aggregator.md",
+          "score": 0.4762,
+          "start_line": 538
+        },
+        {
+          "end_line": 3090,
+          "path": "docs/sources/cips/CIP-0190/README.md",
+          "score": 0.4762,
+          "start_line": 3076
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4286,
+          "start_line": 453
+        },
+        {
+          "end_line": 1077,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4286,
+          "start_line": 993
+        },
+        {
+          "end_line": 701,
+          "path": "docs/sources/ouroboros-leios/technical-report-2.md",
+          "score": 0.4286,
+          "start_line": 651
+        },
+        {
+          "end_line": 1257,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4286,
+          "start_line": 1242
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e13",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 1.0,
+        "file@5": 1.0,
+        "mrr": 0.05263157894736842,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "howto",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.8182,
+          "start_line": 1344
+        },
+        {
+          "end_line": 121,
+          "path": "docs/sources/cardano-node-wiki/stake-pool-operations/8_register_stakepool.md",
+          "score": 0.7273,
+          "start_line": 74
+        },
+        {
+          "end_line": 96,
+          "path": "docs/sources/developer-portal/operators/block-producer/register-stake-pool.md",
+          "score": 0.7273,
+          "start_line": 61
+        },
+        {
+          "end_line": 31,
+          "path": "docs/sources/cardano-node-wiki/stake-pool-operations/8_register_stakepool.md",
+          "score": 0.7273,
+          "start_line": 1
+        },
+        {
+          "end_line": 108,
+          "path": "docs/sources/cardano-node-wiki/reference/cardano-node-cli-reference.md",
+          "score": 0.6364,
+          "start_line": 1
+        },
+        {
+          "end_line": 240,
+          "path": "docs/sources/blockfrost-go/api_transactions.go",
+          "score": 0.6364,
+          "start_line": 161
+        },
+        {
+          "end_line": 160,
+          "path": "docs/sources/blockfrost-go/api_pool.go",
+          "score": 0.6364,
+          "start_line": 81
+        },
+        {
+          "end_line": 169,
+          "path": "docs/sources/developer-portal/developers/curriculum/staking-governance/delegate-and-withdraw.md",
+          "score": 0.6364,
+          "start_line": 61
+        },
+        {
+          "end_line": 228,
+          "path": "docs/sources/developer-portal/developers/curriculum/staking-governance/manage-stake.md",
+          "score": 0.6364,
+          "start_line": 148
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/blockfrost-openapi/src/schemas/txs/tx_content_pool_certs.yaml",
+          "score": 0.6364,
+          "start_line": 1
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e14",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.015384615384615385,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "cross_source",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.55,
+          "start_line": 1344
+        },
+        {
+          "end_line": 73,
+          "path": "docs/sources/cips/CIP-0133/README.md",
+          "score": 0.55,
+          "start_line": 20
+        },
+        {
+          "end_line": 301,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.5,
+          "start_line": 54
+        },
+        {
+          "end_line": 184,
+          "path": "docs/sources/cips/CIP-0093/README.md",
+          "score": 0.5,
+          "start_line": 175
+        },
+        {
+          "end_line": 361,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.45,
+          "start_line": 313
+        },
+        {
+          "end_line": 3090,
+          "path": "docs/sources/cips/CIP-0190/README.md",
+          "score": 0.45,
+          "start_line": 3076
+        },
+        {
+          "end_line": 174,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/security/vulnerabilities/unchecked-inputs.md",
+          "score": 0.45,
+          "start_line": 148
+        },
+        {
+          "end_line": 98,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/advanced/bls-primitives.md",
+          "score": 0.45,
+          "start_line": 78
+        },
+        {
+          "end_line": 301,
+          "path": "docs/sources/cips/CIP-0204/README.md",
+          "score": 0.45,
+          "start_line": 219
+        },
+        {
+          "end_line": 415,
+          "path": "docs/sources/cips/CIP-0186/README.md",
+          "score": 0.45,
+          "start_line": 345
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e15",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.03333333333333333,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "conceptual",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6316,
+          "start_line": 1344
+        },
+        {
+          "end_line": 129,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/00-RESEARCH-REPORT.md",
+          "score": 0.5263,
+          "start_line": 27
+        },
+        {
+          "end_line": 1077,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5263,
+          "start_line": 993
+        },
+        {
+          "end_line": 314,
+          "path": "docs/sources/scalus/docs/superpowers/plans/2026-07-03-treasury-donation-txbuilder.md",
+          "score": 0.5263,
+          "start_line": 205
+        },
+        {
+          "end_line": 219,
+          "path": "docs/sources/scalus/docs/superpowers/plans/2026-08-30-ts-emulator-provider-parity.md",
+          "score": 0.5263,
+          "start_line": 48
+        },
+        {
+          "end_line": 105,
+          "path": "docs/sources/scalus/docs/design/js-api.md",
+          "score": 0.5263,
+          "start_line": 22
+        },
+        {
+          "end_line": 1737,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/raw-l2-rollup.md",
+          "score": 0.5263,
+          "start_line": 1696
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk-packages/evolution/docs/modules/sdk/builders/TransactionBuilder.ts.md",
+          "score": 0.4737,
+          "start_line": 218
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk/modules/sdk/builders/TransactionBuilder.mdx",
+          "score": 0.4737,
+          "start_line": 218
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4737,
+          "start_line": 453
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e16",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "cross_source",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 851,
+          "path": "docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md",
+          "score": 0.625,
+          "start_line": 802
+        },
+        {
+          "end_line": 656,
+          "path": "docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md",
+          "score": 0.625,
+          "start_line": 609
+        },
+        {
+          "end_line": 312,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.5625,
+          "start_line": 269
+        },
+        {
+          "end_line": 186,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/lock-and-spend.md",
+          "score": 0.5625,
+          "start_line": 106
+        },
+        {
+          "end_line": 304,
+          "path": "docs/sources/mesh-sdk/aiken/transactions.mdx",
+          "score": 0.5625,
+          "start_line": 226
+        },
+        {
+          "end_line": 126,
+          "path": "docs/sources/apollo/docs/plutusencoder/README.md",
+          "score": 0.5625,
+          "start_line": 46
+        },
+        {
+          "end_line": 209,
+          "path": "docs/sources/cips/CIP-0188/README.md",
+          "score": 0.5625,
+          "start_line": 198
+        },
+        {
+          "end_line": 319,
+          "path": "docs/sources/pycardano/guides/plutus.rst",
+          "score": 0.5,
+          "start_line": 241
+        },
+        {
+          "end_line": 254,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/lock-and-spend.md",
+          "score": 0.5,
+          "start_line": 193
+        },
+        {
+          "end_line": 656,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5,
+          "start_line": 599
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e17",
+      "metrics": {
+        "cov@10": 1.0,
+        "cov@5": 0.0,
+        "file@10": 1.0,
+        "file@5": 0.0,
+        "mrr": 0.125,
+        "sec@10": 1.0,
+        "sec@5": 0.0
+      },
+      "slice": "identifier",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5833,
+          "start_line": 1344
+        },
+        {
+          "end_line": 129,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/00-RESEARCH-REPORT.md",
+          "score": 0.5,
+          "start_line": 27
+        },
+        {
+          "end_line": 175,
+          "path": "docs/sources/aiken/example--vesting/mesh.mdx",
+          "score": 0.5,
+          "start_line": 88
+        },
+        {
+          "end_line": 382,
+          "path": "docs/sources/scalus/docs/superpowers/plans/2026-07-11-flat-serialization-refactor.md",
+          "score": 0.4167,
+          "start_line": 262
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/aiken-stdlib/aiken/math.ak",
+          "score": 0.4167,
+          "start_line": 1
+        },
+        {
+          "end_line": 949,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/qr-code-payments/05-building-the-backend.md",
+          "score": 0.4167,
+          "start_line": 555
+        },
+        {
+          "end_line": 569,
+          "path": "docs/sources/aiken/example--gift-card.mdx",
+          "score": 0.4167,
+          "start_line": 467
+        },
+        {
+          "end_line": 122,
+          "path": "docs/sources/aiken/language-tour/primitive-types.mdx",
+          "score": 0.4167,
+          "start_line": 73
+        },
+        {
+          "end_line": 90,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/write-a-validator.md",
+          "score": 0.4167,
+          "start_line": 38
+        },
+        {
+          "end_line": 1105,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/05-protocols-other.md",
+          "score": 0.4167,
+          "start_line": 1008
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e18",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 1.0,
+        "file@5": 0.0,
+        "mrr": 0.05,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "identifier",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.9,
+          "start_line": 1344
+        },
+        {
+          "end_line": 870,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.8,
+          "start_line": 795
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.8,
+          "start_line": 453
+        },
+        {
+          "end_line": 1207,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.7,
+          "start_line": 1078
+        },
+        {
+          "end_line": 301,
+          "path": "docs/sources/cips/CIP-0204/README.md",
+          "score": 0.7,
+          "start_line": 219
+        },
+        {
+          "end_line": 1202,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/cardano-ticker/02-building-the-ticker.md",
+          "score": 0.6,
+          "start_line": 190
+        },
+        {
+          "end_line": 82,
+          "path": "docs/sources/sanchonet/governance-actions/actions.mdx",
+          "score": 0.6,
+          "start_line": 22
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk-packages/evolution/docs/modules/sdk/builders/TransactionBuilder.ts.md",
+          "score": 0.6,
+          "start_line": 218
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk/modules/sdk/builders/TransactionBuilder.mdx",
+          "score": 0.6,
+          "start_line": 218
+        },
+        {
+          "end_line": 44,
+          "path": "docs/sources/sanchonet/drep-pioneer-program/module-1.mdx",
+          "score": 0.6,
+          "start_line": 10
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e19",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 1.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "howto",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 186,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/lock-and-spend.md",
+          "score": 0.6667,
+          "start_line": 106
+        },
+        {
+          "end_line": 320,
+          "path": "docs/sources/mesh-sdk/apis/data/overview.mdx",
+          "score": 0.6667,
+          "start_line": 278
+        },
+        {
+          "end_line": 352,
+          "path": "docs/sources/mesh-sdk/guides/aiken.mdx",
+          "score": 0.5833,
+          "start_line": 270
+        },
+        {
+          "end_line": 454,
+          "path": "docs/sources/aiken/example--hello-world/end-to-end/mesh.mdx",
+          "score": 0.5,
+          "start_line": 316
+        },
+        {
+          "end_line": 150,
+          "path": "docs/sources/aiken/example--hello-world/basics.mdx",
+          "score": 0.5,
+          "start_line": 96
+        },
+        {
+          "end_line": 412,
+          "path": "docs/sources/mesh-sdk/apis/txbuilder/smart-contracts.mdx",
+          "score": 0.5,
+          "start_line": 359
+        },
+        {
+          "end_line": 480,
+          "path": "docs/sources/mesh-sdk/guides/aiken.mdx",
+          "score": 0.5,
+          "start_line": 353
+        },
+        {
+          "end_line": 608,
+          "path": "docs/sources/mesh-sdk/apis/data/json.mdx",
+          "score": 0.5,
+          "start_line": 545
+        },
+        {
+          "end_line": 409,
+          "path": "docs/sources/aiken/example--hello-world/end-to-end/cardano-cli.mdx",
+          "score": 0.4167,
+          "start_line": 240
+        },
+        {
+          "end_line": 3090,
+          "path": "docs/sources/cips/CIP-0190/README.md",
+          "score": 0.4167,
+          "start_line": 3076
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e20",
+      "metrics": {
+        "cov@10": 0.5,
+        "cov@5": 0.5,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.5,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "infra",
+      "split": "calibration",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6316,
+          "start_line": 1344
+        },
+        {
+          "end_line": 199,
+          "path": "docs/sources/iohk-nix/changelog.md",
+          "score": 0.5263,
+          "start_line": 6
+        },
+        {
+          "end_line": 821,
+          "path": "docs/sources/mithril/website/root/manual/develop/nodes/mithril-aggregator.md",
+          "score": 0.5263,
+          "start_line": 561
+        },
+        {
+          "end_line": 789,
+          "path": "docs/sources/mithril/website/versioned_docs/version-maintained/manual/develop/nodes/mithril-aggregator.md",
+          "score": 0.5263,
+          "start_line": 538
+        },
+        {
+          "end_line": 540,
+          "path": "docs/sources/mithril/website/root/manual/operate/run-aggregator-node.md",
+          "score": 0.5263,
+          "start_line": 247
+        },
+        {
+          "end_line": 536,
+          "path": "docs/sources/mithril/website/versioned_docs/version-maintained/manual/operate/run-aggregator-node.md",
+          "score": 0.5263,
+          "start_line": 247
+        },
+        {
+          "end_line": 701,
+          "path": "docs/sources/ouroboros-leios/technical-report-2.md",
+          "score": 0.5263,
+          "start_line": 651
+        },
+        {
+          "end_line": 1077,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4737,
+          "start_line": 993
+        },
+        {
+          "end_line": 1663,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.4737,
+          "start_line": 1244
+        },
+        {
+          "end_line": 1202,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/cardano-ticker/02-building-the-ticker.md",
+          "score": 0.4737,
+          "start_line": 190
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e21",
+      "metrics": {
+        "cov@10": 1.0,
+        "cov@5": 1.0,
+        "file@10": 1.0,
+        "file@5": 1.0,
+        "mrr": 0.5,
+        "sec@10": 1.0,
+        "sec@5": 1.0
+      },
+      "slice": "conceptual",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6154,
+          "start_line": 1344
+        },
+        {
+          "end_line": 312,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.5769,
+          "start_line": 269
+        },
+        {
+          "end_line": 701,
+          "path": "docs/sources/ouroboros-leios/technical-report-2.md",
+          "score": 0.5385,
+          "start_line": 651
+        },
+        {
+          "end_line": 851,
+          "path": "docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md",
+          "score": 0.5385,
+          "start_line": 802
+        },
+        {
+          "end_line": 71,
+          "path": "docs/sources/govtool/docs/cardano-govtool/using-govtool/governance-actions/types-of-governance-actions/protocol-parameters-changes.md",
+          "score": 0.5,
+          "start_line": 3
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4615,
+          "start_line": 453
+        },
+        {
+          "end_line": 2730,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.4615,
+          "start_line": 2419
+        },
+        {
+          "end_line": 1077,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4615,
+          "start_line": 993
+        },
+        {
+          "end_line": 4888,
+          "path": "docs/sources/govtool/api/decisions.md",
+          "score": 0.4615,
+          "start_line": 4849
+        },
+        {
+          "end_line": 673,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.4231,
+          "start_line": 361
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e22",
+      "metrics": {
+        "cov@10": 0.6666666666666666,
+        "cov@5": 0.3333333333333333,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.5,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "infra",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 159,
+          "path": "docs/sources/developer-portal/developers/curriculum/production/self-hosting.md",
+          "score": 0.8125,
+          "start_line": 21
+        },
+        {
+          "end_line": 18,
+          "path": "docs/sources/dolos/content/what.mdx",
+          "score": 0.6875,
+          "start_line": 15
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.625,
+          "start_line": 1344
+        },
+        {
+          "end_line": 217,
+          "path": "docs/sources/developer-portal/operators/monitoring/new-tracing-system/cardano-tracer.md",
+          "score": 0.5625,
+          "start_line": 99
+        },
+        {
+          "end_line": 160,
+          "path": "docs/sources/kupo/docs/api/nightly.yaml",
+          "score": 0.5625,
+          "start_line": 81
+        },
+        {
+          "end_line": 240,
+          "path": "docs/sources/kupo/docs/api/nightly.yaml",
+          "score": 0.5625,
+          "start_line": 161
+        },
+        {
+          "end_line": 160,
+          "path": "docs/sources/gouroboros/connection_options.go",
+          "score": 0.5625,
+          "start_line": 81
+        },
+        {
+          "end_line": 88,
+          "path": "docs/sources/cardano-node-wiki/Cardano-Haskell-Node-(Byron-Re-Write)-Status.md",
+          "score": 0.5625,
+          "start_line": 1
+        },
+        {
+          "end_line": 13,
+          "path": "docs/sources/developer-portal/developers/curriculum/production/network-protocol.md",
+          "score": 0.5625,
+          "start_line": 1
+        },
+        {
+          "end_line": 28,
+          "path": "docs/sources/dolos/content/architecture/serving-layer.mdx",
+          "score": 0.5625,
+          "start_line": 17
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e23",
+      "metrics": {
+        "cov@10": 1.0,
+        "cov@5": 1.0,
+        "file@10": 1.0,
+        "file@5": 1.0,
+        "mrr": 1.0,
+        "sec@10": 1.0,
+        "sec@5": 1.0
+      },
+      "slice": "howto",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 240,
+          "path": "docs/sources/kupo/docs/api/nightly.yaml",
+          "score": 0.75,
+          "start_line": 161
+        },
+        {
+          "end_line": 159,
+          "path": "docs/sources/developer-portal/developers/curriculum/production/self-hosting.md",
+          "score": 0.625,
+          "start_line": 21
+        },
+        {
+          "end_line": 107,
+          "path": "docs/sources/cip-113-sdk-typescript/docs/devnet.md",
+          "score": 0.625,
+          "start_line": 29
+        },
+        {
+          "end_line": 210,
+          "path": "docs/sources/evolution-sdk/architecture/devnet.mdx",
+          "score": 0.5,
+          "start_line": 155
+        },
+        {
+          "end_line": 160,
+          "path": "docs/sources/kupo/docs/api/nightly.yaml",
+          "score": 0.5,
+          "start_line": 81
+        },
+        {
+          "end_line": 82,
+          "path": "docs/sources/evolution-sdk/architecture/devnet.mdx",
+          "score": 0.5,
+          "start_line": 24
+        },
+        {
+          "end_line": 217,
+          "path": "docs/sources/developer-portal/operators/monitoring/new-tracing-system/cardano-tracer.md",
+          "score": 0.5,
+          "start_line": 99
+        },
+        {
+          "end_line": 149,
+          "path": "docs/sources/evolution-sdk/devnet/getting-started.mdx",
+          "score": 0.5,
+          "start_line": 101
+        },
+        {
+          "end_line": 385,
+          "path": "docs/sources/cip-113-sdk-typescript/docs/devnet.md",
+          "score": 0.5,
+          "start_line": 339
+        },
+        {
+          "end_line": 99,
+          "path": "docs/sources/developer-portal/developers/curriculum/start-building/query-the-chain.md",
+          "score": 0.5,
+          "start_line": 15
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e24",
+      "metrics": {
+        "cov@10": 0.5,
+        "cov@5": 0.5,
+        "file@10": 1.0,
+        "file@5": 1.0,
+        "mrr": 1.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "cross_source",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 71,
+          "path": "docs/sources/developer-portal/developers/curriculum/production/connecting-to-the-chain.md",
+          "score": 0.7333,
+          "start_line": 60
+        },
+        {
+          "end_line": 99,
+          "path": "docs/sources/yaci-store-mcp/docs/app/docs/v3/blockfrost/configuration/page.mdx",
+          "score": 0.6667,
+          "start_line": 90
+        },
+        {
+          "end_line": 369,
+          "path": "docs/sources/yaci-store/stores/configuration/page.mdx",
+          "score": 0.6,
+          "start_line": 340
+        },
+        {
+          "end_line": 6000,
+          "path": "docs/sources/blockfrost-openapi/blockfrost-openapi.yaml",
+          "score": 0.6,
+          "start_line": 5921
+        },
+        {
+          "end_line": 6320,
+          "path": "docs/sources/blockfrost-openapi/docs/blockfrost-openapi.yaml",
+          "score": 0.6,
+          "start_line": 6241
+        },
+        {
+          "end_line": 6320,
+          "path": "docs/sources/blockfrost-openapi/openapi.yaml",
+          "score": 0.6,
+          "start_line": 6241
+        },
+        {
+          "end_line": 76,
+          "path": "docs/sources/blockfrost-openapi/src/paths/api/utils/txs/evaluate/index.yaml",
+          "score": 0.6,
+          "start_line": 1
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5333,
+          "start_line": 1344
+        },
+        {
+          "end_line": 159,
+          "path": "docs/sources/developer-portal/developers/curriculum/production/self-hosting.md",
+          "score": 0.5333,
+          "start_line": 21
+        },
+        {
+          "end_line": 400,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/input-and-write/02-build-your-own-api.md",
+          "score": 0.5333,
+          "start_line": 273
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e26",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 1.0,
+        "file@5": 1.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "howto",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 1202,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/cardano-ticker/02-building-the-ticker.md",
+          "score": 0.6923,
+          "start_line": 190
+        },
+        {
+          "end_line": 1663,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.5385,
+          "start_line": 1244
+        },
+        {
+          "end_line": 160,
+          "path": "docs/sources/blockfrost-openapi/blockfrost-openapi.yaml",
+          "score": 0.5385,
+          "start_line": 81
+        },
+        {
+          "end_line": 160,
+          "path": "docs/sources/blockfrost-openapi/src/definitions.yaml",
+          "score": 0.5385,
+          "start_line": 81
+        },
+        {
+          "end_line": 160,
+          "path": "docs/sources/blockfrost-openapi/docs/blockfrost-openapi.yaml",
+          "score": 0.5385,
+          "start_line": 81
+        },
+        {
+          "end_line": 160,
+          "path": "docs/sources/blockfrost-openapi/openapi.yaml",
+          "score": 0.5385,
+          "start_line": 81
+        },
+        {
+          "end_line": 3090,
+          "path": "docs/sources/cips/CIP-0190/README.md",
+          "score": 0.5385,
+          "start_line": 3076
+        },
+        {
+          "end_line": 560,
+          "path": "docs/sources/kupo/docs/api/nightly.yaml",
+          "score": 0.5385,
+          "start_line": 481
+        },
+        {
+          "end_line": 199,
+          "path": "docs/sources/cardano-node-wiki/ADR-015-Cardano-API-WASM-library-for-browser.md",
+          "score": 0.4615,
+          "start_line": 34
+        },
+        {
+          "end_line": 390,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/read-and-output/01-fetch-wallet-balance.md",
+          "score": 0.4615,
+          "start_line": 252
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e27",
+      "metrics": {
+        "cov@10": 1.0,
+        "cov@5": 1.0,
+        "file@10": 1.0,
+        "file@5": 1.0,
+        "mrr": 0.3333333333333333,
+        "sec@10": 1.0,
+        "sec@5": 1.0
+      },
+      "slice": "identifier",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 312,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.7143,
+          "start_line": 269
+        },
+        {
+          "end_line": 3090,
+          "path": "docs/sources/cips/CIP-0190/README.md",
+          "score": 0.6429,
+          "start_line": 3076
+        },
+        {
+          "end_line": 400,
+          "path": "docs/sources/apollo/backend/blockfrost/blockfrost.go",
+          "score": 0.6429,
+          "start_line": 321
+        },
+        {
+          "end_line": 240,
+          "path": "docs/sources/cardano-use-case-templates/vesting/offchain/pycardano/vesting.py",
+          "score": 0.6429,
+          "start_line": 161
+        },
+        {
+          "end_line": 240,
+          "path": "docs/sources/cardano-use-case-templates/htlc/offchain/pycardano/htlc.py",
+          "score": 0.6429,
+          "start_line": 161
+        },
+        {
+          "end_line": 240,
+          "path": "docs/sources/cardano-use-case-templates/token-transfer/offchain/pycardano/token_transfer.py",
+          "score": 0.6429,
+          "start_line": 161
+        },
+        {
+          "end_line": 851,
+          "path": "docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md",
+          "score": 0.5714,
+          "start_line": 802
+        },
+        {
+          "end_line": 5660,
+          "path": "docs/sources/govtool/api/decisions.md",
+          "score": 0.5714,
+          "start_line": 5617
+        },
+        {
+          "end_line": 640,
+          "path": "docs/sources/apollo/backend/blockfrost/blockfrost.go",
+          "score": 0.5714,
+          "start_line": 561
+        },
+        {
+          "end_line": 160,
+          "path": "docs/sources/cardano-use-case-templates/simple-transfer/offchain/pycardano/simple_transfer.py",
+          "score": 0.5714,
+          "start_line": 81
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e28",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.013157894736842105,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "cross_source",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk-packages/evolution/docs/modules/sdk/builders/TransactionBuilder.ts.md",
+          "score": 0.6,
+          "start_line": 218
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk/modules/sdk/builders/TransactionBuilder.mdx",
+          "score": 0.6,
+          "start_line": 218
+        },
+        {
+          "end_line": 43,
+          "path": "docs/sources/mesh-sdk/resources/solutions/beginners.mdx",
+          "score": 0.6,
+          "start_line": 1
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/pycardano/frequently_asked_questions.rst",
+          "score": 0.5333,
+          "start_line": 1
+        },
+        {
+          "end_line": 851,
+          "path": "docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md",
+          "score": 0.5333,
+          "start_line": 802
+        },
+        {
+          "end_line": 159,
+          "path": "docs/sources/developer-portal/developers/curriculum/production/self-hosting.md",
+          "score": 0.5333,
+          "start_line": 21
+        },
+        {
+          "end_line": 2214,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/06-pitfalls.md",
+          "score": 0.5333,
+          "start_line": 2187
+        },
+        {
+          "end_line": 134,
+          "path": "docs/sources/cips/CPS-0037/README.md",
+          "score": 0.5333,
+          "start_line": 93
+        },
+        {
+          "end_line": 169,
+          "path": "docs/sources/developer-portal/developers/curriculum/staking-governance/delegate-and-withdraw.md",
+          "score": 0.5333,
+          "start_line": 61
+        },
+        {
+          "end_line": 105,
+          "path": "docs/sources/scalus/docs/design/js-api.md",
+          "score": 0.5333,
+          "start_line": 22
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e29",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "howto",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 274,
+          "path": "docs/sources/developer-portal/developers/curriculum/start-building/transaction-building.md",
+          "score": 0.8571,
+          "start_line": 237
+        },
+        {
+          "end_line": 1663,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.6667,
+          "start_line": 1244
+        },
+        {
+          "end_line": 301,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.619,
+          "start_line": 54
+        },
+        {
+          "end_line": 110,
+          "path": "docs/sources/hydra/docs/how-to/selective-fanout.md",
+          "score": 0.619,
+          "start_line": 5
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk-packages/evolution/docs/modules/sdk/builders/TransactionBuilder.ts.md",
+          "score": 0.5714,
+          "start_line": 218
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk/modules/sdk/builders/TransactionBuilder.mdx",
+          "score": 0.5714,
+          "start_line": 218
+        },
+        {
+          "end_line": 11,
+          "path": "docs/sources/developer-portal/developers/curriculum/production/transaction-chaining.md",
+          "score": 0.5714,
+          "start_line": 1
+        },
+        {
+          "end_line": 164,
+          "path": "docs/sources/evolution-sdk/transactions/airdrop.mdx",
+          "score": 0.5714,
+          "start_line": 106
+        },
+        {
+          "end_line": 238,
+          "path": "docs/sources/gouroboros/README.md",
+          "score": 0.5238,
+          "start_line": 16
+        },
+        {
+          "end_line": 361,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.5238,
+          "start_line": 313
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e30",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.09090909090909091,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "howto",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 147,
+          "path": "docs/sources/cardano-wallet/site/src/design/concepts/address-derivation.md",
+          "score": 0.5714,
+          "start_line": 62
+        },
+        {
+          "end_line": 209,
+          "path": "docs/sources/developer-portal/developers/curriculum/fundamentals/core-concepts/wallets-and-keys.md",
+          "score": 0.5714,
+          "start_line": 144
+        },
+        {
+          "end_line": 105,
+          "path": "docs/sources/scalus/docs/design/js-api.md",
+          "score": 0.5714,
+          "start_line": 22
+        },
+        {
+          "end_line": 72,
+          "path": "docs/sources/cips/CIP-0105/README.md",
+          "score": 0.5714,
+          "start_line": 63
+        },
+        {
+          "end_line": 87,
+          "path": "docs/sources/cips/CIP-0105/README.md",
+          "score": 0.5714,
+          "start_line": 78
+        },
+        {
+          "end_line": 102,
+          "path": "docs/sources/cips/CIP-0105/README.md",
+          "score": 0.5714,
+          "start_line": 93
+        },
+        {
+          "end_line": 39,
+          "path": "docs/sources/cardano-client-lib/gettingstarted/modules.mdx",
+          "score": 0.5,
+          "start_line": 5
+        },
+        {
+          "end_line": 184,
+          "path": "docs/sources/cardano-wallet/site/src/design/concepts/multisig.md",
+          "score": 0.5,
+          "start_line": 106
+        },
+        {
+          "end_line": 89,
+          "path": "docs/sources/developer-portal/developers/curriculum/fundamentals/core-concepts/wallets-and-keys.md",
+          "score": 0.5,
+          "start_line": 66
+        },
+        {
+          "end_line": 29,
+          "path": "docs/sources/cip30-test-wallet/docs/fixture-api.md",
+          "score": 0.5,
+          "start_line": 5
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e31",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.041666666666666664,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "howto",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.7333,
+          "start_line": 1344
+        },
+        {
+          "end_line": 851,
+          "path": "docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md",
+          "score": 0.6667,
+          "start_line": 802
+        },
+        {
+          "end_line": 1185,
+          "path": "docs/sources/evolution-sdk-packages/evolution/docs/modules/sdk/builders/TransactionBuilder.ts.md",
+          "score": 0.6667,
+          "start_line": 1118
+        },
+        {
+          "end_line": 1185,
+          "path": "docs/sources/evolution-sdk/modules/sdk/builders/TransactionBuilder.mdx",
+          "score": 0.6667,
+          "start_line": 1118
+        },
+        {
+          "end_line": 312,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.6,
+          "start_line": 269
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6,
+          "start_line": 453
+        },
+        {
+          "end_line": 29,
+          "path": "docs/sources/cip30-test-wallet/docs/fixture-api.md",
+          "score": 0.6,
+          "start_line": 5
+        },
+        {
+          "end_line": 2730,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.6,
+          "start_line": 2419
+        },
+        {
+          "end_line": 129,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/00-RESEARCH-REPORT.md",
+          "score": 0.6,
+          "start_line": 27
+        },
+        {
+          "end_line": 282,
+          "path": "docs/sources/amaru/docs/user-guide/05-amaru-advanced-installation.md",
+          "score": 0.6,
+          "start_line": 203
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e32",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "conceptual",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.7692,
+          "start_line": 1344
+        },
+        {
+          "end_line": 1663,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.6923,
+          "start_line": 1244
+        },
+        {
+          "end_line": 2216,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.6923,
+          "start_line": 1988
+        },
+        {
+          "end_line": 870,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6923,
+          "start_line": 795
+        },
+        {
+          "end_line": 361,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.6923,
+          "start_line": 313
+        },
+        {
+          "end_line": 97,
+          "path": "docs/sources/dolos/content/architecture/data-layer.mdx",
+          "score": 0.6923,
+          "start_line": 72
+        },
+        {
+          "end_line": 614,
+          "path": "docs/sources/ouroboros-leios/technical-report-2.md",
+          "score": 0.6923,
+          "start_line": 602
+        },
+        {
+          "end_line": 644,
+          "path": "docs/sources/ouroboros-leios/technical-report-2.md",
+          "score": 0.6923,
+          "start_line": 627
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/gouroboros/ledger/common/block_state.go",
+          "score": 0.6923,
+          "start_line": 1
+        },
+        {
+          "end_line": 35,
+          "path": "docs/sources/cips/CPS-0031/README.md",
+          "score": 0.6923,
+          "start_line": 24
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e33",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "paraphrase",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 701,
+          "path": "docs/sources/ouroboros-leios/technical-report-2.md",
+          "score": 0.6429,
+          "start_line": 651
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5714,
+          "start_line": 1344
+        },
+        {
+          "end_line": 2216,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.5714,
+          "start_line": 1988
+        },
+        {
+          "end_line": 236,
+          "path": "docs/sources/ouroboros-leios/ImpactAnalysis.md",
+          "score": 0.5714,
+          "start_line": 208
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/gouroboros/ledger/common/script/redeemers.go",
+          "score": 0.5714,
+          "start_line": 1
+        },
+        {
+          "end_line": 97,
+          "path": "docs/sources/dolos/content/architecture/data-layer.mdx",
+          "score": 0.5714,
+          "start_line": 72
+        },
+        {
+          "end_line": 35,
+          "path": "docs/sources/cips/CPS-0031/README.md",
+          "score": 0.5714,
+          "start_line": 24
+        },
+        {
+          "end_line": 870,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5,
+          "start_line": 795
+        },
+        {
+          "end_line": 600,
+          "path": "docs/sources/ouroboros-leios/leios-design/README.md",
+          "score": 0.5,
+          "start_line": 552
+        },
+        {
+          "end_line": 1663,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.5,
+          "start_line": 1244
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e34",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.013513513513513514,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "conceptual",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 301,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.7692,
+          "start_line": 54
+        },
+        {
+          "end_line": 421,
+          "path": "docs/sources/cips/CIP-0188/README.md",
+          "score": 0.7692,
+          "start_line": 388
+        },
+        {
+          "end_line": 312,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.7692,
+          "start_line": 269
+        },
+        {
+          "end_line": 319,
+          "path": "docs/sources/pycardano/guides/plutus.rst",
+          "score": 0.7692,
+          "start_line": 241
+        },
+        {
+          "end_line": 160,
+          "path": "docs/sources/gouroboros/ledger/common/script/redeemers.go",
+          "score": 0.7692,
+          "start_line": 81
+        },
+        {
+          "end_line": 1344,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/07-efficiency-constraints.md",
+          "score": 0.7692,
+          "start_line": 1188
+        },
+        {
+          "end_line": 29,
+          "path": "docs/sources/cip30-test-wallet/docs/fixture-api.md",
+          "score": 0.7692,
+          "start_line": 5
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6923,
+          "start_line": 1344
+        },
+        {
+          "end_line": 513,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-10-19-uplc-jit-simplification-design.md",
+          "score": 0.6923,
+          "start_line": 449
+        },
+        {
+          "end_line": 353,
+          "path": "docs/sources/ouroboros-leios/targeted-design-investigations/a-baseline-LeiosFetch-design/LeiosFetchLogic.md",
+          "score": 0.6923,
+          "start_line": 302
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e35",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.05263157894736842,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "howto",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 401,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/write-a-validator.md",
+          "score": 0.8462,
+          "start_line": 330
+        },
+        {
+          "end_line": 282,
+          "path": "docs/sources/plinth/docs/uplc-cli-tool.md",
+          "score": 0.8462,
+          "start_line": 246
+        },
+        {
+          "end_line": 1064,
+          "path": "docs/sources/scalus/docs/superpowers/plans/2026-07-18-blueprint-caching-and-pin.md",
+          "score": 0.7692,
+          "start_line": 853
+        },
+        {
+          "end_line": 326,
+          "path": "docs/sources/developer-portal/developers/curriculum/native-tokens/mint-nft.md",
+          "score": 0.7692,
+          "start_line": 200
+        },
+        {
+          "end_line": 114,
+          "path": "docs/sources/cardano-client-lib/preview/txflow/txstream-contracts.mdx",
+          "score": 0.7692,
+          "start_line": 24
+        },
+        {
+          "end_line": 553,
+          "path": "docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md",
+          "score": 0.7692,
+          "start_line": 527
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/cardano-use-case-templates/payment-splitter/offchain/evolutionsdk/payment-splitter.ts",
+          "score": 0.7692,
+          "start_line": 1
+        },
+        {
+          "end_line": 46,
+          "path": "docs/sources/apollo/docs/dijkstra/README.md",
+          "score": 0.7692,
+          "start_line": 30
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/cardano-use-case-templates/bet/offchain/evolutionsdk/bet.ts",
+          "score": 0.7692,
+          "start_line": 1
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/cardano-use-case-templates/htlc/offchain/pycardano/htlc.py",
+          "score": 0.7692,
+          "start_line": 1
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e36",
+      "metrics": {
+        "cov@10": 0.5,
+        "cov@5": 0.5,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.25,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "identifier",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 129,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/00-RESEARCH-REPORT.md",
+          "score": 1.0,
+          "start_line": 27
+        },
+        {
+          "end_line": 2263,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/06-pitfalls.md",
+          "score": 0.875,
+          "start_line": 2215
+        },
+        {
+          "end_line": 583,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/00-RESEARCH-REPORT.md",
+          "score": 0.875,
+          "start_line": 518
+        },
+        {
+          "end_line": 178,
+          "path": "docs/sources/aiken/language-tour/modules.mdx",
+          "score": 0.75,
+          "start_line": 112
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/pycardano/guides/plutus.rst",
+          "score": 0.75,
+          "start_line": 1
+        },
+        {
+          "end_line": 123,
+          "path": "docs/sources/aiken/fundamentals/common-design-patterns.mdx",
+          "score": 0.75,
+          "start_line": 22
+        },
+        {
+          "end_line": 234,
+          "path": "docs/sources/aiken/language-tour/troubleshooting.mdx",
+          "score": 0.75,
+          "start_line": 137
+        },
+        {
+          "end_line": 160,
+          "path": "docs/sources/aiken-stdlib/cardano/transaction.ak",
+          "score": 0.75,
+          "start_line": 81
+        },
+        {
+          "end_line": 1405,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/06-pitfalls.md",
+          "score": 0.75,
+          "start_line": 1354
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/aiken-stdlib/aiken/collection/dict.ak",
+          "score": 0.75,
+          "start_line": 1
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e37",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.09090909090909091,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "conceptual",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.7857,
+          "start_line": 1344
+        },
+        {
+          "end_line": 312,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.7143,
+          "start_line": 269
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.7143,
+          "start_line": 453
+        },
+        {
+          "end_line": 207,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/write-a-validator.md",
+          "score": 0.7143,
+          "start_line": 177
+        },
+        {
+          "end_line": 81,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/security/vulnerabilities/staking-and-certificates.md",
+          "score": 0.6429,
+          "start_line": 55
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk-packages/evolution/docs/modules/sdk/builders/TransactionBuilder.ts.md",
+          "score": 0.5714,
+          "start_line": 218
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk/modules/sdk/builders/TransactionBuilder.mdx",
+          "score": 0.5714,
+          "start_line": 218
+        },
+        {
+          "end_line": 169,
+          "path": "docs/sources/developer-portal/developers/curriculum/staking-governance/delegate-and-withdraw.md",
+          "score": 0.5714,
+          "start_line": 61
+        },
+        {
+          "end_line": 800,
+          "path": "docs/sources/gouroboros/ledger/common/rules.go",
+          "score": 0.5714,
+          "start_line": 721
+        },
+        {
+          "end_line": 1160,
+          "path": "docs/sources/ouroboros-leios/leios-design/README.md",
+          "score": 0.5714,
+          "start_line": 1135
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e38",
+      "metrics": {
+        "cov@10": 0.5,
+        "cov@5": 0.5,
+        "file@10": 1.0,
+        "file@5": 1.0,
+        "mrr": 0.2,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "cross_source",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk-packages/evolution/docs/modules/sdk/builders/TransactionBuilder.ts.md",
+          "score": 0.6111,
+          "start_line": 218
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk/modules/sdk/builders/TransactionBuilder.mdx",
+          "score": 0.6111,
+          "start_line": 218
+        },
+        {
+          "end_line": 712,
+          "path": "docs/sources/cips/CIP-0170/README.md",
+          "score": 0.6111,
+          "start_line": 682
+        },
+        {
+          "end_line": 421,
+          "path": "docs/sources/cips/CIP-0188/README.md",
+          "score": 0.6111,
+          "start_line": 388
+        },
+        {
+          "end_line": 30,
+          "path": "docs/sources/cips/CIP-0021/README.md",
+          "score": 0.5556,
+          "start_line": 21
+        },
+        {
+          "end_line": 625,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/input-and-write/02-build-your-own-api.md",
+          "score": 0.5,
+          "start_line": 401
+        },
+        {
+          "end_line": 400,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/input-and-write/02-build-your-own-api.md",
+          "score": 0.5,
+          "start_line": 273
+        },
+        {
+          "end_line": 203,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/input-and-write/03-mint-sensor-data-on-chain.md",
+          "score": 0.5,
+          "start_line": 49
+        },
+        {
+          "end_line": 1663,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.5,
+          "start_line": 1244
+        },
+        {
+          "end_line": 361,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.5,
+          "start_line": 313
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e39",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "howto",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6923,
+          "start_line": 1344
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6923,
+          "start_line": 453
+        },
+        {
+          "end_line": 1207,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6923,
+          "start_line": 1078
+        },
+        {
+          "end_line": 74,
+          "path": "docs/sources/developer-portal/developers/curriculum/staking-governance/governance.md",
+          "score": 0.6923,
+          "start_line": 46
+        },
+        {
+          "end_line": 870,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6154,
+          "start_line": 795
+        },
+        {
+          "end_line": 1077,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6154,
+          "start_line": 993
+        },
+        {
+          "end_line": 389,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6154,
+          "start_line": 333
+        },
+        {
+          "end_line": 202,
+          "path": "docs/sources/cips/CIP-0175/README.md",
+          "score": 0.5385,
+          "start_line": 184
+        },
+        {
+          "end_line": 332,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4615,
+          "start_line": 304
+        },
+        {
+          "end_line": 82,
+          "path": "docs/sources/sanchonet/governance-actions/actions.mdx",
+          "score": 0.4615,
+          "start_line": 22
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e40",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "paraphrase",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 821,
+          "path": "docs/sources/mithril/website/root/manual/develop/nodes/mithril-aggregator.md",
+          "score": 0.6,
+          "start_line": 561
+        },
+        {
+          "end_line": 3090,
+          "path": "docs/sources/cips/CIP-0190/README.md",
+          "score": 0.6,
+          "start_line": 3076
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6,
+          "start_line": 1344
+        },
+        {
+          "end_line": 199,
+          "path": "docs/sources/cardano-node-wiki/ADR-015-Cardano-API-WASM-library-for-browser.md",
+          "score": 0.6,
+          "start_line": 34
+        },
+        {
+          "end_line": 308,
+          "path": "docs/sources/masumi/documentation/get-started/register-agent.mdx",
+          "score": 0.6,
+          "start_line": 35
+        },
+        {
+          "end_line": 789,
+          "path": "docs/sources/mithril/website/versioned_docs/version-maintained/manual/develop/nodes/mithril-aggregator.md",
+          "score": 0.5333,
+          "start_line": 538
+        },
+        {
+          "end_line": 239,
+          "path": "docs/sources/cardano-node-wiki/reference/Polls.md",
+          "score": 0.5333,
+          "start_line": 10
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5333,
+          "start_line": 453
+        },
+        {
+          "end_line": 35,
+          "path": "docs/sources/cardano-node-wiki/ADR-001-Default-eras-for-CLI-commands.md",
+          "score": 0.5333,
+          "start_line": 5
+        },
+        {
+          "end_line": 173,
+          "path": "docs/sources/cips/CIP-0170/README.md",
+          "score": 0.5333,
+          "start_line": 160
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e41",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "howto",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.7,
+          "start_line": 1344
+        },
+        {
+          "end_line": 361,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.7,
+          "start_line": 313
+        },
+        {
+          "end_line": 1077,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.7,
+          "start_line": 993
+        },
+        {
+          "end_line": 4888,
+          "path": "docs/sources/govtool/api/decisions.md",
+          "score": 0.7,
+          "start_line": 4849
+        },
+        {
+          "end_line": 139,
+          "path": "docs/sources/cips/CIP-0139/Query_Layer_API_Comparison.md",
+          "score": 0.6,
+          "start_line": 1
+        },
+        {
+          "end_line": 312,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.6,
+          "start_line": 269
+        },
+        {
+          "end_line": 1026,
+          "path": "docs/sources/scalus/docs/superpowers/plans/2026-08-30-ts-emulator-provider-parity.md",
+          "score": 0.6,
+          "start_line": 816
+        },
+        {
+          "end_line": 851,
+          "path": "docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md",
+          "score": 0.6,
+          "start_line": 802
+        },
+        {
+          "end_line": 160,
+          "path": "docs/sources/gouroboros/ledger/common/ref_scripts.go",
+          "score": 0.6,
+          "start_line": 81
+        },
+        {
+          "end_line": 421,
+          "path": "docs/sources/cips/CIP-0188/README.md",
+          "score": 0.6,
+          "start_line": 388
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e42",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.027777777777777776,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "identifier",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.7778,
+          "start_line": 1344
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.7222,
+          "start_line": 453
+        },
+        {
+          "end_line": 2730,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.7222,
+          "start_line": 2419
+        },
+        {
+          "end_line": 701,
+          "path": "docs/sources/ouroboros-leios/technical-report-2.md",
+          "score": 0.7222,
+          "start_line": 651
+        },
+        {
+          "end_line": 1077,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6667,
+          "start_line": 993
+        },
+        {
+          "end_line": 129,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/00-RESEARCH-REPORT.md",
+          "score": 0.6667,
+          "start_line": 27
+        },
+        {
+          "end_line": 2216,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.6667,
+          "start_line": 1988
+        },
+        {
+          "end_line": 1578,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-08-26-onchain-stdlib-api-design.md",
+          "score": 0.6667,
+          "start_line": 1565
+        },
+        {
+          "end_line": 1202,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/cardano-ticker/02-building-the-ticker.md",
+          "score": 0.6111,
+          "start_line": 190
+        },
+        {
+          "end_line": 301,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.6111,
+          "start_line": 54
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e43",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "howto",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 105,
+          "path": "docs/sources/developer-portal/developers/curriculum/start-building/local-testing.md",
+          "score": 0.6667,
+          "start_line": 74
+        },
+        {
+          "end_line": 48,
+          "path": "docs/sources/evolution-sdk/devnet/index.mdx",
+          "score": 0.6,
+          "start_line": 39
+        },
+        {
+          "end_line": 821,
+          "path": "docs/sources/mithril/website/root/manual/develop/nodes/mithril-aggregator.md",
+          "score": 0.5333,
+          "start_line": 561
+        },
+        {
+          "end_line": 1124,
+          "path": "docs/sources/scalus/docs/superpowers/plans/2026-08-30-ts-emulator-provider-parity.md",
+          "score": 0.5333,
+          "start_line": 1027
+        },
+        {
+          "end_line": 73,
+          "path": "docs/sources/developer-portal/developers/curriculum/start-building/local-testing.md",
+          "score": 0.5333,
+          "start_line": 56
+        },
+        {
+          "end_line": 47,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-08-30-ts-emulator-provider-parity-design.md",
+          "score": 0.5333,
+          "start_line": 17
+        },
+        {
+          "end_line": 789,
+          "path": "docs/sources/mithril/website/versioned_docs/version-maintained/manual/develop/nodes/mithril-aggregator.md",
+          "score": 0.4667,
+          "start_line": 538
+        },
+        {
+          "end_line": 815,
+          "path": "docs/sources/scalus/docs/superpowers/plans/2026-08-30-ts-emulator-provider-parity.md",
+          "score": 0.4667,
+          "start_line": 511
+        },
+        {
+          "end_line": 145,
+          "path": "docs/sources/developer-portal/developers/curriculum/start-building/local-testing.md",
+          "score": 0.4667,
+          "start_line": 106
+        },
+        {
+          "end_line": 141,
+          "path": "docs/sources/cip-113-sdk-typescript/docs/devnet.md",
+          "score": 0.4667,
+          "start_line": 108
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e44",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.015384615384615385,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "paraphrase",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5833,
+          "start_line": 1344
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5,
+          "start_line": 453
+        },
+        {
+          "end_line": 870,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5,
+          "start_line": 795
+        },
+        {
+          "end_line": 1077,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4167,
+          "start_line": 993
+        },
+        {
+          "end_line": 1663,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.375,
+          "start_line": 1244
+        },
+        {
+          "end_line": 651,
+          "path": "docs/sources/ouroboros-leios/status-report-2026q2.md",
+          "score": 0.375,
+          "start_line": 614
+        },
+        {
+          "end_line": 1160,
+          "path": "docs/sources/ouroboros-leios/leios-design/README.md",
+          "score": 0.375,
+          "start_line": 1135
+        },
+        {
+          "end_line": 484,
+          "path": "docs/sources/mithril/website/root/manual/operate/run-signer-node.md",
+          "score": 0.3333,
+          "start_line": 279
+        },
+        {
+          "end_line": 484,
+          "path": "docs/sources/mithril/website/versioned_docs/version-maintained/manual/operate/run-signer-node.md",
+          "score": 0.3333,
+          "start_line": 279
+        },
+        {
+          "end_line": 2730,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.3333,
+          "start_line": 2419
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e46",
+      "metrics": {
+        "cov@10": 0.5,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.1,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "paraphrase",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk-packages/evolution/docs/modules/sdk/builders/TransactionBuilder.ts.md",
+          "score": 0.6875,
+          "start_line": 218
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk/modules/sdk/builders/TransactionBuilder.mdx",
+          "score": 0.6875,
+          "start_line": 218
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.625,
+          "start_line": 1344
+        },
+        {
+          "end_line": 1202,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/cardano-ticker/02-building-the-ticker.md",
+          "score": 0.5625,
+          "start_line": 190
+        },
+        {
+          "end_line": 389,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5625,
+          "start_line": 333
+        },
+        {
+          "end_line": 301,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.5625,
+          "start_line": 54
+        },
+        {
+          "end_line": 139,
+          "path": "docs/sources/cips/CIP-0139/Query_Layer_API_Comparison.md",
+          "score": 0.5,
+          "start_line": 1
+        },
+        {
+          "end_line": 1077,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5,
+          "start_line": 993
+        },
+        {
+          "end_line": 1663,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.5,
+          "start_line": 1244
+        },
+        {
+          "end_line": 43,
+          "path": "docs/sources/developer-portal/developers/curriculum/staking-governance/staking.md",
+          "score": 0.5,
+          "start_line": 25
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e47",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "howto",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 1314,
+          "path": "docs/sources/cip-113-programmable-tokens/documentation/09-DEVELOPING-MODULES.md",
+          "score": 0.6667,
+          "start_line": 1163
+        },
+        {
+          "end_line": 271,
+          "path": "docs/sources/cips/CIP-0188/README.md",
+          "score": 0.6111,
+          "start_line": 244
+        },
+        {
+          "end_line": 1202,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/cardano-ticker/02-building-the-ticker.md",
+          "score": 0.5556,
+          "start_line": 190
+        },
+        {
+          "end_line": 1663,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.5556,
+          "start_line": 1244
+        },
+        {
+          "end_line": 361,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.5556,
+          "start_line": 313
+        },
+        {
+          "end_line": 436,
+          "path": "docs/sources/cips/CIP-0188/README.md",
+          "score": 0.5556,
+          "start_line": 422
+        },
+        {
+          "end_line": 1162,
+          "path": "docs/sources/cip-113-programmable-tokens/documentation/09-DEVELOPING-MODULES.md",
+          "score": 0.5556,
+          "start_line": 1017
+        },
+        {
+          "end_line": 49,
+          "path": "docs/sources/cips/CIP-0188/README.md",
+          "score": 0.5556,
+          "start_line": 24
+        },
+        {
+          "end_line": 162,
+          "path": "docs/sources/hydra/docs/faqs.md",
+          "score": 0.5556,
+          "start_line": 4
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5,
+          "start_line": 1344
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e48",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "cross_source",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 224,
+          "path": "docs/sources/developer-portal/developers/curriculum/staking-governance/drep-and-delegation.md",
+          "score": 0.9091,
+          "start_line": 146
+        },
+        {
+          "end_line": 228,
+          "path": "docs/sources/developer-portal/developers/curriculum/staking-governance/manage-stake.md",
+          "score": 0.8182,
+          "start_line": 148
+        },
+        {
+          "end_line": 128,
+          "path": "docs/sources/cardano-serialization-lib/doc/getting-started/delegate-to-abstain.md",
+          "score": 0.8182,
+          "start_line": 1
+        },
+        {
+          "end_line": 243,
+          "path": "docs/sources/developer-portal/operators/governance/spo-governance.md",
+          "score": 0.7273,
+          "start_line": 199
+        },
+        {
+          "end_line": 70,
+          "path": "docs/sources/evolution-sdk/governance/vote-delegation.mdx",
+          "score": 0.7273,
+          "start_line": 37
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk-packages/evolution/docs/modules/sdk/builders/TransactionBuilder.ts.md",
+          "score": 0.6364,
+          "start_line": 218
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk/modules/sdk/builders/TransactionBuilder.mdx",
+          "score": 0.6364,
+          "start_line": 218
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.6364,
+          "start_line": 1344
+        },
+        {
+          "end_line": 301,
+          "path": "docs/sources/evolution-sdk/staking/legacy-registration.mdx",
+          "score": 0.6364,
+          "start_line": 268
+        },
+        {
+          "end_line": 169,
+          "path": "docs/sources/developer-portal/developers/curriculum/staking-governance/delegate-and-withdraw.md",
+          "score": 0.5455,
+          "start_line": 61
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e49",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "cross_source",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 312,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.4783,
+          "start_line": 269
+        },
+        {
+          "end_line": 673,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.4348,
+          "start_line": 361
+        },
+        {
+          "end_line": 301,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.4348,
+          "start_line": 54
+        },
+        {
+          "end_line": 29,
+          "path": "docs/sources/cip30-test-wallet/docs/fixture-api.md",
+          "score": 0.4348,
+          "start_line": 5
+        },
+        {
+          "end_line": 3090,
+          "path": "docs/sources/cips/CIP-0190/README.md",
+          "score": 0.3913,
+          "start_line": 3076
+        },
+        {
+          "end_line": 498,
+          "path": "docs/sources/gouroboros/protocol/PROTOCOL_LIMITS.md",
+          "score": 0.3913,
+          "start_line": 411
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.3913,
+          "start_line": 1344
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.3913,
+          "start_line": 453
+        },
+        {
+          "end_line": 414,
+          "path": "docs/sources/cips/CIP-0190/README.md",
+          "score": 0.3913,
+          "start_line": 276
+        },
+        {
+          "end_line": 22,
+          "path": "docs/sources/cip30-test-wallet/docs/known-consumer-issues.md",
+          "score": 0.3913,
+          "start_line": 5
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e50",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.07142857142857142,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "conceptual",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 301,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.8333,
+          "start_line": 54
+        },
+        {
+          "end_line": 192,
+          "path": "docs/sources/developer-portal/developers/cardano-for-ethereum-developers.md",
+          "score": 0.75,
+          "start_line": 148
+        },
+        {
+          "end_line": 129,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/00-RESEARCH-REPORT.md",
+          "score": 0.75,
+          "start_line": 27
+        },
+        {
+          "end_line": 1105,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/05-protocols-other.md",
+          "score": 0.75,
+          "start_line": 1008
+        },
+        {
+          "end_line": 176,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/write-a-validator.md",
+          "score": 0.75,
+          "start_line": 142
+        },
+        {
+          "end_line": 71,
+          "path": "docs/sources/cips/CIP-0112/README.md",
+          "score": 0.6667,
+          "start_line": 20
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/aiken-design-patterns/lib/aiken-design-patterns/multi-utxo-indexer.ak",
+          "score": 0.6667,
+          "start_line": 1
+        },
+        {
+          "end_line": 1421,
+          "path": "docs/sources/scalus/docs/design/verification-details/uplc-blaster.md",
+          "score": 0.6667,
+          "start_line": 1350
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/cardano-use-case-templates/payment-splitter/fullstack/scalus/OptimizedPaymentSplitterValidator.scala",
+          "score": 0.6667,
+          "start_line": 1
+        },
+        {
+          "end_line": 618,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/raw-l2-rollup.md",
+          "score": 0.6667,
+          "start_line": 461
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e51",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "cross_source",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5882,
+          "start_line": 1344
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4706,
+          "start_line": 453
+        },
+        {
+          "end_line": 3090,
+          "path": "docs/sources/cips/CIP-0190/README.md",
+          "score": 0.4706,
+          "start_line": 3076
+        },
+        {
+          "end_line": 301,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.4706,
+          "start_line": 54
+        },
+        {
+          "end_line": 2730,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.4706,
+          "start_line": 2419
+        },
+        {
+          "end_line": 1207,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4706,
+          "start_line": 1078
+        },
+        {
+          "end_line": 105,
+          "path": "docs/sources/scalus/docs/design/js-api.md",
+          "score": 0.4706,
+          "start_line": 22
+        },
+        {
+          "end_line": 129,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/00-RESEARCH-REPORT.md",
+          "score": 0.4706,
+          "start_line": 27
+        },
+        {
+          "end_line": 721,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-08-26-onchain-stdlib-api-design.md",
+          "score": 0.4706,
+          "start_line": 653
+        },
+        {
+          "end_line": 870,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4118,
+          "start_line": 795
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e52",
+      "metrics": {
+        "cov@10": 1.0,
+        "cov@5": 1.0,
+        "file@10": 1.0,
+        "file@5": 1.0,
+        "mrr": 1.0,
+        "sec@10": 1.0,
+        "sec@5": 1.0
+      },
+      "slice": "conceptual",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 560,
+          "path": "docs/sources/kupo/docs/api/nightly.yaml",
+          "score": 0.65,
+          "start_line": 481
+        },
+        {
+          "end_line": 851,
+          "path": "docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md",
+          "score": 0.45,
+          "start_line": 802
+        },
+        {
+          "end_line": 560,
+          "path": "docs/sources/adder/input/mempool/mempool.go",
+          "score": 0.45,
+          "start_line": 481
+        },
+        {
+          "end_line": 720,
+          "path": "docs/sources/kupo/docs/api/nightly.yaml",
+          "score": 0.45,
+          "start_line": 641
+        },
+        {
+          "end_line": 673,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.4,
+          "start_line": 361
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4,
+          "start_line": 1344
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4,
+          "start_line": 453
+        },
+        {
+          "end_line": 129,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/00-RESEARCH-REPORT.md",
+          "score": 0.4,
+          "start_line": 27
+        },
+        {
+          "end_line": 110,
+          "path": "docs/sources/hydra/docs/how-to/selective-fanout.md",
+          "score": 0.4,
+          "start_line": 5
+        },
+        {
+          "end_line": 114,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/listen-for-payments.md",
+          "score": 0.4,
+          "start_line": 29
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e53",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.024390243902439025,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "paraphrase",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 129,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/00-RESEARCH-REPORT.md",
+          "score": 0.6842,
+          "start_line": 27
+        },
+        {
+          "end_line": 1697,
+          "path": "docs/sources/scalus/docs/design/verification-details/uplc-blaster.md",
+          "score": 0.5789,
+          "start_line": 1586
+        },
+        {
+          "end_line": 301,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.5789,
+          "start_line": 54
+        },
+        {
+          "end_line": 144,
+          "path": "docs/sources/hydra/docs/how-to/incremental-decommit.md",
+          "score": 0.5789,
+          "start_line": 5
+        },
+        {
+          "end_line": 162,
+          "path": "docs/sources/hydra/docs/faqs.md",
+          "score": 0.5263,
+          "start_line": 4
+        },
+        {
+          "end_line": 411,
+          "path": "docs/sources/hydra/docs/tutorial/index.md",
+          "score": 0.5263,
+          "start_line": 215
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5263,
+          "start_line": 453
+        },
+        {
+          "end_line": 716,
+          "path": "docs/sources/hydra/docs/tutorial/index.md",
+          "score": 0.5263,
+          "start_line": 651
+        },
+        {
+          "end_line": 1578,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-08-26-onchain-stdlib-api-design.md",
+          "score": 0.5263,
+          "start_line": 1565
+        },
+        {
+          "end_line": 49,
+          "path": "docs/sources/hydra/docs/protocol-overview.md",
+          "score": 0.5263,
+          "start_line": 13
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e54",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.011764705882352941,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "conceptual",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 248,
+          "path": "docs/sources/cips/CIP-0071/README.md",
+          "score": 0.4762,
+          "start_line": 240
+        },
+        {
+          "end_line": 301,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.4286,
+          "start_line": 54
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk-packages/evolution/docs/modules/sdk/builders/TransactionBuilder.ts.md",
+          "score": 0.4286,
+          "start_line": 218
+        },
+        {
+          "end_line": 971,
+          "path": "docs/sources/evolution-sdk/modules/sdk/builders/TransactionBuilder.mdx",
+          "score": 0.4286,
+          "start_line": 218
+        },
+        {
+          "end_line": 385,
+          "path": "docs/sources/cips/CIP-0188/README.md",
+          "score": 0.4286,
+          "start_line": 347
+        },
+        {
+          "end_line": 1344,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/07-efficiency-constraints.md",
+          "score": 0.4286,
+          "start_line": 1188
+        },
+        {
+          "end_line": 188,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/08-scalus-in-the-wild.md",
+          "score": 0.4286,
+          "start_line": 60
+        },
+        {
+          "end_line": 203,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/input-and-write/03-mint-sensor-data-on-chain.md",
+          "score": 0.381,
+          "start_line": 49
+        },
+        {
+          "end_line": 326,
+          "path": "docs/sources/developer-portal/developers/curriculum/native-tokens/mint-nft.md",
+          "score": 0.381,
+          "start_line": 200
+        },
+        {
+          "end_line": 113,
+          "path": "docs/sources/cips/CIP-0086/README.md",
+          "score": 0.381,
+          "start_line": 30
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e55",
+      "metrics": {
+        "cov@10": 1.0,
+        "cov@5": 1.0,
+        "file@10": 1.0,
+        "file@5": 1.0,
+        "mrr": 1.0,
+        "sec@10": 1.0,
+        "sec@5": 1.0
+      },
+      "slice": "conceptual",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 73,
+          "path": "docs/sources/cips/CIP-0133/README.md",
+          "score": 0.5652,
+          "start_line": 20
+        },
+        {
+          "end_line": 306,
+          "path": "docs/sources/cips/CIP-0381/README.md",
+          "score": 0.5217,
+          "start_line": 204
+        },
+        {
+          "end_line": 894,
+          "path": "docs/sources/aiken/index.mdx",
+          "score": 0.4783,
+          "start_line": 1
+        },
+        {
+          "end_line": 2730,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.4348,
+          "start_line": 2419
+        },
+        {
+          "end_line": 102,
+          "path": "docs/sources/cips/CIP-0381/README.md",
+          "score": 0.4348,
+          "start_line": 23
+        },
+        {
+          "end_line": 1160,
+          "path": "docs/sources/ouroboros-leios/leios-design/README.md",
+          "score": 0.4348,
+          "start_line": 1135
+        },
+        {
+          "end_line": 673,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.3913,
+          "start_line": 361
+        },
+        {
+          "end_line": 77,
+          "path": "docs/sources/developer-portal/developers/curriculum/smart-contracts/advanced/bls-primitives.md",
+          "score": 0.3913,
+          "start_line": 19
+        },
+        {
+          "end_line": 686,
+          "path": "docs/sources/aiken/language-tour/custom-types.mdx",
+          "score": 0.3913,
+          "start_line": 553
+        },
+        {
+          "end_line": 1672,
+          "path": "docs/sources/cips/CIP-0152/README.md",
+          "score": 0.3913,
+          "start_line": 1507
+        }
+      ]
+    },
+    {
+      "grade": "full",
+      "id": "e56",
+      "metrics": {
+        "cov@10": 1.0,
+        "cov@5": 0.0,
+        "file@10": 1.0,
+        "file@5": 1.0,
+        "mrr": 0.1,
+        "sec@10": 1.0,
+        "sec@5": 0.0
+      },
+      "slice": "cross_source",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 150,
+          "path": "docs/sources/ouroboros-leios/leios-design/README.md",
+          "score": 0.7778,
+          "start_line": 132
+        },
+        {
+          "end_line": 1663,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.6667,
+          "start_line": 1244
+        },
+        {
+          "end_line": 894,
+          "path": "docs/sources/aiken/index.mdx",
+          "score": 0.6667,
+          "start_line": 1
+        },
+        {
+          "end_line": 482,
+          "path": "docs/sources/cips/CIP-0177/README.md",
+          "score": 0.6667,
+          "start_line": 457
+        },
+        {
+          "end_line": 67,
+          "path": "docs/sources/ouroboros-leios/ImpactAnalysis.md",
+          "score": 0.6667,
+          "start_line": 60
+        },
+        {
+          "end_line": 406,
+          "path": "docs/sources/cips/CIP-0177/README.md",
+          "score": 0.6667,
+          "start_line": 394
+        },
+        {
+          "end_line": 434,
+          "path": "docs/sources/cips/CIP-0008/README.md",
+          "score": 0.6667,
+          "start_line": 416
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/ogmios/content/faq/_index.md",
+          "score": 0.6667,
+          "start_line": 67
+        },
+        {
+          "end_line": 675,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-08-30-ts-emulator-provider-parity-design.md",
+          "score": 0.6667,
+          "start_line": 613
+        },
+        {
+          "end_line": 130,
+          "path": "docs/sources/ouroboros-leios/ImpactAnalysis.md",
+          "score": 0.6667,
+          "start_line": 123
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e57",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.010752688172043012,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "cross_source",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 2353,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/06-pitfalls.md",
+          "score": 0.6429,
+          "start_line": 2296
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5714,
+          "start_line": 1344
+        },
+        {
+          "end_line": 421,
+          "path": "docs/sources/cips/CIP-0188/README.md",
+          "score": 0.5714,
+          "start_line": 388
+        },
+        {
+          "end_line": 296,
+          "path": "docs/sources/cips/CIP-0195/README.md",
+          "score": 0.5714,
+          "start_line": 127
+        },
+        {
+          "end_line": 186,
+          "path": "docs/sources/plinth/docs/working-with-scripts/optimizing-scripts-with-asData.md",
+          "score": 0.5714,
+          "start_line": 165
+        },
+        {
+          "end_line": 467,
+          "path": "docs/sources/scalus/docs/superpowers/plans/2026-08-24-cape-submissions-automation.md",
+          "score": 0.5714,
+          "start_line": 109
+        },
+        {
+          "end_line": 80,
+          "path": "docs/sources/apollo/plutusencoder/doc.go",
+          "score": 0.5714,
+          "start_line": 1
+        },
+        {
+          "end_line": 129,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/00-RESEARCH-REPORT.md",
+          "score": 0.5714,
+          "start_line": 27
+        },
+        {
+          "end_line": 1147,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/02-scalus-existing-api.md",
+          "score": 0.5714,
+          "start_line": 1124
+        },
+        {
+          "end_line": 48,
+          "path": "docs/sources/plinth/docs/essential-concepts/versions.md",
+          "score": 0.5,
+          "start_line": 15
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e58",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "identifier",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 701,
+          "path": "docs/sources/ouroboros-leios/technical-report-2.md",
+          "score": 0.4286,
+          "start_line": 651
+        },
+        {
+          "end_line": 894,
+          "path": "docs/sources/aiken/index.mdx",
+          "score": 0.4286,
+          "start_line": 1
+        },
+        {
+          "end_line": 256,
+          "path": "docs/sources/govtool/docs/important-updates/govtool-maintenance-ending-soon/updated-budget-proposal/budget-proposal-faqs.md",
+          "score": 0.4286,
+          "start_line": 5
+        },
+        {
+          "end_line": 1064,
+          "path": "docs/sources/scalus/docs/superpowers/plans/2026-07-18-blueprint-caching-and-pin.md",
+          "score": 0.3571,
+          "start_line": 853
+        },
+        {
+          "end_line": 906,
+          "path": "docs/sources/cardano-node-wiki/reference/shelley-genesis.md",
+          "score": 0.3571,
+          "start_line": 804
+        },
+        {
+          "end_line": 2730,
+          "path": "docs/sources/cips/CIP-0164/README.md",
+          "score": 0.3571,
+          "start_line": 2419
+        },
+        {
+          "end_line": 33,
+          "path": "docs/sources/cardano-node-wiki/ADR-015-Cardano-API-WASM-library-for-browser.md",
+          "score": 0.3571,
+          "start_line": 17
+        },
+        {
+          "end_line": 852,
+          "path": "docs/sources/scalus/docs/superpowers/plans/2026-07-18-blueprint-caching-and-pin.md",
+          "score": 0.3571,
+          "start_line": 590
+        },
+        {
+          "end_line": 63,
+          "path": "docs/sources/aiken/ecosystem-overview.mdx",
+          "score": 0.3571,
+          "start_line": 19
+        },
+        {
+          "end_line": 75,
+          "path": "docs/sources/cips/CPS-0029/README.md",
+          "score": 0.3571,
+          "start_line": 24
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e59",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 0.0,
+        "file@5": 0.0,
+        "mrr": 0.0,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "identifier",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.4706,
+          "start_line": 1344
+        },
+        {
+          "end_line": 361,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.4706,
+          "start_line": 313
+        },
+        {
+          "end_line": 129,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/00-RESEARCH-REPORT.md",
+          "score": 0.4706,
+          "start_line": 27
+        },
+        {
+          "end_line": 1003,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-08-26-onchain-stdlib-api-design.md",
+          "score": 0.4706,
+          "start_line": 894
+        },
+        {
+          "end_line": 1202,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/cardano-ticker/02-building-the-ticker.md",
+          "score": 0.4118,
+          "start_line": 190
+        },
+        {
+          "end_line": 3090,
+          "path": "docs/sources/cips/CIP-0190/README.md",
+          "score": 0.4118,
+          "start_line": 3076
+        },
+        {
+          "end_line": 439,
+          "path": "docs/sources/developer-portal/developers/curriculum/dapps/iot/read-and-output/02-display-data.md",
+          "score": 0.4118,
+          "start_line": 204
+        },
+        {
+          "end_line": 312,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.4118,
+          "start_line": 269
+        },
+        {
+          "end_line": 165,
+          "path": "docs/sources/cardano-node-wiki/reference/native-tokens/04-exchange-scenarios.md",
+          "score": 0.4118,
+          "start_line": 103
+        },
+        {
+          "end_line": 1022,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/01-scalus-examples.md",
+          "score": 0.4118,
+          "start_line": 951
+        }
+      ]
+    },
+    {
+      "grade": "partial",
+      "id": "e60",
+      "metrics": {
+        "cov@10": 0.0,
+        "cov@5": 0.0,
+        "file@10": 1.0,
+        "file@5": 0.0,
+        "mrr": 0.01694915254237288,
+        "sec@10": 0.0,
+        "sec@5": 0.0
+      },
+      "slice": "identifier",
+      "split": "held_out",
+      "top10": [
+        {
+          "end_line": 3090,
+          "path": "docs/sources/cips/CIP-0190/README.md",
+          "score": 0.619,
+          "start_line": 3076
+        },
+        {
+          "end_line": 312,
+          "path": "docs/sources/cip30-test-wallet/README.md",
+          "score": 0.619,
+          "start_line": 269
+        },
+        {
+          "end_line": 598,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5714,
+          "start_line": 453
+        },
+        {
+          "end_line": 129,
+          "path": "docs/sources/scalus/docs/internal/stdlib-research/00-RESEARCH-REPORT.md",
+          "score": 0.5714,
+          "start_line": 27
+        },
+        {
+          "end_line": 1478,
+          "path": "docs/sources/scalus/docs/superpowers/specs/2026-11-02-emulator-ledger-rules-design.md",
+          "score": 0.5714,
+          "start_line": 1344
+        },
+        {
+          "end_line": 301,
+          "path": "docs/sources/scalus/docs/internal/CAPE_COMPETITIVE_ANALYSIS.md",
+          "score": 0.5714,
+          "start_line": 54
+        },
+        {
+          "end_line": 851,
+          "path": "docs/sources/x402/specs/schemes/exact/scheme_exact_cardano.md",
+          "score": 0.5238,
+          "start_line": 802
+        },
+        {
+          "end_line": 421,
+          "path": "docs/sources/cips/CIP-0188/README.md",
+          "score": 0.5238,
+          "start_line": 388
+        },
+        {
+          "end_line": 219,
+          "path": "docs/sources/scalus/docs/superpowers/plans/2026-08-30-ts-emulator-provider-parity.md",
+          "score": 0.5238,
+          "start_line": 48
+        },
+        {
+          "end_line": 892,
+          "path": "docs/sources/ogmios/content/changelog/_index.md",
+          "score": 0.5238,
+          "start_line": 857
+        }
+      ]
+    }
+  ],
+  "retriever": "grep",
+  "seed": null
+}

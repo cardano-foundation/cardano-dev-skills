@@ -2,7 +2,7 @@
  "labels": {
   "e01": {
    "grade": "partial",
-   "notes": "ChainSync streams headers, BlockFetch downloads the bodies (N2N only); dev-portal, Oura N2N and gOuroboros BlockFetch pages each contrast the two. Dolos relay doc lists what a from-origin N2N sync needs (genesis, magic, peer). Nothing says a node can serve old blocks over BlockFetch but not ChainSync. ChainSync README and protocol-ID table dropped: neither contrasts the two protocols alone.",
+   "notes": "ChainSync streams headers, BlockFetch downloads the bodies (N2N only); dev-portal, Oura N2N and gOuroboros BlockFetch pages each contrast the two. The Dolos configuration schema carries what a from-origin N2N sync needs, in two sections that are each required: `chain` (genesis, magic and default peer built in per network) and `upstream` (a peer followed over node-to-node); the Dolos public relay page that covered both was deleted. Nothing says a node can serve old blocks over BlockFetch but not ChainSync. ChainSync README and protocol-ID table dropped: neither contrasts the two protocols alone.",
    "targets": [
     [
      {
@@ -29,11 +29,20 @@
     ],
     [
      {
-      "end_line": 42,
-      "found_by": "grep:origin",
-      "heading": "Public Relay",
-      "path": "docs/sources/dolos/content/bootstrap/relay.mdx",
-      "start_line": 9
+      "end_line": 200,
+      "found_by": "grep:peer_address",
+      "heading": "`chain`",
+      "path": "docs/sources/dolos/content/configuration/schema.mdx",
+      "start_line": 182
+     }
+    ],
+    [
+     {
+      "end_line": 282,
+      "found_by": "grep:peer_address",
+      "heading": "`upstream`",
+      "path": "docs/sources/dolos/content/configuration/schema.mdx",
+      "start_line": 266
      }
     ]
    ]
@@ -421,15 +430,15 @@
   },
   "e16": {
    "grade": "partial",
-   "notes": "Extraneous = witness-set script with no needed script purpose, or one a reference script already supplies (gOuroboros ledger rules, implementation evidence). Mesh needs spendingPlutusScriptV3 and the template uses the reference script instead of also attaching it. Partial: no Mesh-specific diagnosis of this failure.",
+   "notes": "Extraneous = witness-set script with no needed script purpose, or one a reference script already supplies (gOuroboros ledger rules, implementation evidence). Mesh needs spendingPlutusScriptV3 and the template uses the reference script instead of also attaching it. Partial: no Mesh-specific diagnosis of this failure. The gOuroboros ValidateScriptWitnesses passage moved from lines 1505-1520 to 1691-1706.",
    "targets": [
     [
      {
-      "end_line": 1520,
+      "end_line": 1706,
       "found_by": "grep:Extraneous",
       "heading": "ValidateScriptWitnesses",
       "path": "docs/sources/gouroboros/ledger/common/rules.go",
-      "start_line": 1505
+      "start_line": 1691
      }
     ],
     [
@@ -577,7 +586,7 @@
   },
   "e21": {
    "grade": "partial",
-   "notes": "Script data hash covers redeemers, datums and cost-model params; mismatch is a ScriptIntegrityHashMismatch ledger check separate from phase-2 (collateral only on phase-2); no comparison across node implementations' mempools. Test wallet emulates node refusal before any state change; not evidence about every implementation's mempool.",
+   "notes": "Script data hash covers redeemers, datums and cost-model params; mismatch is a ScriptIntegrityHashMismatch ledger check separate from phase-2 (collateral only on phase-2); no comparison across node implementations' mempools. Test wallet emulates node refusal before any state change; not evidence about every implementation's mempool. The test wallet README Ledger checks section moved from lines 267-291 to 269-293.",
    "targets": [
     [
      {
@@ -588,11 +597,11 @@
       "start_line": 213
      },
      {
-      "end_line": 291,
+      "end_line": 293,
       "found_by": "grep:ScriptIntegrityHashMismatch",
       "heading": "Ledger checks",
       "path": "docs/sources/cip30-test-wallet/README.md",
-      "start_line": 267
+      "start_line": 269
      },
      {
       "end_line": 80,
@@ -1412,7 +1421,7 @@
   },
   "e51": {
    "grade": "partial",
-   "notes": "PV11 (van Rossem) cost models have 332/332/350 entries while Lucid's defaults carry 166/175/297, and node 11.0.1 validates cost-model length; third-party design notes, not an authoritative explanation. Yaci: Lucid Evolution hardcoded cost models mismatch protocol params (Conway-at-epoch-0 devnet) - mechanism example, not a diagnosis of this error.",
+   "notes": "PV11 (van Rossem) cost models have 332/332/350 entries while Lucid's defaults carry 166/175/297, and node 11.0.1 validates cost-model length; third-party design notes, not an authoritative explanation. Yaci: Lucid Evolution hardcoded cost models mismatch protocol params (Conway-at-epoch-0 devnet) - mechanism example, not a diagnosis of this error. The Scalus design note section 13.7/14 moved from lines 517-523 to 519-525.",
    "targets": [
     [
      {
@@ -1423,11 +1432,11 @@
       "start_line": 65
      },
      {
-      "end_line": 523,
+      "end_line": 525,
       "found_by": "grep:cost model entries",
       "heading": "13.7 Verified, no change / 14. Separate Lucid change",
       "path": "docs/sources/scalus/docs/superpowers/specs/2026-10-07-scalus-emulator-provider-design.md",
-      "start_line": 517
+      "start_line": 519
      },
      {
       "end_line": 27,

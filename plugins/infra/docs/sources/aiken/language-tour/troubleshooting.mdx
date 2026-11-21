@@ -1,0 +1,234 @@
+---
+title: "Troubleshooting"
+description: "Aiken is a functional programming language for Cardano smart contracts where the constrained on-chain execution environment makes debugging challenging. Troubleshooting tools include the trace keyword for labelling execution paths, the ? trace-if-false operator, CBOR diagnostic notation for inspecting serialised data, and expect for catching runtime failures. Used to debug validator logic during development and diagnose why transactions fail."
+difficulty: "intermediate"
+keywords: ["trace", "troubleshooting", "debugging", "CBOR diagnostic", "expect", "trace-if-false", "?", "error messages", "on-chain debugging"]
+topics: ["troubleshooting", "debugging", "trace", "cbor-diagnostic"]
+prerequisites: ["functions", "control-flow", "validators"]
+related: ["tests", "bench", "validators"]
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Troubleshooting
+
+On-chain programming can be a bit tedious and shares a lot of commonalities with embedded programming. Because the execution environment is so constrained, programs have to be optimized and usually leave little room for troubleshooting errors.
+
+Aiken tries its best to provide developers with extra tools and debugging capabilities. Let's explore them.
+
+## Traces
+
+### `trace` keyword
+
+Your first ally in this journey are traces. Think of a trace as a log message, that is captured by the virtual machine at specific moment. You can add traces to top-level expressions in Aiken using the `trace{:aiken}` keyword.
+
+For example:
+
+```aiken
+fn is_even(n: Int) -> Bool {
+  trace @"is_even"
+  n % 2 == 0
+}
+
+fn is_odd(n: Int) -> Bool {
+  trace @"is_odd"
+  n % 2 != 0
+}
+```
+
+Traces can be a little hard to grasp initially since Plutus -- and therefore Aiken -- is a purely functional execution engine. There's no _statements_ in a compiled program. There only are _expressions_. A trace will be collected if it is evaluated by the virtual machine. There are two common ways to capture traces in Aiken: when running tests via `aiken check` or when simulating a transaction using `aiken tx simulate`. In both cases, traces captured during evaluation will be printed on screen.
+
+For example, in the following program:
+
+```aiken
+let n = 10
+is_even(n) || is_odd(n)
+```
+
+Only the trace `is_even{:ak}` will be captured, because `is_odd{:ak}` is in fact never evaluated (there's no need because the left-hand side already returns `True{:ak}`).
+
+There's more! Traces are quite powerful in Aiken. The `trace{:ak}` keyword is actually variadic: it accepts any number of arguments between 1 and ... please don't go too high. The syntax for it might look a bit surprising, unless you think of the first argument as _a label_.
+
+```aiken
+fn foo() {
+  trace @"A": @"foo", @"bar" // outputs "A: foo, bar"
+  Void
+}
+```
+
+In fact, since `v1.1.0` traces are no longer limited to strings. You can trace any _serialisable_ value auto-magically. The values will be traced using the [diagnostic notation described below](#cbor-diagnostic).
+
+```aiken
+fn foo(my_list: List<Option<Int>>) -> Bool {
+  trace @"foo": my_list
+  list.is_empty(my_list)
+}
+```
+
+<Callout type="warning">
+  Note that traces are:
+
+- **Removed by default** when building your project with `aiken build`. They can be preserved using `--trace-level verbose`. You can also only preserve traces' labels (i.e. first arguments) by using `--trace-level compact`.
+- **Kept by default** when checking your project with `aiken check`. They can be left out using `--trace-level silent`.
+
+This is because tracing makes compiled code bigger and can add an extra overhead which is often undesired for final production-ready validators. Yet, they are useful for development and when testing. The command-line is thus geared towards those use-cases. Beware that while enabling or disabling traces doesn't change the semantic of your program, it effectively changes its hash value, and thus its associated addresses.
+
+</Callout>
+
+### `expect` traces
+
+When compiling in `verbose` mode (`--trace-level verbose`), expect expressions will generate a corresponding runtime trace. This allows for troubleshooting code more easily. By default, the trace message is auto-generated from the source code but it is possible to replace it with a custom one using doc-comments:
+
+```aiken
+/// life, universe and everything.
+expect answer == 42
+```
+
+Notice the 3 (not 2!) leading slashes. If the assertion fails, then a trace `"<expected> life, universe and everything"{:ak}` will be yielded. In `compact` mode, the trace will be truncated to its _label_, if it contains any. A _label_ is defined as a portion of text before a colon `:{:ak}`.
+
+For example:
+
+```aiken
+/// assertion 001: redefining mathematics
+expect 1 + 1 == 3
+```
+
+will yield `"<expected> assertion 001: redefining mathematics"{:ak}` in `verbose` mode, but only `"<expected> assertion 001"{:ak}` in `compact` mode. And of course, nothing at all in `silent` mode.
+
+### `?` operator
+
+On-chain programs are fundamentally nothing more than predicates. Said differently, they are functions that return `True` or `False`. Hence, it is common practice to structure on-chain programs as conjunctions and disjunctions of booleans expressions.
+
+This can be a little hard to reason about however because booleans are "blind". That is, you lose information about the original context as you evaluate complex boolean expressions.
+
+Take for example the following simple expression:
+
+```aiken
+let must_be_after = True
+let must_spend_token = False
+
+must_be_after && must_spend_token
+```
+
+It evaluates to `False`. From just `False`, you can't really tell which branch was actually `False` in the original expression. Yet it is often useful to reason about even larger expressions to troubleshoot an issue.
+
+This is why Aiken provides the `?` operator (reads as _"trace-if-false operator"_). This postfix operator can be appended to any boolean expression and will trace the expression only if it evaluates to `False`. This is useful to trace an entire evaluation path that led to a final expression being `False`. In the example above, we could have written:
+
+```aiken
+must_be_after? && must_spend_token?
+```
+
+Which would have generated the trace `"must_spend_token ? False"`.
+
+Handy, right?
+
+<Callout type="warning">
+Both the `?` operator and `trace` are affected by the `aiken build` `--trace-level` options. The available trace level options are `silent`, `compact`, and `verbose`. The behaviors are as follows:
+
+| Trace Level |      `?` operator      | `trace` |
+|-------------|------------------------|------------------------|
+|  `silent`   | No trace will be kept. | No trace will be kept. |
+|  `compact`  | No trace will be kept. | Preserve trace labels. For example: `trace @"Label": 1, 2` will print `Label` |
+|  `verbose`  | A full trace will be printed. For example: `(a == 1)?` will print `a == 1 ? False` | A full trace will be printed. For example: `trace @"Label": 1, 2` will print `Label: 1, 2` |
+
+There is an alias for `aiken build`, which is `aiken b`. Without any trace level option, it defaults to `silent` build.
+</Callout>
+
+## CBOR diagnostic
+
+This is all great but sometimes, you need more. Sometimes, you need to inspect the value of some specific object _at runtime_. This is harder than it seems because a compiled Aiken program has erased any context and any notion of types. Even functions and variable names are replaced by compact indices which makes it relatively hard to inspect programs and values at runtime. For example, this is what a compiled function may look like in UPLC:
+
+```uplc
+(lam i_31
+  (lam i_32
+    (lam i_33
+      (force
+        [ [ [ i_2 i_32 ] (delay (con unit ())) ]
+          (delay
+            [ [ i_4 [ i_33 [ i_1 i_32 ] ] ]
+              [ [ [ i_31 i_31 ] [ i_0 i_32 ] ] i_33
+              ]
+            ]
+          )
+        ]
+      )
+    )
+  )
+)
+```
+
+Not quite easy to read, huh? But there's hope! [Aiken's standard library](https://aiken-lang.github.io/stdlib/) provides a convenient method to inspect **any value** at runtime and obtain a `String` representation of them. The syntax used for this representation is called a [CBOR diagnostic](https://www.rfc-editor.org/rfc/rfc8949#name-diagnostic-notation). Think of it as a high-level syntax that resembles JSON and that can represent binary data.
+
+```aiken filename="aiken/cbor"
+pub fn diagnostic(data: Data) -> String
+```
+
+Why use CBOR diagnostics you may ask?
+
+Well, because it is what most faithfully captures the representation of objects present at runtime and in the interface of on-chain validators. Getting familiar with CBOR diagnostics requires a bit of practice but can be a useful skill to master when working with Cardano in general. CBOR is everywhere in Cardano, including in on-chain validators. Datum and redeemers are, for example, provided as CBOR objects to the validator by the ledger. Transactions are also themselves encoded as CBOR when serialized and propagated to the network.
+
+A CBOR diagnostic is merely a slightly more human-friendly way to visualize a binary object. For example, a serialized list of integers such as `83010203` is represented as `[1, 2, 3]` in diagnostic notation.
+
+In addition, most tools and libraries that deal with CBOR make it easy to go back-and-forth between the raw encoding and the diagnostic notation. This is the case of [cbor.me](https://cbor.me) or [cbor-diag](https://github.com/cabo/cbor-diag) for instance.
+
+Here's a little cheatsheet to help you decipher CBOR diagnostics:
+
+| Type        | Examples                                    |
+| ----------- | ------------------------------------------- |
+| `Int`       | `1`, `-14`, `42`                            |
+| `ByteArray` | `h'FF00'`, `h'666f6f'`                      |
+| `List`      | `[]`, `[1, 2, 3]`, `[_ 1, 2, 3]`            |
+| `Map`       | `{}`, `{ 1: h'FF', 2: 14 }`, `{_ 1: "AA" }` |
+| `Tag`       | `42(1)`, `10(h'ABCD')`, `1280([1, 2])`      |
+
+While most are pretty transparent, the use-case for `Tag` may not strike many as obvious. In fact, `Tag` is used to encode custom types on-chain, starting from tag `121` for the first constructor of a data-type, `122` for the next, and so forth. What is tagged corresponds to the fields of the constructors, as a list of objects.
+
+Let's see some more examples of diagnostics from real Aiken values.
+
+```aiken
+use aiken/cbor
+
+
+// An Int becomes a CBOR int
+cbor.diagnostic(42) == @"42"
+
+// A ByteArray becomes a CBOR bytestring
+cbor.diagnostic("foo") == @"h'666F6F'"
+
+// A List becomes a CBOR array
+cbor.diagnostic([1, 2, 3]) == @"[_ 1, 2, 3]"
+
+// A Tuple becomes a CBOR array
+cbor.diagnostic((1, 2)) == @"[_ 1, 2]"
+
+// A List of 2-tuples becomes a CBOR map
+cbor.diagnostic([(1, #"ff")]) == @"{ 1: h'FF' }"
+
+// 'Some' is the first constructor of Option → tagged as 121
+cbor.diagnostic(Some(42)) == @"121([_ 42])"
+
+// 'None' is the second constructor of Option → tagged as 122
+cbor.diagnostic(None) == @"122([])"
+```
+
+Diagnostics are meant to be used only in development or for testing; in combination with `trace` for example. Incidentally, they also make for a convenient way to double-check the binary representation of some instance of your datum or redeemer through tests. Imagine the following type:
+
+```aiken
+type MyDatum {
+  foo: Int,
+  bar: ByteArray
+}
+```
+
+Eventually, you will need to construct compatible values for building an associated transaction. Aiken provides blueprints as build outputs to help with that. Yet you may also control some chosen values directly using `cbor.diagnostic` and a test:
+
+```aiken
+use aiken/cbor
+
+test my_datum_1() {
+  let datum = MyDatum { foo: 42, bar: "Hello, World!" }
+  cbor.diagnostic(datum) == @"121([42, h'48656c6c6f2c20576f726c6421'])"
+}
+```
+
+You can turn this diagnostic into raw CBOR using tools such as [cbor.me](<https://cbor.me/?diag=121([42,%20h%2748656c6c6f2c20576f726c6421%27])>).

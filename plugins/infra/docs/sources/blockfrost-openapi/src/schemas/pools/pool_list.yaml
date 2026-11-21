@@ -1,0 +1,8 @@
+type: array
+items:
+  type: string
+  description: Bech32 encoded pool ID
+example:
+  - "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy"
+  - "pool1hn7hlwrschqykupwwrtdfkvt2u4uaxvsgxyh6z63703p2knj288"
+  - "pool1ztjyjfsh432eqetadf82uwuxklh28xc85zcphpwq6mmezavzad2"

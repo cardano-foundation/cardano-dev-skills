@@ -1,0 +1,209 @@
+---
+title: Unfrack Optimization
+description: UTxO structure optimization through strategic bundling and subdivision
+---
+
+import { Mermaid } from "@/components/mdx/mermaid"
+
+## Abstract
+
+Cardano UTxOs carry both ADA and native assets (tokens, NFTs). Poorly structured UTxOs create wallet fragmentation—many small UTxOs that increase transaction size and fees. The unfrack optimization addresses this by strategically bundling tokens and subdividing ADA during change creation, producing an optimal UTxO structure that minimizes future transaction costs while maintaining protocol validity constraints.
+
+## Purpose and Scope
+
+**Purpose**: Transform arbitrary change assets into an optimized set of UTxOs that reduce future transaction costs and improve wallet usability.
+
+**Scope**: 
+- Applies during change creation phase when leftover assets exist
+- Operates on ADA-only scenarios, token-only scenarios, or mixed scenarios
+- Respects protocol constraints (minUTxO requirements for each output)
+- Named in respect to the Unfrack.It principles
+
+**Out of Scope**:
+- Input selection strategies (handled by coin selection phase)
+- Fee optimization (handled by fee calculation phase)
+- Multi-transaction wallet defragmentation
+
+## Design Philosophy
+
+Unoptimized change outputs create technical debt. A wallet with 50 small UTxOs requires larger transactions (more inputs) to make payments, increasing fees. A wallet with all assets on one UTxO forces users to "break" that UTxO for every transaction, creating change recursively.
+
+The solution operates on first principles: separate concerns (tokens from ADA), group related assets (same-policy tokens), and create spending flexibility (subdivided ADA). When change is created, the system checks if optimization is affordable—if the leftover exceeds minimum requirements for multiple outputs, it distributes intelligently. If not, it consolidates into a single valid output.
+
+This preserves three guarantees: protocol validity (all outputs meet minUTxO), asset conservation (no assets lost), and spending efficiency (future transactions use fewer inputs).
+
+## Token Bundling Strategy
+
+Tokens are distributed into bundles based on policy ID and configurability:
+
+<Mermaid chart={`
+graph TD
+    Start([Start: Token Bundling]) --> ExtractTokens[Extract Tokens<br/>from Change Assets]
+    ExtractTokens --> ClassifyTokens[Classify by<br/>Policy ID]
+    
+    ClassifyTokens --> CheckPolicy{Single Policy<br/>or Multiple?}
+    
+    CheckPolicy -->|Single| CheckSize{Count <=<br/>bundleSize?}
+    CheckSize -->|Yes| SingleBundle[Create Single Bundle<br/>all tokens together]
+    CheckSize -->|No| SplitBundles[Split into Multiple Bundles<br/>bundleSize tokens each]
+    
+    CheckPolicy -->|Multiple| GroupByPolicy[Group Tokens<br/>by Policy ID]
+    GroupByPolicy --> ForEachPolicy[For Each Policy Group]
+    ForEachPolicy --> CheckPolicySize{Count <=<br/>bundleSize?}
+    
+    CheckPolicySize -->|Yes| PolicyBundle[Create Bundle for<br/>This Policy]
+    CheckPolicySize -->|No| SplitPolicy[Split Policy into<br/>Multiple Bundles]
+    
+    SingleBundle --> CalcMinUTxO[Calculate MinUTxO<br/>for Each Bundle]
+    SplitBundles --> CalcMinUTxO
+    PolicyBundle --> CalcMinUTxO
+    SplitPolicy --> CalcMinUTxO
+    
+    CalcMinUTxO --> StoreBundles[Store Bundles<br/>with MinUTxO Amounts]
+    StoreBundles --> End([Continue to<br/>ADA Distribution])
+    
+    style Start fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#000000
+    style End fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style CheckPolicy fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckSize fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckPolicySize fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+`} />
+
+**Key Behaviors:**
+- Tokens are grouped by policy ID to avoid unnecessary asset mixing
+- Each bundle respects `bundleSize` configuration (default: 10 tokens per UTxO)
+- MinUTxO is calculated per bundle using CBOR-accurate size estimation
+- Same-policy tokens stay together unless count exceeds bundle size
+
+## ADA Distribution Strategy
+
+After token bundles are created with their minimum ADA requirements, remaining ADA follows a decision flow:
+
+<Mermaid chart={`
+graph TD
+    Start([Start: ADA Distribution]) --> CalcRemaining[Calculate Remaining ADA<br/>total - bundlesMinUTxO]
+    
+    CalcRemaining --> CheckNegative{Remaining<br/>Negative?}
+    CheckNegative -->|Yes| Fallback[Fallback: Single Output<br/>all assets together]
+    
+    CheckNegative -->|No| CheckThreshold{Remaining >=<br/>subdivideThreshold?}
+    
+    CheckThreshold -->|No| Spread[SPREAD Strategy<br/>distribute across bundles]
+    Spread --> DistributeEvenly[Divide Remaining<br/>Equally per Bundle]
+    DistributeEvenly --> LastGetsExtra[Last Bundle<br/>Gets Remainder]
+    LastGetsExtra --> CreateOutputs[Create Outputs<br/>bundles + distributed ADA]
+    
+    CheckThreshold -->|Yes| CalcMinADA[Calculate MinUTxO<br/>for ADA-only Output]
+    CalcMinADA --> CheckAffordable{Remaining >=<br/>ADA MinUTxO?}
+    
+    CheckAffordable -->|No| Spread
+    CheckAffordable -->|Yes| CheckSubdivision{Smallest Subdivision<br/>>= MinUTxO?}
+    
+    CheckSubdivision -->|No| CreateSingleADA[Create Single<br/>ADA Output]
+    CreateSingleADA --> CreateBundleOutputs[Create Bundle Outputs]
+    CreateBundleOutputs --> CombineSingle[Combine:<br/>bundles + 1 ADA output]
+    
+    CheckSubdivision -->|Yes| SubdivideADA[SUBDIVIDE Strategy<br/>split by percentages]
+    SubdivideADA --> CalcPercentages[Calculate Amounts<br/>50%, 15%, 10%, 10%, 5%, 5%, 5%]
+    CalcPercentages --> LastGetsRemainder[Last Output<br/>Gets Remainder]
+    LastGetsRemainder --> CreateSubdivided[Create Subdivided<br/>ADA Outputs]
+    CreateSubdivided --> CreateBundleOutputs2[Create Bundle Outputs]
+    CreateBundleOutputs2 --> CombineMultiple[Combine:<br/>bundles + N ADA outputs]
+    
+    Fallback --> Done([Return Outputs])
+    CreateOutputs --> Done
+    CombineSingle --> Done
+    CombineMultiple --> Done
+    
+    style Start fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#000000
+    style Done fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style CheckNegative fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckThreshold fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckAffordable fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckSubdivision fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style Spread fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+    style SubdivideADA fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+`} />
+
+**Two Core Strategies:**
+
+**SPREAD**: Distributes remaining ADA evenly across token bundles. Used when:
+- Remaining ADA is below `subdivideThreshold` (default: 100 ADA), OR
+- Remaining ADA cannot afford a separate valid output (< minUTxO)
+
+**SUBDIVIDE**: Creates multiple ADA-only outputs using percentage-based distribution. Used when:
+- Remaining ADA >= `subdivideThreshold`, AND
+- Remaining ADA >= minUTxO for standalone output, AND
+- Smallest percentage-based amount >= minUTxO
+
+## ADA-Only Scenario
+
+When no tokens exist in change, the decision flow simplifies:
+
+<Mermaid chart={`
+graph TD
+    Start([Start: ADA-Only Change]) --> CheckTotal{Total ADA >=<br/>subdivideThreshold?}
+    
+    CheckTotal -->|No| SingleOutput[Create Single<br/>ADA Output]
+    SingleOutput --> Done([Return 1 Output])
+    
+    CheckTotal -->|Yes| CalcMinUTxO[Calculate MinUTxO<br/>for ADA Output]
+    CalcMinUTxO --> CheckSmallest{Smallest Subdivision<br/>>= MinUTxO?}
+    
+    CheckSmallest -->|No| SingleOutput
+    CheckSmallest -->|Yes| CalcPercentages[Calculate Amounts<br/>50%, 15%, 10%, 10%, 5%, 5%, 5%]
+    
+    CalcPercentages --> CreateOutputs[Create N Outputs<br/>percentage-based]
+    CreateOutputs --> LastGetsRemainder[Last Output<br/>Gets Remainder]
+    LastGetsRemainder --> DoneMultiple([Return N Outputs])
+    
+    style Start fill:#ecf0f1,stroke:#34495e,stroke-width:3px,color:#000000
+    style Done fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style DoneMultiple fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style CheckTotal fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+    style CheckSmallest fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#000000
+`} />
+
+This creates spending flexibility: users can make small payments without breaking large UTxOs. Default percentages (50%, 15%, 10%, 10%, 5%, 5%, 5%) provide a logarithmic distribution suitable for typical transaction patterns.
+
+## Configuration Options
+
+The unfrack behavior adapts through tunable parameters that balance UTxO count against spending flexibility:
+
+**Subdivision Threshold**: Controls when ADA gets split into multiple outputs. Default is 100 ADA—below this, ADA spreads across token bundles; above this, ADA creates separate outputs. Lower thresholds increase subdivision frequency (more UTxOs, greater flexibility). Higher thresholds reduce output count (fewer UTxOs, less flexibility).
+
+**Subdivision Percentages**: Defines the distribution pattern for ADA-only outputs. Default pattern (50%, 15%, 10%, 10%, 5%, 5%, 5%) creates a logarithmic spread suitable for typical spending patterns—one large output for major transactions, several medium outputs for regular use, and multiple small outputs for micro-transactions.
+
+**Bundle Size**: Limits tokens per UTxO. Default is 10 tokens per bundle. Smaller sizes create more bundles (more outputs, easier to spend individual tokens). Larger sizes consolidate tokens (fewer outputs, but spending one token requires moving all bundled tokens).
+
+**Policy Isolation**: Controls whether tokens of the same policy stay together or separate. Isolation creates one UTxO per fungible policy (more outputs, cleaner separation). Grouping bundles mixed policies up to bundle size (fewer outputs, more mixing).
+
+**NFT Grouping**: Determines whether NFTs cluster by policy or mix freely. Policy-based grouping keeps same-collection NFTs together (logical organization). Free mixing prioritizes bundle size limits (arbitrary grouping).
+
+These parameters trade off UTxO count (affects wallet size, scanning time) against spending efficiency (affects transaction size, input requirements). The defaults favor spending efficiency—most users benefit more from flexible UTxOs than from minimizing wallet size.
+
+## Affordability Guarantees
+
+All unfrack operations maintain protocol validity through affordability checks:
+
+1. **Pre-Flight Check**: Change creation phase validates that leftover >= minUTxO for single output before attempting unfrack
+2. **Per-Bundle MinUTxO**: Each token bundle calculates its minimum using CBOR-accurate size estimation
+3. **Subdivision Validation**: Before subdividing ADA, verifies smallest percentage-based amount >= minUTxO
+4. **Fallback Path**: If unfrack is unaffordable, falls back to single consolidated change output (guaranteed valid by pre-flight check)
+
+This ensures unfrack never creates invalid outputs. If optimization is unaffordable, the system safely degrades to simple change creation.
+
+## Integration Points
+
+Unfrack integrates with the transaction builder at the change creation phase:
+
+**Change Creation Phase**: When `BuildOptions.unfrack` is enabled and change outputs need to be created, the builder calls `createUnfrackedChangeOutputs()`. If unfrack succeeds, multiple optimized outputs are stored. If unfrack is unaffordable (insufficient ADA for multiple valid outputs), it returns a single change output.
+
+**Fee Calculation Phase**: After unfrack creates outputs, fees are recalculated based on the new transaction size. Multiple outputs increase size slightly, but this is intentional—the cost is paid once during change creation, avoiding higher costs across many future transactions.
+
+**Build Options**: Users enable unfrack by providing `unfrack` configuration in `BuildOptions`. If omitted, change creation uses simple single-output strategy.
+
+## Related Topics
+
+- [Transaction Flow](/docs/architecture/transaction-flow) - How unfrack fits into the build phase state machine
+- [Change Creation Phase](/docs/architecture/transaction-flow#2-change-creation-phase) - Detailed phase logic including unfrack invocation

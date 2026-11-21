@@ -1,0 +1,78 @@
+get:
+  tags:
+    - Cardano » Accounts
+  summary: Account transactions
+  description: Transactions associated with the stake address.
+  parameters:
+    - in: path
+      name: stake_address
+      required: true
+      schema:
+        type: string
+      description: Bech32 stake address.
+      example: "stake1u9ylzsgxaa6xctf4juup682ar3juj85n8tx3hthnljg47zctvm3rc"
+    - in: query
+      name: count
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 100
+      description: The number of transactions per page.
+    - in: query
+      name: page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 21474836
+        default: 1
+      description: The page number for listing the results.
+    - in: query
+      name: order
+      required: false
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: asc
+      description: |
+        The ordering of items from the point of view of the blockchain,
+        not the page listing itself. By default, we return oldest first, newest last.
+    - in: query
+      name: from
+      required: false
+      schema:
+        type: string
+      description: |
+        The block number and optionally also index from which (inclusive) to start search for results, concatenated using colon.
+        Has to be lower than or equal to `to` parameter.
+      example: "8929261"
+    - in: query
+      name: to
+      required: false
+      schema:
+        type: string
+      description: |
+        The block number and optionally also index where (inclusive) to end the search for results, concatenated using colon.
+        Has to be higher than or equal to `from` parameter.
+      example: "9999269:10"
+  responses:
+    "200":
+      description: Return the list of account transactions
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../schemas/accounts/account_transactions_content.yaml
+    "400":
+      $ref: ../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../responses/errors/500.yaml

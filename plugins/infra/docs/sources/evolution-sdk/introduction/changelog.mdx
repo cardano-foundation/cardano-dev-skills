@@ -1,0 +1,105 @@
+---
+title: Changelog
+description: Version history and breaking changes
+---
+
+# Changelog
+
+Track what changed in each release. For the full changelog with commit links, see the [CHANGELOG.md on GitHub](https://github.com/IntersectMBO/evolution-sdk/blob/main/packages/evolution/CHANGELOG.md).
+
+## v0.5.1
+
+**Patch** — Restore Certificate.ts as self-contained module, fix docgen compatibility.
+
+- Removed convenience re-exports from Time.ts
+- Updated stale `@example` import paths for flat module structure
+
+## v0.5.0
+
+**Minor** — Flatten module structure to eliminate webpack casing conflicts.
+
+This release changes how modules are organized internally. The public API is preserved, but import paths changed.
+
+**Breaking changes:**
+- Concept-folder subpath imports like `@evolution-sdk/evolution/address` are removed
+- Use the root barrel (`import { Address } from "@evolution-sdk/evolution"`) or wildcard (`import * as Address from "@evolution-sdk/evolution/Address"`)
+- `MessageSigning` renamed to `COSE` in the root barrel export
+- `./plutus`, `./cose`, and `./blueprint` available as subpath imports
+- Blueprint barrel uses `export * as` instead of `export *`
+
+**Migration — step by step:**
+
+1. **Update subpath imports** (most common change):
+
+```typescript
+// Before (v0.4.x) — lowercase folder subpath
+import { Address } from "@evolution-sdk/evolution/address"
+import { Assets } from "@evolution-sdk/evolution/assets"
+
+// After (v0.5.0) — root barrel or PascalCase wildcard
+import { Address, Assets } from "@evolution-sdk/evolution"
+// or
+import * as Address from "@evolution-sdk/evolution/Address"
+```
+
+2. **Rename MessageSigning → COSE**:
+
+```typescript
+// Before
+import { MessageSigning } from "@evolution-sdk/evolution"
+
+// After
+import { COSE } from "@evolution-sdk/evolution"
+```
+
+3. **Update Blueprint imports**:
+
+```typescript
+// Before — direct exports
+import { codegen } from "@evolution-sdk/evolution/blueprint"
+
+// After — namespaced exports
+import { Blueprint } from "@evolution-sdk/evolution"
+Blueprint.codegen.generateTypeScript(...)
+```
+
+4. **Domain subpaths still work** (unchanged):
+
+```typescript
+// These still work in v0.5.0
+import { Address } from "@evolution-sdk/evolution/plutus"
+import { COSESign1 } from "@evolution-sdk/evolution/cose"
+import { Codegen } from "@evolution-sdk/evolution/blueprint"
+```
+
+## v0.4.0
+
+**Minor** — Reorganize flat module structure into semantic concept folders.
+
+- Moved ~130 flat root-level files into 24 concept folders following Effect v4 conventions
+- Merged `datum/` into `data/`
+- Extracted `certificate/` from `governance/`
+- Moved byte primitives to `bytes/`, numeric types to `numeric/`
+- Moved CBOR and Codec to `encoding/`
+- Deleted dead code: `Combinator.ts`, `FormatError.ts`, `NativeScriptsOLD.ts`, `Function.ts`
+- Conway-era certificate encoding fix: tag 258 for nonempty ordered sets
+
+**All public API exports preserved** via barrel files and package.json exports map.
+
+## Versioning Policy
+
+Evolution SDK follows [Semantic Versioning](https://semver.org/):
+
+| Version bump | Meaning |
+| --- | --- |
+| **Major** (1.0.0) | Breaking API changes |
+| **Minor** (0.X.0) | New features, possible breaking changes (pre-1.0) |
+| **Patch** (0.0.X) | Bug fixes, no API changes |
+
+During the pre-1.0 phase, minor versions may include breaking changes. Always check this page before upgrading.
+
+## Staying Updated
+
+- Watch the [GitHub releases](https://github.com/IntersectMBO/evolution-sdk/releases) for notifications
+- Check this page before upgrading to a new minor version
+- See the [Migration Guide](/docs/introduction/migration-from-lucid) if coming from Lucid

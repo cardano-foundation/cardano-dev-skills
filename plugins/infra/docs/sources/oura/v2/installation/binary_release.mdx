@@ -1,0 +1,65 @@
+---
+title: Binary Releases
+sidebar:
+  order: 1
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Oura ships as a standalone executable. Grab a pre-built release for your platform below — no
+toolchain or compilation required.
+
+## What's included
+
+The pre-built binaries are **batteries-included**: every integration that builds cleanly
+across all release targets ships by default, so you rarely need a custom build.
+
+- **Sources:** node-to-node (`n2n`), node-to-client (`n2c`), UTxO RPC (`u5c`), Hydra (`hydra`), AWS S3 (`aws`)
+- **Sinks:** terminal, stdout, file rotate, webhook, Elasticsearch, Redis, RabbitMQ, SQL (SQLite / Postgres), AWS (SQS / Lambda / S3), GCP (Pub/Sub / Cloud Functions)
+- **Filters:** all built-in filters (select, split block, JSON, legacy v1, etc.)
+
+A few integrations are left out to keep the binary lean and free of system/C dependencies. They
+require a [source build](/oura/v2/installation/from_source):
+
+- **`kafka`** — its only TLS backend is OpenSSL; bundling it would pull a vendored OpenSSL build into the otherwise pure-Rust-TLS binary
+- **`zeromq`** — dynamically links a system `libzmq` at runtime, so it can't ship in a portable prebuilt binary
+- **`mithril`** — pulls a heavy GMP/blst C-crypto toolchain that significantly increases binary size and build time
+- **`wasm`** — the WASM plugin runtime (large, and itself a plugin host)
+
+## Install
+
+Pick the method that suits your platform:
+
+<Tabs syncKey="install-method">
+  <TabItem label="Shell (Mac / Linux)">
+    ```sh
+    curl --proto '=https' --tlsv1.2 -LsSf https://github.com/txpipe/oura/releases/latest/download/oura-installer.sh | sh
+    ```
+  </TabItem>
+  <TabItem label="PowerShell (Windows)">
+    ```sh
+    powershell -c "irm https://github.com/txpipe/oura/releases/latest/download/oura-installer.ps1 | iex"
+    ```
+  </TabItem>
+  <TabItem label="Homebrew">
+    ```sh
+    brew install txpipe/tap/oura
+    ```
+  </TabItem>
+  <TabItem label="npm">
+    ```sh
+    npm install -g @txpipe/oura
+    ```
+  </TabItem>
+</Tabs>
+
+## Download binaries
+
+Prefer to grab the archive yourself? Download the build for your platform:
+
+|  File  | Platform |
+|--------|----------|
+| [oura-aarch64-apple-darwin.tar.xz](https://github.com/txpipe/oura/releases/latest/download/oura-aarch64-apple-darwin.tar.xz) | Apple Silicon macOS |
+| [oura-x86_64-pc-windows-msvc.zip](https://github.com/txpipe/oura/releases/latest/download/oura-x86_64-pc-windows-msvc.zip) | x64 Windows |
+| [oura-x86_64-unknown-linux-gnu.tar.xz](https://github.com/txpipe/oura/releases/latest/download/oura-x86_64-unknown-linux-gnu.tar.xz) | x64 Linux |
+| [oura-aarch64-unknown-linux-gnu.tar.xz](https://github.com/txpipe/oura/releases/latest/download/oura-aarch64-unknown-linux-gnu.tar.xz) | ARM64 Linux |

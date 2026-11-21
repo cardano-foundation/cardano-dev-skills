@@ -1,0 +1,367 @@
+---
+title: "Mint NFTs on Cardano with Node.js"
+description: "Build a server-side NFT minting application using Mesh SDK. Mint tokens and distribute them to multiple recipients."
+---
+
+import Link from "fumadocs-core/link";
+import { HowToSchema } from "@/components/seo";
+
+<HowToSchema
+  name="Mint NFTs on Cardano with Node.js"
+  description="Build a server-side NFT minting application that creates multiple tokens and distributes them to different recipients."
+  totalTime="PT30M"
+  steps={[
+    { name: "Set up project", text: "Initialize a Node.js project with TypeScript and Mesh SDK." },
+    { name: "Define metadata", text: "Create CIP-25 compliant NFT metadata for each token." },
+    { name: "Specify recipients", text: "Map wallet addresses to token names." },
+    { name: "Build transaction", text: "Mint tokens and send to recipients in one transaction." },
+    { name: "Submit transaction", text: "Sign and submit the transaction to the blockchain." }
+  ]}
+/>
+
+## Overview
+
+Server-side minting lets you create Cardano NFTs without a browser. This is ideal for automated token distribution, airdrops, and backend services. This guide uses the [CIP-25](https://cips.cardano.org/cip/CIP-0025) metadata standard for NFT token metadata on Cardano.
+
+### What you will build
+
+- A Node.js application that mints multiple NFTs
+- Automated distribution to multiple recipient addresses
+- CIP-25 compliant metadata handling
+
+### Prerequisites
+
+- Node.js 18+ installed
+- A Blockfrost API key ([get one free](https://blockfrost.io/))
+- A funded Cardano wallet (mnemonic or CLI keys)
+
+### Time to complete
+
+30 minutes
+
+## Quick Start
+
+Clone the example repository:
+
+```bash
+git clone https://github.com/MeshJS/examples
+cd examples/nodejs-minting
+npm install
+```
+
+Add your credentials to the config and run `npm start`.
+
+## Step-by-Step Guide
+
+### Step 1: Set up the project
+
+Create a new Node.js project:
+
+```bash
+mkdir nodejs-minting
+cd nodejs-minting
+npm init -y
+npm install typescript @meshsdk/core --save
+npm install --save-dev typescript
+npx tsc --init
+```
+
+**What to expect:** A TypeScript project with Mesh SDK installed.
+
+### Step 2: Configure TypeScript
+
+Update `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "outDir": "dist",
+    "strict": true,
+    "esModuleInterop": true
+  }
+}
+```
+
+Update `package.json`:
+
+```json
+{
+  "type": "module",
+  "scripts": {
+    "start": "tsc && node ./dist/main.js"
+  }
+}
+```
+
+**What to expect:** TypeScript configured for ES modules.
+
+### Step 3: Define NFT metadata
+
+Create `src/metadata.ts`:
+
+```typescript
+export interface NFTMetadata {
+  name: string;
+  image: string;
+  mediaType: string;
+  description: string;
+  artist?: string;
+  attributes?: Record<string, unknown>;
+}
+
+export const metadata: Record<string, NFTMetadata> = {
+  MeshToken01: {
+    name: "Mesh Token 1",
+    image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",
+    mediaType: "image/jpg",
+    description: "A purple coin from the Mesh collection.",
+    artist: "Mesh (https://meshjs.dev/)",
+  },
+  MeshToken02: {
+    name: "Mesh Token 2",
+    image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",
+    mediaType: "image/jpg",
+    description: "A gold coin from the Mesh collection.",
+    artist: "Mesh (https://meshjs.dev/)",
+  },
+  MeshToken03: {
+    name: "Mesh Token 3",
+    image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",
+    mediaType: "image/jpg",
+    description: "A coin with M logo from the Mesh collection.",
+    artist: "Mesh (https://meshjs.dev/)",
+  },
+};
+```
+
+**What to expect:** CIP-25 compliant metadata for three tokens.
+
+### Step 4: Specify recipients
+
+Create `src/recipients.ts`:
+
+```typescript
+// Map of recipient address to token name
+export const recipients: Record<string, string> = {
+  "addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr": "MeshToken01",
+  "addr_test1qqlcxawu4gxarenqvdqyw0tqyjy69mrgsmfqhm6h65jwm4vvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmyscxry4r": "MeshToken02",
+  "addr_test1qq5tay78z9l77vkxvrvtrv70nvjdk0fyvxmqzs57jg0vq6wk3w9pfppagj5rc4wsmlfyvc8xs7ytkumazu9xq49z94pqzl95zt": "MeshToken03",
+};
+```
+
+**What to expect:** Each recipient receives one specific token.
+
+### Step 5: Create the minting script
+
+Create `src/main.ts`:
+
+```typescript
+import {
+  MeshTxBuilder,
+  ForgeScript,
+  BlockfrostProvider,
+  resolveScriptHash,
+  stringToHex,
+} from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+import type { AssetMetadata } from "@meshsdk/core";
+
+import { metadata } from "./metadata.js";
+import { recipients } from "./recipients.js";
+
+// Configuration - replace with your values
+const BLOCKFROST_KEY = "your_blockfrost_preprod_key";
+const NETWORK_ID = 0; // 0 = testnet, 1 = mainnet
+
+// Wallet mnemonic (24 words)
+const MNEMONIC = [
+  "your", "twenty", "four", "word", "mnemonic",
+  "phrase", "goes", "here", "replace", "with",
+  "actual", "words", "from", "your", "wallet",
+  "that", "has", "been", "funded", "with",
+  "test", "ada", "from", "faucet",
+];
+
+async function main() {
+  // Initialize provider
+  const provider = new BlockfrostProvider(BLOCKFROST_KEY);
+
+  // Initialize wallet
+  const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+    networkId: NETWORK_ID,
+    walletAddressType: AddressType.Base,
+    fetcher: provider,
+    submitter: provider,
+    mnemonic: MNEMONIC,
+  });
+
+  const walletAddress = await wallet.getChangeAddressBech32();
+  console.log("Wallet address:", walletAddress);
+
+  // Create forging script from wallet address
+  const forgingScript = ForgeScript.withOneSignature(walletAddress);
+  const policyId = resolveScriptHash(forgingScript);
+  console.log("Policy ID:", policyId);
+
+  // Get UTxOs
+  const utxos = await wallet.getUtxosMesh();
+  if (utxos.length === 0) {
+    throw new Error("No UTxOs available. Fund the wallet first.");
+  }
+  console.log("Available UTxOs:", utxos.length);
+
+  // Build the transaction
+  const txBuilder = new MeshTxBuilder({
+    fetcher: provider,
+    verbose: true,
+  });
+
+  // Prepare transaction metadata
+  const txMetadata: Record<string, Record<string, AssetMetadata>> = {
+    [policyId]: {},
+  };
+
+  // Add mint and output for each recipient
+  for (const [recipientAddress, assetName] of Object.entries(recipients)) {
+    const assetMetadata = metadata[assetName];
+    if (!assetMetadata) {
+      console.warn(`No metadata found for ${assetName}, skipping`);
+      continue;
+    }
+
+    const tokenNameHex = stringToHex(assetName);
+    const assetUnit = policyId + tokenNameHex;
+
+    console.log(`Minting ${assetName} for ${recipientAddress.slice(0, 20)}...`);
+
+    // Add metadata for this token
+    txMetadata[policyId][assetName] = assetMetadata;
+
+    // Add mint instruction and output
+    txBuilder
+      .mint("1", policyId, tokenNameHex)
+      .mintingScript(forgingScript)
+      .txOut(recipientAddress, [{ unit: assetUnit, quantity: "1" }]);
+  }
+
+  // Complete the transaction
+  const unsignedTx = await txBuilder
+    .metadataValue(721, txMetadata)
+    .changeAddress(walletAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  // Sign and submit
+  const signedTx = await wallet.signTx(unsignedTx, false);
+  const txHash = await wallet.submitTx(signedTx);
+
+  console.log("");
+  console.log("Transaction submitted successfully!");
+  console.log("Transaction hash:", txHash);
+  console.log(`View on explorer: https://preprod.cardanoscan.io/transaction/${txHash}`);
+}
+
+main().catch((error) => {
+  console.error("Error:", error.message);
+  process.exit(1);
+});
+```
+
+**What to expect:** A complete minting script that distributes tokens to multiple recipients.
+
+### Step 6: Run the script
+
+Execute the minting:
+
+```bash
+npm start
+```
+
+**What to expect:** Console output showing each mint operation and the final transaction hash.
+
+## Complete Example
+
+Here is the complete project structure:
+
+```
+nodejs-minting/
+  package.json
+  tsconfig.json
+  src/
+    main.ts
+    metadata.ts
+    recipients.ts
+```
+
+**package.json:**
+
+```json
+{
+  "name": "nodejs-minting",
+  "type": "module",
+  "scripts": {
+    "start": "tsc && node ./dist/main.js"
+  },
+  "dependencies": {
+    "@meshsdk/core": "^1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
+```
+
+## Next Steps
+
+- <Link href="/apis/txbuilder/minting">Minting API reference</Link> - Advanced minting options
+- <Link href="/guides/multisig-minting">Multi-signature minting</Link> - Coordinate multiple signers
+- <Link href="/apis/wallets/meshwallet">Headless Wallet options</Link> - Different key types
+- <Link href="/guides/nft-collection">Mint a collection</Link> - Batch minting with Bun
+
+## Troubleshooting
+
+### No UTxOs available
+
+**Cause:** The wallet has no funds.
+
+**Solution:** Fund the wallet using the [testnet faucet](https://docs.cardano.org/cardano-testnets/tools/faucet) or transfer ADA from another wallet.
+
+### Transaction too large
+
+**Cause:** Too many mints or outputs in one transaction.
+
+**Solution:** Split the recipients into multiple batches and submit separate transactions.
+
+### Invalid address
+
+**Cause:** Recipient address is malformed or for wrong network.
+
+**Solution:** Verify addresses are valid Cardano addresses for the correct network (testnet or mainnet).
+
+### Mnemonic validation failed
+
+**Cause:** The mnemonic phrase is incorrect or incomplete.
+
+**Solution:** Ensure you have exactly 24 words (or 15/12 for some wallets) with correct spelling.
+
+### Policy ID mismatch
+
+**Cause:** The forging script changed between mints.
+
+**Solution:** The policy ID is deterministic based on the wallet address. Ensure you use the same wallet for all mints of a collection.
+
+## References
+
+- [CIP-25: Media NFT Metadata Standard](https://cips.cardano.org/cip/CIP-0025) - The Cardano standard for NFT metadata used in this guide
+- [Cardano Developer Portal: Native Tokens](https://developers.cardano.org/docs/native-tokens/) - Official documentation on Cardano's native token system
+- [Cardano Developer Portal](https://developers.cardano.org) - Official development resources and guides
+
+## Related Links
+
+- <Link href="/apis/txbuilder/minting">Minting API Reference</Link>
+- <Link href="/apis/wallets/meshwallet">Headless Wallet Documentation</Link>
+- <Link href="https://cips.cardano.org/cip/CIP-25">CIP-25 Metadata Standard</Link>
+- <Link href="/providers">Blockchain Providers</Link>

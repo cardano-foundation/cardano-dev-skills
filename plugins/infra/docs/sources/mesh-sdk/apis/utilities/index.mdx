@@ -1,0 +1,61 @@
+---
+title: "Cardano SDK Utilities"
+description: "Serializers, deserializers, resolvers, and blueprints for converting between Cardano data formats."
+icon: WrenchScrewdriverIcon
+---
+
+import { linksUtilities } from "@/data/links-utilities";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+MeshJS provides a comprehensive set of utility functions for working with Cardano data. Use these utilities to serialize scripts into addresses, deserialize on-chain data, resolve hashes, and work with smart contract blueprints.
+
+## Overview
+
+| Utility | Purpose |
+|---------|---------|
+| [Blueprints](/apis/utilities/blueprints) | Create and manage smart contract blueprints for spending, minting, and withdrawal validators |
+| [Serializers](/apis/utilities/serializers) | Encode scripts and data into CBOR or bech32 format |
+| [Deserializers](/apis/utilities/deserializers) | Parse CBOR or bech32 encoded data into usable objects |
+| [Resolvers](/apis/utilities/resolvers) | Convert between different Cardano data formats (hashes, addresses, epochs) |
+
+## Quick Start
+
+Install the MeshJS SDK to access all utility functions:
+
+```bash
+npm install @meshsdk/core
+```
+
+Import the utilities you need:
+
+```tsx
+import {
+  serializePlutusScript,
+  deserializeAddress,
+  resolveDataHash,
+  SpendingBlueprint,
+} from "@meshsdk/core";
+```
+
+## Browse Utilities
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {linksUtilities.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## Related
+
+- [Data APIs](/apis/data) - Parse and manipulate Cardano data types
+- [Transaction Builder](/apis/txbuilder) - Build transactions using these utilities

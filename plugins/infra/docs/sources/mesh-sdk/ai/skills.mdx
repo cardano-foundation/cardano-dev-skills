@@ -1,0 +1,138 @@
+---
+title: "Agent Skills for AI Coding Assistants"
+description: "Give your AI coding assistant deep knowledge of Mesh SDK for faster Cardano development - works with Claude Code, Cursor, Codex, and 37+ tools"
+---
+import Link from "fumadocs-core/link";
+
+Agent Skills give your AI coding assistant deep knowledge of Mesh SDK so it can write correct Cardano code without searching documentation. Instead of looking up method signatures, transaction patterns, or CIP standards yourself, you describe what you want and your assistant produces working code.
+
+Compatible with Claude Code, Cursor, GitHub Copilot, Codex, and <Link href="https://skills.sh">37+ other tools</Link>.
+
+| Without Skills | With Skills Installed |
+|----------------|----------------------|
+| Read docs to find the right API method | AI already knows the full API |
+| Trial-and-error for transaction patterns | Ask "build a transaction that sends 5 ADA" and get working code |
+| Debug cryptic Cardano errors alone | Troubleshooting guides built into AI context |
+| Forget method ordering (e.g., `spendingPlutusScriptV3()` before `txIn()`) | AI knows the correct order |
+| Look up CIP standards | AI understands CIP-30, CIP-8, etc. |
+| Manually translate Aiken types to MeshTxBuilder code | Give it your Aiken types and get correct transaction code |
+
+## Available Skills
+
+| Skill | Package | What It Covers |
+|-------|---------|----------------|
+| `mesh-transaction` | `@meshsdk/transaction` | MeshTxBuilder API, sending ADA, minting NFTs and tokens, Plutus script spending, staking, governance, DRep registration, Aiken integration |
+| `mesh-wallet` | `@meshsdk/wallet` | Browser wallets (Eternl, Nami, Lace, Flint, Yoroi), headless server-side wallets, transaction signing, CIP-30, CIP-8 data signing |
+| `mesh-core-cst` | `@meshsdk/core-cst` | CBOR serialization, Plutus data conversion, address parsing, CIP-8 message signing, native script hashing, `applyParamsToScript` |
+
+Each skill includes a complete API reference, working code recipes, and a troubleshooting guide.
+
+## Quick Start
+
+Install all Mesh skills with a single command:
+
+```bash
+npx skills add MeshJS/skills
+```
+
+The CLI auto-detects which AI tools you have installed (Claude Code, Cursor, Codex, etc.) and places skills in the correct directory. To install a specific skill only:
+
+```bash
+npx skills add MeshJS/skills --skill mesh-transaction
+```
+
+## How It Works
+
+Each skill contains a description that tells your AI assistant when to activate it. When you ask something like *"help me build a transaction with MeshTxBuilder"*, the assistant recognizes the topic, loads the relevant skill, and responds with accurate API usage, correct method ordering, and working code patterns.
+
+You don't need to reference skills manually. The assistant loads them automatically based on context.
+
+## Example Conversation
+
+After installing skills, you can ask your assistant questions like:
+
+- *"Build a transaction that sends 5 ADA to addr1qy..."*
+- *"How do I mint an NFT with a Plutus minting policy?"*
+- *"Help me connect a browser wallet using CIP-30"*
+- *"Show me how to interact with a Plutus V3 script"*
+- *"Why am I getting 'missing required signer' error?"*
+- *"How do I register as a DRep and vote on a proposal?"*
+- *"Here are my Aiken types, build the MeshTxBuilder transaction for me"*
+
+Here is what a response looks like with skills loaded:
+
+**You:** Send 5 ADA to an address
+
+**AI Assistant:**
+
+```typescript
+import { MeshTxBuilder } from '@meshsdk/transaction';
+
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const utxos = await provider.fetchAddressUTxOs(walletAddress);
+
+const unsignedTx = await txBuilder
+  .txOut('addr_test1qp...', [
+    { unit: 'lovelace', quantity: '5000000' }
+  ])
+  .changeAddress(walletAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+## Aiken Smart Contract Support
+
+The `mesh-transaction` skill includes a complete Aiken-to-MeshTxBuilder mapping guide. When you share your Aiken type definitions, your AI assistant knows how to translate them into the correct MeshJS data helpers — picking the right format (`conStr` for datums, `mConStr` for redeemers), mapping constructor indices to variant order, and choosing the correct type parameters.
+
+For example, given this Aiken type:
+
+```
+type MarketAction {
+  Buy
+  Cancel
+  UpdatePrice { new_price: Int }
+}
+```
+
+Your AI assistant knows that:
+- `Buy` is variant index 0 → `mConStr0([])`
+- `Cancel` is variant index 1 → `mConStr1([])`
+- `UpdatePrice` is variant index 2 with a field → `mConStr2([75_000_000])`
+
+Combined with the skill's transaction-building knowledge, it produces the full MeshTxBuilder chain with the correct method ordering, collateral handling, and datum/redeemer placement — so you can focus on your contract logic instead of figuring out the MeshJS data format conventions.
+
+## Skill File Structure
+
+Each skill follows the <Link href="https://agentskills.io/specification">Agent Skills specification</Link>:
+
+```
+mesh-transaction/
+  SKILL.md              # Entry point - description, overview, quick reference
+  TRANSACTION.md        # Complete MeshTxBuilder API reference
+  AIKEN-MAPPING.md      # Aiken smart contract integration guide
+  PATTERNS.md           # Common recipes with working code
+  TROUBLESHOOTING.md    # Error solutions and debugging
+
+mesh-wallet/
+  SKILL.md              # Entry point - description, overview, quick reference
+  WALLET.md             # Complete wallet API reference
+  PATTERNS.md           # Common recipes with working code
+  TROUBLESHOOTING.md    # Error solutions and debugging
+
+mesh-core-cst/
+  SKILL.md              # Entry point - description, overview, quick reference
+  CORE-CST.md           # Complete core-cst API reference
+  PATTERNS.md           # Common recipes with working code
+  TROUBLESHOOTING.md    # Error solutions and debugging
+```
+
+## Source Code
+
+Browse <span><Link href="https://github.com/MeshJS/skills">MeshJS/skills</Link></span> on GitHub

@@ -1,0 +1,60 @@
+---
+title: Logging
+sidebar:
+  order: 2
+---
+
+Dolos writes logs to stderr, for every command, the node's `daemon`, `sync` and `serve` included; stdout carries only a command's own output, such as a report. Internally, it uses a tracing mechanism that groups logs into hierarchical blocks called _spans_ that holds data describing the context where the event occurred.
+
+Depending on your use-case, the amount and detail of these logs might be overwhelming. _Dolos_ provides a set of configuration values that allows you to opt-in into different levels of detail.
+
+## Log Levels
+
+Dolos follows a very common convention around log levels. These levels describe discrete categories of decreasing severity.
+
+| level   | description                                                                  |
+| ------- | ---------------------------------------------------------------------------- |
+| `error` | unexpected errors, stuff that shouldn't occur                                |
+| `warn`  | warning about things that are expected but require attention                 |
+| `info`  | normal operation events that are relevant for day-to-day operations          |
+| `debug` | normal operation events with a level of detail useful for debugging problems |
+| `trace` | extreme level of detail, usually including data being processed              |
+
+## Components
+
+Dolos's own events, under the `dolos` and `gasket` targets, follow `level`. Every other target logs nothing unless `filter` names it. That covers the libraries Dolos is built on, and the request logs of the HTTP APIs:
+
+| target | component |
+| ------ | --------- |
+| `tokio`, `runtime` | The async runtime |
+| `pallas` | Low-level Ouroboros interactions (mini-protocols, CBOR decoding) |
+| `tonic` | The gRPC server (UTxO RPC) |
+| `jsonrpsee-server` | The Transaction Resolver Protocol server |
+| `fjall`, `lsm_tree` | The Fjall storage engine |
+| `opentelemetry` | OpenTelemetry exporters |
+| `minibf` | MiniBF's request log, one event per HTTP request |
+| `minikupo` | MiniKupo's request log, one event per HTTP request |
+
+## Configuration
+
+The `[logging]` section within `dolos.toml` controls these options:
+
+| property | type   | default  |
+| -------- | ------ | -------- |
+| level    | string | `"info"` |
+| filter   | string | none     |
+
+- `level`: the most detailed level of Dolos's own events to include. Selecting a level includes it and every level of higher severity.
+- `filter`: further `target=level` directives, comma-separated, in the syntax of `RUST_LOG`. A directive names a target by its module path prefix; a bare level applies to every target no directive names. A directive that does not parse is refused when the node starts.
+
+Both fields are optional.
+
+Example:
+
+```toml
+[logging]
+level = "debug"
+filter = "pallas=info,tonic=debug"
+```
+
+You can find more detailed info about configuration in the [configuration schema section](../configuration/schema#logging).

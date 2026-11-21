@@ -1,0 +1,40 @@
+---
+title: Mithril
+sidebar:
+  label: Mithril
+  order: 5
+---
+
+The Mithril source downloads a certified snapshot of the chain from a
+[Mithril](https://mithril.network/) aggregator and replays it into the pipeline. It's the
+fastest way to bootstrap historical chain data — instead of syncing block by block from a
+node, you fetch a verified snapshot in one go.
+
+:::caution[Requires a custom build]
+Mithril isn't in the default binary (it pulls a heavy C-crypto toolchain). Build Oura with
+the `mithril` feature — see [Install from source](/oura/v2/installation/from_source).
+:::
+
+## Configuration
+
+```toml title="daemon.toml"
+[source]
+type = "Mithril"
+aggregator = "https://aggregator.pre-release-preview.api.mithril.network/aggregator"
+genesis_key = "5b3132372c37332c3132342c3136312c362c3133372c3133312c3231332c3230372c3131372c3139382c38352c3137362c3139392c3136322c3234312c36382c3132332c3131392c3134352c31332c3233322c3234332c34392c3232392c322c3234392c3230352c3230352c33392c3233352c34345d"
+snapshot_download_dir = "./snapshot"
+skip_validation = false
+```
+
+- `type` (required): the literal value `Mithril`.
+- `aggregator` (required): the URL of the Mithril aggregator to fetch from.
+- `genesis_key` (required): the genesis verification key used to validate the snapshot.
+- `snapshot_download_dir` (required): a writable directory where the snapshot is stored.
+- `skip_validation` (optional, default = `false`): set to `true` to skip verifying the
+  snapshot against the certificate chain — faster, but you lose Mithril's integrity guarantee.
+
+:::tip
+A Mithril snapshot is a fast way to *catch up*, not to follow the tip. A common pattern is to
+bootstrap from a snapshot and then keep following the chain from a node — see the
+[`mithril` example](/oura/v2/examples) for a `Breadcrumbs` intersect that does exactly that.
+:::

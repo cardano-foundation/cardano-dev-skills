@@ -1,0 +1,14 @@
+type: array
+items:
+  properties:
+    stake_address:
+      type: string
+      example: "stake1u9l5q5jwgelgagzyt6nuaasefgmn8pd25c8e9qpeprq0tdcp0e3uk"
+      description: Stake address
+    amount:
+      type: string
+      example: "4440295078"
+      description: Amount of active delegated stake in Lovelaces
+  required:
+    - stake_address
+    - amount

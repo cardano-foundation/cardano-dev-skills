@@ -1,0 +1,102 @@
+---
+title: "x402 Resource Server"
+description: "Put a price on a route with buildXOffer and createPaywall."
+---
+
+Your server does three things: say what it costs, remember what it offered, and release the content once the facilitator confirms payment. `createPaywall` does all three.
+
+```ts
+import { buildDefaultOffer, createFacilitatorClient, createPaywall } from "@meshsdk/x402";
+import { createMeshHttpApp, serveMeshHttp } from "@meshsdk/x402/http";
+
+const paywall = createPaywall({
+  network: "cardano:preprod",
+  facilitator: createFacilitatorClient("https://facilitator.example.com"),
+  issue: () =>
+    buildDefaultOffer({ network: "cardano:preprod", amount: "2000000", payTo: "addr_test1..." }),
+  serve: () => Response.json({ city: "Lagos", tempC: 31 }),
+});
+
+const app = createMeshHttpApp();
+app.get("/weather", (c) => paywall(c.req.raw));
+
+serveMeshHttp(app, { port: 3000 });
+```
+
+## HTTP helpers
+
+`@meshsdk/x402` wraps the HTTP layer (Node only), so you do not install or import Hono yourself.
+
+| Export | Use |
+| --- | --- |
+| `createMeshHttpApp()` | An empty app. Add routes with `app.get`, `app.post`, `app.use`, `app.route`. |
+| `serveMeshHttp(app, { port, hostname }, onListen?)` | Start the app on Node. |
+| `meshServeStatic(root)` | Middleware that serves a folder: `app.use("/*", meshServeStatic("./public"))`. |
+| `meshStreamSSE(c, handler)` | Server-sent events: `meshStreamSSE(c, async (stream) => { await stream.writeSSE({ data: "hi" }) })`. |
+| `MeshHttpApp`, `MeshHttpContext` | Types for the app and route context. |
+
+`createFacilitatorApp` returns a `MeshHttpApp`, so you can mount it under a parent app with `app.route("/facilitator", facilitator)`.
+
+An unpaid request gets a `402` with the price. A paid one is verified, settled, and answered with the content plus a `PAYMENT-RESPONSE` header. If the payment fails, the client gets a `402` with the reason.
+
+## Offers
+
+One builder per payment method. All take `network`, `amount`, and optionally `asset`, `confirmations` and `maxTimeoutSeconds`.
+
+```ts
+// default: pay an address
+buildDefaultOffer({ network, amount: "2000000", payTo: "addr_test1..." });
+
+// script: payTo is worked out from the script
+buildScriptOffer({
+  network,
+  amount: "2000000",
+  script: { type: "plutusV3", code: "<hex>" },
+  datum: "d8799fff", // optional inline datum (CBOR hex), attached as is
+});
+
+// masumi: seller-signed escrow terms (see the Masumi page)
+const { requirements, termsDigest } = await buildMasumiOffer({
+  network,
+  amount: "5000000",
+  sellerWallet,
+  sellerAddress,
+  jobInput: { task: "summarize" },
+});
+```
+
+Charge in a native token with `asset: "policyId.assetNameHex"`. x402 checks that the datum you declared is attached to the payment, not that it is right for your contract: that part is yours.
+
+## Which offers the server trusts
+
+When a payment comes back, the facilitator checks it against **your** record of the offer, never the client's copy. That is what stops someone paying 1 lovelace for a 2 ADA resource.
+
+By default `createPaywall` remembers what it issued (in memory, last 10,000). For default and script offers you can also just rebuild the offer on demand, which is what works across several server instances:
+
+```ts
+const paywall = createPaywall({
+  network, facilitator,
+  issue: (req) => buildDefaultOffer({ network, amount: priceFor(req), payTo }),
+  trusted: (req) => buildDefaultOffer({ network, amount: priceFor(req), payTo }), // rebuilt, never read from the payload
+  serve: () => Response.json({ ok: true }),
+});
+```
+
+Masumi offers are random per request, so keep them in the default book, or in a shared store keyed by `termsDigest`.
+
+## Hooks and timing
+
+```ts
+createPaywall({
+  // ...
+  hooks: {
+    onChallenge: (req, challenge) => log("offered", challenge.accepts[0]),
+    onPaid: (req, paid) => log("paid", paid.transaction),
+    onRejected: (req, reason) => log("refused", reason),
+  },
+  pollMs: 5000,       // how often to re-check a pending settlement
+  timeoutMs: 480000,  // give up waiting after 8 minutes
+});
+```
+
+If the facilitator is down, the client gets a `402` with `FACILITATOR_UNAVAILABLE`.

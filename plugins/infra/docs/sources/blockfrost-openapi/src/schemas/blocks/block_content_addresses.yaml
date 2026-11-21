@@ -1,0 +1,27 @@
+type: array
+items:
+  type: object
+  properties:
+    address:
+      type: string
+      description: Address that was affected in the specified block
+    transactions:
+      type: array
+      description: List of transactions containing the address either in their inputs or outputs. Sorted by transaction index within a block, ascending.
+      items:
+        type: object
+        properties:
+          tx_hash:
+            type: string
+        required:
+          - tx_hash
+  required:
+    - address
+    - transactions
+example:
+  - address: "addr1q9ld26v2lv8wvrxxmvg90pn8n8n5k6tdst06q2s856rwmvnueldzuuqmnsye359fqrk8hwvenjnqultn7djtrlft7jnq7dy7wv"
+    transactions:
+      - tx_hash: "1a0570af966fb355a7160e4f82d5a80b8681b7955f5d44bec0dce628516157f0"
+  - address: "addr1qxqs59lphg8g6qndelq8xwqn60ag3aeyfcp33c2kdp46a09re5df3pzwwmyq946axfcejy5n4x0y99wqpgtp2gd0k09qsgy6pz"
+    transactions:
+      - tx_hash: "1a0570af966fb355a7160e4f82d5a80b8681b7955f5d44bec0dce628516157d0"

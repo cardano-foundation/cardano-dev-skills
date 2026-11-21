@@ -1,0 +1,425 @@
+---
+title: "NFT Marketplace Contract"
+description: "Build an NFT marketplace to list, buy, update, and cancel asset listings"
+---
+
+import Link from "next/link";
+
+The Marketplace contract enables you to build a decentralized NFT marketplace on Cardano. Sellers list assets at a specified price, and buyers can purchase them by paying the listed amount. The marketplace owner receives a configurable fee on each sale.
+
+## Use Cases
+
+- NFT marketplaces
+- Digital collectible trading platforms
+- Tokenized asset exchanges
+- Secondary market platforms
+- Auction-style sales (with extensions)
+
+## Quick Start
+
+### Install the Package
+
+```bash
+npm install @meshsdk/contract @meshsdk/core
+```
+
+### Initialize the Contract
+
+```typescript
+import { MeshMarketplaceContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshMarketplaceContract(
+  {
+    mesh: meshTxBuilder,
+    fetcher: provider,
+    wallet: wallet,
+    networkId: 0,
+  },
+  "addr_test1qp...marketplace_owner_address", // Fee recipient
+  200 // Fee: 200 basis points = 2%
+);
+```
+
+### Configuration Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `ownerAddress` | `string` | Address that receives marketplace fees |
+| `feePercentageBasisPoint` | `number` | Fee in basis points (100 = 1%, 200 = 2%) |
+
+## Contract Logic
+
+The Marketplace contract supports four operations:
+
+| Action | Description | Who Can Execute |
+|--------|-------------|-----------------|
+| **List** | Lock an asset in the contract with a price | Asset owner |
+| **Buy** | Purchase a listed asset | Anyone |
+| **Update** | Change the listing price | Original seller |
+| **Cancel** | Remove listing and retrieve asset | Original seller |
+
+### Fee Structure
+
+When a buyer purchases an asset:
+1. Seller receives: `listing_price - fee`
+2. Marketplace owner receives: `listing_price * (fee_basis_points / 10000)`
+
+Example with 2% fee on 100 ADA sale:
+- Seller receives: 98 ADA
+- Marketplace owner receives: 2 ADA
+
+## Available Actions
+
+### List Asset
+
+List an asset for sale on the marketplace.
+
+#### Method Signature
+
+```typescript
+contract.listAsset(asset: string, price: number): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `asset` | `string` | The asset unit (policy ID + asset name in hex) |
+| `price` | `number` | Listing price in lovelace |
+
+#### Code Example
+
+```typescript
+import { MeshMarketplaceContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+// Initialize provider and contract
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshMarketplaceContract(
+  {
+    mesh: meshTxBuilder,
+    fetcher: provider,
+    wallet: wallet,
+    networkId: 0,
+  },
+  "addr_test1qp...marketplace_owner",
+  200
+);
+
+// List an NFT for 10 ADA
+const assetUnit = "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e";
+const priceInLovelace = 10000000; // 10 ADA
+
+const tx = await contract.listAsset(assetUnit, priceInLovelace);
+const signedTx = await wallet.signTx(tx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Asset listed. Transaction hash:", txHash);
+```
+
+#### What Happens on Success
+
+- Asset transfers from your wallet to the contract address
+- Listing price is stored in the datum
+- Anyone can now purchase the asset at the listed price
+
+### Buy Asset
+
+Purchase a listed asset from the marketplace.
+
+#### Method Signature
+
+```typescript
+contract.purchaseAsset(utxo: UTxO): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `utxo` | `UTxO` | The UTxO containing the listed asset |
+
+#### Code Example
+
+```typescript
+import { MeshMarketplaceContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+// Initialize provider and contract
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshMarketplaceContract(
+  {
+    mesh: meshTxBuilder,
+    fetcher: provider,
+    wallet: wallet,
+    networkId: 0,
+  },
+  "addr_test1qp...marketplace_owner",
+  200
+);
+
+// Get the listing UTxO
+const utxo = await contract.getUtxoByTxHash("<listing-transaction-hash>");
+
+// Purchase the asset
+const tx = await contract.purchaseAsset(utxo);
+const signedTx = await wallet.signTx(tx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Asset purchased. Transaction hash:", txHash);
+```
+
+#### What Happens on Success
+
+- Buyer pays the listing price
+- Asset transfers to the buyer's wallet
+- Seller receives the sale price minus fee
+- Marketplace owner receives the fee
+- View example: [Successful purchase on Cardanoscan](https://preprod.cardanoscan.io/transaction/f9f7ddbbbe1c34717134c89c343aaa27d4c5f62e6e8a127757400ac8d45e64e8)
+
+### Update Listing
+
+Change the price of an existing listing.
+
+#### Method Signature
+
+```typescript
+contract.relistAsset(utxo: UTxO, newListPrice: number): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `utxo` | `UTxO` | The UTxO containing the listed asset |
+| `newListPrice` | `number` | New listing price in lovelace |
+
+#### Code Example
+
+```typescript
+import { MeshMarketplaceContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+// Initialize provider and contract
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshMarketplaceContract(
+  {
+    mesh: meshTxBuilder,
+    fetcher: provider,
+    wallet: wallet,
+    networkId: 0,
+  },
+  "addr_test1qp...marketplace_owner",
+  200
+);
+
+// Get the listing UTxO
+const utxo = await contract.getUtxoByTxHash("<listing-transaction-hash>");
+
+// Update price to 20 ADA
+const newPrice = 20000000;
+
+const tx = await contract.relistAsset(utxo, newPrice);
+const signedTx = await wallet.signTx(tx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Listing updated. Transaction hash:", txHash);
+```
+
+#### What Happens on Success
+
+- Old listing is consumed
+- New listing is created with updated price
+- Asset remains in the contract
+
+### Cancel Listing
+
+Remove a listing and retrieve your asset.
+
+#### Method Signature
+
+```typescript
+contract.delistAsset(utxo: UTxO): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `utxo` | `UTxO` | The UTxO containing the listed asset |
+
+#### Code Example
+
+```typescript
+import { MeshMarketplaceContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+// Initialize provider and contract
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshMarketplaceContract(
+  {
+    mesh: meshTxBuilder,
+    fetcher: provider,
+    wallet: wallet,
+    networkId: 0,
+  },
+  "addr_test1qp...marketplace_owner",
+  200
+);
+
+// Get the listing UTxO
+const utxo = await contract.getUtxoByTxHash("<listing-transaction-hash>");
+
+// Cancel the listing
+const tx = await contract.delistAsset(utxo);
+const signedTx = await wallet.signTx(tx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Listing cancelled. Transaction hash:", txHash);
+```
+
+#### What Happens on Success
+
+- Listing is removed from the contract
+- Asset returns to the seller's wallet
+- No fees are charged
+
+## Full Working Example
+
+```typescript
+import { MeshMarketplaceContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+async function marketplaceDemo() {
+  // Connect seller wallet
+  const sellerWallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+  // Initialize provider
+  const provider = new BlockfrostProvider("<Your-API-Key>");
+
+  const meshTxBuilder = new MeshTxBuilder({
+    fetcher: provider,
+    submitter: provider,
+  });
+
+  // Initialize marketplace (2% fee)
+  const marketplaceOwner = "addr_test1qp...owner_address";
+  const contract = new MeshMarketplaceContract(
+    {
+      mesh: meshTxBuilder,
+      fetcher: provider,
+      wallet: sellerWallet,
+      networkId: 0,
+    },
+    marketplaceOwner,
+    200
+  );
+
+  // Step 1: Seller lists an NFT
+  const assetUnit = "d9312da...68546f6b656e";
+  const listPrice = 10000000; // 10 ADA
+
+  const listTx = await contract.listAsset(assetUnit, listPrice);
+  const signedListTx = await sellerWallet.signTx(listTx);
+  const listTxHash = await sellerWallet.submitTx(signedListTx);
+
+  console.log("Listed:", listTxHash);
+
+  // Wait for confirmation
+  await new Promise((resolve) => setTimeout(resolve, 60000));
+
+  // Step 2: Buyer purchases (switch wallet in production)
+  const buyerWallet = await MeshCardanoBrowserWallet.enable("nami");
+
+  const buyerContract = new MeshMarketplaceContract(
+    {
+      mesh: new MeshTxBuilder({ fetcher: provider, submitter: provider }),
+      fetcher: provider,
+      wallet: buyerWallet,
+      networkId: 0,
+    },
+    marketplaceOwner,
+    200
+  );
+
+  const listingUtxo = await buyerContract.getUtxoByTxHash(listTxHash);
+  const buyTx = await buyerContract.purchaseAsset(listingUtxo);
+  const signedBuyTx = await buyerWallet.signTx(buyTx);
+  const buyTxHash = await buyerWallet.submitTx(signedBuyTx);
+
+  console.log("Purchased:", buyTxHash);
+}
+
+marketplaceDemo().catch(console.error);
+```
+
+## Troubleshooting
+
+### Common Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Script validation failed` | Insufficient payment | Ensure buyer pays the exact listing price |
+| `Missing required signer` | Wrong wallet for update/cancel | Only the original seller can update or cancel |
+| `UTxO not found` | Listing already purchased or cancelled | Verify the listing still exists |
+| `Asset not owned` | Trying to list an asset you do not have | Check your wallet contains the asset |
+
+### Debugging Tips
+
+1. **Verify asset ownership**: Ensure the asset is in your wallet before listing
+2. **Check UTxO status**: Listings may have been purchased by others
+3. **Confirm marketplace config**: Ensure owner address and fee are set correctly
+4. **Validate asset unit**: The unit must be the complete policy ID + asset name in hex
+
+### Fee Calculation
+
+```typescript
+const listingPrice = 10000000; // 10 ADA
+const feeBasisPoints = 200;     // 2%
+
+const feeAmount = (listingPrice * feeBasisPoints) / 10000;
+const sellerReceives = listingPrice - feeAmount;
+
+console.log(`Fee: ${feeAmount / 1000000} ADA`);           // 0.2 ADA
+console.log(`Seller receives: ${sellerReceives / 1000000} ADA`); // 9.8 ADA
+```
+
+## Related Links
+
+- [Source Code on GitHub](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/marketplace)
+- [Successful Purchase Example](https://preprod.cardanoscan.io/transaction/f9f7ddbbbe1c34717134c89c343aaa27d4c5f62e6e8a127757400ac8d45e64e8)
+- [MeshTxBuilder Documentation](/apis/transaction)
+- [Wallet Integration Guide](/wallets)

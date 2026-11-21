@@ -1,0 +1,34 @@
+get:
+  tags:
+    - Cardano » Blocks
+  summary: Specific block
+  description: |
+    Return the content of a requested block.
+  parameters:
+    - in: path
+      name: hash_or_number
+      required: true
+      schema:
+        type: string
+        format: 64-character case-sensitive hexadecimal string or block number.
+      description: Hash or number of the requested block.
+      example: "4ea1ba291e8eef538635a53e59fddba7810d1679631cc3aed7c8e6c4091a516a"
+  responses:
+    "200":
+      description: Return the contents of the block
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/blocks/block_content.yaml
+    "400":
+      $ref: ../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../responses/errors/500.yaml

@@ -1,0 +1,539 @@
+---
+title: "Build Your First Aiken Smart Contract"
+description: "Write a Cardano smart contract with Aiken and interact with it using Mesh SDK. Learn to lock and unlock assets on-chain."
+---
+
+import Link from "fumadocs-core/link";
+import { HowToSchema } from "@/components/seo";
+
+<HowToSchema
+  name="Build Aiken Smart Contracts for Cardano"
+  description="Write a smart contract in Aiken and create transactions to lock and unlock assets on the Cardano blockchain."
+  totalTime="PT60M"
+  steps={[
+    { name: "Install Aiken", text: "Install the Aiken CLI using aikup or cargo." },
+    { name: "Create project", text: "Initialize a new Aiken project and write the validator." },
+    { name: "Compile contract", text: "Build the contract to generate the Plutus blueprint." },
+    { name: "Set up frontend", text: "Create a Next.js app with Mesh SDK and import the contract." },
+    { name: "Lock assets", text: "Build a transaction to send assets to the script address." },
+    { name: "Unlock assets", text: "Build a transaction with the correct redeemer to withdraw." }
+  ]}
+/>
+
+## Overview
+
+In this guide, you build a complete "Hello World" smart contract on Cardano. You write the on-chain validator in [Aiken](https://aiken-lang.org/), a modern smart contract language for Cardano, then use Mesh SDK to create transactions that lock and unlock assets on the [eUTXO model](https://docs.cardano.org/about-cardano/learn/eutxo-explainer/).
+
+### What you will build
+
+- An Aiken smart contract with datum and redeemer validation
+- A transaction that locks ADA at the script address
+- A transaction that unlocks ADA with the correct redeemer
+
+### What you will learn
+
+- Aiken syntax for Cardano validators
+- How datums and redeemers work in Plutus contracts
+- Building Plutus transactions with Mesh SDK
+
+### Prerequisites
+
+- [Rust](https://www.rust-lang.org/tools/install) installed (for Aiken)
+- Node.js 18+ installed
+- Basic TypeScript knowledge
+- A Cardano wallet browser extension
+
+### Resources
+
+- <Link href="https://aiken-template.meshjs.dev/">Live demo</Link>
+- <Link href="https://github.com/MeshJS/aiken-next-ts-template">GitHub repository</Link>
+
+### Time to complete
+
+60 minutes
+
+## Quick Start
+
+Clone the complete template:
+
+```bash
+git clone https://github.com/MeshJS/aiken-next-ts-template
+cd aiken-next-ts-template
+npm install
+npm run dev
+```
+
+Open http://localhost:3000 to interact with the deployed contract.
+
+## Step-by-Step Guide
+
+### Step 1: Install Aiken
+
+**On Linux or macOS:**
+
+```bash
+curl -sSfL https://install.aiken-lang.org | bash
+aikup
+```
+
+**On any platform (via Cargo):**
+
+```bash
+cargo install aiken
+```
+
+Verify the installation:
+
+```bash
+aiken -V
+```
+
+**What to expect:** Aiken version information displays in the terminal.
+
+### Step 2: Create an Aiken project
+
+Create a new Aiken project:
+
+```bash
+aiken new meshjs/hello_world
+cd hello_world
+```
+
+Verify the project structure:
+
+```bash
+aiken check
+```
+
+**What to expect:** A new directory with `aiken.toml` and a `validators` folder.
+
+### Step 3: Write the validator
+
+Create `validators/hello_world.ak`:
+
+```rust
+use aiken/hash.{Blake2b_224, Hash}
+use aiken/list
+use aiken/transaction.{ScriptContext}
+use aiken/transaction/credential.{VerificationKey}
+
+/// The datum stores the owner's public key hash
+type Datum {
+  owner: Hash<Blake2b_224, VerificationKey>,
+}
+
+/// The redeemer must contain the magic message
+type Redeemer {
+  msg: ByteArray,
+}
+
+/// The validator allows spending only when:
+/// 1. The redeemer message is "Hello, World!"
+/// 2. The transaction is signed by the owner
+validator {
+  fn hello_world(datum: Datum, redeemer: Redeemer, context: ScriptContext) -> Bool {
+    let must_say_hello = redeemer.msg == "Hello, World!"
+
+    let must_be_signed =
+      list.has(context.transaction.extra_signatories, datum.owner)
+
+    must_say_hello && must_be_signed
+  }
+}
+```
+
+**What to expect:** A validator file that enforces two conditions for spending.
+
+### Step 4: Compile the contract
+
+Build the Aiken project:
+
+```bash
+aiken build
+```
+
+**What to expect:** A `plutus.json` file is generated. This is the [CIP-0057 Plutus blueprint](https://cips.cardano.org/cip/CIP-57) containing your compiled validator.
+
+### Step 5: Set up the frontend
+
+Create a new Next.js project with Mesh SDK (see the <Link href="/guides/nextjs">Next.js guide</Link>):
+
+```bash
+npx meshjs my-aiken-app
+cd my-aiken-app
+npm install cbor
+```
+
+Copy `plutus.json` from your Aiken project to `src/data/plutus.json`.
+
+**What to expect:** A Next.js project ready for smart contract integration.
+
+### Step 6: Load the contract
+
+Create `src/lib/contract.ts`:
+
+```typescript
+import {
+  resolvePlutusScriptAddress,
+  resolvePaymentKeyHash,
+  resolveDataHash,
+} from "@meshsdk/core";
+import type { PlutusScript, Data } from "@meshsdk/core";
+import cbor from "cbor";
+import plutusBlueprint from "@/data/plutus.json";
+
+// Encode the compiled code to CBOR format for Mesh
+const scriptCbor = cbor
+  .encode(Buffer.from(plutusBlueprint.validators[0].compiledCode, "hex"))
+  .toString("hex");
+
+// Create the PlutusScript object
+export const script: PlutusScript = {
+  code: scriptCbor,
+  version: "V2",
+};
+
+// Get the script address (0 = testnet, 1 = mainnet)
+export const scriptAddress = resolvePlutusScriptAddress(script, 0);
+
+// Helper to create the datum
+export function createDatum(ownerPubKeyHash: string): Data {
+  return {
+    alternative: 0,
+    fields: [ownerPubKeyHash],
+  };
+}
+
+// Helper to create the redeemer
+export function createRedeemer(): Data {
+  return {
+    alternative: 0,
+    fields: ["Hello, World!"],
+  };
+}
+```
+
+**What to expect:** Utility functions for working with the contract.
+
+### Step 7: Lock assets at the script
+
+Create a component that locks ADA at the script address:
+
+```typescript
+import { MeshTxBuilder, KoiosProvider, resolvePaymentKeyHash } from "@meshsdk/core";
+import { useWallet } from "@meshsdk/react";
+import { script, scriptAddress, createDatum } from "@/lib/contract";
+
+export function LockFunds() {
+  const { wallet } = useWallet();
+
+  async function lockAda() {
+    const provider = new KoiosProvider("preprod");
+
+    // Get wallet info
+    const utxos = await wallet.getUtxos();
+    const changeAddress = await wallet.getChangeAddress();
+    const usedAddresses = await wallet.getUsedAddresses();
+    const ownerPubKeyHash = resolvePaymentKeyHash(usedAddresses[0]);
+
+    // Create the datum with owner's public key hash
+    const datum = createDatum(ownerPubKeyHash);
+
+    // Build the transaction
+    const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+    const unsignedTx = await txBuilder
+      .txOut(scriptAddress, [{ unit: "lovelace", quantity: "5000000" }])
+      .txOutDatumHashValue(datum)
+      .changeAddress(changeAddress)
+      .selectUtxosFrom(utxos)
+      .complete();
+
+    // Sign and submit
+    const signedTx = await wallet.signTx(unsignedTx);
+    const txHash = await wallet.submitTx(signedTx);
+
+    console.log("Locked 5 ADA at script. TX:", txHash);
+    return txHash;
+  }
+
+  return (
+    <button onClick={lockAda}>
+      Lock 5 ADA
+    </button>
+  );
+}
+```
+
+**What to expect:** A button that sends 5 ADA to the script address with a datum containing your public key hash.
+
+### Step 8: Unlock assets from the script
+
+Create a component that unlocks ADA from the script:
+
+```typescript
+import {
+  MeshTxBuilder,
+  KoiosProvider,
+  resolvePaymentKeyHash,
+  resolveDataHash,
+} from "@meshsdk/core";
+import { useWallet } from "@meshsdk/react";
+import { script, scriptAddress, createDatum, createRedeemer } from "@/lib/contract";
+
+export function UnlockFunds() {
+  const { wallet } = useWallet();
+
+  async function unlockAda(lockTxHash: string) {
+    const provider = new KoiosProvider("preprod");
+
+    // Get wallet info
+    const utxos = await wallet.getUtxos();
+    const changeAddress = await wallet.getChangeAddress();
+    const collateral = await wallet.getCollateral();
+    const usedAddresses = await wallet.getUsedAddresses();
+    const ownerPubKeyHash = resolvePaymentKeyHash(usedAddresses[0]);
+
+    // Recreate the original datum
+    const datum = createDatum(ownerPubKeyHash);
+    const dataHash = resolveDataHash(datum);
+
+    // Find the UTxO at the script address
+    const scriptUtxos = await provider.fetchAddressUTxOs(scriptAddress, "lovelace");
+    const lockedUtxo = scriptUtxos.find(
+      (utxo) => utxo.output.dataHash === dataHash
+    );
+
+    if (!lockedUtxo) {
+      throw new Error("No locked UTxO found for this wallet");
+    }
+
+    // Create the redeemer with the magic message
+    const redeemer = createRedeemer();
+
+    // Build the unlock transaction
+    const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+    const unsignedTx = await txBuilder
+      .spendingPlutusScriptV2()
+      .txIn(lockedUtxo.input.txHash, lockedUtxo.input.outputIndex)
+      .txInDatumValue(datum)
+      .txInRedeemerValue(redeemer)
+      .txInScript(script.code)
+      .txOut(changeAddress, lockedUtxo.output.amount)
+      .requiredSignerHash(ownerPubKeyHash)
+      .txInCollateral(
+        collateral[0].input.txHash,
+        collateral[0].input.outputIndex,
+        collateral[0].output.amount,
+        collateral[0].output.address
+      )
+      .changeAddress(changeAddress)
+      .selectUtxosFrom(utxos)
+      .complete();
+
+    // Sign with partial signing (required for Plutus scripts)
+    const signedTx = await wallet.signTx(unsignedTx, true);
+    const txHash = await wallet.submitTx(signedTx);
+
+    console.log("Unlocked ADA from script. TX:", txHash);
+    return txHash;
+  }
+
+  return (
+    <button onClick={() => unlockAda("your-lock-tx-hash")}>
+      Unlock ADA
+    </button>
+  );
+}
+```
+
+**What to expect:** A button that withdraws the locked ADA using the correct redeemer message.
+
+## Complete Example
+
+Here is a complete page component:
+
+```typescript
+import { useState } from "react";
+import { CardanoWallet, useWallet } from "@meshsdk/react";
+import {
+  MeshTxBuilder,
+  KoiosProvider,
+  resolvePaymentKeyHash,
+  resolveDataHash,
+} from "@meshsdk/core";
+import { script, scriptAddress, createDatum, createRedeemer } from "@/lib/contract";
+
+export default function HelloWorldContract() {
+  const { wallet, connected } = useWallet();
+  const [lockTxHash, setLockTxHash] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+
+  const provider = new KoiosProvider("preprod");
+
+  async function lockAda() {
+    setLoading(true);
+    try {
+      const utxos = await wallet.getUtxos();
+      const changeAddress = await wallet.getChangeAddress();
+      const usedAddresses = await wallet.getUsedAddresses();
+      const ownerPubKeyHash = resolvePaymentKeyHash(usedAddresses[0]);
+
+      const datum = createDatum(ownerPubKeyHash);
+      const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+      const unsignedTx = await txBuilder
+        .txOut(scriptAddress, [{ unit: "lovelace", quantity: "5000000" }])
+        .txOutDatumHashValue(datum)
+        .changeAddress(changeAddress)
+        .selectUtxosFrom(utxos)
+        .complete();
+
+      const signedTx = await wallet.signTx(unsignedTx);
+      const txHash = await wallet.submitTx(signedTx);
+      setLockTxHash(txHash);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function unlockAda() {
+    setLoading(true);
+    try {
+      const utxos = await wallet.getUtxos();
+      const changeAddress = await wallet.getChangeAddress();
+      const collateral = await wallet.getCollateral();
+      const usedAddresses = await wallet.getUsedAddresses();
+      const ownerPubKeyHash = resolvePaymentKeyHash(usedAddresses[0]);
+
+      const datum = createDatum(ownerPubKeyHash);
+      const dataHash = resolveDataHash(datum);
+      const scriptUtxos = await provider.fetchAddressUTxOs(scriptAddress, "lovelace");
+      const lockedUtxo = scriptUtxos.find((u) => u.output.dataHash === dataHash);
+
+      if (!lockedUtxo) throw new Error("No locked UTxO found");
+
+      const redeemer = createRedeemer();
+      const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+      const unsignedTx = await txBuilder
+        .spendingPlutusScriptV2()
+        .txIn(lockedUtxo.input.txHash, lockedUtxo.input.outputIndex)
+        .txInDatumValue(datum)
+        .txInRedeemerValue(redeemer)
+        .txInScript(script.code)
+        .txOut(changeAddress, lockedUtxo.output.amount)
+        .requiredSignerHash(ownerPubKeyHash)
+        .txInCollateral(
+          collateral[0].input.txHash,
+          collateral[0].input.outputIndex,
+          collateral[0].output.amount,
+          collateral[0].output.address
+        )
+        .changeAddress(changeAddress)
+        .selectUtxosFrom(utxos)
+        .complete();
+
+      const signedTx = await wallet.signTx(unsignedTx, true);
+      await wallet.submitTx(signedTx);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="p-8">
+      <h1 className="text-2xl font-bold mb-4">Hello World Contract</h1>
+
+      <CardanoWallet />
+
+      {connected && (
+        <div className="mt-4 space-x-4">
+          <button
+            onClick={lockAda}
+            disabled={loading}
+            className="px-4 py-2 bg-blue-500 text-white rounded"
+          >
+            Lock 5 ADA
+          </button>
+
+          <button
+            onClick={unlockAda}
+            disabled={loading}
+            className="px-4 py-2 bg-green-500 text-white rounded"
+          >
+            Unlock ADA
+          </button>
+        </div>
+      )}
+
+      {lockTxHash && (
+        <p className="mt-4">
+          Lock TX: <a href={`https://preprod.cardanoscan.io/transaction/${lockTxHash}`}>{lockTxHash}</a>
+        </p>
+      )}
+    </main>
+  );
+}
+```
+
+## Next Steps
+
+- <Link href="https://aiken-lang.org/example--hello-world/basics">Aiken documentation</Link> - Learn more Aiken syntax
+- <Link href="/guides/vesting">Build a vesting contract</Link> - Time-locked fund release
+- <Link href="/guides/smart-contract-transactions">NFT marketplace transactions</Link> - List, buy, cancel patterns
+- <Link href="/apis/txbuilder">Transaction Builder API</Link> - Advanced transaction patterns
+
+## Troubleshooting
+
+### Script validation failed
+
+**Cause:** The redeemer message does not match "Hello, World!" exactly.
+
+**Solution:** Ensure the redeemer message is exactly "Hello, World!" with the comma and exclamation mark.
+
+### No collateral available
+
+**Cause:** The wallet has no collateral set.
+
+**Solution:** Enable collateral in your wallet settings. Most wallets require at least 5 ADA as collateral.
+
+### UTxO not found
+
+**Cause:** The locked UTxO was already spent or the datum hash does not match.
+
+**Solution:** Ensure you are using the same wallet that locked the funds. The datum includes the owner's public key hash.
+
+### CBOR encoding error
+
+**Cause:** The `cbor` package is not installed or import is incorrect.
+
+**Solution:** Install the package:
+
+```bash
+npm install cbor
+```
+
+### Aiken check fails
+
+**Cause:** Syntax error in the Aiken code.
+
+**Solution:** Run `aiken check` to see detailed error messages. Common issues:
+- Missing imports
+- Type mismatches
+- Incorrect function signatures
+
+## References
+
+- [Aiken Smart Contract Language](https://aiken-lang.org/) - Official Aiken documentation, tutorials, and installation instructions
+- [Cardano Developer Portal](https://developers.cardano.org) - Official Cardano development resources and smart contract guides
+- [Cardano eUTXO Model](https://docs.cardano.org/about-cardano/learn/eutxo-explainer/) - Understanding the extended UTXO model for smart contracts
+- [CIP-0057: Plutus Blueprint](https://cips.cardano.org/cip/CIP-57) - Standard for compiled Plutus contract output format
+
+## Related Links
+
+- <Link href="https://github.com/MeshJS/aiken-next-ts-template">Complete source code</Link>
+- <Link href="https://aiken-lang.org/installation-instructions">Aiken installation guide</Link>
+- <Link href="https://cips.cardano.org/cip/CIP-57">CIP-0057 Plutus Blueprint</Link>
+- <Link href="/guides/vesting">Vesting Contract Guide</Link>

@@ -1,0 +1,100 @@
+---
+title: "Midnight Contracts Wizard"
+description: "Generate production-ready Midnight smart contract projects with zero-knowledge privacy"
+icon: SparklesIcon
+---
+
+import { linksMidnightContractsWizard } from "@/data/links-midnight";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+The Midnight Contracts Wizard is a CLI tool that generates complete smart contract projects for the Midnight Network. Select from pre-built contract templates with zero-knowledge privacy built in, and get a fully configured TypeScript project ready for development.
+
+## Why use the Contracts Wizard?
+
+| Benefit | Description |
+|---------|-------------|
+| **Production-ready templates** | Battle-tested contracts with ZK circuits included |
+| **Zero configuration** | Generates complete project structure with all dependencies |
+| **Privacy by default** | All contracts use zero-knowledge proofs for confidentiality |
+| **TypeScript support** | Full type definitions and compiled interfaces included |
+
+## Available contracts
+
+| Contract | ZK Circuits | Use case |
+|----------|-------------|----------|
+| **Tokenization** | 7 | Asset tokenization, fundraising, securities |
+| **Staking** | 8 | Rewards, governance, yield generation |
+| **Identity** | 1 | KYC, credential verification, access control |
+| **Oracle** | 7 | Price feeds, external data, IoT streams |
+| **Lending** | 7 | DeFi protocols, collateralized loans |
+
+## Quick start
+
+Run the wizard with npx (no installation required):
+
+```bash
+npx @meshsdk/midnight-contracts-wizard
+```
+
+Follow the interactive prompts to select your contracts and generate your project.
+
+## Example output
+
+```bash
+$ npx @meshsdk/midnight-contracts-wizard
+
+Welcome to Midnight Contracts Wizard!
+? Enter your project name: my-defi-app
+? Select contracts to include:
+  [x] Tokenization Contract (7 ZK circuits)
+  [x] Lending & Borrowing Contract (7 ZK circuits)
+
+Creating project structure...
+Adding Tokenization contract...
+Adding Lending contract...
+
+Project created successfully!
+
+Next steps:
+1. cd my-defi-app
+2. npm install
+3. compact compile src/tokenization/token.compact src/managed/tokenization
+```
+
+## Documentation sections
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {linksMidnightContractsWizard.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## Requirements
+
+Before you start, ensure you have:
+
+- **Node.js 18+** - [Download Node.js](https://nodejs.org/)
+- **npm 8+** - Included with Node.js (provides npx)
+
+## Next steps
+
+1. [Installation](/docs/midnight/midnight-contracts-wizard/installation) - Get the CLI tool running
+2. [Usage](/docs/midnight/midnight-contracts-wizard/usage) - Create your first project
+3. [Contracts](/docs/midnight/midnight-contracts-wizard/contracts) - Explore available templates
+4. [Project Structure](/docs/midnight/midnight-contracts-wizard/project-structure) - Understand generated files
+
+## Related resources
+
+- [Midnight Setup](/docs/midnight/midnight-setup) - Connect contracts to your dApp
+- [Midnight Network Documentation](https://docs.midnight.network/)
+- [Compact Language Guide](https://docs.midnight.network/develop/tutorial/compact)

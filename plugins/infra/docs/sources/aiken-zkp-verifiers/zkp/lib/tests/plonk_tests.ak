@@ -1,0 +1,449 @@
+use aiken/collection/list
+use aiken/crypto/bls12_381/scalar
+use common/blst_affine.{
+  G1Infinity, G1Point, G2Point, g1_affine_compress, g2_affine_compress,
+}
+use common/common.{G2Point as RawG2Point, Point}
+use plonk/preinputs.{PlonkPreInputs, plonk_prepare_preinputs}
+use plonk/proofs.{plonk_prepare_proof}
+use plonk/raw.{PlonkVerificationKey, RawPlonkProof}
+use plonk/raw_affine.{
+  AffineProof, AffineVerificationKey, prepare_affine_proof, prepare_affine_vkey,
+}
+use plonk/verifier.{verify_plonk}
+use tests/test_utils.{int_to_field_bytes}
+
+// ===========================================================================
+// Raw (projective) test vectors
+// ===========================================================================
+
+pub const test_plonk_proof: RawPlonkProof =
+  RawPlonkProof {
+    commitment_a: Point {
+      x: 2955082493890020621983548864242801681331382761589593836396462786237809490379730083621148456292328311837539547233078,
+      y: 2990917470048022633751403325877110490023214940780163879068748589295894184468420861593276240916860222556041630309490,
+      z: 1,
+    },
+    commitment_b: Point {
+      x: 2139748953192924893718111139796467598787187717809064847657431290279584919816359328113211416216965946326904372181144,
+      y: 2259668502813448495833083885609627801405772920489944855694509142813690380362130929482939621563275288429386208477174,
+      z: 1,
+    },
+    commitment_c: Point {
+      x: 2029868808682428131517521841196317763678238092678415346121426692356142038272541088877792972412724621664112264945402,
+      y: 983551628294237524163209598922680914320460584515486665440996990611591240136708425683923303325991832470735477012116,
+      z: 1,
+    },
+    commitment_z: Point {
+      x: 2387801164586378454252042857525161272590791672625817623997854477584013441773831593184571862621830523992226453996145,
+      y: 2963460115634323994397623882034777328875861522711306860138637408553554162058666092728227754125238789945570425688766,
+      z: 1,
+    },
+    t_low: Point {
+      x: 1894516259155874795478636775854000079842047119288244714503215181482526148945291020416724440229372193886732121411353,
+      y: 1031154329693902984660329178103732470848052600799342617372338054649599821052286659433310234216256987572488522064742,
+      z: 1,
+    },
+    t_mid: Point {
+      x: 396230736967861803635980419570754115302632616415474674207045272682865255719918284458879898212237757916289534540503,
+      y: 1286345817905833523305277948742871641051845921916399591001898962704587418794625017612994249491313890015329626321188,
+      z: 1,
+    },
+    t_high: Point {
+      x: 1605020952126297833723226836157259589899522431634090862836060595671759262433465086466801152520962321838375613406480,
+      y: 3380611695801979784487178272729979547287652149847817235299237981219620495852861730756702710944277941379315901919628,
+      z: 1,
+    },
+    w_omega: Point {
+      x: 3450797490829451101684300912559686520039512327488446737240041689856044522958259926705205991152261371334594680942229,
+      y: 3325733188905070684197604249400574204476897614422083280941305902591531412024682158968329032713733872654995261106522,
+      z: 1,
+    },
+    w_omega_zeta: Point {
+      x: 863669987569139054364812933508800738931137091074775255594224713818925528334922843056187052587160290967836521340909,
+      y: 2166514895834521672481059065176477660352283408684189579849124753231689040068150141242374151666482477587206334178810,
+      z: 1,
+    },
+    a_eval: 22757212845473628986664301092572773725843860106781649491082133699785307937133,
+    b_eval: 51429051849495352387445623433681097795689954214627149917980353176226473881347,
+    c_eval: 48242326795347271969267233696976762494320046178030976356298515157950481259823,
+    s_sig1_p: 49194979834930093396344655415079764564343526505778221100851639750638575027756,
+    s_sig2_p: 12011587759165679750727880280659232729752930325587463363828179196808481389053,
+    z_omega: 24019962433584515698965513494582469296076614442597410659646743422950745162859,
+  }
+
+pub const test_plonk_vkey: PlonkVerificationKey =
+  PlonkVerificationKey {
+    n_public: 2,
+    power: 3,
+    k1: 2,
+    k2: 3,
+    q_m: Point {
+      x: 390420818566493858367464181076148178859555478863002692514545834368269879447681841082068585551564235503308947232378,
+      y: 3276847779626248817921041660741117745502051773945482686666030885472398470355715064844179289766796069907281222412724,
+      z: 1,
+    },
+    q_l: Point {
+      x: 2832459832163495150479122726264129004255627621445400446445904161463167979768458296565736026250455466004404325092996,
+      y: 3741891246739296148991860192122594744687151654172617277458830187550386521367405061644711803513753648977431388490950,
+      z: 1,
+    },
+    q_r: Point { x: 0, y: 1, z: 0 },
+    q_o: Point {
+      x: 390420818566493858367464181076148178859555478863002692514545834368269879447681841082068585551564235503308947232378,
+      y: 725561775595418575496748164994786411054831045993525198666027250651633180135122799598508339362219594130613050147063,
+      z: 1,
+    },
+    q_c: Point { x: 0, y: 1, z: 0 },
+    s_sig1: Point {
+      x: 3944485635698459932433634706365550699364147680658608621022581948882602066423214201823994363817057003852352113973102,
+      y: 2481473700589819128241850529786326259739363860413421083419242322439772753684327842018177309699278701645719502063011,
+      z: 1,
+    },
+    s_sig2: Point {
+      x: 608913174169519000812264133236120028473675090457027054092233721874136995363377165138135110723165351281407038604929,
+      y: 2540453045645467686101782045248642180331599264159056690287844382784021393502357721825604716334062206625833942598550,
+      z: 1,
+    },
+    s_sig3: Point {
+      x: 324514252262195321244614754390467750793932334185439650123651923691851924066772665377485916928100616166627086332426,
+      y: 3113468956497733006315552301280484390953024074059319036050522016086390656265116534130248224200617657987091997981033,
+      z: 1,
+    },
+    x2: RawG2Point {
+      x: (
+        315392587371006580320359080746390447102226920810775075601256338851306698095121762912694048386654833732339420515166,
+        2161957325100184324059278577028157171100154313724439672191511832751025188121569798837418082248673407995264313041542,
+      ),
+      y: (
+        3808454252163556366145098778553759832772829525954193157529438608174590910603583474173900502559366413190158202701670,
+        2556911765464293729917692748672416866651619396879891492332729234344507429587256369481474563225773001582828153945765,
+      ),
+      z: (1, 0),
+    },
+    w: 28761180743467419819834788392525162889723178799021384024940474588120723734663,
+  }
+
+// ===========================================================================
+// Affine test vectors
+// ===========================================================================
+
+pub const test_plonk_proof_affine: AffineProof =
+  AffineProof {
+    commitment_a: G1Point {
+      x: int_to_field_bytes(
+        2955082493890020621983548864242801681331382761589593836396462786237809490379730083621148456292328311837539547233078,
+      ),
+      y: int_to_field_bytes(
+        2990917470048022633751403325877110490023214940780163879068748589295894184468420861593276240916860222556041630309490,
+      ),
+    },
+    commitment_b: G1Point {
+      x: int_to_field_bytes(
+        2139748953192924893718111139796467598787187717809064847657431290279584919816359328113211416216965946326904372181144,
+      ),
+      y: int_to_field_bytes(
+        2259668502813448495833083885609627801405772920489944855694509142813690380362130929482939621563275288429386208477174,
+      ),
+    },
+    commitment_c: G1Point {
+      x: int_to_field_bytes(
+        2029868808682428131517521841196317763678238092678415346121426692356142038272541088877792972412724621664112264945402,
+      ),
+      y: int_to_field_bytes(
+        983551628294237524163209598922680914320460584515486665440996990611591240136708425683923303325991832470735477012116,
+      ),
+    },
+    commitment_z: G1Point {
+      x: int_to_field_bytes(
+        2387801164586378454252042857525161272590791672625817623997854477584013441773831593184571862621830523992226453996145,
+      ),
+      y: int_to_field_bytes(
+        2963460115634323994397623882034777328875861522711306860138637408553554162058666092728227754125238789945570425688766,
+      ),
+    },
+    t_low: G1Point {
+      x: int_to_field_bytes(
+        1894516259155874795478636775854000079842047119288244714503215181482526148945291020416724440229372193886732121411353,
+      ),
+      y: int_to_field_bytes(
+        1031154329693902984660329178103732470848052600799342617372338054649599821052286659433310234216256987572488522064742,
+      ),
+    },
+    t_mid: G1Point {
+      x: int_to_field_bytes(
+        396230736967861803635980419570754115302632616415474674207045272682865255719918284458879898212237757916289534540503,
+      ),
+      y: int_to_field_bytes(
+        1286345817905833523305277948742871641051845921916399591001898962704587418794625017612994249491313890015329626321188,
+      ),
+    },
+    t_high: G1Point {
+      x: int_to_field_bytes(
+        1605020952126297833723226836157259589899522431634090862836060595671759262433465086466801152520962321838375613406480,
+      ),
+      y: int_to_field_bytes(
+        3380611695801979784487178272729979547287652149847817235299237981219620495852861730756702710944277941379315901919628,
+      ),
+    },
+    w_omega: G1Point {
+      x: int_to_field_bytes(
+        3450797490829451101684300912559686520039512327488446737240041689856044522958259926705205991152261371334594680942229,
+      ),
+      y: int_to_field_bytes(
+        3325733188905070684197604249400574204476897614422083280941305902591531412024682158968329032713733872654995261106522,
+      ),
+    },
+    w_omega_zeta: G1Point {
+      x: int_to_field_bytes(
+        863669987569139054364812933508800738931137091074775255594224713818925528334922843056187052587160290967836521340909,
+      ),
+      y: int_to_field_bytes(
+        2166514895834521672481059065176477660352283408684189579849124753231689040068150141242374151666482477587206334178810,
+      ),
+    },
+    a_eval: 22757212845473628986664301092572773725843860106781649491082133699785307937133,
+    b_eval: 51429051849495352387445623433681097795689954214627149917980353176226473881347,
+    c_eval: 48242326795347271969267233696976762494320046178030976356298515157950481259823,
+    s_sig1_p: 49194979834930093396344655415079764564343526505778221100851639750638575027756,
+    s_sig2_p: 12011587759165679750727880280659232729752930325587463363828179196808481389053,
+    z_omega: 24019962433584515698965513494582469296076614442597410659646743422950745162859,
+  }
+
+pub const test_plonk_vkey_affine: AffineVerificationKey =
+  AffineVerificationKey {
+    n_public: 2,
+    power: 3,
+    k1: 2,
+    k2: 3,
+    q_m: G1Point {
+      x: int_to_field_bytes(
+        390420818566493858367464181076148178859555478863002692514545834368269879447681841082068585551564235503308947232378,
+      ),
+      y: int_to_field_bytes(
+        3276847779626248817921041660741117745502051773945482686666030885472398470355715064844179289766796069907281222412724,
+      ),
+    },
+    q_l: G1Point {
+      x: int_to_field_bytes(
+        2832459832163495150479122726264129004255627621445400446445904161463167979768458296565736026250455466004404325092996,
+      ),
+      y: int_to_field_bytes(
+        3741891246739296148991860192122594744687151654172617277458830187550386521367405061644711803513753648977431388490950,
+      ),
+    },
+    q_r: G1Infinity,
+    q_o: G1Point {
+      x: int_to_field_bytes(
+        390420818566493858367464181076148178859555478863002692514545834368269879447681841082068585551564235503308947232378,
+      ),
+      y: int_to_field_bytes(
+        725561775595418575496748164994786411054831045993525198666027250651633180135122799598508339362219594130613050147063,
+      ),
+    },
+    q_c: G1Infinity,
+    s_sig1: G1Point {
+      x: int_to_field_bytes(
+        3944485635698459932433634706365550699364147680658608621022581948882602066423214201823994363817057003852352113973102,
+      ),
+      y: int_to_field_bytes(
+        2481473700589819128241850529786326259739363860413421083419242322439772753684327842018177309699278701645719502063011,
+      ),
+    },
+    s_sig2: G1Point {
+      x: int_to_field_bytes(
+        608913174169519000812264133236120028473675090457027054092233721874136995363377165138135110723165351281407038604929,
+      ),
+      y: int_to_field_bytes(
+        2540453045645467686101782045248642180331599264159056690287844382784021393502357721825604716334062206625833942598550,
+      ),
+    },
+    s_sig3: G1Point {
+      x: int_to_field_bytes(
+        324514252262195321244614754390467750793932334185439650123651923691851924066772665377485916928100616166627086332426,
+      ),
+      y: int_to_field_bytes(
+        3113468956497733006315552301280484390953024074059319036050522016086390656265116534130248224200617657987091997981033,
+      ),
+    },
+    x2: G2Point {
+      x: (
+        int_to_field_bytes(
+          315392587371006580320359080746390447102226920810775075601256338851306698095121762912694048386654833732339420515166,
+        ),
+        int_to_field_bytes(
+          2161957325100184324059278577028157171100154313724439672191511832751025188121569798837418082248673407995264313041542,
+        ),
+      ),
+      y: (
+        int_to_field_bytes(
+          3808454252163556366145098778553759832772829525954193157529438608174590910603583474173900502559366413190158202701670,
+        ),
+        int_to_field_bytes(
+          2556911765464293729917692748672416866651619396879891492332729234344507429587256369481474563225773001582828153945765,
+        ),
+      ),
+    },
+    w: 28761180743467419819834788392525162889723178799021384024940474588120723734663,
+  }
+
+pub const test_plonk_pub_inputs: List<Int> = [63, 7]
+
+// ===========================================================================
+// Vkey compression tests
+// ===========================================================================
+
+test test_vkey_g1_compression() {
+  expect _compressed_q_m = g1_affine_compress(test_plonk_vkey_affine.q_m)
+  expect _compressed_q_l = g1_affine_compress(test_plonk_vkey_affine.q_l)
+  expect _compressed_q_r = g1_affine_compress(test_plonk_vkey_affine.q_r)
+  expect _compressed_q_o = g1_affine_compress(test_plonk_vkey_affine.q_o)
+  expect _compressed_q_c = g1_affine_compress(test_plonk_vkey_affine.q_c)
+  expect _compressed_s_sig1 = g1_affine_compress(test_plonk_vkey_affine.s_sig1)
+  expect _compressed_s_sig2 = g1_affine_compress(test_plonk_vkey_affine.s_sig2)
+  expect _compressed_s_sig3 = g1_affine_compress(test_plonk_vkey_affine.s_sig3)
+  True
+}
+
+test test_vkey_g2_compression() {
+  expect _compressed_x2 = g2_affine_compress(test_plonk_vkey_affine.x2)
+  True
+}
+
+// ===========================================================================
+// Preinputs preparation tests
+// ===========================================================================
+
+test test_preinputs_creation() {
+  expect _preinputs =
+    PlonkPreInputs {
+      power: test_plonk_vkey_affine.power,
+      k1: scalar.from_int(test_plonk_vkey_affine.k1),
+      k2: scalar.from_int(test_plonk_vkey_affine.k2),
+      q_m: g1_affine_compress(test_plonk_vkey_affine.q_m),
+      q_l: g1_affine_compress(test_plonk_vkey_affine.q_l),
+      q_r: g1_affine_compress(test_plonk_vkey_affine.q_r),
+      q_o: g1_affine_compress(test_plonk_vkey_affine.q_o),
+      q_c: g1_affine_compress(test_plonk_vkey_affine.q_c),
+      s_sig1: g1_affine_compress(test_plonk_vkey_affine.s_sig1),
+      s_sig2: g1_affine_compress(test_plonk_vkey_affine.s_sig2),
+      s_sig3: g1_affine_compress(test_plonk_vkey_affine.s_sig3),
+      x2: g2_affine_compress(test_plonk_vkey_affine.x2),
+    }
+  True
+}
+
+test test_plonk_prepare_preinputs() {
+  let preinputs =
+    PlonkPreInputs {
+      power: test_plonk_vkey_affine.power,
+      k1: scalar.from_int(test_plonk_vkey_affine.k1),
+      k2: scalar.from_int(test_plonk_vkey_affine.k2),
+      q_m: g1_affine_compress(test_plonk_vkey_affine.q_m),
+      q_l: g1_affine_compress(test_plonk_vkey_affine.q_l),
+      q_r: g1_affine_compress(test_plonk_vkey_affine.q_r),
+      q_o: g1_affine_compress(test_plonk_vkey_affine.q_o),
+      q_c: g1_affine_compress(test_plonk_vkey_affine.q_c),
+      s_sig1: g1_affine_compress(test_plonk_vkey_affine.s_sig1),
+      s_sig2: g1_affine_compress(test_plonk_vkey_affine.s_sig2),
+      s_sig3: g1_affine_compress(test_plonk_vkey_affine.s_sig3),
+      x2: g2_affine_compress(test_plonk_vkey_affine.x2),
+    }
+  expect _prepared =
+    plonk_prepare_preinputs(
+      inputs: preinputs,
+      generator: scalar.from_int(test_plonk_vkey_affine.w),
+      n_public: test_plonk_vkey_affine.n_public,
+    )
+  True
+}
+
+// ===========================================================================
+// Vkey and proof preparation via convenience functions
+// ===========================================================================
+
+test test_prepare_vkey_function() {
+  expect _prepared = prepare_affine_vkey(test_plonk_vkey_affine)
+  True
+}
+
+test test_prepare_affine_proof_function() {
+  expect _prepared = prepare_affine_proof(test_plonk_proof_affine)
+  True
+}
+
+// ===========================================================================
+// Scalar / generator value tests
+// ===========================================================================
+
+test test_generator_value() {
+  let w = test_plonk_vkey_affine.w
+  expect _generator = scalar.from_int(w)
+  True
+}
+
+test test_power_calculation() {
+  let power = test_plonk_vkey_affine.power
+  let two = scalar.from_int(2)
+  let result = scalar.scale(two, power)
+  let n = scalar.to_int(result)
+  n == 8
+}
+
+test test_generator_list_creation() {
+  let w = test_plonk_vkey_affine.w
+  let n_public = test_plonk_vkey_affine.n_public
+  let generator = scalar.from_int(w)
+  expect _generators =
+    list.map(list.range(0, n_public), fn(i) { scalar.scale(generator, i) })
+  True
+}
+
+// ===========================================================================
+// Full PLONK verification (expensive - may exceed test budget)
+// ===========================================================================
+
+test test_plonk_verification_with_affine_points() {
+  let prepared_preinputs = prepare_affine_vkey(test_plonk_vkey_affine)
+  let proof = prepare_affine_proof(test_plonk_proof_affine)
+  let prepared_proof =
+    plonk_prepare_proof(prepared_preinputs, test_plonk_pub_inputs, proof)
+  verify_plonk(
+    preinputs: prepared_preinputs,
+    pub_inputs: test_plonk_pub_inputs,
+    proof: prepared_proof,
+  )
+}
+
+// Sanity check for the test above: a proof tampered with (wrong a_eval)
+// must be rejected, so we know verify_plonk isn't vacuously returning True.
+test test_plonk_verification_rejects_tampered_proof() fail {
+  let tampered_proof_affine =
+    AffineProof {
+      ..test_plonk_proof_affine,
+      a_eval: test_plonk_proof_affine.a_eval + 1,
+    }
+  let prepared_preinputs = prepare_affine_vkey(test_plonk_vkey_affine)
+  let proof = prepare_affine_proof(tampered_proof_affine)
+  let prepared_proof =
+    plonk_prepare_proof(prepared_preinputs, test_plonk_pub_inputs, proof)
+  verify_plonk(
+    preinputs: prepared_preinputs,
+    pub_inputs: test_plonk_pub_inputs,
+    proof: prepared_proof,
+  )
+}
+
+// Sanity check with wrong public inputs instead of a tampered proof element.
+test test_plonk_verification_rejects_wrong_pub_inputs() fail {
+  let wrong_pub_inputs = [64, 7]
+  let prepared_preinputs = prepare_affine_vkey(test_plonk_vkey_affine)
+  let proof = prepare_affine_proof(test_plonk_proof_affine)
+  let prepared_proof =
+    plonk_prepare_proof(prepared_preinputs, wrong_pub_inputs, proof)
+  verify_plonk(
+    preinputs: prepared_preinputs,
+    pub_inputs: wrong_pub_inputs,
+    proof: prepared_proof,
+  )
+}

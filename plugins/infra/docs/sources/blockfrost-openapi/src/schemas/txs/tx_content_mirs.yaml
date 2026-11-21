@@ -1,0 +1,26 @@
+type: array
+items:
+  type: object
+  properties:
+    pot:
+      type: string
+      enum: [reserve, treasury]
+      example: "reserve"
+      description: Source of MIR funds
+    cert_index:
+      type: integer
+      example: 0
+      description: Index of the certificate within the transaction
+    address:
+      type: string
+      example: "stake1u9r76ypf5fskppa0cmttas05cgcswrttn6jrq4yd7jpdnvc7gt0yc"
+      description: Bech32 stake address
+    amount:
+      type: string
+      example: "431833601"
+      description: MIR amount in Lovelaces
+  required:
+    - pot
+    - cert_index
+    - address
+    - amount

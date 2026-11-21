@@ -1,0 +1,30 @@
+get:
+  tags:
+    - Health
+  summary: Backend health status
+  security: []
+  description: |
+    Return backend status as a boolean. Your application should handle situations when backend for the given chain is unavailable.
+  responses:
+    "200":
+      description: Return the boolean indicating the health of the backend.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              is_healthy:
+                type: boolean
+                example: true
+            required:
+              - is_healthy
+    "400":
+      $ref: ../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../responses/errors/403.yaml
+    "429":
+      $ref: ../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../responses/errors/500.yaml

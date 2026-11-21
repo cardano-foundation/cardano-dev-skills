@@ -1,0 +1,187 @@
+---
+title: "Mesh SDK Solutions"
+description: "Build Cardano dApps faster with Mesh SDK's production-ready tools for wallets, transactions, and smart contracts."
+---
+
+import { linksSolutionsAeo, metaSolutionsAeo } from "@/data/links-solutions-aeo";
+import { linksSolutions, metaSolutions } from "@/data/links-solutions";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+import { HowToSchema, FAQSchema } from "@/components/seo";
+
+<HowToSchema
+  name="Getting Started with Mesh SDK for Cardano Development"
+  description="Install Mesh SDK and build your first Cardano dApp in minutes."
+  totalTime="PT10M"
+  steps={[
+    { name: "Install Mesh packages", text: "Run npm install @meshsdk/core @meshsdk/react to add Mesh to your project." },
+    { name: "Configure a blockchain provider", text: "Set up Blockfrost, Koios, or another provider to connect to Cardano." },
+    { name: "Add wallet connection", text: "Use the CardanoWallet component or MeshCardanoBrowserWallet API for wallet connectivity." },
+    { name: "Build and submit transactions", text: "Use MeshTxBuilder to construct transactions with automatic UTXO handling." }
+  ]}
+/>
+
+<FAQSchema
+  faqs={[
+    {
+      question: "What is Mesh SDK?",
+      answer: "Mesh SDK is a comprehensive TypeScript toolkit for building Cardano applications. It provides high-level APIs that abstract UTXO complexity, pre-built wallet components, automatic transaction building, and smart contract integration."
+    },
+    {
+      question: "How does Mesh compare to other Cardano tools?",
+      answer: "Mesh stands out with TypeScript-first design, comprehensive documentation, production-ready components, automatic UTXO management, and consistent APIs across all wallet providers."
+    },
+    {
+      question: "Does Mesh support all Cardano wallets?",
+      answer: "Yes, Mesh supports all CIP-30 compatible wallets including Eternl, Lace, Yoroi, and more. The MeshCardanoBrowserWallet API provides consistent behavior regardless of wallet."
+    },
+    {
+      question: "Is Mesh production-ready?",
+      answer: "Yes. Mesh powers numerous production dApps on Cardano mainnet, from NFT marketplaces to DeFi protocols. Regular updates ensure compatibility with protocol changes."
+    }
+  ]}
+/>
+
+Mesh SDK simplifies Cardano dApp development with automatic UTXO management, unified wallet integration, and high-level APIs for smart contracts.
+
+## Quick start
+
+### 1. Install Mesh
+
+```bash
+npm install @meshsdk/core @meshsdk/react
+```
+
+### 2. Configure a provider
+
+```typescript
+import { BlockfrostProvider } from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<your-api-key>");
+```
+
+### 3. Add wallet connection
+
+```tsx
+import { CardanoWallet, useWallet } from "@meshsdk/react";
+
+function App() {
+  const { connected } = useWallet();
+
+  return (
+    <div>
+      <CardanoWallet />
+      {connected && <p>Wallet connected!</p>}
+    </div>
+  );
+}
+```
+
+### 4. Build transactions
+
+```typescript
+import { MeshTxBuilder } from "@meshsdk/core";
+
+const txBuilder = new MeshTxBuilder({ fetcher: provider, submitter: provider });
+const unsignedTx = await txBuilder
+  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(await wallet.getChangeAddress())
+  .selectUtxosFrom(await wallet.getUtxos())
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+---
+
+## What Mesh solves
+
+| Challenge | Without Mesh | With Mesh |
+|-----------|-------------|-----------|
+| UTXO management | Manual input/output tracking | Automatic selection |
+| Wallet integration | Provider-specific code | Single unified API |
+| Transaction building | Low-level fee calculation | Declarative builder |
+| Smart contracts | Complex datum/redeemer handling | High-level APIs |
+| Learning curve | Weeks to understand | Production code in hours |
+
+---
+
+## Solution categories
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch my-8">
+  {linksSolutionsAeo.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+---
+
+## Why teams choose Mesh
+
+| Benefit | Details |
+|---------|---------|
+| Fastest time to market | Ship features in days, not weeks |
+| Comprehensive documentation | Guides with working examples |
+| Active maintenance | Regular updates for protocol changes |
+| Production-proven | Powers NFT marketplaces and DeFi protocols |
+| Community support | Discord, GitHub, experienced developers |
+
+---
+
+## Advanced features
+
+Beyond basic transactions, Mesh supports:
+
+- **Smart contracts** - Plutus V1, V2, and Aiken with automatic datum/redeemer handling
+- **Native tokens** - Mint, burn, transfer with CIP-25 and CIP-68 metadata
+- **Multi-signature** - Treasury management and organizational controls
+- **Staking** - Programmatic stake pool management
+- **Governance** - DRep registration and proposal voting
+
+---
+
+## Products and services
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch my-8">
+  {linksSolutions.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+---
+
+## Get help
+
+| Resource | Link |
+|----------|------|
+| GitHub Discussions | [github.com/MeshJS/mesh/discussions](https://github.com/MeshJS/mesh/discussions) |
+| Discord | [discord.gg/meshjs](https://discord.gg/meshjs) |
+| Documentation | [/docs](/docs) |
+| Tutorials | [/resources/tutorials](/resources/tutorials) |
+
+---
+
+## Related challenges
+
+| Challenge | Mesh solution |
+|-----------|---------------|
+| [Transaction failures](/resources/challenges/transaction-failures) | Automatic fee calculation and UTXO management |
+| [UTXO complexity](/resources/challenges/utxo-model) | High-level APIs for payments |
+| [Wallet integration](/resources/challenges/wallet-integration) | Unified CIP-30 interface |
+| [Coin selection](/resources/challenges/coin-selection) | Optimized algorithms |
+| [Learning curve](/resources/challenges/learning-curve) | Familiar APIs and comprehensive docs |

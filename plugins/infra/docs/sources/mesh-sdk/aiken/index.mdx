@@ -1,0 +1,90 @@
+---
+title: "Aiken"
+description: "Build and deploy Cardano smart contracts with Aiken and Mesh"
+icon: "icons/aiken.png"
+---
+
+import { linksAiken } from "@/data/links-aiken";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+## Overview
+
+Aiken is a functional programming language designed specifically for Cardano smart contract development. It compiles to Plutus Core and prioritizes security, efficiency, and developer experience.
+
+Mesh provides seamless integration with Aiken, allowing you to:
+- Compile Aiken contracts and use them in your TypeScript applications
+- Build transactions that interact with Aiken validators
+- Apply parameters to scripts and resolve addresses
+
+**When to use Aiken with Mesh:**
+- You need to write custom on-chain logic (validators, minting policies)
+- You want a modern, type-safe language for smart contracts
+- You prefer functional programming patterns
+
+## Quick Start
+
+Write and deploy an Aiken smart contract in 4 steps.
+
+**1. Install Aiken CLI**
+
+```bash
+curl -sSfL https://install.aiken-lang.org | bash
+aikup
+```
+
+**2. Create a new project**
+
+```bash
+aiken new meshjs/hello_world
+cd hello_world
+```
+
+**3. Write your validator**
+
+```rust
+// validators/hello_world.ak
+validator hello_world {
+  spend(datum: Data, redeemer: Data, context: Data) {
+    True
+  }
+}
+```
+
+**4. Build and integrate with Mesh**
+
+```bash
+aiken build
+```
+
+```typescript
+import { MeshTxBuilder, applyParamsToScript, resolvePlutusScriptAddress } from "@meshsdk/core";
+import blueprint from "./plutus.json";
+
+const scriptCbor = applyParamsToScript(blueprint.validators[0].compiledCode, []);
+const scriptAddress = resolvePlutusScriptAddress({ code: scriptCbor, version: "V3" }, 0);
+```
+
+## What's Included
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {linksAiken.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## Related Links
+
+- <Link href="/docs/aiken/getting-started">Getting Started</Link> - Install Aiken and set up your environment
+- <Link href="/docs/aiken/first-script">Write a Smart Contract</Link> - Create your first validator
+- <Link href="/docs/aiken/transactions">Build Transactions</Link> - Lock and redeem assets
+- <Link href="https://aiken-lang.org">Aiken Documentation</Link> - Official Aiken language reference

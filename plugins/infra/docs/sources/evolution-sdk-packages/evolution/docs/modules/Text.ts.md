@@ -1,0 +1,206 @@
+---
+title: Text.ts
+nav_order: 166
+parent: Modules
+---
+
+## Text overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [composition](#composition)
+  - [between](#between)
+- [conversion](#conversion)
+  - [fromBytes](#frombytes)
+  - [fromHex](#fromhex)
+  - [toBytes](#tobytes)
+  - [toHex](#tohex)
+- [schemas](#schemas)
+  - [FromBytes](#frombytes-1)
+  - [FromHex](#fromhex-1)
+- [testing](#testing)
+  - [arbitrary](#arbitrary)
+- [utils](#utils)
+  - [Text](#text)
+- [validation](#validation)
+  - [length](#length)
+  - [max](#max)
+  - [min](#min)
+
+---
+
+# composition
+
+## between
+
+Creates a curried filter that validates text length is within a range.
+Preserves Context inference from the base schema.
+
+**Signature**
+
+```ts
+export declare const between: (
+  min: number,
+  max: number,
+  moduleName: string
+) => <S extends Schema.Schema<any, string>>(baseSchema: S) => Schema.filter<S>
+```
+
+Added in v2.0.0
+
+# conversion
+
+## fromBytes
+
+Convert bytes to text
+
+**Signature**
+
+```ts
+export declare const fromBytes: (i: any, overrideOptions?: ParseOptions) => string
+```
+
+Added in v2.0.0
+
+## fromHex
+
+Convert hex string to text
+
+**Signature**
+
+```ts
+export declare const fromHex: (i: string, overrideOptions?: ParseOptions) => string
+```
+
+Added in v2.0.0
+
+## toBytes
+
+Convert text to bytes
+
+**Signature**
+
+```ts
+export declare const toBytes: (a: string, overrideOptions?: ParseOptions) => any
+```
+
+Added in v2.0.0
+
+## toHex
+
+Convert text to hex string
+
+**Signature**
+
+```ts
+export declare const toHex: (a: string, overrideOptions?: ParseOptions) => string
+```
+
+Added in v2.0.0
+
+# schemas
+
+## FromBytes
+
+Schema for converting between strings and bytes (UTF-8).
+
+```
+text <-> bytes
+```
+
+**Signature**
+
+```ts
+export declare const FromBytes: Schema.transform<typeof Schema.Uint8ArrayFromSelf, typeof Schema.String>
+```
+
+Added in v2.0.0
+
+## FromHex
+
+Schema for converting between strings and hex representation of UTF-8 bytes.
+
+```
+text <-> hex
+```
+
+**Signature**
+
+```ts
+export declare const FromHex: Schema.transform<Schema.Schema<Uint8Array, string, never>, typeof Schema.String>
+```
+
+Added in v2.0.0
+
+# testing
+
+## arbitrary
+
+FastCheck arbitrary for generating random text strings
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<string>
+```
+
+Added in v2.0.0
+
+# utils
+
+## Text
+
+**Signature**
+
+```ts
+export declare const Text: typeof Schema.String
+```
+
+# validation
+
+## length
+
+Creates a schema that validates text length equals a specific value.
+
+**Signature**
+
+```ts
+export declare const length: (
+  length: number,
+  identifier?: string
+) => (self: Schema.Schema.Any) => Schema.filter<Schema.Schema.Any>
+```
+
+Added in v2.0.0
+
+## max
+
+Creates a schema that validates text length is at most max.
+
+**Signature**
+
+```ts
+export declare const max: (
+  max: number,
+  identifier?: string
+) => (self: Schema.Schema.Any) => Schema.filter<Schema.Schema.Any>
+```
+
+Added in v2.0.0
+
+## min
+
+Creates a schema that validates text length is at least min.
+
+**Signature**
+
+```ts
+export declare const min: (
+  min: number,
+  identifier?: string
+) => (self: Schema.Schema.Any) => Schema.filter<Schema.Schema.Any>
+```
+
+Added in v2.0.0

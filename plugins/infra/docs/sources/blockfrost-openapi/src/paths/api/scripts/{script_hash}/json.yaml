@@ -1,0 +1,32 @@
+get:
+  tags:
+    - Cardano » Scripts
+  summary: Script JSON
+  description: JSON representation of a `timelock` script
+  parameters:
+    - in: path
+      name: script_hash
+      required: true
+      schema:
+        type: string
+      description: Hash of the script
+      example: "e1457a0c47dfb7a2f6b8fbb059bdceab163c05d34f195b87b9f2b30e"
+  responses:
+    "200":
+      description: Return the JSON representation of a `timelock` script
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../schemas/scripts/script_json.yaml
+    "400":
+      $ref: ../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../responses/errors/500.yaml

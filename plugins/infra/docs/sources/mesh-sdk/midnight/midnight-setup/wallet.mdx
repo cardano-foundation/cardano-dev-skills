@@ -1,0 +1,379 @@
+---
+title: "Wallet Integration"
+description: "Connect to Lace Beta Wallet for transaction signing and state management"
+---
+
+The Lace Beta Wallet is the primary wallet for Midnight Network. This guide shows you how to connect, manage wallet state, and handle transactions in your application.
+
+## Overview
+
+The Lace wallet integration provides:
+
+| Feature | Description |
+|---------|-------------|
+| **Connect/Disconnect** | Establish and terminate wallet connections |
+| **State management** | Access wallet address, keys, and balances |
+| **Transaction signing** | Sign and submit transactions to the network |
+| **Service configuration** | Get network endpoints for indexer and prover |
+
+## Quick start
+
+Check for wallet availability and connect:
+
+```typescript
+// Check if Lace wallet is available
+const wallet = window.midnight?.mnLace;
+if (!wallet) {
+  throw new Error("Please install Lace Beta Wallet for Midnight Network");
+}
+
+// Enable the wallet and get API
+const walletAPI = await wallet.enable();
+
+// Get wallet state and service URIs
+const walletState = await walletAPI.state();
+const uris = await wallet.serviceUriConfig();
+
+console.log("Connected:", walletState.address);
+```
+
+## Wallet methods reference
+
+| Method | When to use |
+|--------|-------------|
+| `wallet.enable()` | Connect to the wallet and get the API interface |
+| `walletAPI.state()` | Retrieve current address, keys, and balance |
+| `wallet.serviceUriConfig()` | Get network service URLs (indexer, prover) |
+| `wallet.disconnect()` | End the wallet session |
+| `walletAPI.balanceAndProveTransaction()` | Balance and prove a transaction |
+| `walletAPI.submitTransaction()` | Submit a signed transaction to the network |
+
+## React wallet hook
+
+Create a reusable hook for wallet management in React applications:
+
+```typescript
+import { useState, useCallback } from 'react';
+
+interface WalletState {
+  state: {
+    address: string;
+    coinPublicKey: string;
+    encryptionPublicKey: string;
+  };
+  uris: {
+    indexerUri: string;
+    indexerWsUri: string;
+    proverServerUri: string;
+  };
+  walletAPI: {
+    balanceAndProveTransaction: (tx: unknown, newCoins: unknown) => Promise<unknown>;
+    submitTransaction: (tx: unknown) => Promise<unknown>;
+  };
+}
+
+export function useMidnightWallet() {
+  const [walletState, setWalletState] = useState<WalletState | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const connectWallet = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const wallet = window.midnight?.mnLace;
+      if (!wallet) {
+        throw new Error("Please install Lace Beta Wallet for Midnight Network");
+      }
+
+      const walletAPI = await wallet.enable();
+      const state = await walletAPI.state();
+      const uris = await wallet.serviceUriConfig();
+
+      setWalletState({ state, uris, walletAPI });
+      setIsConnected(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Connection failed";
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const disconnectWallet = useCallback(async () => {
+    try {
+      const wallet = window.midnight?.mnLace;
+      if (wallet) {
+        await wallet.disconnect();
+        setWalletState(null);
+        setIsConnected(false);
+        setError(null);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Disconnect failed";
+      setError(message);
+    }
+  }, []);
+
+  return {
+    connectWallet,
+    disconnectWallet,
+    walletState,
+    isConnected,
+    isLoading,
+    error,
+  };
+}
+```
+
+## Use the wallet hook
+
+Implement wallet connection in a React component:
+
+```typescript
+import { useMidnightWallet } from './hooks/useMidnightWallet';
+
+function WalletConnect() {
+  const {
+    connectWallet,
+    disconnectWallet,
+    walletState,
+    isConnected,
+    isLoading,
+    error,
+  } = useMidnightWallet();
+
+  if (error) {
+    return (
+      <div className="error">
+        <p>Error: {error}</p>
+        <button onClick={connectWallet}>Try Again</button>
+      </div>
+    );
+  }
+
+  if (isConnected) {
+    return (
+      <div>
+        <p>Connected: {walletState?.state?.address}</p>
+        <button onClick={disconnectWallet}>Disconnect</button>
+      </div>
+    );
+  }
+
+  return (
+    <button onClick={connectWallet} disabled={isLoading}>
+      {isLoading ? 'Connecting...' : 'Connect Wallet'}
+    </button>
+  );
+}
+```
+
+## Configure providers with wallet
+
+Set up the complete provider configuration using wallet credentials:
+
+```typescript
+import { FetchZkConfigProvider } from "@midnight-ntwrk/midnight-js-fetch-zk-config-provider";
+import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
+import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
+import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
+import type { MidnightSetupContractProviders } from "@meshsdk/midnight-setup";
+
+export async function setupProviders(): Promise<MidnightSetupContractProviders> {
+  const wallet = window.midnight?.mnLace;
+  if (!wallet) {
+    throw new Error("Please install Lace Beta Wallet for Midnight Network");
+  }
+
+  const walletAPI = await wallet.enable();
+  const walletState = await walletAPI.state();
+  const uris = await wallet.serviceUriConfig();
+
+  return {
+    privateStateProvider: levelPrivateStateProvider({
+      privateStateStoreName: "my-dapp-state",
+    }),
+    zkConfigProvider: new FetchZkConfigProvider(
+      window.location.origin,
+      fetch.bind(window),
+    ),
+    proofProvider: httpClientProofProvider(uris.proverServerUri),
+    publicDataProvider: indexerPublicDataProvider(
+      uris.indexerUri,
+      uris.indexerWsUri,
+    ),
+    walletProvider: {
+      coinPublicKey: walletState.coinPublicKey,
+      encryptionPublicKey: walletState.encryptionPublicKey,
+      balanceTx: (tx, newCoins) => {
+        return walletAPI.balanceAndProveTransaction(tx, newCoins);
+      },
+    },
+    midnightProvider: {
+      submitTx: (tx) => {
+        return walletAPI.submitTransaction(tx);
+      },
+    },
+  };
+}
+```
+
+## Handle wallet errors
+
+Implement robust error handling for common wallet issues:
+
+```typescript
+function handleWalletError(error: Error): string {
+  const message = error.message;
+
+  if (message.includes("install Lace Beta Wallet")) {
+    return "Please install the Lace Beta Wallet extension";
+  }
+
+  if (message.includes("User rejected")) {
+    return "You rejected the connection request";
+  }
+
+  if (message.includes("Insufficient funds")) {
+    return "Your wallet has insufficient funds for this transaction";
+  }
+
+  if (message.includes("disconnected")) {
+    return "Wallet disconnected. Please reconnect.";
+  }
+
+  return "An unexpected wallet error occurred. Please try again.";
+}
+
+// Usage in your component
+async function handleConnect() {
+  try {
+    await connectWallet();
+    console.log("Wallet connected successfully");
+  } catch (error) {
+    const userMessage = handleWalletError(error as Error);
+    showNotification(userMessage, "error");
+  }
+}
+```
+
+## Complete example
+
+Here is a full working example combining wallet connection with contract deployment:
+
+```typescript
+import { useState } from 'react';
+import { MidnightSetupAPI } from '@meshsdk/midnight-setup';
+import { useMidnightWallet } from './hooks/useMidnightWallet';
+import { setupProviders } from './providers';
+
+function MidnightDApp() {
+  const { connectWallet, disconnectWallet, isConnected, isLoading, error } = useMidnightWallet();
+  const [contractApi, setContractApi] = useState<MidnightSetupAPI | null>(null);
+  const [contractState, setContractState] = useState<unknown>(null);
+
+  async function handleDeploy() {
+    if (!isConnected) {
+      alert("Please connect your wallet first");
+      return;
+    }
+
+    try {
+      const providers = await setupProviders();
+      const contractInstance = new MyContract({});
+      const api = await MidnightSetupAPI.deployContract(providers, contractInstance);
+
+      setContractApi(api);
+      console.log("Deployed at:", api.deployedContractAddress);
+    } catch (err) {
+      console.error("Deployment failed:", err);
+    }
+  }
+
+  async function handleGetState() {
+    if (!contractApi) return;
+
+    const state = await contractApi.getContractState();
+    setContractState(state);
+  }
+
+  return (
+    <div>
+      <h1>Midnight Network dApp</h1>
+
+      {error && <p className="error">{error}</p>}
+
+      <section>
+        <h2>1. Connect Wallet</h2>
+        {isConnected ? (
+          <button onClick={disconnectWallet}>Disconnect</button>
+        ) : (
+          <button onClick={connectWallet} disabled={isLoading}>
+            {isLoading ? "Connecting..." : "Connect Wallet"}
+          </button>
+        )}
+      </section>
+
+      <section>
+        <h2>2. Deploy Contract</h2>
+        <button onClick={handleDeploy} disabled={!isConnected}>
+          Deploy Contract
+        </button>
+      </section>
+
+      {contractApi && (
+        <section>
+          <h2>3. Read Contract State</h2>
+          <button onClick={handleGetState}>Get State</button>
+          {contractState && (
+            <pre>{JSON.stringify(contractState, null, 2)}</pre>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
+export default MidnightDApp;
+```
+
+## Troubleshooting
+
+### Wallet not detected
+
+**Problem**: `window.midnight?.mnLace` is undefined.
+
+**Solutions**:
+1. Install the [Lace Beta Wallet](https://chromewebstore.google.com/detail/lace-midnight-preview/hgeekaiplokcnmakghbdfbgnlfheichg)
+2. Refresh the page after installation
+3. Ensure you are using a supported browser (Chrome, Brave)
+
+### Connection rejected
+
+**Problem**: User rejected the connection request.
+
+**Solution**: Prompt the user to try again and explain why wallet access is needed.
+
+### Transaction signing fails
+
+**Problem**: `balanceAndProveTransaction` throws an error.
+
+**Solutions**:
+1. Check that the wallet has sufficient funds
+2. Verify the transaction parameters are valid
+3. Ensure the prover service is accessible
+
+## Next steps
+
+- [API Reference](/docs/midnight/midnight-setup/api) - Complete method documentation
+- [Examples](/docs/midnight/midnight-setup/examples) - More code samples
+- [Getting Started](/docs/midnight/midnight-setup/getting-started) - Project setup guide
+
+## Related resources
+
+- [Lace Beta Wallet](https://chromewebstore.google.com/detail/lace-midnight-preview/hgeekaiplokcnmakghbdfbgnlfheichg)
+- [Midnight Network Documentation](https://docs.midnight.network/)

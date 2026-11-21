@@ -1,0 +1,205 @@
+---
+title: Ed25519Signature.ts
+nav_order: 57
+parent: Modules
+---
+
+## Ed25519Signature overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [arbitrary](#arbitrary)
+  - [arbitrary](#arbitrary-1)
+- [constructors](#constructors)
+  - [fromBytes](#frombytes)
+  - [fromHex](#fromhex)
+- [encoding](#encoding)
+  - [toBytes](#tobytes)
+  - [toHex](#tohex)
+- [model](#model)
+  - [Ed25519Signature (class)](#ed25519signature-class)
+    - [toJSON (method)](#tojson-method)
+    - [toString (method)](#tostring-method)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method)
+    - [[Equal.symbol] (method)](#equalsymbol-method)
+    - [[Hash.symbol] (method)](#hashsymbol-method)
+- [predicates](#predicates)
+  - [is](#is)
+- [schemas](#schemas)
+  - [FromBytes](#frombytes-1)
+  - [FromHex](#fromhex-1)
+
+---
+
+# arbitrary
+
+## arbitrary
+
+FastCheck arbitrary for generating random Ed25519Signature instances.
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<Ed25519Signature>
+```
+
+Added in v2.0.0
+
+# constructors
+
+## fromBytes
+
+Parse Ed25519Signature from bytes (unsafe - throws on error).
+
+**Signature**
+
+```ts
+export declare const fromBytes: (i: Uint8Array, overrideOptions?: ParseOptions) => Ed25519Signature
+```
+
+Added in v2.0.0
+
+## fromHex
+
+Parse Ed25519Signature from hex string (unsafe - throws on error).
+
+**Signature**
+
+```ts
+export declare const fromHex: (i: string, overrideOptions?: ParseOptions) => Ed25519Signature
+```
+
+Added in v2.0.0
+
+# encoding
+
+## toBytes
+
+Get the underlying bytes (returns a copy for safety).
+
+**Signature**
+
+```ts
+export declare const toBytes: (a: Ed25519Signature, overrideOptions?: ParseOptions) => Uint8Array
+```
+
+Added in v2.0.0
+
+## toHex
+
+Convert to hex string using optimized lookup table.
+
+**Signature**
+
+```ts
+export declare const toHex: (a: Ed25519Signature, overrideOptions?: ParseOptions) => string
+```
+
+Added in v2.0.0
+
+# model
+
+## Ed25519Signature (class)
+
+Class-based Ed25519Signature with compile-time and runtime safety.
+ed25519_signature = bytes .size 64
+Follows the Conway-era CDDL specification.
+
+**Signature**
+
+```ts
+export declare class Ed25519Signature
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+# predicates
+
+## is
+
+Check if value is an Ed25519Signature instance.
+
+**Signature**
+
+```ts
+export declare const is: (u: unknown, overrideOptions?: ParseOptions | number) => u is Ed25519Signature
+```
+
+Added in v2.0.0
+
+# schemas
+
+## FromBytes
+
+Schema transformer from bytes to Ed25519Signature.
+
+**Signature**
+
+```ts
+export declare const FromBytes: Schema.transform<
+  Schema.SchemaClass<Uint8Array, Uint8Array, never>,
+  Schema.SchemaClass<Ed25519Signature, Ed25519Signature, never>
+>
+```
+
+Added in v2.0.0
+
+## FromHex
+
+Schema transformer from hex string to Ed25519Signature.
+
+**Signature**
+
+```ts
+export declare const FromHex: Schema.transform<
+  Schema.filter<Schema.Schema<Uint8Array, string, never>>,
+  Schema.transform<
+    Schema.SchemaClass<Uint8Array, Uint8Array, never>,
+    Schema.SchemaClass<Ed25519Signature, Ed25519Signature, never>
+  >
+>
+```
+
+Added in v2.0.0

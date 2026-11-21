@@ -1,0 +1,439 @@
+---
+title: "Offline Evaluator"
+description: "Evaluate Plutus script execution costs without network connectivity"
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+The OfflineEvaluator calculates execution costs (memory and CPU steps) for Plutus scripts in transactions without requiring network connectivity. It works with an <Link href="/providers/offline-fetcher">OfflineFetcher</Link> to resolve the UTxOs needed for script validation.
+
+**Use OfflineEvaluator when you need:**
+- Unit testing smart contracts without network access
+- Validating script execution costs in CI/CD pipelines
+- Offline development of Plutus scripts
+- Reproducible cost analysis for budgeting
+
+The evaluator is also compatible with online fetchers, enabling hybrid workflows where data comes from the network but evaluation happens locally.
+
+## Quick Start
+
+Install the required packages:
+
+```bash
+npm install @meshsdk/core @meshsdk/core-csl
+```
+
+Create and use the evaluator:
+
+```tsx
+import { OfflineEvaluator } from "@meshsdk/core-csl";
+import { OfflineFetcher } from "@meshsdk/core";
+
+// Create fetcher and add required UTxOs
+const fetcher = new OfflineFetcher();
+fetcher.addUTxOs([
+  {
+    input: {
+      txHash: "abc123...",
+      outputIndex: 0,
+    },
+    output: {
+      address: "addr_test1...",
+      amount: [{ unit: "lovelace", quantity: "10000000" }],
+      scriptHash: "def456...",
+    },
+  },
+]);
+
+// Create evaluator
+const evaluator = new OfflineEvaluator(fetcher, "preprod");
+
+// Evaluate a transaction
+const costs = await evaluator.evaluateTx(transactionCbor);
+console.log(costs);
+```
+
+## Configuration Options
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fetcher` | `IFetcher` | Yes | Data fetcher for resolving UTxOs |
+| `network` | `string` | Yes | Network identifier ("mainnet", "preprod", "preview") |
+
+**Example:**
+
+```tsx
+import { OfflineEvaluator } from "@meshsdk/core-csl";
+import { OfflineFetcher, BlockfrostProvider } from "@meshsdk/core";
+
+// With OfflineFetcher (fully offline)
+const offlineFetcher = new OfflineFetcher();
+const offlineEvaluator = new OfflineEvaluator(offlineFetcher, "preprod");
+
+// With online fetcher (hybrid mode)
+const onlineFetcher = new BlockfrostProvider("<API_KEY>");
+const hybridEvaluator = new OfflineEvaluator(onlineFetcher, "preprod");
+```
+
+## API Reference
+
+### evaluateTx
+
+Evaluate Plutus script execution in a transaction.
+
+```tsx
+await evaluator.evaluateTx(tx: string): Promise<Omit<Action, "data">[]>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tx` | `string` | Yes | The unsigned transaction CBOR hex |
+
+**Returns:** Array of execution cost estimates for each script action.
+
+**Example:**
+
+```tsx
+import { OfflineEvaluator } from "@meshsdk/core-csl";
+import { OfflineFetcher, MeshTxBuilder } from "@meshsdk/core";
+
+// Set up fetcher with required data
+const fetcher = new OfflineFetcher();
+fetcher.addUTxOs([
+  {
+    input: {
+      txHash: "5de23a2...",
+      outputIndex: 0,
+    },
+    output: {
+      address: "addr_test1...",
+      amount: [{ unit: "lovelace", quantity: "10000000" }],
+      scriptHash: "32b7e3d...",
+      plutusData: "d8799f...",
+    },
+  },
+]);
+
+fetcher.addProtocolParameters({
+  // ... protocol parameters
+});
+
+// Create evaluator
+const evaluator = new OfflineEvaluator(fetcher, "preprod");
+
+// Build a transaction
+const txBuilder = new MeshTxBuilder({ fetcher: fetcher });
+const unsignedTx = await txBuilder
+  .spendingPlutusScript("V3")
+  .txIn("5de23a2...", 0)
+  .txInInlineDatumPresent()
+  .txInRedeemerValue({ alternative: 0, fields: [] })
+  .txInScript(scriptCbor)
+  .txOut("addr_test1...", [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress("addr_test1...")
+  .complete();
+
+// Evaluate
+const costs = await evaluator.evaluateTx(unsignedTx);
+
+console.log(costs);
+// [
+//   {
+//     index: 0,
+//     tag: "SPEND",
+//     budget: {
+//       mem: 508703,
+//       steps: 164980381
+//     }
+//   }
+// ]
+```
+
+**Response structure:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `index` | `number` | The redeemer index in the transaction |
+| `tag` | `"SPEND" \| "MINT" \| "CERT" \| "REWARD"` | The type of script action |
+| `budget.mem` | `number` | Memory units required |
+| `budget.steps` | `number` | CPU steps required |
+
+## Using Evaluation Results
+
+After evaluating a transaction, use the results to set precise redeemer budgets:
+
+```tsx
+import { OfflineEvaluator } from "@meshsdk/core-csl";
+import { OfflineFetcher, MeshTxBuilder } from "@meshsdk/core";
+
+const fetcher = new OfflineFetcher();
+// ... add UTxOs and protocol parameters
+
+const evaluator = new OfflineEvaluator(fetcher, "preprod");
+
+// First pass: build with placeholder budget
+const txBuilder = new MeshTxBuilder({ fetcher: fetcher });
+const unsignedTx = await txBuilder
+  .spendingPlutusScript("V3")
+  .txIn(scriptUtxo.input.txHash, scriptUtxo.input.outputIndex)
+  .txInInlineDatumPresent()
+  .txInRedeemerValue({ alternative: 0, fields: [] })
+  .txInScript(scriptCbor)
+  .txOut(recipient, [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(changeAddress)
+  .complete();
+
+// Evaluate to get actual costs
+const evaluation = await evaluator.evaluateTx(unsignedTx);
+
+// Second pass: build with precise budget
+const preciseTxBuilder = new MeshTxBuilder({ fetcher: fetcher });
+const preciseTx = await preciseTxBuilder
+  .spendingPlutusScript("V3")
+  .txIn(scriptUtxo.input.txHash, scriptUtxo.input.outputIndex)
+  .txInInlineDatumPresent()
+  .txInRedeemerValue(
+    { alternative: 0, fields: [] },
+    undefined,
+    {
+      mem: evaluation[0].budget.mem,
+      steps: evaluation[0].budget.steps,
+    }
+  )
+  .txInScript(scriptCbor)
+  .txOut(recipient, [{ unit: "lovelace", quantity: "5000000" }])
+  .changeAddress(changeAddress)
+  .complete();
+```
+
+## Testing with OfflineEvaluator
+
+The evaluator is particularly useful for testing Plutus scripts:
+
+```tsx
+import { OfflineEvaluator } from "@meshsdk/core-csl";
+import { OfflineFetcher, MeshTxBuilder } from "@meshsdk/core";
+import { describe, it, expect, beforeEach } from "vitest";
+
+describe("MyPlutusScript", () => {
+  let evaluator: OfflineEvaluator;
+  let fetcher: OfflineFetcher;
+
+  beforeEach(() => {
+    fetcher = new OfflineFetcher();
+    evaluator = new OfflineEvaluator(fetcher, "preprod");
+
+    // Set up test UTxOs
+    fetcher.addUTxOs([
+      {
+        input: { txHash: "test123...", outputIndex: 0 },
+        output: {
+          address: "addr_test1...",
+          amount: [{ unit: "lovelace", quantity: "10000000" }],
+          scriptHash: "script123...",
+          plutusData: "d8799f...",
+        },
+      },
+    ]);
+
+    fetcher.addProtocolParameters({
+      // ... protocol parameters
+    });
+  });
+
+  it("should evaluate minting policy", async () => {
+    const txBuilder = new MeshTxBuilder({ fetcher: fetcher });
+    const unsignedTx = await txBuilder
+      .mintPlutusScript("V3")
+      // ... build minting transaction
+      .complete();
+
+    const result = await evaluator.evaluateTx(unsignedTx);
+
+    expect(result[0].tag).toBe("MINT");
+    expect(result[0].budget.mem).toBeLessThan(600000);
+    expect(result[0].budget.steps).toBeLessThan(200000000);
+  });
+
+  it("should evaluate spending validator", async () => {
+    const txBuilder = new MeshTxBuilder({ fetcher: fetcher });
+    const unsignedTx = await txBuilder
+      .spendingPlutusScript("V3")
+      // ... build spending transaction
+      .complete();
+
+    const result = await evaluator.evaluateTx(unsignedTx);
+
+    expect(result[0].tag).toBe("SPEND");
+    expect(result[0].budget.mem).toBeDefined();
+    expect(result[0].budget.steps).toBeDefined();
+  });
+
+  it("should fail for invalid redeemer", async () => {
+    const txBuilder = new MeshTxBuilder({ fetcher: fetcher });
+    const unsignedTx = await txBuilder
+      .spendingPlutusScript("V3")
+      .txInRedeemerValue({ alternative: 99, fields: [] }) // Invalid redeemer
+      // ... rest of transaction
+      .complete();
+
+    await expect(evaluator.evaluateTx(unsignedTx)).rejects.toThrow();
+  });
+});
+```
+
+## Complete Example
+
+```tsx
+import { OfflineEvaluator } from "@meshsdk/core-csl";
+import { OfflineFetcher, MeshTxBuilder } from "@meshsdk/core";
+
+async function evaluateSmartContract() {
+  // Create fetcher with test data
+  const fetcher = new OfflineFetcher("preprod");
+
+  // Add protocol parameters
+  fetcher.addProtocolParameters({
+    epoch: 290,
+    minFeeA: 44,
+    minFeeB: 155381,
+    maxBlockSize: 73728,
+    maxTxSize: 16384,
+    maxBlockHeaderSize: 1100,
+    keyDeposit: 2000000,
+    poolDeposit: 500000000,
+    minPoolCost: "340000000",
+    priceMem: 0.0577,
+    priceStep: 0.0000721,
+    maxValSize: 5000,
+    collateralPercent: 150,
+    maxCollateralInputs: 3,
+    coinsPerUtxoSize: "4310",
+  });
+
+  // Add script UTxO
+  fetcher.addUTxOs([
+    {
+      input: {
+        txHash: "5de23a2f1c5e8b9d0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f",
+        outputIndex: 0,
+      },
+      output: {
+        address: "addr_test1wz5qc7fk2pat0058w4zwvkw35ythyrfx4pd3z6h6z3jhdtqhmd6rh",
+        amount: [{ unit: "lovelace", quantity: "10000000" }],
+        scriptHash: "32b7e3d9b8c5f4a1e2d3c4b5a6f7e8d9c0b1a2f3e4d5c6b7a8f9e0d1c2b3a4f5",
+        plutusData: "d8799f00ff",
+      },
+    },
+    // Add collateral UTxO
+    {
+      input: {
+        txHash: "abc123def456789abc123def456789abc123def456789abc123def456789abc1",
+        outputIndex: 0,
+      },
+      output: {
+        address: "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+        amount: [{ unit: "lovelace", quantity: "50000000" }],
+      },
+    },
+  ]);
+
+  // Create evaluator
+  const evaluator = new OfflineEvaluator(fetcher, "preprod");
+
+  // Build transaction
+  const txBuilder = new MeshTxBuilder({ fetcher: fetcher });
+
+  const scriptCbor = "82015820..."; // Your script CBOR
+
+  const unsignedTx = await txBuilder
+    .spendingPlutusScript("V3")
+    .txIn(
+      "5de23a2f1c5e8b9d0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f",
+      0
+    )
+    .txInInlineDatumPresent()
+    .txInRedeemerValue({ alternative: 0, fields: [] })
+    .txInScript(scriptCbor)
+    .txOut(
+      "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+      [{ unit: "lovelace", quantity: "5000000" }]
+    )
+    .txInCollateral(
+      "abc123def456789abc123def456789abc123def456789abc123def456789abc1",
+      0
+    )
+    .changeAddress(
+      "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9"
+    )
+    .complete();
+
+  // Evaluate
+  try {
+    const costs = await evaluator.evaluateTx(unsignedTx);
+
+    console.log("Evaluation results:");
+    costs.forEach((cost, i) => {
+      console.log(`  Action ${i}:`);
+      console.log(`    Type: ${cost.tag}`);
+      console.log(`    Index: ${cost.index}`);
+      console.log(`    Memory: ${cost.budget.mem} units`);
+      console.log(`    CPU: ${cost.budget.steps} steps`);
+    });
+  } catch (error) {
+    console.error("Evaluation failed:", error);
+  }
+}
+```
+
+## Troubleshooting
+
+### Missing UTxOs
+
+**Problem:** Evaluation fails with "UTxO not found" error.
+
+**Solution:** Ensure all UTxOs referenced in the transaction are added to the fetcher, including:
+- Script UTxOs being spent
+- Collateral UTxOs
+- Reference inputs
+
+### Invalid Script
+
+**Problem:** Evaluation fails with script execution error.
+
+**Solution:**
+1. Verify the script CBOR is correct
+2. Check that datum and redeemer match what the script expects
+3. Ensure the script version (V1, V2, V3) matches the transaction builder call
+
+### Budget Exceeded
+
+**Problem:** Evaluation succeeds but reports very high costs.
+
+**Solution:**
+1. Review your Plutus script for optimization opportunities
+2. Consider using reference scripts to reduce transaction size
+3. Check for unnecessary operations in the script
+
+### Network Mismatch
+
+**Problem:** Evaluation produces unexpected results.
+
+**Solution:** Ensure the network parameter in OfflineEvaluator matches:
+1. The network used to generate addresses
+2. The protocol parameters added to the fetcher
+
+### Missing Protocol Parameters
+
+**Problem:** Evaluation fails without clear error.
+
+**Solution:** Add complete protocol parameters to the fetcher before evaluation. The evaluator needs parameters like `priceMem` and `priceStep` to calculate costs.
+
+## Related Links
+
+- [Offline Fetcher](/providers/offline-fetcher) - Mock blockchain data for testing
+- [MeshJS Transaction Builder](/transaction/basics)
+- [MeshJS Smart Contracts](/smart-contracts)
+- [Plutus Script Development](/guides/plutus)

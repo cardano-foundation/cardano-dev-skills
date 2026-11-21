@@ -1,0 +1,625 @@
+---
+title: "Resolvers"
+description: "Convert between different Cardano data formats including hashes, addresses, epochs, and slots"
+---
+
+Use resolver functions to convert between different Cardano data formats. These utilities handle conversions for private keys, transaction hashes, data hashes, script hashes, addresses, epochs, and slots.
+
+## Overview
+
+Resolvers provide format conversion utilities for common Cardano operations:
+
+- Key derivation (mnemonic to private key)
+- Hash computation (transactions, data, scripts)
+- Address extraction (stake addresses, key hashes)
+- Time-based conversions (epoch and slot numbers)
+
+## Quick Start
+
+```tsx
+import { resolveDataHash, resolvePaymentKeyHash, resolveEpochNo } from "@meshsdk/core";
+
+// Compute a data hash
+const hash = resolveDataHash("my-datum-value");
+
+// Extract a key hash from an address
+const keyHash = resolvePaymentKeyHash("addr_test1qpvx0sac...");
+
+// Get the current epoch
+const epoch = resolveEpochNo("preprod");
+```
+
+---
+
+## resolvePrivateKey
+
+Derive a private key from mnemonic phrases.
+
+### Function Signature
+
+```tsx
+resolvePrivateKey(mnemonic: string[]): string
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `mnemonic` | `string[]` | Yes | Array of 24 mnemonic words |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `string` | The derived private key in hex format |
+
+### Example
+
+```tsx
+import { resolvePrivateKey } from "@meshsdk/core";
+
+const mnemonic = [
+  "solution", "solution", "solution", "solution",
+  "solution", "solution", "solution", "solution",
+  "solution", "solution", "solution", "solution",
+  "solution", "solution", "solution", "solution",
+  "solution", "solution", "solution", "solution",
+  "solution", "solution", "solution", "solution",
+];
+
+const privateKey = resolvePrivateKey(mnemonic);
+console.log("Private Key:", privateKey);
+```
+
+---
+
+## resolveTxHash
+
+Compute the transaction hash from a CBOR-encoded transaction.
+
+### Function Signature
+
+```tsx
+resolveTxHash(txCbor: string): string
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `txCbor` | `string` | Yes | The transaction in CBOR hex format (signed or unsigned) |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `string` | The transaction hash (64 hex characters) |
+
+### Example
+
+```tsx
+import { resolveTxHash, MeshTxBuilder } from "@meshsdk/core";
+
+const txBuilder = new MeshTxBuilder();
+
+const unsignedTx = await txBuilder
+  .txOut("addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr", [
+    { unit: "lovelace", quantity: "1500000" },
+  ])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+// Get hash before signing
+const hash1 = resolveTxHash(unsignedTx);
+console.log("Transaction Hash:", hash1);
+
+// Hash remains the same after signing
+const signedTx = await wallet.signTx(unsignedTx);
+const hash2 = resolveTxHash(signedTx);
+
+console.log("Hashes match:", hash1 === hash2); // true
+```
+
+---
+
+## resolveDataHash
+
+Compute the hash of a datum value.
+
+### Function Signature
+
+```tsx
+resolveDataHash(datum: any): string
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `datum` | `any` | Yes | The datum value to hash |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `string` | The datum hash (64 hex characters) |
+
+### Example
+
+```tsx
+import { resolveDataHash } from "@meshsdk/core";
+
+// Simple string datum
+const hash = resolveDataHash("supersecretdatum");
+console.log("Datum Hash:", hash);
+
+// Complex datum structure
+const complexDatum = {
+  constructor: 0,
+  fields: [
+    "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+    1000000,
+  ],
+};
+const complexHash = resolveDataHash(complexDatum);
+console.log("Complex Datum Hash:", complexHash);
+```
+
+---
+
+## resolvePaymentKeyHash
+
+Extract the payment key hash from a bech32 address.
+
+### Function Signature
+
+```tsx
+resolvePaymentKeyHash(address: string): string
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | A Cardano bech32 address |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `string` | The payment key hash (56 hex characters) |
+
+### Example
+
+```tsx
+import { resolvePaymentKeyHash, NativeScript } from "@meshsdk/core";
+
+const address = "addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr";
+const keyHash = resolvePaymentKeyHash(address);
+
+// Use in a native script
+const nativeScript: NativeScript = {
+  type: "sig",
+  keyHash: keyHash,
+};
+
+console.log("Key Hash:", keyHash);
+```
+
+---
+
+## resolveNativeScriptHash
+
+Compute the hash (policy ID) of a native script.
+
+### Function Signature
+
+```tsx
+resolveNativeScriptHash(nativeScript: NativeScript): string
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `nativeScript` | `NativeScript` | Yes | The native script object |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `string` | The script hash / policy ID (56 hex characters) |
+
+### Example
+
+```tsx
+import { resolveNativeScriptHash, resolvePaymentKeyHash, NativeScript } from "@meshsdk/core";
+
+const keyHash = resolvePaymentKeyHash(
+  "addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr"
+);
+
+const nativeScript: NativeScript = {
+  type: "all",
+  scripts: [
+    {
+      type: "sig",
+      keyHash: keyHash,
+    },
+  ],
+};
+
+const policyId = resolveNativeScriptHash(nativeScript);
+console.log("Policy ID:", policyId);
+```
+
+---
+
+## resolveScriptHash
+
+Compute the hash of a script from its CBOR representation.
+
+### Function Signature
+
+```tsx
+resolveScriptHash(scriptCbor: string): string
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `scriptCbor` | `string` | Yes | The script in CBOR hex format |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `string` | The script hash (56 hex characters) |
+
+### Example
+
+```tsx
+import { resolveScriptHash } from "@meshsdk/core";
+
+const scriptCbor = "8200581c5867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f";
+
+const hash = resolveScriptHash(scriptCbor);
+console.log("Script Hash:", hash);
+```
+
+---
+
+## resolveRewardAddress
+
+Convert a wallet address to its corresponding stake/reward address.
+
+### Function Signature
+
+```tsx
+resolveRewardAddress(address: string): string
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `string` | Yes | A Cardano base address with stake credential |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `string` | The stake/reward address in bech32 format |
+
+### Example
+
+```tsx
+import { resolveRewardAddress } from "@meshsdk/core";
+
+const walletAddress = "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9";
+
+const stakeAddress = resolveRewardAddress(walletAddress);
+console.log("Stake Address:", stakeAddress);
+// Output: stake_test1urw5s...
+```
+
+---
+
+## resolveStakeKeyHash
+
+Extract the stake key hash from a stake address.
+
+### Function Signature
+
+```tsx
+resolveStakeKeyHash(stakeAddress: string): string
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `stakeAddress` | `string` | Yes | A stake address in bech32 format |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `string` | The stake key hash (56 hex characters) |
+
+### Example
+
+```tsx
+import { resolveStakeKeyHash } from "@meshsdk/core";
+
+const stakeAddress = "stake_test1uzw5mnt7g4xjgdqkfa80hrk7kdvds6sa4k0vvgjvlj7w8eskffj2n";
+
+const stakeKeyHash = resolveStakeKeyHash(stakeAddress);
+console.log("Stake Key Hash:", stakeKeyHash);
+```
+
+---
+
+## resolveFingerprint
+
+Compute the asset fingerprint (CIP-14) from a policy ID and asset name.
+
+### Function Signature
+
+```tsx
+resolveFingerprint(policyId: string, assetName: string): string
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `policyId` | `string` | Yes | The policy ID (56 hex characters) |
+| `assetName` | `string` | Yes | The asset name in hex format |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `string` | The asset fingerprint (starts with `asset1...`) |
+
+### Example
+
+```tsx
+import { resolveFingerprint } from "@meshsdk/core";
+
+const policyId = "426117329844ccb3b0ba877220ff06a5bdf21eab3fb33e2f3a3f8e69";
+const assetName = "4d657368546f6b656e"; // "MeshToken" in hex
+
+const fingerprint = resolveFingerprint(policyId, assetName);
+console.log("Asset Fingerprint:", fingerprint);
+// Output: asset1...
+```
+
+---
+
+## resolveScriptHashDRepId
+
+Convert a script hash to a DRep ID for governance.
+
+### Function Signature
+
+```tsx
+resolveScriptHashDRepId(scriptHash: string): string
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `scriptHash` | `string` | Yes | The script hash (56 hex characters) |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `string` | The DRep ID in bech32 format |
+
+### Example
+
+```tsx
+import { resolveScriptHashDRepId, resolveNativeScriptHash, NativeScript } from "@meshsdk/core";
+
+const script: NativeScript = {
+  type: "all",
+  scripts: [
+    {
+      type: "sig",
+      keyHash: "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+    },
+  ],
+};
+
+const scriptHash = resolveNativeScriptHash(script);
+const drepId = resolveScriptHashDRepId(scriptHash);
+console.log("DRep ID:", drepId);
+```
+
+---
+
+## resolveEpochNo
+
+Get the epoch number for a network at a specific time.
+
+### Function Signature
+
+```tsx
+resolveEpochNo(network: string, milliseconds?: number): number
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `network` | `string` | Yes | Network name: `"mainnet"`, `"preprod"`, or `"preview"` |
+| `milliseconds` | `number` | No | Optional timestamp in milliseconds. Defaults to current time |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `number` | The epoch number |
+
+### Example: Get Current Epoch
+
+```tsx
+import { resolveEpochNo } from "@meshsdk/core";
+
+const currentEpoch = resolveEpochNo("preprod");
+console.log("Current Epoch:", currentEpoch);
+```
+
+### Example: Get Future Epoch
+
+```tsx
+import { resolveEpochNo } from "@meshsdk/core";
+
+// Calculate epoch one year from now
+const oneYearFromNow = new Date();
+oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+
+const futureEpoch = resolveEpochNo("preprod", oneYearFromNow.getTime());
+console.log("Epoch in 1 year:", futureEpoch);
+```
+
+---
+
+## resolveSlotNo
+
+Get the slot number for a network at a specific time.
+
+### Function Signature
+
+```tsx
+resolveSlotNo(network: string, milliseconds?: number): number
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `network` | `string` | Yes | Network name: `"mainnet"`, `"preprod"`, or `"preview"` |
+| `milliseconds` | `number` | No | Optional timestamp in milliseconds. Defaults to current time |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `number` | The slot number |
+
+### Example: Get Current Slot
+
+```tsx
+import { resolveSlotNo } from "@meshsdk/core";
+
+const currentSlot = resolveSlotNo("preprod");
+console.log("Current Slot:", currentSlot);
+```
+
+### Example: Time-Locked Transaction
+
+```tsx
+import { resolveSlotNo, MeshTxBuilder } from "@meshsdk/core";
+
+// Lock transaction until 1 hour from now
+const oneHourFromNow = Date.now() + 60 * 60 * 1000;
+const validFromSlot = resolveSlotNo("preprod", oneHourFromNow);
+
+const txBuilder = new MeshTxBuilder();
+await txBuilder
+  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "5000000" }])
+  .invalidBefore(validFromSlot)
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+---
+
+## Complete Example
+
+This example demonstrates using multiple resolvers in a complete workflow:
+
+```tsx
+import {
+  resolvePaymentKeyHash,
+  resolveNativeScriptHash,
+  resolveDataHash,
+  resolveRewardAddress,
+  resolveFingerprint,
+  resolveEpochNo,
+  resolveSlotNo,
+  serializeNativeScript,
+  NativeScript,
+} from "@meshsdk/core";
+
+// 1. Extract key hash from address
+const walletAddress = "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9";
+const keyHash = resolvePaymentKeyHash(walletAddress);
+console.log("Payment Key Hash:", keyHash);
+
+// 2. Create and hash a native script
+const nativeScript: NativeScript = {
+  type: "all",
+  scripts: [
+    { type: "sig", keyHash: keyHash },
+    { type: "after", slot: resolveSlotNo("preprod").toString() },
+  ],
+};
+
+const policyId = resolveNativeScriptHash(nativeScript);
+console.log("Policy ID:", policyId);
+
+// 3. Serialize the script to get an address
+const { address } = serializeNativeScript(nativeScript, 0);
+console.log("Script Address:", address);
+
+// 4. Get stake address
+const stakeAddress = resolveRewardAddress(walletAddress);
+console.log("Stake Address:", stakeAddress);
+
+// 5. Compute asset fingerprint
+const assetName = "4d657368546f6b656e";
+const fingerprint = resolveFingerprint(policyId, assetName);
+console.log("Asset Fingerprint:", fingerprint);
+
+// 6. Hash some datum
+const datumHash = resolveDataHash({ owner: keyHash, amount: 1000000 });
+console.log("Datum Hash:", datumHash);
+
+// 7. Get current epoch and slot
+console.log("Current Epoch:", resolveEpochNo("preprod"));
+console.log("Current Slot:", resolveSlotNo("preprod"));
+```
+
+---
+
+## Troubleshooting
+
+### resolvePrivateKey returns unexpected value
+
+Ensure you provide exactly 24 valid BIP-39 mnemonic words in the correct order. The words must be from the standard BIP-39 English wordlist.
+
+### resolveRewardAddress fails
+
+The input address must be a base address that includes a stake credential. Enterprise addresses (without stake credentials) cannot be converted to reward addresses.
+
+### Epoch/slot numbers seem incorrect
+
+Verify you are using the correct network name (`"mainnet"`, `"preprod"`, or `"preview"`). Each network has different genesis parameters affecting epoch and slot calculations.
+
+---
+
+## Related
+
+- [Serializers](/apis/utilities/serializers) - Encode data for on-chain use
+- [Deserializers](/apis/utilities/deserializers) - Parse on-chain data
+- [Blueprints](/apis/utilities/blueprints) - Work with parameterized scripts
+- [Transaction Builder](/apis/txbuilder) - Build transactions using resolved hashes

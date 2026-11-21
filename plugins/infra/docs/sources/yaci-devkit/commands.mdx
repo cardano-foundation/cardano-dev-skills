@@ -1,0 +1,254 @@
+## Common Commands
+Yaci CLI commands are used to create and interact with the local devnet.
+
+### create-node
+To create a devnet node.
+    - **Usage:**
+    ```bash
+     create-node [options]
+     ```
+   - **Example:**
+Create a new node with the default options. 1 sec block time and overwrite the existing node if it exists.
+
+   ```bash
+    create-node -o --start
+    ```
+   - **Options:**
+     - `--overwrite or -o boolean` : Overwrite the existing node if it exists.
+     - `--start` : Start the node after creation.
+     - `--block-time or -b double` : Set the block time in seconds. Default is 1 sec. **New in 0.11.0-beta1:** Supports sub-second values like 0.2 for 200ms blocks.
+     - `--slot-length or -s double` : Slot Length in sec. Default is 1 sec. **New in 0.11.0-beta1:** Supports sub-second values like 0.2 for 200ms slots.
+     - `--epoch-length or -e int` : Epoch Length in slots. Default is 500.
+     - `--era String` : Era (babbage, conway). Default is conway.
+     - `--enable-multi-node` : Enable multi-node setup for rollback testing. **New in 0.11.0-beta1.**
+     - `--port int` : Node-to-node port. Default is 3001.
+     - `--submit-api-port int` : Submit API port. Default is 8090.
+     - `--prometheus-port int` : Prometheus metrics port of the devnet node. Default is the `prometheus.port` property (12798). Use another port when a cardano-node already running on this machine (for example a mainnet node) uses it. See [Known Issues](./known-issues#devnet-node-does-not-start-while-another-cardano-node-runs).
+
+The `up` command takes the same `--port`, `--submit-api-port` and `--prometheus-port` options.
+
+**Note:** There are many other node specific configuration that can be set through env file or node.properties. Please refer to the [Node Configuration](./node-configuration) for more details.
+
+### reset
+
+Reset local devnet. Delete data and logs folder and restart.
+
+- **Usage:**
+```bash
+reset
+```
+
+If the devnet gets stuck or you simply want to reset the data and restart with the same configuration, simply use the command "reset".
+It will restore your devnet to its initial state, allowing you to continue your development seamlessly.
+
+### catch-up
+
+Catch the devnet up to wall clock after the machine slept or the devnet was paused for longer than its stability
+window. The chain is kept (contracts, wallets, stake), and every epoch that passed is processed. Companion and
+yano-only devnets only.
+
+- **Usage:**
+```bash
+catch-up [--force]
+```
+- **Options:**
+  - `--force`: catch up even when the chain is not stalled.
+
+DevKit already does this on `start` and while the devnet runs, unless `devnet.auto.catch.up=false`. See
+[Resuming After a Long Pause](./yano-node-modes#resuming-after-a-long-pause).
+
+### stop
+
+Stop the local devnet.
+
+- **Usage:**
+```bash
+stop
+```
+**Note:** You can stop the devnet using command "stop". This will stop the devnet and you can start it again using the "start" command.
+The devnet will start from the last block it was stopped at. Based on the `securityParam` configuration in devnet node,
+the node may get stuck if it is stopped for a long time. Please refer to the [Node Configuration](./node-configuration) to
+know how to provide a custom value for `securityParam`.
+
+### cluster
+
+To switch to `devnet` mode for an existing devnet node when Yaci CLI is not in devnet mode.
+
+- **Usage:**
+```bash
+yaci-cli:> cluster
+```
+
+### exit
+To stop the node and other running services and exit from devnet node.
+
+- **Usage:**
+```bash
+devnet:default>exit
+```
+
+Similarly, you can use the `exit` command in non-devnet mode to exit from the Yaci CLI.
+
+### topup
+
+To top up the address with the given ada amount.
+
+- **Usage:**
+```bash
+topup [--address String] [--value double]
+```
+
+- **Example:**
+To fund address with 45k ada.
+
+```bash
+topup addr_test1qrzufj3g0ua489yt235wtc3mrjrlucww2tqdnt7kt5rs09grsag6vxw5v053atks5a6whke03cf2qx3h3g2nhsmzwv3sgml3ed 45000
+```
+
+### default-addresses
+
+To show the default addresses.
+
+- **Usage:**
+```bash
+default-addresses
+```
+
+By **default**, the devnet is created with 20 default addresses at different derivation path from a test 24 words mnemonic
+and each address is funded with 10k ada.
+This is useful if you want to write your tests or tools using DevKit and you need some addresses to work with.
+So, you know that these addresses are always available in the devnet.
+
+**24 words mnemonic for the default addresses is:**
+```
+test test test test test test test test test test test test test test test test test test test test test test test sauce
+```
+
+### show-faucet-addresses
+
+To show the faucet addresses.
+
+- **Usage:**
+```bash
+show-faucet-addresses
+```
+
+The faucet addresses are the addresses that are used to fund the default addresses in the devnet and also used to top up the addresses using the `topup` command.
+
+### utxos
+
+To show the UTXOs of the given address.
+
+- **Usage:**
+```bash
+utxos [address] [--pretty-print-inline-datum]
+```
+
+Example:
+```bash
+utxos addr_test1qrzufj3g0ua489yt235wtc3mrjrlucww2tqdnt7kt5rs09grsag6vxw5v053atks5a6whke03cf2qx3h3g2nhsmzwv3sgml3ed
+```
+
+```bash
+utxos addr_test1qrzufj3g0ua489yt235wtc3mrjrlucww2tqdnt7kt5rs09grsag6vxw5v053atks5a6whke03cf2qx3h3g2nhsmzwv3sgml3ed --pretty-print-inline-datum
+```
+
+### tip
+
+To show the tip of the node. **New in 0.11.0-beta1:** Shows tips for all nodes when multi-node mode is enabled.
+
+- **Usage:**
+```bash
+tip
+```
+
+### info
+
+To show devnet details, service URLs, and integration helpers for the current node.
+
+- **Usage:**
+```bash
+info
+```
+
+The output includes node mode details, Yaci Store/Ogmios/Kupo URLs when enabled, Wallet SDK / CIP-30 links, and the MCP server URL/config snippet.
+
+## Log Commands
+
+### logs
+
+To show the logs of the node.
+
+- **Usage:**
+```bash
+logs
+```
+
+### yaci-store-logs
+
+To show the logs of the yaci-store (if enabled).
+
+- **Usage:**
+```bash
+yaci-store-logs
+```
+
+### ogmios-logs
+
+To show the logs of the ogmios (if enabled).
+
+- **Usage:**
+```bash
+ogmios-logs
+```
+
+### kupo-logs
+
+To show the logs of the kupo (if enabled).
+
+- **Usage:**
+```bash
+kupo-logs
+```
+
+## Rollback Commands (0.11.0-beta1+)
+
+Rollback testing commands for simulating blockchain rollbacks. For detailed rollback testing guide, see [Rollback Testing](./rollback-testing).
+
+### create-forks
+
+Creates network forks by isolating nodes through TCP proxy. Goes through Ouroboros consensus.
+
+- **Usage:**
+```bash
+create-forks
+```
+
+**Note:** Requires `--enable-multi-node` flag when creating the devnet.
+
+### join-forks
+
+Reconnects forked nodes, triggering consensus-based rollback.
+
+- **Usage:**
+```bash
+join-forks
+```
+
+### take-db-snapshot
+
+Take a database snapshot at rollback point (non-consensus).
+
+- **Usage:**
+```bash
+take-db-snapshot
+```
+
+### rollback-to-db-snapshot
+
+Restores database to the previously taken db snapshot to simulate rollback (non-consensus).
+
+- **Usage:**
+```bash
+rollback-to-db-snapshot
+```

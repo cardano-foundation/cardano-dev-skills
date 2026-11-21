@@ -1,0 +1,31 @@
+type: array
+items:
+  type: object
+  properties:
+    index:
+      type: integer
+      example: 0
+      description: Index of the certificate within the transaction
+      deprecated: true
+    cert_index:
+      type: integer
+      example: 0
+      description: Index of the certificate within the transaction
+    address:
+      type: string
+      example: "stake1u9r76ypf5fskppa0cmttas05cgcswrttn6jrq4yd7jpdnvc7gt0yc"
+      description: Bech32 delegation stake address
+    pool_id:
+      type: string
+      example: "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy"
+      description: Bech32 ID of delegated stake pool
+    active_epoch:
+      type: integer
+      example: 210
+      description: Epoch in which the delegation becomes active
+  required:
+    - index
+    - cert_index
+    - address
+    - pool_id
+    - active_epoch

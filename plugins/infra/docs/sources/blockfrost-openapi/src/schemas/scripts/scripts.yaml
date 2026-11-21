@@ -1,0 +1,13 @@
+type: array
+items:
+  type: object
+  properties:
+    script_hash:
+      type: string
+      description: Script hash
+  required:
+    - script_hash
+example:
+  - script_hash: "13a3efd825703a352a8f71f4e2758d08c28c564e8dfcce9f77776ad1"
+  - script_hash: "e1457a0c47dfb7a2f6b8fbb059bdceab163c05d34f195b87b9f2b30e"
+  - script_hash: "a6e63c0ff05c96943d1cc30bf53112ffff0f34b45986021ca058ec54"

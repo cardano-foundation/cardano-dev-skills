@@ -1,0 +1,32 @@
+get:
+  tags:
+    - Cardano » Governance
+  summary: GovActionID Proposal parameters
+  description: Parameters proposal details.
+  parameters:
+    - in: path
+      name: gov_action_id
+      required: true
+      schema:
+        type: string
+      description: Governance Action Identifier (CIP-0129)
+      example: "gov_action1zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsq6dmejn"
+  responses:
+    "200":
+      description: Return the proposal parameters content
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../../schemas/governance/proposal_parameters.yaml
+    "400":
+      $ref: ../../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../../responses/errors/500.yaml

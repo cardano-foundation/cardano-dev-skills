@@ -1,0 +1,9 @@
+type: array
+items:
+  type: string
+  description: Block hashes
+example:
+  - "d8982ca42cfe76b747cc681d35d671050a9e41e9cfe26573eb214e94fe6ff21d"
+  - "026436c539e2ce84c7f77ffe669f4e4bbbb3b9c53512e5857dcba8bb0b4e9a8c"
+  - "bcc8487f419b8c668a18ea2120822a05df6dfe1de1f0fac3feba88cf760f303c"
+  - "86bf7b4a274e0f8ec9816171667c1b4a0cfc661dc21563f271acea9482b62df7"

@@ -1,0 +1,38 @@
+### Command Line Options
+
+- **General Options:**
+  - `--config FILEPATH`: Path to the db-sync node config file
+  - `--socket-path FILEPATH`: Path to a cardano-node socket
+  - `--state-dir FILEPATH`: The directory for persisting ledger state.
+  - `--schema-dir FILEPATH`: The directory containing the migrations.
+  - `--pg-pass-env ENV`: Alternative env variable to use, defaults to `PGPASSFILE` env variable.
+  - `--skip-fix`: Disables the db-sync fix procedure for the wrong datum and redeemer_data bytes.
+  - `--force-indexes`: Forces the Index creation at the start of db-sync. Normally they're created later.
+  - `--fix-only`: Runs only the db-sync fix procedure for the wrong datum, redeemer_data, and plutus script bytes and exits.
+  - `--disable-cache`: Disables the db-sync caches. Reduces memory usage but it takes longer to sync.
+  - `--rollback-to-slot SLOTNO`: Force a rollback to the specified slot, if the given slot doesn't exist it will use the next greater slot. See [Manual Rollbacks](manual-rollbacks.md) for details.
+  - `--disable-in-out`: Disables the `tx_in` and `tx_out` table.
+  - `--allow-private-offchain-urls`: Allows the off-chain pool and vote metadata fetchers to connect to URLs whose host or resolved IP is in a private, loopback, or link-local range. Off by default. Intended for local-cluster testing.
+  - `--ledger-only`: Replay the chain through the ledger without ever opening the database: no connection, no migration, no query and no insert. db-sync follows the node, advances the ledger state and writes ledger snapshots to `--state-dir`. Needs `"ledger": "enable"` in the config, and no `PGPASSFILE` or running PostgreSQL. See [State Snapshot](state-snapshot.md#producing-snapshots-without-a-database).
+
+- **Deprecated Options (for historical reference only):**
+  - For more details, refer to [Configuration Documentation](https://github.com/IntersectMBO/cardano-db-sync/blob/master/doc/configuration.md)
+  - `--disable-offline-data`
+  - `--disable-ledger`
+  - `--dont-use-ledger`
+  - `--keep-tx-metadata`
+  - `--disable-epoch` (replaced by `disable_epoch` in `insert_options`)
+  - `--disable-shelley`
+  - `--disable-multiassets`
+  - `--disable-metadata`
+  - `--disable-plutus-extra`
+  - `--disable-gov`
+  - `--disable-offchain-pool-data`
+  - `--force-tx-in`
+  - `--disable-all`
+  - `--full`
+  - `--only-utxo`
+  - `--only-gov`
+  - `--consumed-tx-out`
+  - `--prune-tx-out`
+  - `--bootstrap-tx-out`

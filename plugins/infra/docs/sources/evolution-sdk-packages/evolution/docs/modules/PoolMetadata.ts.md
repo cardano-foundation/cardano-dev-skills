@@ -1,0 +1,244 @@
+---
+title: PoolMetadata.ts
+nav_order: 100
+parent: Modules
+---
+
+## PoolMetadata overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [conversion](#conversion)
+  - [fromCBORBytes](#fromcborbytes)
+  - [fromCBORHex](#fromcborhex)
+  - [toCBORBytes](#tocborbytes)
+  - [toCBORHex](#tocborhex)
+- [model](#model)
+  - [PoolMetadata (class)](#poolmetadata-class)
+    - [toJSON (method)](#tojson-method)
+    - [toString (method)](#tostring-method)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method)
+    - [[Equal.symbol] (method)](#equalsymbol-method)
+    - [[Hash.symbol] (method)](#hashsymbol-method)
+- [schemas](#schemas)
+  - [FromCBORBytes](#fromcborbytes-1)
+  - [FromCBORHex](#fromcborhex-1)
+  - [FromCDDL](#fromcddl)
+- [testing](#testing)
+  - [arbitrary](#arbitrary)
+
+---
+
+# conversion
+
+## fromCBORBytes
+
+Convert CBOR bytes to PoolMetadata (unsafe)
+
+**Signature**
+
+```ts
+export declare const fromCBORBytes: (bytes: Uint8Array, options?: CBOR.CodecOptions) => PoolMetadata
+```
+
+Added in v2.0.0
+
+## fromCBORHex
+
+Convert CBOR hex string to PoolMetadata (unsafe)
+
+**Signature**
+
+```ts
+export declare const fromCBORHex: (hex: string, options?: CBOR.CodecOptions) => PoolMetadata
+```
+
+Added in v2.0.0
+
+## toCBORBytes
+
+Convert PoolMetadata to CBOR bytes (unsafe)
+
+**Signature**
+
+```ts
+export declare const toCBORBytes: (poolMetadata: PoolMetadata, options?: CBOR.CodecOptions) => any
+```
+
+Added in v2.0.0
+
+## toCBORHex
+
+Convert PoolMetadata to CBOR hex string (unsafe)
+
+**Signature**
+
+```ts
+export declare const toCBORHex: (poolMetadata: PoolMetadata, options?: CBOR.CodecOptions) => string
+```
+
+Added in v2.0.0
+
+# model
+
+## PoolMetadata (class)
+
+Schema for PoolMetadata representing pool metadata information.
+pool_metadata = [url, bytes]
+
+**Signature**
+
+```ts
+export declare class PoolMetadata
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+Convert to JSON-serializable object.
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+Added in v2.0.0
+
+### toString (method)
+
+Convert to string representation.
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+Added in v2.0.0
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+Custom inspect for Node.js REPL.
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+Added in v2.0.0
+
+### [Equal.symbol] (method)
+
+Structural equality check.
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+Added in v2.0.0
+
+### [Hash.symbol] (method)
+
+Hash code generation.
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+Added in v2.0.0
+
+# schemas
+
+## FromCBORBytes
+
+CBOR bytes transformation schema for PoolMetadata.
+Transforms between Uint8Array and PoolMetadata using CBOR encoding.
+
+**Signature**
+
+```ts
+export declare const FromCBORBytes: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.transformOrFail<
+    typeof Schema.Uint8ArrayFromSelf,
+    Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+    never
+  >,
+  Schema.transform<
+    Schema.Tuple2<typeof Schema.String, typeof Schema.Uint8ArrayFromSelf>,
+    Schema.SchemaClass<PoolMetadata, PoolMetadata, never>
+  >
+>
+```
+
+Added in v2.0.0
+
+## FromCBORHex
+
+CBOR hex transformation schema for PoolMetadata.
+Transforms between hex string and PoolMetadata using CBOR encoding.
+
+**Signature**
+
+```ts
+export declare const FromCBORHex: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.Schema<Uint8Array, string, never>,
+  Schema.transform<
+    Schema.transformOrFail<
+      typeof Schema.Uint8ArrayFromSelf,
+      Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+      never
+    >,
+    Schema.transform<
+      Schema.Tuple2<typeof Schema.String, typeof Schema.Uint8ArrayFromSelf>,
+      Schema.SchemaClass<PoolMetadata, PoolMetadata, never>
+    >
+  >
+>
+```
+
+Added in v2.0.0
+
+## FromCDDL
+
+CDDL schema for PoolMetadata as defined in the specification:
+pool_metadata = [url, bytes]
+
+Transforms between CBOR tuple structure and PoolMetadata model.
+
+**Signature**
+
+```ts
+export declare const FromCDDL: Schema.transform<
+  Schema.Tuple2<typeof Schema.String, typeof Schema.Uint8ArrayFromSelf>,
+  Schema.SchemaClass<PoolMetadata, PoolMetadata, never>
+>
+```
+
+Added in v2.0.0
+
+# testing
+
+## arbitrary
+
+FastCheck arbitrary for generating random PoolMetadata instances
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<PoolMetadata>
+```
+
+Added in v2.0.0

@@ -1,0 +1,78 @@
+get:
+  tags:
+    - Cardano » Governance
+  summary: Delegate Representatives (DReps)
+  description: Return the information about Delegate Representatives (DReps)
+  parameters:
+    - in: query
+      name: count
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 100
+      description: The number of results displayed on one page.
+    - in: query
+      name: page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 21474836
+        default: 1
+      description: The page number for listing the results.
+    - in: query
+      name: order
+      required: false
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: asc
+      description: |
+        The ordering of items. Direction applied to whichever sort key is selected by `order_by`.
+        By default, when sorting by registration order, we return oldest first, newest last.
+    - in: query
+      name: order_by
+      required: false
+      schema:
+        type: string
+        enum: [amount]
+      description: |
+        Optional sort key. When omitted, DReps are ordered by their internal registration order
+        (the current default). Set to `amount` to sort by voting power.
+    - in: query
+      name: retired
+      required: false
+      schema:
+        type: boolean
+      description: |
+        Optional filter. When `true`, only returns DReps that have been deregistered.
+        When `false`, only returns DReps that are currently registered.
+        When omitted, both are returned.
+    - in: query
+      name: expired
+      required: false
+      schema:
+        type: boolean
+      description: |
+        Optional filter. When `true`, only returns DReps that have been inactive for longer than
+        the `drep_activity` protocol parameter. When `false`, only returns DReps that are not
+        expired. When omitted, both are returned.
+  responses:
+    "200":
+      description: Paginated array with the Delegate Representatives (DReps) data
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../schemas/governance/dreps.yaml
+    "400":
+      $ref: ../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../responses/errors/403.yaml
+    "429":
+      $ref: ../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../responses/errors/500.yaml

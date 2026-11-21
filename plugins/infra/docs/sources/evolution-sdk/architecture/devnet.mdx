@@ -1,0 +1,479 @@
+---
+title: Devnet
+description: Local Cardano network orchestration for development and testing
+---
+
+## Abstract
+
+Devnet orchestrates a complete Cardano network stack locally using Docker containers. It configures and manages a cardano-node as block producer, optional Kupo chain indexer, and optional Ogmios query layer. Genesis UTxOs are deterministically calculated by hashing address bytes to produce pseudo-TxIds, matching Cardano's `initialFundsPseudoTxIn` algorithm. Clusters support configurable protocol parameters, fast block times, and custom initial fund distribution—enabling rapid development cycles without external network dependencies.
+
+## Purpose and Scope
+
+This document explains how Devnet creates isolated Cardano networks, how genesis UTxOs are calculated deterministically, and how container lifecycle management works. It covers cluster composition (node + optional indexers), configuration injection (genesis files, keys, topology), startup sequencing (node first, then indexers), and genesis UTxO derivation using blake2b hashing.
+
+**Not covered**: Docker internals (see Docker documentation), Cardano node configuration details (see node documentation), or provider integration patterns (see provider layer documentation).
+
+## Design Philosophy
+
+Production networks require synchronization, stake pool delegation, and real ADA. Development needs fast iteration: instant finality, configurable funds, and disposable state. Devnet resolves this tension by creating ephemeral networks that behave like production but start fresh in seconds.
+
+Genesis configuration defines the initial blockchain state—who holds funds, protocol parameters, slot timing. Rather than waiting for chain sync, Devnet deterministically calculates all genesis UTxOs before the node starts. These calculated UTxOs match exactly what the node will produce, because both use the same algorithm: hash address bytes to derive TxId, use output index zero.
+
+Container orchestration ensures correct startup order: node produces blocks first, then indexers consume them. Shared volumes coordinate communication (IPC sockets, configuration files). The cluster becomes a single logical unit—start all containers together, stop them together, remove them together.
+
+## Cluster Composition
+
+A Devnet cluster orchestrates three container types with defined dependencies and communication channels:
+
+<Mermaid chart={`
+graph TB
+    subgraph Cluster["Devnet Cluster"]
+        direction TB
+        
+        subgraph Node["[1] Cardano Node Required"]
+            BlockProd[Block Producer]
+            Socket["IPC node.socket"]
+            Config["Config files"]
+        end
+        
+        subgraph Kupo["[2] Kupo Optional"]
+            ChainIndex[Chain Indexer]
+            KupoAPI["HTTP API :1442"]
+        end
+        
+        subgraph Ogmios["[3] Ogmios Optional"]
+            QueryLayer[Query Layer]
+            OgmiosAPI["WebSocket API :1337"]
+        end
+        
+        Socket --> ChainIndex
+        Socket --> QueryLayer
+        Config --> ChainIndex
+        Config --> QueryLayer
+        
+        BlockProd --> Socket
+    end
+    
+    User[Application Code] --> KupoAPI
+    User --> OgmiosAPI
+    User --> BlockProd
+    
+    linkStyle default stroke:#64748b,stroke-width:2px
+    
+    style Cluster fill:#ffffff,stroke:#334155,stroke-width:3px,color:#000000
+    style Node fill:#dbeafe,stroke:#1e40af,stroke-width:3px,color:#000000
+    style Kupo fill:#dbeafe,stroke:#1e40af,stroke-width:3px,color:#000000
+    style Ogmios fill:#dbeafe,stroke:#1e40af,stroke-width:3px,color:#000000
+    style BlockProd fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+    style ChainIndex fill:#8b5cf6,stroke:#4c1d95,stroke-width:3px,color:#ffffff
+    style QueryLayer fill:#8b5cf6,stroke:#4c1d95,stroke-width:3px,color:#ffffff
+    style Socket fill:#fbbf24,stroke:#92400e,stroke-width:3px,color:#000000
+    style Config fill:#fbbf24,stroke:#92400e,stroke-width:3px,color:#000000
+    style User fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+    style KupoAPI fill:#f97316,stroke:#9a3412,stroke-width:3px,color:#ffffff
+    style OgmiosAPI fill:#f97316,stroke:#9a3412,stroke-width:3px,color:#ffffff
+`} />
+
+**[1] Cardano Node (Required)**: Block-producing node configured as sole stake pool. Runs in single-producer mode with 100% active slot coefficient (every slot produces a block). Exposes IPC socket for local communication and optional HTTP ports for remote submission. Requires genesis files (Byron, Shelley, Alonzo, Conway), KES key, VRF key, and operational certificate.
+
+**[2] Kupo (Optional)**: Fast UTxO indexer that monitors chain events via node socket. Builds queryable index of UTxOs matching patterns (addresses, policy IDs, or all outputs). Exposes HTTP API for UTxO lookups. Depends on node socket availability and genesis configuration for chain parameters.
+
+**[3] Ogmios (Optional)**: Lightweight query layer providing WebSocket API for chain queries (protocol parameters, UTxOs, transaction submission). Communicates with node via IPC socket. Exposes standardized JSON-RPC interface. Depends on node socket and genesis configuration.
+
+## Configuration and Initialization
+
+Cluster creation involves preparing configuration artifacts, writing them to temporary storage, and injecting them into containers via volume mounts:
+
+<Mermaid chart={`
+graph TB
+    subgraph Init["Initialization Flow"]
+        direction TB
+        
+        Start[Create Cluster]
+        Merge[Merge Config<br/>with Defaults]
+        TempDir[Create Temp Directory<br/>/tmp/cardano-devnet-*]
+        
+        subgraph Files["Write Config Files"]
+            WriteNode["config.json<br/>topology.json"]
+            WriteGenesis["genesis-byron.json<br/>genesis-shelley.json<br/>genesis-alonzo.json<br/>genesis-conway.json"]
+            WriteKeys["kes.skey 0600<br/>pool.cert 0600<br/>vrf.skey 0600"]
+        end
+        
+        subgraph Containers["Create Containers"]
+            CheckExisting[Remove Existing<br/>Containers]
+            PullImages["Pull Docker Images<br/>if not available"]
+            CreateNode[Create Node Container]
+            CreateKupo[Create Kupo Container<br/>if enabled]
+            CreateOgmios[Create Ogmios Container<br/>if enabled]
+        end
+        
+        VolumeBind[Mount Temp Dir<br/>into Containers]
+        ReturnCluster[Return Cluster Handle]
+        
+        Start --> Merge
+        Merge --> TempDir
+        TempDir --> Files
+        Files --> Containers
+        Containers --> VolumeBind
+        VolumeBind --> ReturnCluster
+    end
+    
+    style Init fill:none,stroke:#34495e,stroke-width:3px,color:#000000
+    style Start fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+    style Merge fill:#3b82f6,stroke:#1e3a8a,stroke-width:2px,color:#ffffff
+    style TempDir fill:#3b82f6,stroke:#1e3a8a,stroke-width:2px,color:#ffffff
+    style Files fill:#f0f9ff,stroke:#1e3a8a,stroke-width:2px,color:#000000
+    style Containers fill:#f0f9ff,stroke:#1e3a8a,stroke-width:2px,color:#000000
+    style WriteNode fill:#3b82f6,stroke:#1e3a8a,stroke-width:2px,color:#ffffff
+    style WriteGenesis fill:#3b82f6,stroke:#1e3a8a,stroke-width:2px,color:#ffffff
+    style WriteKeys fill:#ef4444,stroke:#991b1b,stroke-width:2px,color:#ffffff
+    style CheckExisting fill:#f59e0b,stroke:#92400e,stroke-width:2px,color:#ffffff
+    style PullImages fill:#8b5cf6,stroke:#4c1d95,stroke-width:2px,color:#ffffff
+    style CreateNode fill:#3b82f6,stroke:#1e3a8a,stroke-width:2px,color:#ffffff
+    style CreateKupo fill:#3b82f6,stroke:#1e3a8a,stroke-width:2px,color:#ffffff
+    style CreateOgmios fill:#3b82f6,stroke:#1e3a8a,stroke-width:2px,color:#ffffff
+    style VolumeBind fill:#8b5cf6,stroke:#4c1d95,stroke-width:2px,color:#ffffff
+    style ReturnCluster fill:#2ecc71,stroke:#27ae60,stroke-width:4px,color:#ffffff
+`} />
+
+**Merge Config with Defaults**: Provided configuration merges with comprehensive defaults (protocol parameters, genesis balances, network magic, port assignments). Unspecified values use battle-tested defaults optimized for fast devnet operation (1-second slots, instant era activation, minimal epoch length).
+
+**Create Temp Directory**: System temp directory gets unique subdirectory (`cardano-devnet-{random}`) to hold configuration files. Prevents conflicts between concurrent clusters. Directory persists while containers run, deleted manually or on system cleanup.
+
+**Write Config Files**: Node configuration, topology (empty producers array for isolated network), four genesis files (one per era), and cryptographic keys. Keys receive restricted permissions (0600 = owner read/write only) for security. Genesis files contain protocol parameters, initial funds distribution, and stake pool configuration.
+
+**Remove Existing Containers**: Before creating new containers, checks for existing containers with matching names. If found, stops them (if running) and removes them. Enables cluster recreation without manual cleanup. Prevents port conflicts and stale state.
+
+**Pull Docker Images**: Checks local Docker daemon for required images. If missing, pulls from registry with progress logging. Applies to node image (cardano-node), Kupo image (if enabled), and Ogmios image (if enabled). First run slower due to image download, subsequent runs instant.
+
+**Create Containers**: Instantiates Docker containers (not started yet) with port bindings, volume mounts, environment variables, and command arguments. Node container mounts temp directory as read-only for config/keys, shared IPC volume for socket. Kupo/Ogmios containers mount same volumes to access socket and genesis files.
+
+**Mount Temp Dir into Containers**: Bind mounts link host temp directory to container paths: `/opt/cardano/config` (read-only, genesis/config), `/opt/cardano/keys` (read-only, cryptographic keys), `/opt/cardano/ipc` (read-write, node socket). Containers share configuration without copying files.
+
+**Return Cluster Handle**: Cluster object contains container IDs, container names, and network name. Handle enables lifecycle operations (start, stop, remove, inspect). Immutable value—doesn't change after creation.
+
+## Startup Sequencing
+
+Containers must start in dependency order to establish communication channels before dependent services attempt connections:
+
+<Mermaid chart={`
+sequenceDiagram
+    participant User
+    participant Cluster
+    participant Node as Cardano Node
+    participant Kupo
+    participant Ogmios
+    
+    User->>Cluster: start(cluster)
+    
+    Note over Cluster: [1] Start Node First
+    Cluster->>Node: container.start()
+    Node->>Node: Initialize database
+    Node->>Node: Load genesis
+    Node->>Node: Create IPC socket
+    Node->>Node: Start block production
+    
+    Note over Cluster: [2] Wait for First Block
+    loop Monitor Logs
+        Cluster->>Node: Read stdout/stderr stream
+        Node-->>Cluster: Log lines
+        alt Block Produced
+            Node-->>Cluster: "Forge.Loop.AdoptedBlock"
+            Note over Cluster: Socket ready, chain started
+        end
+    end
+    
+    Note over Cluster: [3] Start Indexers
+    alt Kupo Enabled
+        Cluster->>Kupo: container.start()
+        Kupo->>Node: Connect to socket
+        Kupo->>Kupo: Read genesis
+        Kupo->>Kupo: Index existing blocks
+        Kupo->>Kupo: Expose HTTP API
+    end
+    
+    alt Ogmios Enabled
+        Cluster->>Ogmios: container.start()
+        Ogmios->>Node: Connect to socket
+        Ogmios->>Ogmios: Read protocol params
+        Ogmios->>Ogmios: Expose WebSocket API
+    end
+    
+    Cluster-->>User: Cluster ready
+`} />
+
+**[1] Start Node First**: Node container starts before dependent services. Performs database initialization, genesis loading, and IPC socket creation. Takes several seconds for initial setup. Socket file appears in shared IPC volume once node completes initialization.
+
+**[2] Wait for First Block**: Cluster monitors node logs (stdout/stderr streams) for block production indicators. Looks for `Forge.Loop.AdoptedBlock` or `Forge.Loop.NodeIsLeader` messages indicating successful block creation. First block confirms node initialized correctly, socket available, and chain progressing. Critical synchronization point—indexers need active chain before connecting.
+
+**[3] Start Indexers**: After node produces first block, Kupo and Ogmios containers start (if enabled). Both connect to node socket immediately (socket already exists). Kupo begins indexing from genesis or configured starting point. Ogmios queries protocol parameters and begins serving requests. Startup order ensures socket exists before connection attempts.
+
+## Genesis UTxO Calculation
+
+Genesis UTxOs are calculated deterministically by hashing address bytes to produce TxIds, matching Cardano's ledger implementation. This enables UTxO prediction before node startup:
+
+<Mermaid chart={`
+graph TB
+    subgraph Genesis["Genesis Config"]
+        InitialFunds["initialFunds<br/>Address → Lovelace"]
+    end
+    
+    subgraph Calculation["UTxO Derivation"]
+        direction TB
+        
+        AddrHex["Address Hex<br/>from config key"]
+        AddrBytes[Deserialize<br/>to Address Bytes]
+        Blake2b["Blake2b-256 Hash<br/>32 bytes"]
+        TxId["TxId<br/>hash hex"]
+        Output["UTxO<br/>index=0"]
+        
+        AddrHex --> AddrBytes
+        AddrBytes --> Blake2b
+        Blake2b --> TxId
+        TxId --> Output
+    end
+    
+    subgraph Result["Genesis UTxO"]
+        TxHash[txHash:<br/>blake2b hash]
+        Index[outputIndex: 0]
+        Addr[address:<br/>bech32]
+        Balance[assets:<br/>lovelace amount]
+    end
+    
+    InitialFunds -->|for each entry| AddrHex
+    Output --> Result
+    
+    style Genesis fill:none,stroke:#34495e,stroke-width:3px,color:#000000
+    style Calculation fill:#f0f9ff,stroke:#1e3a8a,stroke-width:2px,color:#000000
+    style Result fill:#f0f9ff,stroke:#1e3a8a,stroke-width:2px,color:#000000
+    style InitialFunds fill:#3b82f6,stroke:#1e3a8a,stroke-width:2px,color:#ffffff
+    style AddrHex fill:#3b82f6,stroke:#1e3a8a,stroke-width:2px,color:#ffffff
+    style AddrBytes fill:#8b5cf6,stroke:#4c1d95,stroke-width:2px,color:#ffffff
+    style Blake2b fill:#3b82f6,stroke:#1e3a8a,stroke-width:3px,color:#ffffff
+    style TxId fill:#8b5cf6,stroke:#4c1d95,stroke-width:2px,color:#ffffff
+    style Output fill:#3b82f6,stroke:#1e3a8a,stroke-width:2px,color:#ffffff
+    style TxHash fill:#2ecc71,stroke:#27ae60,stroke-width:2px,color:#ffffff
+    style Index fill:#2ecc71,stroke:#27ae60,stroke-width:2px,color:#ffffff
+    style Addr fill:#2ecc71,stroke:#27ae60,stroke-width:2px,color:#ffffff
+    style Balance fill:#2ecc71,stroke:#27ae60,stroke-width:2px,color:#ffffff
+`} />
+
+**Address Hex from Config**: Genesis shelley configuration maps addresses (hex-encoded) to lovelace amounts in `initialFunds` object. Each key-value pair becomes one genesis UTxO. Multiple addresses supported for distributing initial funds across test wallets.
+
+**Deserialize to Address Bytes**: Hex address string converts to raw bytes representing Cardano address structure (network tag, payment credential, stake credential). These bytes (not the hex string) get hashed to produce TxId. Matches Cardano ledger's serialization: `serialiseAddr addr`.
+
+**Blake2b-256 Hash**: Address bytes pass through Blake2b-256 hash function with 32-byte output length. This hash becomes the UTxO's TxId. Algorithm: `blake2b(addressBytes, dkLen: 32)`. Same hash function used throughout Cardano protocol for transaction IDs, policy IDs, and credential hashes.
+
+**TxId (Hash Hex)**: Hash bytes convert to 64-character hex string representing the transaction ID. This pseudo-TxId uniquely identifies the genesis transaction for this address. Multiple addresses produce different TxIds because hash input (address bytes) differs. Deterministic—same address always produces same TxId.
+
+**UTxO (Index = 0)**: Genesis UTxOs always use output index zero (minBound in Haskell terms). Cardano ledger rule: each genesis address gets exactly one output at index 0. Combined with unique TxId per address, produces unique UTxO reference (TxHash + OutputIndex pair).
+
+**Resulting UTxO**: Complete UTxO object contains: transaction hash (derived from address hash), output index (always 0), address (bech32-encoded for human readability), and assets (lovelace amount from initialFunds configuration). This UTxO exists immediately after genesis block, spendable by address owner.
+
+## Lifecycle Management
+
+Clusters support create-start-stop-remove lifecycle with independent container control:
+
+<Mermaid chart={`
+stateDiagram-v2
+    [*] --> Created: Cluster.make()
+    Created --> Running: Cluster.start()
+    Running --> Stopped: Cluster.stop()
+    Stopped --> Running: Cluster.start()
+    Stopped --> Removed: Cluster.remove()
+    Created --> Removed: Cluster.remove()
+    Removed --> [*]
+    
+    state Created {
+        [*] --> ContainersCreated
+        ContainersCreated --> VolumesCreated
+        VolumesCreated --> ConfigWritten
+    }
+    
+    state Running {
+        [*] --> NodeRunning
+        NodeRunning --> IndexersRunning
+    }
+    
+    state Stopped {
+        [*] --> NodeStopped
+        NodeStopped --> IndexersStopped
+    }
+`} />
+
+**Cluster.make()**: Creates all containers and writes configuration files. Containers exist but not started. Returns cluster handle immediately. Safe to call multiple times with different cluster names—each gets isolated containers and configuration. Previous clusters unaffected.
+
+**Cluster.start()**: Starts all containers in dependency order (node first, indexers after first block). Monitors node logs for block production. Returns when cluster fully operational (all containers running, APIs ready). Idempotent—safe to call on already-running cluster (no-op).
+
+**Cluster.stop()**: Stops all containers in reverse dependency order (indexers first, node last). Preserves container state and volumes (data persists). Quick operation (seconds). Containers remain created—can restart without recreating. Useful for pausing development without losing chain state.
+
+**Cluster.remove()**: Stops containers (if running) then removes them permanently. Deletes container state (not volumes). Configuration files in temp directory remain (manual cleanup or system temp cleanup). Cluster handle becomes invalid after removal. Use when completely done with cluster or recreating from scratch.
+
+**Individual Container Control**: Container.start(), Container.stop(), Container.remove() operate on single containers. Enable fine-grained control (restart just Kupo, stop node while keeping Ogmios container created). Used internally by Cluster operations but available for custom orchestration patterns.
+
+## Image Management
+
+Docker images are pulled automatically if not available locally, with explicit download control:
+
+<Mermaid chart={`
+graph TB
+    subgraph ImageCheck["Image Availability"]
+        Check[Container.isImageAvailable]
+        Query[Docker API:<br/>listImages]
+        
+        Check --> Query
+    end
+    
+    subgraph ImagePull["Image Download"]
+        Pull[Container.downloadImage]
+        DockerPull[Docker API:<br/>pull image]
+        Progress["Monitor Progress<br/>download, extract"]
+        Complete[Image Ready]
+        
+        Pull --> DockerPull
+        DockerPull --> Progress
+        Progress --> Complete
+    end
+    
+    subgraph EnsureImage["Ensure Available"]
+        Ensure[Container.ensureImageAvailable]
+        CheckLocal{Available<br/>Locally?}
+        UseLocal[Use Existing Image]
+        Download[Download Image]
+        
+        Ensure --> CheckLocal
+        CheckLocal -->|Yes| UseLocal
+        CheckLocal -->|No| Download
+    end
+    
+    Query -->|not found| Pull
+    Query -->|found| UseLocal
+    
+    style ImageCheck fill:#f0f9ff,stroke:#1e3a8a,stroke-width:2px,color:#000000
+    style ImagePull fill:#f0f9ff,stroke:#1e3a8a,stroke-width:2px,color:#000000
+    style EnsureImage fill:#f0f9ff,stroke:#1e3a8a,stroke-width:2px,color:#000000
+    style Check fill:#3b82f6,stroke:#1e3a8a,stroke-width:2px,color:#ffffff
+    style Query fill:#8b5cf6,stroke:#4c1d95,stroke-width:2px,color:#ffffff
+    style Pull fill:#3b82f6,stroke:#1e3a8a,stroke-width:2px,color:#ffffff
+    style DockerPull fill:#8b5cf6,stroke:#4c1d95,stroke-width:2px,color:#ffffff
+    style Progress fill:#8b5cf6,stroke:#4c1d95,stroke-width:2px,color:#ffffff
+    style Complete fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style Ensure fill:#3b82f6,stroke:#1e3a8a,stroke-width:2px,color:#ffffff
+    style CheckLocal fill:#f59e0b,stroke:#92400e,stroke-width:2px,color:#ffffff
+    style UseLocal fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#ffffff
+    style Download fill:#8b5cf6,stroke:#4c1d95,stroke-width:2px,color:#ffffff
+`} />
+
+**isImageAvailable**: Queries Docker daemon for image by name (including tag). Returns boolean indicating local availability. Fast operation (local query only, no network). Used to determine if download required.
+
+**downloadImage**: Initiates pull from Docker registry (Docker Hub or configured registry). Streams progress events (downloading, extracting). Logs major status changes (layer downloads, completion). First download takes minutes depending on image size and network speed. Subsequent pulls check for updates (fast if no changes).
+
+**ensureImageAvailable**: Combines check and download—queries locally first, pulls only if missing. Preferred method for most operations. Minimizes network traffic (no redundant downloads). Cluster.make() uses this internally for all required images (node, Kupo, Ogmios).
+
+## Container Execution
+
+Arbitrary commands can execute inside running containers, enabling chain queries and operational commands:
+
+<Mermaid chart={`
+sequenceDiagram
+    participant App as Application
+    participant API as Container.execCommand
+    participant Docker as Docker Daemon
+    participant Container
+    
+    App->>API: execCommand(container, ["cardano-cli", "query", "tip", ...])
+    
+    API->>Docker: Create exec instance
+    Docker->>Container: Prepare command execution
+    Docker-->>API: Exec handle
+    
+    API->>Docker: Start exec
+    Docker->>Container: Run command
+    
+    Note over Container: Command executes<br/>with container environment
+    
+    Container->>Container: Generate output
+    Container->>Docker: stdout/stderr streams
+    
+    Docker->>API: Multiplexed stream
+    API->>API: Demultiplex streams<br/>(separate stdout/stderr)
+    
+    API->>API: Collect stdout
+    Note over API: Wait for stream end
+    
+    Container->>Docker: Command completes
+    Docker-->>API: Stream ends
+    
+    API-->>App: Return stdout string
+`} />
+
+**Create Exec Instance**: Docker daemon prepares command execution context within running container. Command inherits container's environment variables, filesystem mounts, and network configuration. Exec instance gets unique ID for tracking.
+
+**Start Exec**: Command begins running inside container's process namespace. Attaches to stdout and stderr streams. Runs synchronously—caller blocks until completion. No detached mode (commands run to completion before returning).
+
+**Multiplexed Stream**: Docker sends stdout and stderr over single stream with frame headers indicating stream type. Required because Docker API multiplexes multiple streams over one connection. Raw stream contains 8-byte headers before each chunk (stream type, frame size).
+
+**Demultiplex Streams**: Docker client library separates stdout and stderr using frame headers. Writes stdout chunks to stdout stream, stderr chunks to stderr stream. Removes frame headers, returns clean output. Application receives separate stdout (collected) and stderr (available but typically discarded).
+
+**Return Stdout**: Command output (stdout only) returns as trimmed string. Newlines preserved. Used for programmatic queries—JSON parsing, log analysis, chain state inspection. Common use case: `cardano-cli query tip` returns JSON with current slot/epoch/block.
+
+## Use Cases
+
+Devnet supports diverse development and testing scenarios through flexible configuration:
+
+**Fast Development Cycles**: Configure 1-second slots with 100% active coefficient (every slot produces block). Instant transaction confirmation (no waiting for slot lottery). Rapid iteration on transaction building, validation logic, and error handling. Modify code, restart cluster (seconds), test immediately.
+
+**Custom Initial State**: Distribute genesis funds across multiple test addresses. Configure protocol parameters (min fees, max tx size, ExUnits limits). Enable/disable specific eras (start directly in Conway). Create test scenarios with specific initial conditions (pre-funded addresses, custom stake distribution).
+
+**Isolated Test Environment**: Each cluster uses unique container names and ports. Run multiple clusters simultaneously for parallel tests. No interference between test suites. Disposable state—remove cluster, recreate fresh. No external dependencies (mainnet/testnet unavailable, local network sufficient).
+
+**Chain Query Integration**: Kupo indexes all UTxOs for fast address queries. Ogmios provides protocol parameters, chain tip, transaction submission. Container.execCommand enables direct cardano-cli usage (query tip, query UTxO, calculate min fee). Complete development stack without external services.
+
+**Genesis UTxO Verification**: Calculate genesis UTxOs before node starts for test setup. Query actual UTxOs from running node for verification. Compare calculated vs. queried to validate algorithm correctness. Use calculated UTxOs as seed funds for transaction tests (known TxHash, known balance).
+
+**Deterministic Testing**: Same genesis configuration produces same initial state every time. Genesis UTxO TxIds deterministically derived from addresses (reproducible across runs). Enables repeatable test scenarios—same addresses, same balances, same UTxO references. Critical for CI/CD pipelines requiring consistent test conditions.
+
+## Configuration Merging
+
+User-provided configuration merges deeply with defaults, allowing partial overrides without specifying entire configuration:
+
+**Top-Level Defaults**: Cluster name defaults to "evolution-devnet". Node image defaults to latest cardano-node stable release. Ports default to non-conflicting values (node: 6000, submit: 9001, Kupo: 1442, Ogmios: 1337). Network magic defaults to 42 (standard testnet magic).
+
+**Genesis Defaults**: Each era (Byron, Shelley, Alonzo, Conway) has comprehensive default genesis configuration. Shelley defaults include: 1-second slots, 432000-slot epochs, single pool stake distribution, initial funds (900 billion lovelace per address). Alonzo defaults include Plutus V1/V2 cost models, ExUnits limits, collateral percentage. Conway defaults include governance thresholds, DRep configuration, Plutus V3 cost model.
+
+**Partial Overrides**: Specify only values to change—unspecified properties use defaults. Example: override only `shelleyGenesis.initialFunds` and `shelleyGenesis.slotLength`, retain all other Shelley defaults. Deep merge ensures nested objects combine correctly (not replaced wholesale).
+
+**Key Defaults**: KES key, operational certificate, and VRF key have default CBOR-encoded values for single-pool devnet. Enable block production without generating keys manually. Production-quality keys unnecessary for ephemeral devnet (security not required). Custom keys supported for advanced scenarios (multi-pool devnets, custom delegation).
+
+## Error Handling
+
+Operations return tagged errors with diagnostic messages guiding resolution:
+
+**CardanoDevNetError Types**:
+- `container_not_found`: Docker daemon unreachable or container missing. Verify Docker running and accessible.
+- `container_creation_failed`: Image pull failed or invalid configuration. Check network connectivity and image name.
+- `container_start_failed`: Port already bound or insufficient resources. Check port availability and Docker resource limits.
+- `container_stop_failed`: Container unresponsive or in invalid state. Try force stop or Docker daemon restart.
+- `container_removal_failed`: Container still running or volumes in use. Stop container first, check volume references.
+- `container_inspection_failed`: Container corrupted or permissions issue. Check Docker socket permissions.
+- `temp_directory_creation_failed`: System temp directory not writable. Verify temp directory permissions and disk space.
+- `config_file_write_failed`: Insufficient disk space or permissions. Check temp directory quotas and write access.
+- `file_permissions_failed`: Filesystem doesn't support chmod. Some filesystems (FAT32, SMB mounts) lack permission support.
+
+**Diagnostic Messages**: Each error includes reason tag, human-readable message, and suggested resolution. Cause chain preserved for debugging (original error attached). Example: "Failed to create Kupo container. Check Docker permissions and image availability." tells exactly what failed and how to investigate.
+
+**Effect-Based Error Handling**: All operations return `Effect<Success, CardanoDevNetError>`. Errors compose naturally with Effect operators (retry, timeout, fallback). Enables sophisticated error recovery strategies without try-catch blocks. Type-safe error handling—compiler ensures all error cases handled or explicitly ignored.
+
+## Integration With Testing
+
+Devnet integrates seamlessly with test frameworks through lifecycle hooks:
+
+**beforeAll Hook**: Create and start cluster before test suite runs. Configure genesis with test addresses pre-funded. Wait for first block production (cluster ready). One-time setup amortized across all tests in suite.
+
+**Test Execution**: Query genesis UTxOs for seed funds. Create client connected to Kupo/Ogmios endpoints. Build and submit transactions using genesis UTxOs as inputs. Await transaction confirmation. Query chain state for assertions.
+
+**afterAll Hook**: Stop cluster (preserves state for debugging). Remove cluster (cleanup resources). Timeout configured for graceful shutdown. Ensures containers don't persist after test completion.
+
+**Parallel Test Suites**: Each suite creates cluster with unique name and ports. No resource conflicts between suites. Multiple clusters run simultaneously (limited by Docker resources). Enable parallel test execution for faster CI/CD.
+
+**Timeout Configuration**: First cluster creation slower (image pull, setup). Subsequent runs fast (images cached). Configure beforeAll timeout generously (180 seconds typical). Test timeouts shorter (10-30 seconds per test). Cluster shutdown timeout moderate (60 seconds typical).

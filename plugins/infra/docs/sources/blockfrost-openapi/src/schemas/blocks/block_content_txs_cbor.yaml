@@ -1,0 +1,18 @@
+type: array
+items:
+  type: object
+  properties:
+    tx_hash:
+      type: string
+      description: Hash of the transaction
+    cbor:
+      type: string
+      description: CBOR representation of the transaction data
+  required:
+    - tx_hash
+    - cbor
+example:
+  - tx_hash: "8788591983aa73981fc92d6cddbbe643959f5a784e84b8bee0db15823f575a5b"
+    cbor: "a10081825820cccfe2be401c85342497f6e1e4a241629790b0fb7f2af5f18441779d11f25b1f5840c38a93d63faac9335ecc2f24ead7ca2d46a6637f354ee707bb06eb8192af2fa6a676fb72f8772cd1c42b491ec6dfc798c76b61c55dc4eecab362e71ffab26305"
+  - tx_hash: "4eef6bb7755d8afbeac526b799f3e32a624691d166657e9d862aaeb66682c036"
+    cbor: "bb06eb8192af2fa6a676fb72f8772cd1c42b491ec6dfc798c76b61c55dc4eecab362e71ffab26305"

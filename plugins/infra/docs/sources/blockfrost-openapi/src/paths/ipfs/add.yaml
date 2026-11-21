@@ -1,0 +1,67 @@
+servers:
+  - url: https://ipfs.blockfrost.io/api/v0
+post:
+  tags:
+    - IPFS » Add
+  summary: Add a file to IPFS
+  operationId: ipfs_add
+  description: |
+    You need to `/ipfs/pin/add` an object to avoid it being garbage collected. This usage
+    is being counted in your user account quota.
+
+    <p>
+      <span class="hosted">Hosted</span> Endpoint only available for hosted variant.
+    </p>
+  requestBody:
+    content:
+      multipart/form-data:
+        schema:
+          type: object
+          properties:
+            file:
+              type: string
+              format: binary
+  x-codeSamples:
+    - lang: "Shell"
+      label: "cURL"
+      source: |
+        curl "https://ipfs.blockfrost.io/api/v0/ipfs/add" \
+          -X POST \
+          -H "project_id: $PROJECT_ID" \
+          -F "file=@./README.md"
+  responses:
+    "200":
+      description: Returns information about added IPFS object
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name:
+                type: string
+                example: "README.md"
+                description: Name of the file
+              ipfs_hash:
+                type: string
+                example: QmZbHqiCxKEVX7QfijzJTkZiSi3WEVTcvANgNAWzDYgZDr
+                description: IPFS hash of the file
+              size:
+                type: string
+                example: "125297"
+                description: IPFS node size in Bytes
+            required:
+              - name
+              - ipfs_hash
+              - size
+    "400":
+      $ref: ../../responses/errors/400.yaml
+    "403":
+      $ref: ../../responses/errors/403.yaml
+    "404":
+      $ref: ../../responses/errors/404.yaml
+    "429":
+      $ref: ../../responses/errors/429.yaml
+    "418":
+      $ref: ../../responses/errors/418.yaml
+    "500":
+      $ref: ../../responses/errors/500.yaml

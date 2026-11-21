@@ -1,0 +1,350 @@
+---
+title: "React Components"
+description: "Production-ready React components for Cardano dApp development with Mesh SDK."
+---
+
+import Link from "next/link";
+import { HowToSchema, FAQSchema } from "@/components/seo";
+
+<HowToSchema
+  name="Add React Components with Mesh SDK"
+  description="Integrate production-ready Cardano components into your React application in minutes."
+  totalTime="PT5M"
+  steps={[
+    { name: "Install Mesh React", text: "Run npm install @meshsdk/react to add Cardano React components." },
+    { name: "Add MeshProvider", text: "Wrap your application with MeshProvider to enable Mesh context." },
+    { name: "Import components", text: "Import CardanoWallet, useWallet, or other components from @meshsdk/react." },
+    { name: "Add to your UI", text: "Place components in your layout and customize as needed." }
+  ]}
+/>
+
+<FAQSchema
+  faqs={[
+    {
+      question: "What React components does Mesh provide?",
+      answer: "Mesh provides CardanoWallet for wallet connection, useWallet hook for state management, useAssets for token display, useLovelace for ADA balance, and useAddress for address handling."
+    },
+    {
+      question: "Are Mesh components customizable?",
+      answer: "Yes. Mesh components accept styling props and can be customized through CSS. For complete control, build custom components using Mesh's hooks and utilities."
+    },
+    {
+      question: "Do Mesh components work with Next.js?",
+      answer: "Yes. Mesh React components work with Next.js, Create React App, Vite, and other React frameworks. For Next.js, ensure MeshProvider is added to your client-side layout."
+    },
+    {
+      question: "What is MeshProvider?",
+      answer: "MeshProvider is a React context provider that manages wallet state across your application. It enables hooks like useWallet to access wallet data anywhere without prop drilling."
+    }
+  ]}
+/>
+
+Mesh provides production-ready React components for Cardano dApps. Add wallet connectivity in minutes with pre-built components or build custom UIs with hooks.
+
+## Quick start
+
+```bash
+npm install @meshsdk/react
+```
+
+### Add MeshProvider
+
+```tsx
+import { MeshProvider } from "@meshsdk/react";
+
+function App() {
+  return (
+    <MeshProvider>
+      <YourApp />
+    </MeshProvider>
+  );
+}
+```
+
+### Add wallet connection
+
+```tsx
+import { CardanoWallet, useWallet, useLovelace } from "@meshsdk/react";
+
+function Dashboard() {
+  const { connected } = useWallet();
+  const lovelace = useLovelace();
+
+  return (
+    <div>
+      <CardanoWallet />
+      {connected && <p>Balance: {Number(lovelace) / 1_000_000} ADA</p>}
+    </div>
+  );
+}
+```
+
+---
+
+## Available components
+
+| Component | Purpose |
+|-----------|---------|
+| `CardanoWallet` | Complete wallet connection UI |
+| `MeshProvider` | Context provider for wallet state |
+
+## Available hooks
+
+| Hook | Purpose |
+|------|---------|
+| `useWallet` | Wallet state and connection |
+| `useLovelace` | ADA balance |
+| `useAssets` | Native tokens and NFTs |
+| `useAddress` | Wallet addresses |
+| `useNetwork` | Network detection |
+
+---
+
+## CardanoWallet
+
+The primary wallet connection component:
+
+```tsx
+import { CardanoWallet } from "@meshsdk/react";
+
+// Basic usage
+<CardanoWallet />
+
+// With customization
+<CardanoWallet
+  label="Connect Wallet"
+  onConnected={() => console.log("Connected!")}
+  isDark={true}
+/>
+```
+
+Features:
+
+- Automatic wallet detection
+- Selection dropdown
+- Connection state management
+- Address display
+- Disconnect functionality
+
+---
+
+## useWallet hook
+
+Access wallet state anywhere:
+
+```tsx
+import { useWallet } from "@meshsdk/react";
+
+function WalletInfo() {
+  const {
+    connected,      // boolean
+    connecting,     // boolean
+    wallet,         // BrowserWallet instance
+    name,           // connected wallet name
+    connect,        // function to connect
+    disconnect,     // function to disconnect
+  } = useWallet();
+
+  return (
+    <div>
+      {connected ? (
+        <p>Connected to {name}</p>
+      ) : (
+        <button onClick={() => connect("eternl")}>Connect</button>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## useLovelace hook
+
+Get the wallet's ADA balance:
+
+```tsx
+import { useLovelace } from "@meshsdk/react";
+
+function Balance() {
+  const lovelace = useLovelace();
+
+  if (!lovelace) return null;
+
+  const ada = Number(lovelace) / 1_000_000;
+  return <p>{ada.toFixed(2)} ADA</p>;
+}
+```
+
+---
+
+## useAssets hook
+
+Access native tokens and NFTs:
+
+```tsx
+import { useAssets } from "@meshsdk/react";
+
+function TokenList() {
+  const assets = useAssets();
+
+  if (!assets) return <p>Loading...</p>;
+
+  return (
+    <ul>
+      {assets.map((asset) => (
+        <li key={asset.unit}>
+          {asset.assetName}: {asset.quantity}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+---
+
+## useAddress hook
+
+Access wallet addresses:
+
+```tsx
+import { useAddress } from "@meshsdk/react";
+
+function AddressDisplay() {
+  const address = useAddress();
+
+  if (!address) return null;
+
+  return (
+    <p title={address}>
+      {address.slice(0, 8)}...{address.slice(-8)}
+    </p>
+  );
+}
+```
+
+---
+
+## useNetwork hook
+
+Detect the connected network:
+
+```tsx
+import { useNetwork } from "@meshsdk/react";
+
+function NetworkBadge() {
+  const network = useNetwork();
+
+  return (
+    <span className={network === 1 ? "mainnet" : "testnet"}>
+      {network === 1 ? "Mainnet" : "Testnet"}
+    </span>
+  );
+}
+```
+
+---
+
+## Custom wallet UI
+
+Build fully custom wallet interfaces:
+
+```tsx
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+import { useWallet, useLovelace, useAssets } from "@meshsdk/react";
+
+function CustomWalletPanel() {
+  const { connected, wallet, connect, disconnect } = useWallet();
+  const lovelace = useLovelace();
+  const assets = useAssets();
+
+  if (!connected) {
+    const wallets = MeshCardanoBrowserWallet.getInstalledWallets();
+
+    return (
+      <div className="wallet-selector">
+        <h3>Select Wallet</h3>
+        {wallets.map(w => (
+          <button key={w.id} onClick={() => connect(w.id)}>
+            <img src={w.icon} alt="" width={24} />
+            {w.name}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="wallet-panel">
+      <div className="balance">
+        {(Number(lovelace) / 1_000_000).toFixed(2)} ADA
+      </div>
+      <div className="assets">
+        {assets?.length} tokens
+      </div>
+      <button onClick={disconnect}>Disconnect</button>
+    </div>
+  );
+}
+```
+
+---
+
+## Framework setup
+
+### Next.js
+
+```tsx
+// app/layout.tsx
+"use client";
+
+import { MeshProvider } from "@meshsdk/react";
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        <MeshProvider>{children}</MeshProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+### Vite / Create React App
+
+```tsx
+// main.tsx
+import { MeshProvider } from "@meshsdk/react";
+import App from "./App";
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <MeshProvider>
+    <App />
+  </MeshProvider>
+);
+```
+
+---
+
+## Why use Mesh React components
+
+| Benefit | Details |
+|---------|---------|
+| Save development time | Wallet detection, connection, error handling built-in |
+| Production tested | Used by major Cardano dApps |
+| Consistent UX | Users recognize familiar patterns |
+| TypeScript first | Full type definitions |
+| Customizable | Start with defaults, customize as needed |
+
+---
+
+## Related resources
+
+| Resource | Link |
+|----------|------|
+| Wallet integration | [/resources/solutions/wallet-integration](/resources/solutions/wallet-integration) |
+| Transaction builder | [/resources/solutions/transaction-builder](/resources/solutions/transaction-builder) |
+| React documentation | [/react](/react) |
+| Wallet challenges | [/resources/challenges/wallet-integration](/resources/challenges/wallet-integration) |

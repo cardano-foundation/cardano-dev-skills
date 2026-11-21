@@ -1,0 +1,20 @@
+type: array
+items:
+  type: object
+  properties:
+    address:
+      type: string
+      description: Address containing the specific asset
+    quantity:
+      type: string
+      description: Asset quantity on the specific address
+  required:
+    - address
+    - quantity
+example:
+  - address: "addr1qxqs59lphg8g6qndelq8xwqn60ag3aeyfcp33c2kdp46a09re5df3pzwwmyq946axfcejy5n4x0y99wqpgtp2gd0k09qsgy6pz"
+    quantity: "1"
+  - address: "addr1qyhr4exrgavdcn3qhfcc9f939fzsch2re5ry9cwvcdyh4x4re5df3pzwwmyq946axfcejy5n4x0y99wqpgtp2gd0k09qdpvhza"
+    quantity: "100000"
+  - address: "addr1q8zup8m9ue3p98kxlxl9q8rnyan8hw3ul282tsl9s326dfj088lvedv4zckcj24arcpasr0gua4c5gq4zw2rpcpjk2lq8cmd9l"
+    quantity: "18605647"

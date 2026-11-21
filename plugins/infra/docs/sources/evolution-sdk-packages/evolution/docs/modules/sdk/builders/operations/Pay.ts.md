@@ -1,0 +1,41 @@
+---
+title: sdk/builders/operations/Pay.ts
+nav_order: 127
+parent: Modules
+---
+
+## Pay overview
+
+Pay operation - creates transaction outputs to send assets to addresses.
+
+Added in v2.0.0
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [programs](#programs)
+  - [createPayToAddressProgram](#createpaytoaddressprogram)
+
+---
+
+# programs
+
+## createPayToAddressProgram
+
+Creates a ProgramStep for payToAddress operation.
+Creates a UTxO output and tracks assets for balancing.
+
+Implementation:
+
+1. Creates UTxO output from parameters using helper
+2. Adds output to state.outputs array
+3. Updates totalOutputAssets for balancing
+
+**Signature**
+
+```ts
+export declare const createPayToAddressProgram: (params: PayToAddressParams) => Effect.Effect<void, never, TxContext>
+```
+
+Added in v2.0.0

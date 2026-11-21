@@ -1,0 +1,315 @@
+---
+title: "Control Flow"
+description: "Aiken is a functional programming language for Cardano smart contracts that treats every block as an expression. Control flow is handled through if/else expressions, when/is pattern matching, the pipe operator, and recursion — there are no loops. Used to direct validator logic, destructure custom types, handle transaction scenarios, and compose operations."
+difficulty: "beginner"
+keywords: ["when", "is", "if", "else", "pattern matching", "pipe operator", "expect", "recursion", "expression blocks", "control flow", "no loops"]
+topics: ["control-flow", "pattern-matching", "when-is", "if-else", "pipe-operator", "recursion"]
+prerequisites: ["primitive-types", "custom-types"]
+related: ["functions", "custom-types", "troubleshooting"]
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Control flow
+
+## Blocks
+
+Every block in Aiken is an expression. All expressions in the block are
+executed, and the result of the last expression is returned.
+
+```aiken
+let value: Bool = {
+    "Hello"
+    42 + 12
+    False
+}
+
+value == False
+```
+
+Expression blocks can be used instead of parenthesis to change the precedence of operations.
+
+```aiken
+let celsius = { fahrenheit - 32 } * 5 / 9
+```
+
+## Piping
+
+| Operator   | Precedence |
+| :-----:    | ---------- |
+| `\|>{:ak}` |          0 |
+
+Aiken provides syntax for passing the result of one function to the arguments
+of another function: the pipe operator (`|>`). This is similar in functionality
+to the same operator in Elixir, Elm or F#.
+
+The pipe operator allows you to chain function calls without using a lot of
+parenthesis and nesting. For a simple example, consider the following
+implementation of an imaginary `string.reverse` in Aiken:
+
+```aiken
+string_builder.to_string(string_builder.reverse(string_builder.from_string(string)))
+```
+
+This can be expressed more naturally using the pipe operator, eliminating the
+need to track parenthesis closure.
+
+```aiken
+string
+  |> string_builder.from_string
+  |> string_builder.reverse
+  |> string_builder.to_string
+```
+
+Each line of this expression applies the function to the result of the previous
+line. This works easily because each of these functions takes only one
+argument. Syntax is available to substitute specific arguments of functions
+that take more than one argument; for more, look below in the section "Function
+capturing".
+
+## Looping through recursion
+
+Aiken is a functional programming language, and as such, doesn't provide any
+control flow for loops. Instead, Aiken embraces recursion. A recursive function
+is a function that calls itself in its own definition. And similarly, a
+recursive type is a type that is defined in terms of itself.
+
+Let's see an example for both.
+
+```aiken
+type MyList<a> {
+  Empty
+  Prepend(a, MyList<a>)
+}
+
+fn length(xs: MyList<a>) -> Int {
+  when xs is {
+    Empty -> 0
+    Prepend(_head, tail) -> 1 + length(tail)
+  }
+}
+
+length(Prepend(1, Prepend(2, Prepend(3, Empty)))) // == 3
+```
+
+Here we artificially define a custom `MyList{:ak}` type which represents a linked
+list. And we define a function over it that computes its length. In both cases,
+you can see how it is crucial that there exist a terminal case.
+
+Recursion is extremely powerful, in particular on an execution environment like
+Plutus on Cardano. Abuse it.
+
+## If-Else
+
+Pattern matching on a `Bool{:ak}` value is discouraged and `if *condition* else`
+expressions should be use instead.
+
+```aiken
+let some_bool = True
+
+if some_bool {
+  "It's true!"
+} else {
+  "It's not true."
+}
+```
+
+Note that, while it may look like an imperative instruction: if this then do
+that or else do that, it is in fact one single expression. This means, in
+particular, that the return types of both branches have to match.
+
+Incidentally, you can have as many conditional `else/if{:ak}` branches as you need:
+
+```aiken
+fn fibonacci(n: Int) -> Int {
+  if n == 0 {
+    0
+  } else if n == 1 {
+    1
+  } else {
+    fibonacci(n-2) + fibonacci(n-1)
+  }
+}
+```
+
+## Fail & Todo
+
+Sometimes, you need to halt the evaluation of your program because you've
+reached a case that is considered invalid or simply because you haven't yet
+finished developing some logic. Aiken provides two convenient keywords for
+that: `fail{:ak}` and `todo{:ak}`.
+
+When encountered, both will halt the evaluation of your program which will be
+considered failed. They differ in their semantic i.e. how the compiler
+behaves towards them.
+
+In fact, `todo{:ak}` will trigger warnings at compilation to remind you of those
+unfinished parts. `fail{:ak}` will not, as it is assumed to be a desired break
+point. Note that the warning also includes the expected type of the expression
+that needs to replace the `todo{:ak}`. This can be a useful way of asking the
+compiler what type is needed if you are ever unsure.
+
+Let's see an example for both to grasp the difference:
+
+```aiken
+fn favourite_number() -> Int {
+  // The type annotations says this returns an Int, but we don't need
+  // to implement it yet.
+  todo
+}
+
+fn expect_some_value(opt: Option<a>) -> a {
+  when opt is {
+    Some(a) -> a
+    None -> fail // We want this to fail when we encounter 'None'.
+  }
+}
+```
+
+When this code is built Aiken will type check and compile the code to ensure it
+is valid, and the `todo{:ak}` or `fail{:ak}` will be replaced with code that crashes the
+program if that function is run.
+
+### Giving a reason
+
+A `String{:ak}` message can be given as a form of documentation. The message
+will be traced when the `todo{:ak}` or `fail{:ak}` code is evaluated. Note that
+this is likely the only place where you will encounter the type `String{:ak}`
+and this is because the message needs to be printable -- unlike most
+`ByteArray{:ak}` which are often plain gibberish.
+
+```aiken
+fn favourite_number() -> Int {
+  todo @"Believe in the you that believes in yourself!"
+}
+
+fn expect_some_value(opt: Option<a>) -> a {
+  when opt is {
+    Some(a) -> a
+    None -> fail @"Option has no value"
+  }
+}
+```
+
+## Expect
+
+`expect{:ak}` is a special assignment keyword which works like `let{:ak}`, but allows to
+perform some potentially unsafe conversions. There are two main use cases for
+it:
+
+### Non-exhaustive pattern-matching
+
+In cases where you have a value of a type that has multiple constructor
+variants, but are only truly interested in one of the possible variants as
+outcomes (i.e. any other outcomes invalidate the program), then `expect{:ak}`
+is the perfect tool. Consider the `Option{:ak}` type in the following example:
+
+```aiken
+let x = Some(42)
+
+// As a pattern-match
+let y = when x is {
+  None -> fail
+  Some(y) -> y
+}
+
+// Using expect
+expect Some(y) = x
+```
+
+As you can see, `expect{:ak}` works like a non-exhaustive pattern-match. The
+difference being that it is instructed to crash the entire program in case
+where the right-hand side wouldn't have the expected shape. It signals to the
+compiler that in this particular place, it is acceptable to not be exhaustive.
+
+<Callout type="info">
+  This may seem like a bad practice from the traditional world, but remember that
+  Aiken is used in a smart contract context where there's often no room for error
+  handling. Either the data has the expected form, or the entire contract fails.
+</Callout>
+
+### Casting from `Data` into a custom type
+
+Another crucial use of `expect{:ak}` is to turn some opaque `Data{:ak}` into a
+concrete representation. In the context of a Cardano smart contract, we can
+encounter `Data{:ak}` in various places although in general it's most likely when
+dealing with the datums attached to outputs.
+
+Often, we do expect a specific structure for some given datum, and so being able
+to safely relay those assumptions in the validators comes in handy.
+
+The syntax is identical to the other use case, but it requires an explicit type
+annotation.
+
+```aiken
+type MyDatum {
+  foo: Int,
+  bar: ByteArray,
+}
+
+fn to_my_datum(data: Data) -> MyDatum {
+  expect my_datum: MyDatum = data
+  my_datum
+}
+```
+
+Note that this conversion will fail if the given `Data{:ak}` isn't actually a valid
+representation of the target type `MyDatum{:ak}`. The primary use-case here is for
+instantiating script contexts, datums and redeemers provided to scripts in a
+serialized form.
+
+### Custom traces
+
+When compiling in `verbose` mode (`--trace-level verbose`), expect expressions will generate a corresponding runtime trace. This allows for troubleshooting code more easily. By default, the trace message is auto-generated from the source code but it is possible to replace it with a custom one using doc-comments:
+
+```aiken
+/// life, universe and everything.
+expect answer == 42
+```
+
+Notice the 3 (not 2!) leading slashes. If the assertion fails, then a trace `"<expected> life, universe and everything"{:ak}` will be yielded. In `compact` mode, the trace will be truncated to its _label_, if it contains any. A _label_ is defined as a portion of text before a colon `:{:ak}`.
+
+For example:
+
+```aiken
+/// assertion 001: redefining mathematics
+expect 1 + 1 == 3
+```
+
+will yield `"<expected> assertion 001: redefining mathematics"{:ak}` in `verbose` mode, but only `"<expected> assertion 001"{:ak}` in `compact` mode. And of course, nothing at all in `silent` mode.
+
+## Soft casting with `if/is`
+
+The `expect{:ak}` keyword works well in cases where failing is an option. But there are situations, like for example when recursively traversing elements of a list, where it isn't acceptable. The `if *expr* is *pattern*{:ak}` therefore comes into play when you need to fallback in case a right-hand side value doesn't have the right shape instead of failing loudly. It can also be particularly handy when you simply don't know the expected type of an opaque `Data{:ak}` and need to try several alternatives.
+
+`if *expr* is *pattern*{:ak}` There is an extension to if expressions to be able to attempt casting but without returning an error by using the provided else instead.
+
+```aiken
+type Foo {
+  foo: Int
+}
+
+type Bar {
+  Buzz(Int)
+  Bazz(Int)
+}
+
+fn soft_casting(d: Data, x: Data) -> Bool {
+  // with no pattern provided
+  if d is Foo {
+    d.foo == 1
+  // with a pattern
+  } else if d is Bazz(y): Bar {
+    y == 1
+  // with a pattern
+  } else if x is Buzz(y): Bar {
+    y == 2
+  } else {
+    False
+  }
+}
+```
+
+Like `expect{:ak}`, patterns can be used for either type-casting or pattern-matching on a single pattern. And like `expect{:ak}`, it can also introduce new identifiers in scope. As shown, in the second and third branch, we introduce a `y{:ak}` variable that is only available within those branches. Note that the use of `if/is{:ak}` is discourage in situation where no type-casting is necessary: just use `when/is{:ak}`.
+
+A final `else{:ak}` is always required and acts like a wildcard / catch-all case to handle any remaining pattern or casting not explicitly covered by any of the previous branch.

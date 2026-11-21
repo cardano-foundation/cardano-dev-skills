@@ -1,0 +1,44 @@
+---
+title: sdk/builders/operations/AddSigner.ts
+nav_order: 120
+parent: Modules
+---
+
+## AddSigner overview
+
+AddSigner operation - adds required signers to the transaction.
+
+Required signers are key hashes that must sign the transaction even if they
+don't control any inputs. This is commonly used for scripts that check for
+specific signers in their validation logic.
+
+Added in v2.0.0
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [programs](#programs)
+  - [createAddSignerProgram](#createaddsignerprogram)
+
+---
+
+# programs
+
+## createAddSignerProgram
+
+Creates a ProgramStep for addSigner operation.
+Adds a required signer (key hash) to the transaction.
+
+Implementation:
+
+1. Adds the key hash to the requiredSigners array in state
+2. Deduplicates to avoid duplicate signers
+
+**Signature**
+
+```ts
+export declare const createAddSignerProgram: (params: AddSignerParams) => Effect.Effect<void, never, TxContext>
+```
+
+Added in v2.0.0

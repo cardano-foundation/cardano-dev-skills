@@ -1,0 +1,41 @@
+type: array
+items:
+  type: object
+  properties:
+    address:
+      type: string
+      description: Bech32 address
+    tx_hash:
+      type: string
+      description: Hash of the transaction
+    tx_index:
+      type: integer
+      description: Transaction index within the block
+    block_height:
+      type: integer
+      description: Block height
+    block_time:
+      type: integer
+      description: Block creation time in UNIX time
+  required:
+    - address
+    - tx_hash
+    - tx_index
+    - block_height
+    - block_time
+example:
+  - address: addr1q8zsjx7vxkl4esfejafhxthyew8c54c9ch95gkv3nz37sxrc9ty742qncmffaesxqarvqjmxmy36d9aht2duhmhvekgq3jd3w2
+    tx_hash: bd78e0e73fb1691f08746a331bd764d11552c3a36ef766d4f1a3bbdc7f29918d
+    tx_index: 34
+    block_height: 7900364
+    block_time: 1666114079
+  - address: addr1q8zsjx7vxkl4esfejafhxthyew8c54c9ch95gkv3nz37sxrc9ty742qncmffaesxqarvqjmxmy36d9aht2duhmhvekgq3jd3w2
+    tx_hash: 67e9a201bc08a92bcc6f447a4ed032300d933545ccd7f1da94ec1e8dbeb4a696
+    tx_index: 6
+    block_height: 7900557
+    block_time: 1666118180
+  - address: addr1qxrrzqsqnzqx3p8sxxsry936h6c78ml4rdl224f33l7pmcnc9ty742qncmffaesxqarvqjmxmy36d9aht2duhmhvekgqr735lq
+    tx_hash: 67e9a201bc08a92bcc6f447a4ed032300d933545ccd7f1da94ec1e8dbeb4a696
+    tx_index: 6
+    block_height: 7900557
+    block_time: 1666118180

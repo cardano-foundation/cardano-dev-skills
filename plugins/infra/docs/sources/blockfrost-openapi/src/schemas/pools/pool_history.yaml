@@ -1,0 +1,40 @@
+type: array
+items:
+  type: object
+  properties:
+    epoch:
+      type: integer
+      example: 233
+      description: Epoch number
+    blocks:
+      type: integer
+      example: 22
+      description: Number of blocks created by pool
+    active_stake:
+      type: string
+      example: "20485965693569"
+      description: Active (Snapshot of live stake 2 epochs ago) stake in Lovelaces
+    active_size:
+      type: number
+      example: 1.2345
+      description: Pool size (percentage) of overall active stake at that epoch
+    delegators_count:
+      type: integer
+      example: 115
+      description: Number of delegators for epoch
+    rewards:
+      type: string
+      example: "206936253674159"
+      description: Total rewards received before distribution to delegators
+    fees:
+      type: string
+      example: "1290968354"
+      description: Pool operator rewards
+  required:
+    - epoch
+    - blocks
+    - active_stake
+    - active_size
+    - delegators_count
+    - rewards
+    - fees

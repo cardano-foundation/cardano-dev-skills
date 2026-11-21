@@ -1,0 +1,37 @@
+---
+title: AWS S3
+sidebar:
+  order: 42
+---
+
+Stores the raw CBOR of each block as an object in an [AWS S3](https://aws.amazon.com/s3/)
+bucket. It's the go-to sink for archiving chain data: write blocks to a bucket once, then
+replay them later with the [S3 source](/oura/v2/sources/s3) — no node required.
+
+:::note
+Authentication uses the standard AWS provider chain — no credentials go in the config. See
+[AWS credentials](/oura/v2/sinks/#aws-credentials) for the supported options.
+:::
+
+## Configuration
+
+```toml title="daemon.toml"
+[sink]
+type = "AwsS3"
+region = "us-west-2"
+bucket = "my-bucket"
+prefix = "mainnet/"
+```
+
+- `type` (required): the literal value `AwsS3`.
+- `region` (required): the AWS region where the bucket lives.
+- `bucket` (required): the bucket to store blocks in.
+- `prefix` (optional): a prefix prepended to each object's key, e.g. `mainnet/`.
+
+Each object is keyed by the slot number of the block it contains (under `prefix`, if set) and
+stored with content type `application/cbor`.
+
+:::caution[CBOR blocks only]
+This sink stores the raw CBOR block, so the pipeline must feed it CBOR blocks — don't place
+filters like `ParseCbor` or `IntoJson` before it.
+:::

@@ -1,0 +1,207 @@
+---
+title: DatumHash.ts
+nav_order: 52
+parent: Modules
+---
+
+## DatumHash overview
+
+---
+
+<h2 className="text-delta">Table of contents</h2>
+
+- [encoding](#encoding)
+  - [toBytes](#tobytes)
+  - [toHex](#tohex)
+- [parsing](#parsing)
+  - [fromBytes](#frombytes)
+  - [fromHex](#fromhex)
+- [predicates](#predicates)
+  - [isDatumHash](#isdatumhash)
+- [schemas](#schemas)
+  - [DatumHash (class)](#datumhash-class)
+    - [toJSON (method)](#tojson-method)
+    - [toString (method)](#tostring-method)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method)
+    - [[Equal.symbol] (method)](#equalsymbol-method)
+    - [[Hash.symbol] (method)](#hashsymbol-method)
+  - [FromBytes](#frombytes-1)
+  - [FromHex](#fromhex-1)
+- [testing](#testing)
+  - [arbitrary](#arbitrary)
+
+---
+
+# encoding
+
+## toBytes
+
+Encode DatumHash to bytes.
+
+**Signature**
+
+```ts
+export declare const toBytes: (a: DatumHash, overrideOptions?: ParseOptions) => Uint8Array
+```
+
+Added in v2.0.0
+
+## toHex
+
+Encode DatumHash to hex string.
+
+**Signature**
+
+```ts
+export declare const toHex: (a: DatumHash, overrideOptions?: ParseOptions) => string
+```
+
+Added in v2.0.0
+
+# parsing
+
+## fromBytes
+
+Parse DatumHash from bytes.
+
+**Signature**
+
+```ts
+export declare const fromBytes: (i: Uint8Array, overrideOptions?: ParseOptions) => DatumHash
+```
+
+Added in v2.0.0
+
+## fromHex
+
+Parse DatumHash from hex string.
+
+**Signature**
+
+```ts
+export declare const fromHex: (i: string, overrideOptions?: ParseOptions) => DatumHash
+```
+
+Added in v2.0.0
+
+# predicates
+
+## isDatumHash
+
+Type guard to check if a value is a DatumHash.
+
+**Signature**
+
+```ts
+export declare const isDatumHash: (u: unknown, overrideOptions?: ParseOptions | number) => u is DatumHash
+```
+
+Added in v2.0.0
+
+# schemas
+
+## DatumHash (class)
+
+Schema for DatumHash representing a reference to datum data stored elsewhere via its hash.
+
+**Signature**
+
+```ts
+export declare class DatumHash
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+Added in v2.0.0
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+Added in v2.0.0
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+Added in v2.0.0
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+Added in v2.0.0
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+Added in v2.0.0
+
+## FromBytes
+
+Schema for transforming bytes to DatumHash.
+
+**Signature**
+
+```ts
+export declare const FromBytes: Schema.transform<
+  Schema.SchemaClass<Uint8Array, Uint8Array, never>,
+  Schema.SchemaClass<DatumHash, DatumHash, never>
+>
+```
+
+Added in v2.0.0
+
+## FromHex
+
+Schema for transforming hex string to DatumHash.
+
+**Signature**
+
+```ts
+export declare const FromHex: Schema.transform<
+  Schema.filter<Schema.Schema<Uint8Array, string, never>>,
+  Schema.transform<Schema.SchemaClass<Uint8Array, Uint8Array, never>, Schema.SchemaClass<DatumHash, DatumHash, never>>
+>
+```
+
+Added in v2.0.0
+
+# testing
+
+## arbitrary
+
+FastCheck arbitrary for generating random DatumHash instances.
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<DatumHash>
+```
+
+Added in v2.0.0

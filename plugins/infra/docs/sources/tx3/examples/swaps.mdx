@@ -1,0 +1,67 @@
+---
+title: Swaps & marketplaces
+---
+
+You want a buyer to exchange one asset for another atomically — either at a static rate, against a liquidity pool, or by matching with a counter-order. The mechanics are the same in every case: spend whatever holds the trading state (a pool UTxO, an order UTxO, a market book), apply the trade to its datum, and produce updated UTxOs that reflect the new state.
+
+The example below is a single-tx pool swap. The pool's UTxO is consumed as input, the trade parameters are passed as a typed `redeemer`, the new pool balances are written into an updated datum using the spread operator `...pool` to carry forward any unchanged fields, and the buyer receives `ask` minus the `bid` they paid.
+
+## Pool swap
+
+```tx3
+type PoolState {
+    pair_a: AnyAsset,
+    pair_b: AnyAsset,
+}
+
+type SwapParams {
+    ask_value: AnyAsset,
+    bid_value: AnyAsset,
+}
+
+party Buyer;
+
+party Dex;
+
+tx swap(
+    ask: AnyAsset,
+    bid: AnyAsset,
+) {
+    input pool {
+        from: Dex,
+        datum_is: PoolState,
+
+        redeemer: SwapParams {
+            ask_value: ask,
+            bid_value: bid,
+        },
+    }
+
+    input payment {
+        from: Buyer,
+        min_amount: fees + bid,
+    }
+
+    output {
+        to: Dex,
+        datum: PoolState {
+            pair_a: pool.pair_a - bid.amount,
+            pair_b: pool.pair_b + ask.amount,
+            ...pool
+        },
+        amount: pool,
+    }
+
+    output {
+        to: Buyer,
+        amount: payment + ask - bid - fees,
+    }
+}
+```
+
+Two patterns worth lifting out of this example:
+
+- **Typed input datum.** `datum_is: PoolState` on the `pool` input means the rest of the body can read `pool.pair_a` and `pool.pair_b` as typed fields, and can splat unchanged fields forward with `...pool` when building the new datum.
+- **Redeemer as a record.** Tx3 lets you build the redeemer inline from a `type`. The validator on the other side decodes the same shape and uses it to authorise the trade.
+
+A more realistic order-book or AMM protocol extends this skeleton with more inputs (matching orders, control tokens), additional outputs (LP positions, fees, royalties), and a richer redeemer variant — but the core spend-and-update-datum loop is the same as shown above.

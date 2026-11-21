@@ -1,0 +1,561 @@
+import { Callout } from "nextra-theme-docs";
+
+# Hello, World! - with PyCardano
+
+## Covered in this tutorial
+
+<br/>
+
+- [x] Interact with a validator on the `Preview` network;
+- [x] Using [PyCardano][] through [Blockfrost][];
+- [x] Getting test funds from the [Cardano Faucet](https://docs.cardano.org/cardano-testnet/tools/faucet);
+- [x] Using web explorers such as [CardanoScan][].
+
+## Pre-requisites
+
+We assume that you have followed the _Hello, World!_'s [First steps][] and thus, have Aiken installed an ready-to-use. We will also use [PyCardano][], so make sure you have your dev environment ready for somePython (3).
+
+<Callout type="info">
+  We recommend to setup a new Python environment for [PyCardano][] as follows:
+
+  ```
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  uv init
+  uv add setuptools pycardano
+  ```
+</Callout>
+
+## Getting funds
+
+For this tutorial, we will use the validator we built in [First steps][]. Yet, before moving one, we'll need some funds, and a public/private key pair to hold them. We can generate a private key and an address using PyCardano.
+
+Let's write our first script as `generate-credentials.py`:
+
+```py filename="generate-credentials.py"
+from pycardano import Address, Network, PaymentSigningKey, PaymentVerificationKey
+
+signing_key = PaymentSigningKey.generate()
+signing_key.save("me.sk")
+
+verification_key = PaymentVerificationKey.from_signing_key(signing_key)
+
+address = Address(payment_part=verification_key.hash(), network=Network.TESTNET)
+with open("me.addr", "w") as f:
+    f.write(str(address))
+```
+
+<Callout type="info">
+  You can run the instructions above using:
+
+```console
+uv run generate-credentials.py
+```
+</Callout>
+
+Now, we can head to [the Cardano faucet](https://docs.cardano.org/cardano-testnet/tools/faucet) to get some funds on the preview network to our newly created address (inside `me.addr`).
+
+<img src="/faucet_preview.webp" style={{margin: '1em auto', maxWidth: '700px'}} />
+
+👉 Make sure to select _"Preview Testnet"_ as network.
+
+Using [CardanoScan][] we can watch for the faucet sending some ADA our way. This should be pretty fast (a couple of seconds).
+
+## Using the contract
+
+Now that we have some funds, we can lock them in our newly created contract. We'll use [PyCardano][] to construct and submit our transaction through [Blockfrost][].
+
+<Callout type="info">
+  This is only one example of possible setup using tools we love. For more
+  tools, make sure to check out the [Cardano Developer
+  Portal](https://developers.cardano.org/tools)!
+</Callout>
+
+### Setup
+
+First, we setup PyCardano with Blockfrost as a provider. This will allow us to let PyCardano handle transaction building for us, which includes managing changes. It also gives us a direct way to submit the transaction later on.
+
+Create a file named `hello-world-lock.py` in the root of your project and add the following code:
+
+```py filename="hello-world-lock.py" {7}
+from pycardano import (
+    BlockFrostChainContext,
+)
+import os
+
+context = BlockFrostChainContext(
+    project_id=os.environ["BLOCKFROST_PROJECT_ID"],
+    base_url="https://cardano-preview.blockfrost.io/api/",
+)
+```
+
+<Callout type="warning">
+Note that the highlighted line above looks for an environment variable named `BLOCKFROST_PROJECT_ID` which value must be set to your Blockfrost project id.
+You can define a new environment variable in your terminal by running (in the same session you're also executing the script!):
+
+```console
+export BLOCKFROST_PROJECT_ID=preview...
+```
+
+Replace `preview...` with your actual project id.
+</Callout>
+
+Next, we'll need to read the validator from the blueprint (`plutus.json`) we generated earlier. We'll also need to convert it to a format that PyCardano understands. This is done by serializing the validator and then converting it to an hexadecimal text string as shown below:
+
+```py filename="hello-world-lock.py" {3-5, 10-21, 28-30}
+from pycardano import (
+    BlockFrostChainContext,
+    PaymentSigningKey,
+    PlutusV3Script,
+    ScriptHash,
+)
+import json
+import os
+
+def read_validator() -> dict:
+    with open("plutus.json", "r") as f:
+        validator = json.load(f)
+    script_bytes = PlutusV3Script(
+        bytes.fromhex(validator["validators"][0]["compiledCode"])
+    )
+    script_hash = ScriptHash(bytes.fromhex(validator["validators"][0]["hash"]))
+    return {
+        "type": "PlutusV3",
+        "script_bytes": script_bytes,
+        "script_hash": script_hash,
+    }
+
+context = BlockFrostChainContext(
+    project_id=os.environ["BLOCKFROST_PROJECT_ID"],
+    base_url="https://cardano-preview.blockfrost.io/api/",
+)
+
+signing_key = PaymentSigningKey.load("me.sk")
+
+validator = read_validator()
+```
+
+### Locking funds into the contract
+
+Now that we can read our validator, we can make our first transaction to lock
+funds into the contract. The datum must match the representation expected by
+the validator (and as specified in the blueprint), so this is a constructor
+with a single field that is a byte array.
+
+As value for that byte array, we provide a hash digest of our public me. This
+will be needed to unlock the funds.
+
+```py filename="hello-world-lock.py" {1, 3, 5, 8-12, 14-18, 35-66, 68-71, 82, 84, 86-92, 94-96}
+from dataclasses import dataclass
+from pycardano import (
+    Address,
+    BlockFrostChainContext,
+    Network,
+    PaymentSigningKey,
+    PaymentVerificationKey,
+    PlutusData,
+    PlutusV3Script,
+    ScriptHash,
+    TransactionBuilder,
+    TransactionOutput,
+)
+from pycardano.hash import (
+    VerificationKeyHash,
+    TransactionId,
+    ScriptHash,
+)
+import json
+import os
+
+def read_validator() -> dict:
+    with open("plutus.json", "r") as f:
+        validator = json.load(f)
+    script_bytes = PlutusV3Script(
+        bytes.fromhex(validator["validators"][0]["compiledCode"])
+    )
+    script_hash = ScriptHash(bytes.fromhex(validator["validators"][0]["hash"]))
+    return {
+        "type": "PlutusV3",
+        "script_bytes": script_bytes,
+        "script_hash": script_hash,
+    }
+
+def lock(
+    amount: int,
+    into: ScriptHash,
+    datum: PlutusData,
+    signing_key: PaymentSigningKey,
+    context: BlockFrostChainContext,
+) -> TransactionId:
+    # read addresses
+    with open("me.addr", "r") as f:
+        input_address = Address.from_primitive(f.read())
+    contract_address = Address(
+        payment_part = into,
+        network=Network.TESTNET,
+    )
+
+    # build transaction
+    builder = TransactionBuilder(context=context)
+    builder.add_input_address(input_address)
+    builder.add_output(
+        TransactionOutput(
+            address=contract_address,
+            amount=amount,
+            datum=datum,
+        )
+    )
+    signed_tx = builder.build_and_sign(
+        signing_keys=[signing_key],
+        change_address=input_address,
+    )
+
+    # submit transaction
+    context.submit_tx(signed_tx)
+    return signed_tx.id
+
+@dataclass
+class HelloWorldDatum(PlutusData):
+    CONSTR_ID = 0
+    owner: bytes
+
+context = BlockFrostChainContext(
+    project_id=os.environ["BLOCKFROST_PROJECT_ID"],
+    base_url="https://cardano-preview.blockfrost.io/api/",
+)
+
+signing_key = PaymentSigningKey.load("me.sk")
+
+validator = read_validator()
+
+owner = PaymentVerificationKey.from_signing_key(signing_key).hash()
+
+datum = HelloWorldDatum(owner=owner.to_primitive())
+
+tx_hash = lock(
+    amount=2_000_000,
+    into=validator["script_hash"],
+    datum=datum,
+    signing_key=signing_key,
+    context=context,
+)
+
+print(
+    f"2 tADA locked into the contract\n\tTx ID: {tx_hash}\n\tDatum: {datum.to_cbor_hex()}"
+)
+```
+
+<Callout type="info">
+You can run the excerpt above by executing:
+
+```
+python hello-world-lock.py
+```
+</Callout>
+
+The above code requires you to:
+
+- have a `BLOCKFROST_PROJECT_ID` environment variable set. You can get one by [signing up for a Blockfrost account](https://blockfrost.io/).
+
+- have the file `hello-world-lock.py` placed at the root of your `hello-world` folder.
+
+At this stage, your folder should looks roughly like this:
+
+```
+./hello_world
+│
+├── README.md
+├── aiken.toml
+├── plutus.json
+├── generate-credentials.py
+├── hello-world-lock.py
+├── me.addr
+├── me.sk
+├── lib
+│   └── ...
+└── validators
+    └── hello-world.ak
+```
+
+If everything went well, you should see something like this:
+
+```
+2 tADA locked into the contract
+    Tx ID: 2ea959e4b51b2b6046931fab80957b39e534f1c954d326e506814d3ca47726c6
+    Datum: d8799f581c1defd7502e25b312e48dc57712c434d317ea16a57728cd3c31828ea1ff
+```
+
+#### Inspecting the transaction
+
+Now is a good moment to pause and have a look at CardanoScan. Here's [an example of an _Hello World_ transaction](https://preview.cardanoscan.io/transaction/2ea959e4b51b2b6046931fab80957b39e534f1c954d326e506814d3ca47726c6?tab=utxo) that we generated using this tutorial.
+
+If you notice the small icon next to the contract output address, we can even [inspect the datum](https://preview.cardanoscan.io/datumInspector?datum=d8799f581c1defd7502e25b312e48dc57712c434d317ea16a57728cd3c31828ea1ff):
+
+```json filename="d8799f581c10073fd2997d2f7dc6dadcf24966bd06b01930e5210e5de7aebf792dff"
+{
+  "constructor": 0,
+  "fields": [
+    {
+      "bytes": "1defd7502e25b312e48dc57712c434d317ea16a57728cd3c31828ea1"
+    }
+  ]
+}
+```
+
+### Unlocking funds from the contract
+
+Finally, as a last step: we now want to spend the UTxO that is locked by our
+`hello-world` contract.
+
+To be valid, our transaction must meet two conditions:
+
+- it must provide "Hello, World!" as a redeemer; and
+- it must be signed by the key referenced as datum (i.e the owner).
+
+Let's make a new file `hello-world-unlock.py` and copy over some of the boilerplate
+from the first one.
+
+```py filename="hello-world-unlock.py"
+from pycardano import (
+    BlockFrostChainContext,
+    PaymentSigningKey,
+    PlutusV3Script,
+    ScriptHash,
+)
+import json
+import os
+
+def read_validator() -> dict:
+    with open("plutus.json", "r") as f:
+        validator = json.load(f)
+    script_bytes = PlutusV3Script(
+        bytes.fromhex(validator["validators"][0]["compiledCode"])
+    )
+    script_hash = ScriptHash(bytes.fromhex(validator["validators"][0]["hash"]))
+    return {
+        "type": "PlutusV3",
+        "script_bytes": script_bytes,
+        "script_hash": script_hash,
+    }
+
+context = BlockFrostChainContext(
+    project_id=os.environ["BLOCKFROST_PROJECT_ID"],
+    base_url="https://cardano-preview.blockfrost.io/api/",
+)
+
+signing_key = PaymentSigningKey.load("me.sk")
+
+validator = read_validator()
+```
+
+Now, let's add the bits to unlock the funds in the contract. We'll need the
+transaction identifier (i.e. `Tx ID`) obtained when you ran the previous script
+(`hello-world-lock.py`)
+
+That transaction identifier (a.k.a. transaction hash), and the corresponding
+output index (here, `0`) uniquely identify the UTxO (Unspent Transaction
+Output) in which the funds are currently locked. And that's the one we're about
+to unlock. Since we know we have created a single UTxO, we'll take a little
+shortcut and simply look for the transaction id.
+
+```py filename="hello-world-unlock.py" {2, 5, 8, 12, 27-31, 42-46}
+from pycardano import (
+    Address,
+    BlockFrostChainContext,
+    Network,
+    PaymentSigningKey,
+    PlutusV3Script,
+    ScriptHash,
+    UTxO,
+)
+import json
+import os
+import sys
+
+def read_validator() -> dict:
+    with open("plutus.json", "r") as f:
+        validator = json.load(f)
+    script_bytes = PlutusV3Script(
+        bytes.fromhex(validator["validators"][0]["compiledCode"])
+    )
+    script_hash = ScriptHash(bytes.fromhex(validator["validators"][0]["hash"]))
+    return {
+        "type": "PlutusV3",
+        "script_bytes": script_bytes,
+        "script_hash": script_hash,
+    }
+
+def get_utxo_from_str(tx_id: str, contract_address: Address) -> UTxO:
+    for utxo in context.utxos(str(contract_address)):
+        if str(utxo.input.transaction_id) == tx_id:
+            return utxo
+    raise Exception(f"UTxO not found for transaction {tx_id}")
+
+context = BlockFrostChainContext(
+    project_id=os.environ["BLOCKFROST_PROJECT_ID"],
+    base_url="https://cardano-preview.blockfrost.io/api/",
+)
+
+signing_key = PaymentSigningKey.load("me.sk")
+
+validator = read_validator()
+
+# get utxo to spend
+utxo = get_utxo_from_str(sys.argv[1], Address(
+    payment_part = validator["script_hash"],
+    network=Network.TESTNET,
+))
+```
+
+Finally, we can add the rest of the code and build a transaction that unlock the funds we previously locked. We'll need to construct a redeemer this time.
+
+<Callout type="warning">
+  Note that we need to explicitly add a signer using `.addSigner` so that it
+  gets added to the `extra_signatories` of our transaction -- and becomes
+  accessible for our script.
+
+  Furthermore, `.add_input_address` is necessary to ensure the transaction builder adds inputs to cover for fees and collateral.
+</Callout>
+
+
+```py filename="hello-world-unlock.py" {1, 7-10, 12-13, 16-18, 38-71, 79-82, 99-100, 102-110, 112-114}
+from dataclasses import dataclass
+from pycardano import (
+    Address,
+    BlockFrostChainContext,
+    Network,
+    PaymentSigningKey,
+    PaymentVerificationKey,
+    PlutusData,
+    PlutusV3Script,
+    Redeemer,
+    ScriptHash,
+    TransactionBuilder,
+    TransactionOutput,
+    UTxO,
+)
+from pycardano.hash import (
+    VerificationKeyHash,
+    TransactionId,
+    ScriptHash,
+)
+import json
+import os
+import sys
+
+def read_validator() -> dict:
+    with open("plutus.json", "r") as f:
+        validator = json.load(f)
+    script_bytes = PlutusV3Script(
+        bytes.fromhex(validator["validators"][0]["compiledCode"])
+    )
+    script_hash = ScriptHash(bytes.fromhex(validator["validators"][0]["hash"]))
+    return {
+        "type": "PlutusV3",
+        "script_bytes": script_bytes,
+        "script_hash": script_hash,
+    }
+
+def unlock(
+    utxo: UTxO,
+    from_script: PlutusV3Script,
+    redeemer: Redeemer,
+    signing_key: PaymentSigningKey,
+    owner: VerificationKeyHash,
+    context: BlockFrostChainContext,
+) -> TransactionId:
+    # read addresses
+    with open("me.addr", "r") as f:
+        input_address = Address.from_primitive(f.read())
+
+    # build transaction
+    builder = TransactionBuilder(context=context)
+    builder.add_script_input(
+        utxo=utxo,
+        script=from_script,
+        redeemer=redeemer,
+    )
+    builder.add_input_address(input_address)
+    builder.add_output(
+        TransactionOutput(
+            address=input_address,
+            amount=utxo.output.amount.coin,
+        )
+    )
+    builder.required_signers = [owner]
+    signed_tx = builder.build_and_sign(
+        signing_keys=[signing_key],
+        change_address=input_address,
+    )
+
+    # submit transaction
+    context.submit_tx(signed_tx)
+    return signed_tx.id
+
+def get_utxo_from_str(context, tx_id: str, contract_address: Address) -> UTxO:
+    for utxo in context.utxos(str(contract_address)):
+        if str(utxo.input.transaction_id) == tx_id:
+            return utxo
+    raise Exception(f"UTxO not found for transaction {tx_id}")
+
+@dataclass
+class HelloWorldRedeemer(PlutusData):
+    CONSTR_ID = 0
+    msg: bytes
+
+context = BlockFrostChainContext(
+    project_id=os.environ["BLOCKFROST_PROJECT_ID"],
+    base_url="https://cardano-preview.blockfrost.io/api/",
+)
+
+signing_key = PaymentSigningKey.load("me.sk")
+
+validator = read_validator()
+
+# get utxo to spend
+utxo = get_utxo_from_str(context, sys.argv[1], Address(
+    payment_part = validator["script_hash"],
+    network=Network.TESTNET,
+))
+
+# build redeemer
+redeemer = Redeemer(data=HelloWorldRedeemer(msg=b"Hello, World!"))
+
+# execute transaction
+tx_hash = unlock(
+    utxo=utxo,
+    from_script=validator["script_bytes"],
+    redeemer=redeemer,
+    signing_key=signing_key,
+    owner=PaymentVerificationKey.from_signing_key(signing_key).hash(),
+    context=context,
+)
+
+print(
+    f"2 tADA unlocked from the contract\n\tTx ID: {tx_hash}\n\tRedeemer: {redeemer.to_cbor_hex()}"
+)
+```
+
+<Callout type="info">
+Run this script as usual, but this time, also passing the transaction id obtained from the previous command locking the funds. For example:
+
+```console
+python hello-world-unlock.py 2ea959e4b51b2b6046931fab80957b39e534f1c954d326e506814d3ca47726c6
+```
+</Callout>
+
+If everything worked as planned you should see something resembling the following output:
+
+```
+2 tADA unlocked from the contract
+    Tx ID:    d3d5e828a3989691b0960d22a265c8c9ae4723134b52aa05ec0fb7d40f060392
+    Redeemer: 840000d8799f4d48656c6c6f2c20576f726c6421ff82198ee61a00bd3334
+```
+
+And, tada 🎉!
+
+We can inspect our [redeeming transaction on CardanoScan](https://preview.cardanoscan.io/transaction/c014620fcf6c108fdd2dc696dc3a8f8abfe58e5d685f4119c4eb2992548acf64?tab=contracts) and see that it successfully executed our _Hello World_ contract.
+
+[PyCardano]: https://github.com/Python-Cardano/pycardano
+[Blockfrost]: https://blockfrost.io
+[CardanoScan]: https://preview.cardanoscan.io
+[First steps]: /example--hello-world/basics

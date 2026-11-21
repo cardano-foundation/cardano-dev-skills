@@ -1,0 +1,8 @@
+type: array
+items:
+  type: string
+  description: Hash of the block
+example:
+  - "d0fa315687e99ccdc96b14cc2ea74a767405d64427b648c470731a9b69e4606e"
+  - "38bc6efb92a830a0ed22a64f979d120d26483fd3c811f6622a8c62175f530878"
+  - "f3258fcd8b975c061b4fcdcfcbb438807134d6961ec278c200151274893b6b7d"

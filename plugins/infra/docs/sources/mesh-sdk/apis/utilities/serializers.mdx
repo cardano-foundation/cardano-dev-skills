@@ -1,0 +1,388 @@
+---
+title: "CBOR Serializers"
+description: "Encode Cardano scripts and data into CBOR or bech32 format"
+---
+
+Use serializer functions to encode Cardano data structures into formats suitable for on-chain storage or transmission. These utilities convert scripts into addresses and data objects into their serialized representations.
+
+## Overview
+
+Serialization is essential for smart contract development. It encodes data structures into formats that can be stored on-chain or transmitted across the network. MeshJS provides serializers for:
+
+- Native scripts (multisig, time-locked)
+- Plutus scripts (smart contracts)
+- Address objects (payment and stake credentials)
+
+## Quick Start
+
+```tsx
+import { serializePlutusScript, PlutusScript } from "@meshsdk/core";
+
+const script: PlutusScript = {
+  code: "5906f4010100...",
+  version: "V2",
+};
+
+const address = serializePlutusScript(script);
+```
+
+---
+
+## serializeNativeScript
+
+Convert a native script into a bech32 address and script CBOR.
+
+### Function Signature
+
+```tsx
+serializeNativeScript(
+  nativeScript: NativeScript,
+  networkId?: number,
+  stakeCredentialHash?: string
+): { address: string; scriptCbor: string }
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `nativeScript` | `NativeScript` | Yes | The native script object to serialize |
+| `networkId` | `number` | No | Network ID (`0` for testnet, `1` for mainnet). Defaults to `0` |
+| `stakeCredentialHash` | `string` | No | Optional stake credential hash for the address |
+
+### Returns
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `address` | `string` | The bech32 script address |
+| `scriptCbor` | `string` | The script in CBOR format |
+
+### Example
+
+```tsx
+import {
+  serializeNativeScript,
+  deserializeAddress,
+  NativeScript,
+} from "@meshsdk/core";
+
+// Get the public key hash from an address
+const { pubKeyHash: keyHash } = deserializeAddress(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9"
+);
+
+// Create a time-locked multisig script
+const nativeScript: NativeScript = {
+  type: "all",
+  scripts: [
+    {
+      type: "before",
+      slot: "99999999",
+    },
+    {
+      type: "sig",
+      keyHash: keyHash,
+    },
+  ],
+};
+
+// Serialize to get address and CBOR
+const { address, scriptCbor } = serializeNativeScript(nativeScript);
+
+console.log("Script Address:", address);
+console.log("Script CBOR:", scriptCbor);
+```
+
+### Native Script Types
+
+The `NativeScript` type supports these script types:
+
+| Type | Description | Required Fields |
+|------|-------------|-----------------|
+| `sig` | Requires a signature from a key | `keyHash` |
+| `all` | Requires all scripts to be satisfied | `scripts` |
+| `any` | Requires any one script to be satisfied | `scripts` |
+| `atLeast` | Requires at least N scripts to be satisfied | `required`, `scripts` |
+| `before` | Valid before a slot | `slot` |
+| `after` | Valid after a slot | `slot` |
+
+---
+
+## serializePlutusScript
+
+Convert a Plutus script into a bech32 address.
+
+### Function Signature
+
+```tsx
+serializePlutusScript(
+  plutusScript: PlutusScript,
+  networkId?: number,
+  stakeCredentialHash?: string
+): string
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `plutusScript` | `PlutusScript` | Yes | The Plutus script object to serialize |
+| `networkId` | `number` | No | Network ID (`0` for testnet, `1` for mainnet). Defaults to `0` |
+| `stakeCredentialHash` | `string` | No | Optional stake credential hash for the address |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `string` | The bech32 script address |
+
+### Example
+
+```tsx
+import { serializePlutusScript, PlutusScript } from "@meshsdk/core";
+
+const plutusScript: PlutusScript = {
+  code: "5906f4010100323232323232...", // Your compiled Plutus script
+  version: "V2",
+};
+
+// Get the script address on testnet
+const address = serializePlutusScript(plutusScript, 0);
+console.log("Script Address:", address);
+
+// Get the script address on mainnet with stake credential
+const mainnetAddress = serializePlutusScript(
+  plutusScript,
+  1,
+  "9e8a6e5fcbbb5b84deefc71d7cb6319a3da9cc3d19765efb303647ef"
+);
+console.log("Mainnet Address:", mainnetAddress);
+```
+
+### PlutusScript Type
+
+```tsx
+interface PlutusScript {
+  code: string;    // The compiled script CBOR
+  version: string; // "V1", "V2", or "V3"
+}
+```
+
+---
+
+## serializeAddressObj
+
+Convert a Cardano data address object into a bech32 address string.
+
+### Function Signature
+
+```tsx
+serializeAddressObj(
+  address: PubKeyAddress | ScriptAddress,
+  networkId?: number
+): string
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | `PubKeyAddress \| ScriptAddress` | Yes | The address object in Cardano data format |
+| `networkId` | `number` | No | Network ID (`0` for testnet, `1` for mainnet). Defaults to `0` |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `string` | The bech32 address |
+
+### Example
+
+```tsx
+import { pubKeyAddress, serializeAddressObj } from "@meshsdk/core";
+
+// Create a public key address object
+const address = pubKeyAddress(
+  "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+  "9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6"
+);
+
+// Serialize to bech32 on mainnet
+const bech32Address = serializeAddressObj(address, 1);
+console.log("Bech32 Address:", bech32Address);
+```
+
+---
+
+## pubKeyAddress
+
+Create a public key address object for use with `serializeAddressObj`.
+
+### Function Signature
+
+```tsx
+pubKeyAddress(
+  bytes: string,
+  stakeCredential?: string,
+  isStakeScriptCredential?: boolean
+): PubKeyAddress
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `bytes` | `string` | Yes | The payment key hash (56 hex characters) |
+| `stakeCredential` | `string` | No | The stake credential hash |
+| `isStakeScriptCredential` | `boolean` | No | Whether the stake credential is a script. Defaults to `false` |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `PubKeyAddress` | The address object in Cardano data format |
+
+### Example
+
+```tsx
+import { pubKeyAddress, serializeAddressObj } from "@meshsdk/core";
+
+// Enterprise address (no stake key)
+const enterpriseAddress = pubKeyAddress(
+  "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6"
+);
+
+// Base address (with stake key)
+const baseAddress = pubKeyAddress(
+  "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+  "9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6"
+);
+
+console.log(serializeAddressObj(enterpriseAddress, 0));
+console.log(serializeAddressObj(baseAddress, 0));
+```
+
+---
+
+## scriptAddress
+
+Create a script address object for use with `serializeAddressObj`.
+
+### Function Signature
+
+```tsx
+scriptAddress(
+  bytes: string,
+  stakeCredential?: string,
+  isStakeScriptCredential?: boolean
+): ScriptAddress
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `bytes` | `string` | Yes | The script hash (56 hex characters) |
+| `stakeCredential` | `string` | No | The stake credential hash |
+| `isStakeScriptCredential` | `boolean` | No | Whether the stake credential is a script. Defaults to `false` |
+
+### Returns
+
+| Type | Description |
+|------|-------------|
+| `ScriptAddress` | The address object in Cardano data format |
+
+### Example
+
+```tsx
+import { scriptAddress, serializeAddressObj } from "@meshsdk/core";
+
+// Script address with stake credential
+const address = scriptAddress(
+  "5867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f",
+  "9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6"
+);
+
+const bech32 = serializeAddressObj(address, 0);
+console.log("Script Address:", bech32);
+```
+
+---
+
+## Complete Example
+
+This example demonstrates a complete workflow for serializing different script types:
+
+```tsx
+import {
+  serializeNativeScript,
+  serializePlutusScript,
+  pubKeyAddress,
+  scriptAddress,
+  serializeAddressObj,
+  deserializeAddress,
+  NativeScript,
+  PlutusScript,
+} from "@meshsdk/core";
+
+// 1. Serialize a Native Script
+const { pubKeyHash } = deserializeAddress(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9"
+);
+
+const nativeScript: NativeScript = {
+  type: "all",
+  scripts: [
+    { type: "sig", keyHash: pubKeyHash },
+    { type: "after", slot: "1000000" },
+  ],
+};
+
+const { address: nativeAddress, scriptCbor } = serializeNativeScript(nativeScript, 0);
+console.log("Native Script Address:", nativeAddress);
+
+// 2. Serialize a Plutus Script
+const plutusScript: PlutusScript = {
+  code: "5906f4010100...",
+  version: "V2",
+};
+
+const plutusAddress = serializePlutusScript(plutusScript, 0);
+console.log("Plutus Script Address:", plutusAddress);
+
+// 3. Serialize Address Objects
+const pkAddress = pubKeyAddress(
+  "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+  "9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6"
+);
+console.log("Public Key Address:", serializeAddressObj(pkAddress, 1));
+
+const scAddress = scriptAddress(
+  "5867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f"
+);
+console.log("Script Address:", serializeAddressObj(scAddress, 0));
+```
+
+---
+
+## Troubleshooting
+
+### Address returns wrong network prefix
+
+Verify you are passing the correct `networkId` parameter. Use `0` for testnet (`addr_test1...`) and `1` for mainnet (`addr1...`).
+
+### Invalid script CBOR error
+
+Ensure your Plutus script code is valid CBOR hex. The code should be the raw compiled output from your Plutus or Aiken compiler.
+
+### Native script serialization fails
+
+Check that all required fields are present for each script type. For example, `sig` scripts require a `keyHash`, and `atLeast` scripts require both `required` and `scripts` fields.
+
+---
+
+## Related
+
+- [Deserializers](/apis/utilities/deserializers) - Parse serialized data back into objects
+- [Resolvers](/apis/utilities/resolvers) - Convert between hash formats
+- [Blueprints](/apis/utilities/blueprints) - Work with parameterized scripts

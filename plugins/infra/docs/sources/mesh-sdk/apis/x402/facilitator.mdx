@@ -1,0 +1,79 @@
+---
+title: "x402 Facilitator"
+description: "Verify and settle payments with createFacilitatorApp."
+---
+
+The facilitator is the part that checks a signed transaction, submits it once, and reports when it is confirmed. It holds no keys and needs no funds, only a Cardano provider.
+
+```ts
+import { BlockfrostProvider } from "@meshsdk/provider";
+import { chainStateFrom, createFacilitatorApp, InMemorySettlementStore } from "@meshsdk/x402";
+import { serveMeshHttp } from "@meshsdk/x402/http";
+
+const provider = new BlockfrostProvider("<BLOCKFROST_PREPROD_KEY>");
+
+const app = createFacilitatorApp({
+  fetcher: provider,
+  submitter: provider,
+  store: new InMemorySettlementStore(),
+  supportedNetworks: ["cardano:preprod"],
+  resolveChainState: chainStateFrom(provider), // protocol parameters + current slot
+});
+
+serveMeshHttp(app, { port: 8787 });
+```
+
+`serveMeshHttp` comes from `@meshsdk/x402/http`, which ships with the package, so you install nothing else. The app has three routes:
+
+```bash
+curl localhost:8787/supported                    # what it can settle
+curl -X POST localhost:8787/verify -d '{ "paymentPayload": ..., "paymentRequirements": ... }'
+curl -X POST localhost:8787/settle -d '{ "paymentPayload": ..., "paymentRequirements": ... }'
+```
+
+`paymentRequirements` must be your server's own record of the offer. The facilitator refuses a payload whose `accepted` differs (`REQUIREMENTS_MISMATCH`).
+
+## Options
+
+```ts
+createFacilitatorApp({
+  // ...
+  l1Confirmations: { minimum: 0, maximum: 20 },        // confirmation levels you will settle; -1 (mempool) is opt-in
+  allowMasumiDeployment: (deployment) => false,         // non-default Masumi escrow: deny unless you approve
+  validateRegistryClaim: async (claim) => lookup(claim), // registered Masumi agent: refused unless this returns true
+});
+```
+
+## What it checks
+
+| Check | Error |
+|---|---|
+| The payload matches the offer you issued | `REQUIREMENTS_MISMATCH` |
+| Right network, right recipient, right asset, enough amount | `INVALID_NETWORK`, `PAYTO_NOT_FOUND` |
+| The declared `nonce` is an input, and every input is still unspent | `NONCE_NOT_IN_INPUTS`, `NONCE_NOT_UNSPENT`, `INPUT_NOT_UNSPENT` |
+| No minting, withdrawals, certificates or governance actions | `UNSUPPORTED_TX_FEATURE` |
+| Inputs equal outputs plus fee, and the fee is high enough | `VALUE_NOT_CONSERVED` |
+| The transaction expiry is in the future but not past `maxTimeoutSeconds` | `TTL_EXPIRED`, `TTL_TOO_FAR` |
+| The output meets the minimum ADA | `BELOW_MIN_UTXO` |
+
+`script` offers also check that `payTo` is the declared script's address, and that a declared `datum` is the one attached to the output (`SCRIPT_DATUM_NOT_INLINE`, `SCRIPT_DATUM_MISMATCH`). Whether the datum is *right* for your contract is up to you. `masumi` offers run the escrow checks described on the [Masumi page](/apis/x402/masumi).
+
+## Settling
+
+`/settle` claims the transaction by its id, submits it once, and watches for confirmations.
+
+| Result | Meaning |
+|---|---|
+| `success: true`, `status: "confirmed"` | Enough confirmations. Release the content. |
+| `settlement_pending` | Submitted, not confirmed yet. Call `/settle` again with the same payload; it keeps watching and never resubmits. |
+| `duplicate_settlement` | That transaction is already being settled or was settled. |
+| `EXPIRED` | The transaction ran out of time without landing. Final. |
+| `submission_rejected: ...` | The network refused it. The claim is released so a fixed payment can retry. |
+
+`createPaywall` handles the pending retries for you.
+
+## Going to production
+
+- Swap `InMemorySettlementStore` for your own `SettlementStore` on shared storage if you run more than one instance. `claim` must be an atomic insert-if-absent.
+- Convert times to slots with the network's slot settings (done for you). It is a static configuration, not a live era summary.
+- It runs the spec's minimum checks, not a full ledger validator: the network is the final judge.

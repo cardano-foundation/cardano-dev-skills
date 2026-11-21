@@ -1,0 +1,589 @@
+---
+title: "Staking and Delegation"
+description: "Delegate ADA to stake pools, register stake addresses, and withdraw staking rewards with TypeScript."
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+Staking allows you to delegate your ADA to stake pools and earn rewards. You can register stake addresses, delegate to pools, withdraw rewards, and deregister stake addresses using `MeshTxBuilder`.
+
+**When to use this:**
+- Delegating ADA to earn staking rewards
+- Building staking dashboards or portfolio trackers
+- Creating delegation services
+- Implementing stake pool operations
+- Building "withdraw zero" validation patterns
+
+## Quick Start
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  deserializePoolId
+} from "@meshsdk/core";
+
+// Initialize
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+// Get wallet data
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+const rewardAddresses = await wallet.getRewardAddresses();
+const rewardAddress = rewardAddresses[0]!;
+
+// Convert pool ID to hash
+const poolIdHash = deserializePoolId(
+  "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy"
+);
+
+// Delegate to stake pool
+const unsignedTx = await txBuilder
+  .delegateStakeCertificate(rewardAddress, poolIdHash)
+  .selectUtxosFrom(utxos)
+  .changeAddress(changeAddress)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+## API Reference
+
+### registerStakeCertificate()
+
+Register a stake address on the blockchain (required before first delegation).
+
+```tsx
+.registerStakeCertificate(rewardAddress: string)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `rewardAddress` | `string` | Bech32 reward address (stake...) |
+
+### delegateStakeCertificate()
+
+Delegate stake to a pool.
+
+```tsx
+.delegateStakeCertificate(rewardAddress: string, poolIdHash: string)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `rewardAddress` | `string` | Bech32 reward address |
+| `poolIdHash` | `string` | Deserialized pool ID hash |
+
+### deregisterStakeCertificate()
+
+Deregister a stake address and reclaim the deposit.
+
+```tsx
+.deregisterStakeCertificate(rewardAddress: string)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `rewardAddress` | `string` | Bech32 reward address to deregister |
+
+### withdrawal()
+
+Withdraw staking rewards.
+
+```tsx
+.withdrawal(rewardAddress: string, lovelace: string)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `rewardAddress` | `string` | Bech32 reward address |
+| `lovelace` | `string` | Amount to withdraw in lovelace |
+
+### withdrawalPlutusScriptV1() / V2() / V3()
+
+Indicate withdrawal from a Plutus staking script.
+
+```tsx
+.withdrawalPlutusScriptV2()
+```
+
+### withdrawalScript()
+
+Provide the staking script for script-based withdrawal.
+
+```tsx
+.withdrawalScript(scriptCbor: string)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `scriptCbor` | `string` | CBOR-encoded staking script |
+
+### withdrawalRedeemerValue()
+
+Provide the redeemer for script-based withdrawal.
+
+```tsx
+.withdrawalRedeemerValue(redeemer: Data | object | string, type?: "Mesh" | "CBOR" | "JSON", exUnits?: Budget)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `redeemer` | `Data \| object \| string` | Redeemer value |
+| `type` | `"Mesh" \| "CBOR" \| "JSON"` | Data format (default: "Mesh") |
+| `exUnits` | `Budget` | Optional execution units |
+
+## Common Patterns
+
+### Register and Delegate (First Time)
+
+Register a stake address and delegate in a single transaction:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  deserializePoolId
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+const rewardAddresses = await wallet.getRewardAddresses();
+const rewardAddress = rewardAddresses[0]!;
+
+// Convert bech32 pool ID to hash
+const poolIdHash = deserializePoolId(
+  "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy"
+);
+
+// Register and delegate in one transaction
+const unsignedTx = await txBuilder
+  .registerStakeCertificate(rewardAddress)
+  .delegateStakeCertificate(rewardAddress, poolIdHash)
+  .selectUtxosFrom(utxos)
+  .changeAddress(changeAddress)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log(`Registered and delegated: ${txHash}`);
+```
+
+### Change Delegation
+
+Switch delegation to a different pool (no registration needed):
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  deserializePoolId
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+const rewardAddresses = await wallet.getRewardAddresses();
+const rewardAddress = rewardAddresses[0]!;
+
+// New pool to delegate to
+const newPoolIdHash = deserializePoolId(
+  "pool1z5uqdk7dzdxaae5633fqfcu2eqzy3a3rgtuvy087fdld7yws0xt"
+);
+
+const unsignedTx = await txBuilder
+  .delegateStakeCertificate(rewardAddress, newPoolIdHash)
+  .selectUtxosFrom(utxos)
+  .changeAddress(changeAddress)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log(`Delegation changed: ${txHash}`);
+```
+
+### Withdraw Rewards
+
+Withdraw accumulated staking rewards:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+const rewardAddresses = await wallet.getRewardAddresses();
+const rewardAddress = rewardAddresses[0]!;
+
+// Query available rewards (in production)
+// const accountInfo = await provider.fetchAccountInfo(rewardAddress);
+// const withdrawableAmount = accountInfo.withdrawableAmount;
+
+const withdrawAmount = "5000000"; // 5 ADA in lovelace
+
+const unsignedTx = await txBuilder
+  .withdrawal(rewardAddress, withdrawAmount)
+  .selectUtxosFrom(utxos)
+  .changeAddress(changeAddress)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log(`Rewards withdrawn: ${txHash}`);
+```
+
+### Deregister Stake Address
+
+Stop staking and reclaim the 2 ADA deposit:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+const rewardAddresses = await wallet.getRewardAddresses();
+const rewardAddress = rewardAddresses[0]!;
+
+const unsignedTx = await txBuilder
+  .deregisterStakeCertificate(rewardAddress)
+  .selectUtxosFrom(utxos)
+  .changeAddress(changeAddress)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log(`Stake deregistered, deposit reclaimed: ${txHash}`);
+```
+
+### Script Withdrawal
+
+Withdraw from a Plutus staking script:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  resolveScriptHash,
+  serializeRewardAddress,
+  deserializeAddress
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const collateral = await wallet.getCollateral();
+const changeAddress = await wallet.getChangeAddress();
+
+// Your staking script CBOR
+const stakeScriptCbor = "your-stake-script-cbor";
+
+// Derive reward address from script
+const scriptHash = resolveScriptHash(stakeScriptCbor, "V2");
+const rewardAddress = serializeRewardAddress(scriptHash, true, 0); // testnet
+
+const withdrawAmount = "1000000"; // 1 ADA
+
+const unsignedTx = await txBuilder
+  .withdrawalPlutusScriptV2()
+  .withdrawal(rewardAddress, withdrawAmount)
+  .withdrawalScript(stakeScriptCbor)
+  .withdrawalRedeemerValue("") // Your redeemer
+  .selectUtxosFrom(utxos)
+  .changeAddress(changeAddress)
+  .txInCollateral(
+    collateral[0]!.input.txHash,
+    collateral[0]!.input.outputIndex,
+    collateral[0]!.output.amount,
+    collateral[0]!.output.address
+  )
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, true);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+### Withdraw Zero Pattern
+
+The "withdraw zero" pattern is used to prove control of a stake key without withdrawing rewards. This is commonly used in DeFi protocols for stake key validation.
+
+#### Step 1: Register Script Stake Key
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  resolveScriptHash,
+  deserializeAddress
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const changeAddress = await wallet.getChangeAddress();
+const { pubKeyHash } = deserializeAddress(changeAddress);
+
+// Parameterized staking script
+const stakeScriptCbor = getAlwaysSucceedStakingScript(pubKeyHash);
+const scriptHash = resolveScriptHash(stakeScriptCbor, "V2");
+
+const unsignedTx = await txBuilder
+  .registerStakeCertificate(scriptHash)
+  .selectUtxosFrom(utxos)
+  .changeAddress(changeAddress)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, true);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log(`Script stake key registered: ${txHash}`);
+```
+
+#### Step 2: Withdraw Zero
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  resolveScriptHash,
+  serializeRewardAddress,
+  deserializeAddress
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const utxos = await wallet.getUtxos();
+const collateral = await wallet.getCollateral();
+const changeAddress = await wallet.getChangeAddress();
+const { pubKeyHash } = deserializeAddress(changeAddress);
+
+const stakeScriptCbor = getAlwaysSucceedStakingScript(pubKeyHash);
+const scriptHash = resolveScriptHash(stakeScriptCbor, "V2");
+const rewardAddress = serializeRewardAddress(scriptHash, true, 0);
+
+// Withdraw zero to trigger script validation
+const unsignedTx = await txBuilder
+  .withdrawalPlutusScriptV2()
+  .withdrawal(rewardAddress, "0") // Zero withdrawal
+  .withdrawalScript(stakeScriptCbor)
+  .withdrawalRedeemerValue("")
+  .selectUtxosFrom(utxos)
+  .changeAddress(changeAddress)
+  .txInCollateral(
+    collateral[0]!.input.txHash,
+    collateral[0]!.input.outputIndex,
+    collateral[0]!.output.amount,
+    collateral[0]!.output.address
+  )
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, true);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log(`Withdraw zero completed: ${txHash}`);
+```
+
+## Complete Example
+
+This example demonstrates a complete staking management workflow:
+
+```tsx
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  deserializePoolId
+} from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+
+// Helper to create txBuilder
+function getTxBuilder() {
+  return new MeshTxBuilder({
+    fetcher: provider,
+    verbose: true,
+  });
+}
+
+// Register and delegate to a pool
+async function startStaking(wallet: any, poolBech32: string) {
+  const txBuilder = getTxBuilder();
+
+  const utxos = await wallet.getUtxos();
+  const changeAddress = await wallet.getChangeAddress();
+  const rewardAddresses = await wallet.getRewardAddresses();
+  const rewardAddress = rewardAddresses[0]!;
+  const poolIdHash = deserializePoolId(poolBech32);
+
+  const unsignedTx = await txBuilder
+    .registerStakeCertificate(rewardAddress)
+    .delegateStakeCertificate(rewardAddress, poolIdHash)
+    .selectUtxosFrom(utxos)
+    .changeAddress(changeAddress)
+    .complete();
+
+  const signedTx = await wallet.signTx(unsignedTx);
+  return await wallet.submitTx(signedTx);
+}
+
+// Change to a different pool
+async function changePool(wallet: any, newPoolBech32: string) {
+  const txBuilder = getTxBuilder();
+
+  const utxos = await wallet.getUtxos();
+  const changeAddress = await wallet.getChangeAddress();
+  const rewardAddresses = await wallet.getRewardAddresses();
+  const rewardAddress = rewardAddresses[0]!;
+  const poolIdHash = deserializePoolId(newPoolBech32);
+
+  const unsignedTx = await txBuilder
+    .delegateStakeCertificate(rewardAddress, poolIdHash)
+    .selectUtxosFrom(utxos)
+    .changeAddress(changeAddress)
+    .complete();
+
+  const signedTx = await wallet.signTx(unsignedTx);
+  return await wallet.submitTx(signedTx);
+}
+
+// Withdraw all rewards
+async function withdrawRewards(wallet: any, amount: string) {
+  const txBuilder = getTxBuilder();
+
+  const utxos = await wallet.getUtxos();
+  const changeAddress = await wallet.getChangeAddress();
+  const rewardAddresses = await wallet.getRewardAddresses();
+  const rewardAddress = rewardAddresses[0]!;
+
+  const unsignedTx = await txBuilder
+    .withdrawal(rewardAddress, amount)
+    .selectUtxosFrom(utxos)
+    .changeAddress(changeAddress)
+    .complete();
+
+  const signedTx = await wallet.signTx(unsignedTx);
+  return await wallet.submitTx(signedTx);
+}
+
+// Stop staking completely
+async function stopStaking(wallet: any) {
+  const txBuilder = getTxBuilder();
+
+  const utxos = await wallet.getUtxos();
+  const changeAddress = await wallet.getChangeAddress();
+  const rewardAddresses = await wallet.getRewardAddresses();
+  const rewardAddress = rewardAddresses[0]!;
+
+  const unsignedTx = await txBuilder
+    .deregisterStakeCertificate(rewardAddress)
+    .selectUtxosFrom(utxos)
+    .changeAddress(changeAddress)
+    .complete();
+
+  const signedTx = await wallet.signTx(unsignedTx);
+  return await wallet.submitTx(signedTx);
+}
+
+// Usage
+const poolId = "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy";
+
+// Start staking
+const startTxHash = await startStaking(wallet, poolId);
+console.log(`Started staking: ${startTxHash}`);
+
+// Later, withdraw 10 ADA in rewards
+const withdrawTxHash = await withdrawRewards(wallet, "10000000");
+console.log(`Withdrew rewards: ${withdrawTxHash}`);
+
+// Change to different pool
+const newPoolId = "pool1z5uqdk7dzdxaae5633fqfcu2eqzy3a3rgtuvy087fdld7yws0xt";
+const changeTxHash = await changePool(wallet, newPoolId);
+console.log(`Changed pool: ${changeTxHash}`);
+
+// Eventually, stop staking
+const stopTxHash = await stopStaking(wallet);
+console.log(`Stopped staking: ${stopTxHash}`);
+```
+
+## Troubleshooting
+
+### "Stake address not registered" error
+- You must register a stake address before delegating
+- Use `registerStakeCertificate()` first, or combine with delegation
+
+### "Pool not found" error
+- Verify the pool ID is correct and the pool is active
+- Use `deserializePoolId()` to convert bech32 pool IDs
+
+### "Insufficient funds for deposit" error
+- Stake registration requires a 2 ADA deposit
+- Ensure your wallet has enough ADA to cover the deposit plus fees
+
+### "Cannot withdraw more than available" error
+- Query actual available rewards before withdrawing
+- Use `provider.fetchAccountInfo(rewardAddress)` to check balance
+
+### "Stake address already registered" error
+- Skip `registerStakeCertificate()` if already registered
+- Query stake address status first to check registration
+
+### Script withdrawal fails
+- Ensure the script stake key is registered first
+- Provide valid collateral for Plutus script execution
+- Check that the redeemer matches what the script expects
+
+## Related
+
+- <Link href="/apis/txbuilder/basics">Transaction Basics</Link> - Core transaction building
+- <Link href="/apis/txbuilder/governance">Governance</Link> - DRep delegation and voting
+- <Link href="/providers">Providers</Link> - Query stake pool information
+- <Link href="/apis/wallets">Wallets</Link> - Get reward addresses

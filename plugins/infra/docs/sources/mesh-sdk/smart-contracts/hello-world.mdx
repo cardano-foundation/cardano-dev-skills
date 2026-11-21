@@ -1,0 +1,285 @@
+---
+title: "Hello World Contract"
+description: "Lock and unlock assets on Cardano using a simple smart contract. Learn Plutus validators with Mesh SDK."
+---
+
+import Link from "next/link";
+
+The Hello World contract is an introductory smart contract that demonstrates asset locking and unlocking on Cardano. You lock assets into the contract, and only the original signer can unlock them by providing the message "Hello, World!".
+
+## Use Cases
+
+- Learning smart contract basics
+- Understanding datum and redeemer patterns
+- Testing wallet integrations
+- Prototyping lock/unlock mechanisms
+
+## Quick Start
+
+### Install the Package
+
+```bash
+npm install @meshsdk/contract @meshsdk/core
+```
+
+### Initialize the Contract
+
+```typescript
+import { MeshHelloWorldContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshHelloWorldContract({
+  mesh: meshTxBuilder,
+  fetcher: provider,
+  wallet: wallet,
+  networkId: 0,
+});
+```
+
+## Contract Logic
+
+The Hello World contract enforces two conditions for unlocking assets:
+
+| Condition | Description |
+|-----------|-------------|
+| **Signer Verification** | The transaction must be signed by the same wallet that locked the assets |
+| **Message Verification** | The redeemer must contain the exact message "Hello, World!" |
+
+Both conditions must be satisfied for the unlock to succeed.
+
+### On-Chain Validator
+
+```rust
+validator hello_world {
+  spend(
+    datum_opt: Option<Datum>,
+    redeemer: Redeemer,
+    _input: OutputReference,
+    tx: Transaction,
+  ) {
+    expect Some(datum) = datum_opt
+    let must_say_hello = redeemer.msg == "Hello, World!"
+    let must_be_signed = list.has(tx.extra_signatories, datum.owner)
+    must_say_hello && must_be_signed
+  }
+
+  else(_) {
+    fail
+  }
+}
+```
+
+### Datum Structure
+
+```rust
+pub type Datum {
+  owner: VerificationKeyHash,
+}
+```
+
+The datum stores the public key hash of the wallet that locked the assets. This value is checked during unlock to verify the signer.
+
+## Available Actions
+
+### Lock Assets
+
+Lock assets into the contract. The contract stores your public key hash in the datum for later verification.
+
+#### Method Signature
+
+```typescript
+contract.lockAsset(assets: Asset[]): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `assets` | `Asset[]` | Array of assets to lock (lovelace and/or tokens) |
+
+#### Code Example
+
+```typescript
+import { MeshHelloWorldContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder, Asset } from "@meshsdk/core";
+
+// Initialize provider and contract
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshHelloWorldContract({
+  mesh: meshTxBuilder,
+  fetcher: provider,
+  wallet: wallet,
+  networkId: 0,
+});
+
+// Define assets to lock
+const assets: Asset[] = [
+  {
+    unit: "lovelace",
+    quantity: "5000000", // 5 ADA
+  },
+];
+
+// Lock assets
+const tx = await contract.lockAsset(assets);
+const signedTx = await wallet.signTx(tx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Assets locked. Transaction hash:", txHash);
+```
+
+#### What Happens on Success
+
+- Assets transfer from your wallet to the contract address
+- Your public key hash is stored in the datum
+- You receive a transaction hash to reference when unlocking
+
+### Unlock Assets
+
+Unlock previously locked assets by providing the UTxO reference and the correct message.
+
+#### Method Signature
+
+```typescript
+contract.unlockAsset(utxo: UTxO, message: string): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `utxo` | `UTxO` | The UTxO containing your locked assets |
+| `message` | `string` | Must be exactly "Hello, World!" |
+
+#### Code Example
+
+```typescript
+import { MeshHelloWorldContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+// Initialize provider and contract
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshHelloWorldContract({
+  mesh: meshTxBuilder,
+  fetcher: provider,
+  wallet: wallet,
+  networkId: 0,
+});
+
+// Get the UTxO from the lock transaction
+const utxo = await contract.getUtxoByTxHash("<your-lock-transaction-hash>");
+
+// Unlock with the correct message
+const tx = await contract.unlockAsset(utxo, "Hello, World!");
+const signedTx = await wallet.signTx(tx, true);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Assets unlocked. Transaction hash:", txHash);
+```
+
+#### What Happens on Success
+
+- The contract validates your signature matches the datum owner
+- The contract validates the message equals "Hello, World!"
+- Assets transfer back to your wallet
+
+## Full Working Example
+
+```typescript
+import { MeshHelloWorldContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder, Asset } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+async function helloWorldDemo() {
+  // Connect wallet
+  const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+  // Initialize provider
+  const provider = new BlockfrostProvider("<Your-API-Key>");
+
+  const meshTxBuilder = new MeshTxBuilder({
+    fetcher: provider,
+    submitter: provider,
+  });
+
+  // Initialize contract
+  const contract = new MeshHelloWorldContract({
+    mesh: meshTxBuilder,
+    fetcher: provider,
+    wallet: wallet,
+    networkId: 0,
+  });
+
+  // Step 1: Lock assets
+  const assets: Asset[] = [
+    {
+      unit: "lovelace",
+      quantity: "5000000",
+    },
+  ];
+
+  const lockTx = await contract.lockAsset(assets);
+  const signedLockTx = await wallet.signTx(lockTx);
+  const lockTxHash = await wallet.submitTx(signedLockTx);
+
+  console.log("Lock transaction submitted:", lockTxHash);
+
+  // Wait for confirmation (in production, poll for confirmation)
+  await new Promise((resolve) => setTimeout(resolve, 60000));
+
+  // Step 2: Unlock assets
+  const utxo = await contract.getUtxoByTxHash(lockTxHash);
+
+  const unlockTx = await contract.unlockAsset(utxo, "Hello, World!");
+  const signedUnlockTx = await wallet.signTx(unlockTx, true);
+  const unlockTxHash = await wallet.submitTx(signedUnlockTx);
+
+  console.log("Unlock transaction submitted:", unlockTxHash);
+}
+
+helloWorldDemo().catch(console.error);
+```
+
+## Troubleshooting
+
+### Common Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Script validation failed` | Wrong message provided | Ensure you pass exactly "Hello, World!" with correct capitalization and punctuation |
+| `Missing required signer` | Wrong wallet signing | Use the same wallet that locked the assets |
+| `UTxO not found` | Invalid transaction hash | Verify the transaction hash and wait for blockchain confirmation |
+| `Insufficient funds` | Not enough ADA for fees | Ensure your wallet has enough ADA to cover transaction fees |
+
+### Debugging Tips
+
+1. **Verify the UTxO exists**: Use `contract.getUtxoByTxHash()` before attempting unlock
+2. **Check the message**: The message is case-sensitive and must include the comma and exclamation mark
+3. **Confirm wallet address**: The unlock must be signed by the same address that performed the lock
+4. **Wait for confirmation**: Allow 1-2 minutes after locking before attempting to unlock
+
+## Related Links
+
+- [Source Code on GitHub](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/hello-world)
+- [MeshTxBuilder Documentation](/apis/transaction)
+- [Wallet Integration Guide](/wallets)
+- [Blockfrost Provider Setup](/providers)

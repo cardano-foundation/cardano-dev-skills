@@ -1,0 +1,262 @@
+---
+title: "Wallet Integration"
+description: "Add Cardano wallet connectivity in minutes with Mesh SDK's unified API for all CIP-30 wallets."
+---
+
+import Link from "next/link";
+import { HowToSchema, FAQSchema } from "@/components/seo";
+
+<HowToSchema
+  name="Integrate Cardano Wallets with Mesh SDK"
+  description="Add wallet connectivity to any Cardano dApp in minutes using Mesh SDK's unified API and React components."
+  totalTime="PT5M"
+  steps={[
+    { name: "Install Mesh packages", text: "Run npm install @meshsdk/core @meshsdk/react to add wallet support." },
+    { name: "Wrap app with MeshProvider", text: "Add MeshProvider at the root to enable wallet context." },
+    { name: "Add CardanoWallet component", text: "Place the CardanoWallet component for instant multi-wallet support." },
+    { name: "Access wallet with useWallet", text: "Use the useWallet hook to access wallet state and methods." }
+  ]}
+/>
+
+<FAQSchema
+  faqs={[
+    {
+      question: "What is the fastest way to integrate Cardano wallets?",
+      answer: "Mesh SDK provides the fastest integration. Install @meshsdk/react, wrap with MeshProvider, and add CardanoWallet. Multi-wallet support in under 5 minutes."
+    },
+    {
+      question: "Does Mesh support all Cardano wallets?",
+      answer: "Yes. Mesh supports all CIP-30 compatible wallets including Eternl, Lace, Yoroi, Typhon, and more. The unified API works identically across all wallets."
+    },
+    {
+      question: "How do I detect installed wallets?",
+      answer: "Use MeshCardanoBrowserWallet.getInstalledWallets() to get a list of all installed CIP-30 wallets with metadata including name, icon, and identifier."
+    },
+    {
+      question: "Can I customize the wallet UI?",
+      answer: "Yes. While CardanoWallet provides a ready-to-use component, you can build fully custom UIs using MeshCardanoBrowserWallet and useWallet hook."
+    }
+  ]}
+/>
+
+Mesh provides the fastest Cardano wallet integration. Add multi-wallet support with pre-built React components or build custom UIs with the unified API.
+
+## Quick start
+
+```bash
+npm install @meshsdk/core @meshsdk/react
+```
+
+### 1. Add MeshProvider
+
+```tsx
+import { MeshProvider } from "@meshsdk/react";
+
+function App() {
+  return (
+    <MeshProvider>
+      <YourApp />
+    </MeshProvider>
+  );
+}
+```
+
+### 2. Add wallet connection
+
+```tsx
+import { CardanoWallet } from "@meshsdk/react";
+
+function Header() {
+  return (
+    <header>
+      <Logo />
+      <CardanoWallet />
+    </header>
+  );
+}
+```
+
+### 3. Access wallet state
+
+```tsx
+import { useWallet } from "@meshsdk/react";
+
+function Dashboard() {
+  const { connected, wallet } = useWallet();
+
+  if (!connected) return <p>Please connect your wallet</p>;
+
+  return <WalletDashboard wallet={wallet} />;
+}
+```
+
+---
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| Universal support | All CIP-30 wallets (Eternl, Lace, Yoroi, Typhon...) |
+| Pre-built components | CardanoWallet handles everything |
+| React hooks | Reactive state management |
+| Automatic detection | Identifies all installed wallets |
+| Normalized API | Consistent methods across wallets |
+| TypeScript | Full type definitions |
+
+---
+
+## API options
+
+### CardanoWallet component
+
+Complete wallet UI in one component:
+
+```tsx
+<CardanoWallet
+  label="Connect Wallet"
+  onConnected={() => console.log("Connected!")}
+  isDark={true}
+/>
+```
+
+### useWallet hook
+
+Access wallet state anywhere:
+
+```tsx
+const {
+  connected,      // boolean
+  wallet,         // BrowserWallet instance
+  connect,        // function to connect
+  disconnect,     // function to disconnect
+  connecting,     // boolean
+  name,           // wallet name
+} = useWallet();
+```
+
+### MeshCardanoBrowserWallet class
+
+For full control:
+
+```typescript
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+// Detect installed wallets
+const wallets = MeshCardanoBrowserWallet.getInstalledWallets();
+
+// Connect to specific wallet
+const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+// Unified API (Mesh format)
+const utxos = await wallet.getUtxosMesh();
+const address = await wallet.getChangeAddressBech32();
+const balance = await wallet.getBalanceMesh();
+```
+
+---
+
+## Common patterns
+
+### Persist wallet connection
+
+```tsx
+import { useEffect } from "react";
+import { useWallet } from "@meshsdk/react";
+
+function WalletManager() {
+  const { connected, connect, wallet } = useWallet();
+
+  useEffect(() => {
+    const saved = localStorage.getItem("preferredWallet");
+    if (saved && !connected) connect(saved);
+  }, []);
+
+  useEffect(() => {
+    if (connected && wallet) {
+      localStorage.setItem("preferredWallet", wallet.walletId);
+    }
+  }, [connected]);
+
+  return <CardanoWallet />;
+}
+```
+
+### Validate network
+
+```tsx
+const networkId = await wallet.getNetworkId();
+if (networkId !== 1) {
+  throw new Error("Please switch to Mainnet");
+}
+```
+
+### Handle errors
+
+```tsx
+try {
+  await connect(walletId);
+} catch (error) {
+  if (error.message.includes("User")) {
+    showToast("Connection cancelled");
+  } else if (error.message.includes("popup")) {
+    showToast("Please allow popups");
+  } else {
+    showToast("Failed to connect");
+  }
+}
+```
+
+---
+
+## Custom wallet UI
+
+```tsx
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+import { useWallet } from "@meshsdk/react";
+
+function CustomWalletButton() {
+  const { connect, connected, disconnect, name } = useWallet();
+  const wallets = MeshCardanoBrowserWallet.getInstalledWallets();
+
+  if (connected) {
+    return (
+      <button onClick={disconnect}>
+        Disconnect {name}
+      </button>
+    );
+  }
+
+  return (
+    <div className="wallet-options">
+      {wallets.map(w => (
+        <button key={w.id} onClick={() => connect(w.id)}>
+          <img src={w.icon} alt={w.name} />
+          {w.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+---
+
+## Why choose Mesh for wallets
+
+| Benefit | Details |
+|---------|---------|
+| One interface for all | No wallet-specific code |
+| Production tested | Powers major Cardano dApps |
+| Actively maintained | Updates for new wallets and changes |
+| TypeScript support | Full type definitions |
+
+---
+
+## Related resources
+
+| Resource | Link |
+|----------|------|
+| Transaction builder | [/resources/solutions/transaction-builder](/resources/solutions/transaction-builder) |
+| React components | [/resources/solutions/react-components](/resources/solutions/react-components) |
+| Wallet challenges | [/resources/challenges/wallet-integration](/resources/challenges/wallet-integration) |
+| BrowserWallet documentation | [/wallets/browserwallet](/wallets/browserwallet) |

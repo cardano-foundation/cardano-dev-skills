@@ -1,0 +1,25 @@
+---
+title: Google Cloud PubSub
+sidebar:
+  label: Gcp PubSub
+  order: 43
+---
+
+Publishes each event as a json-encoded message to a [Google Cloud Pub/Sub](https://cloud.google.com/pubsub)
+topic. A good fit when your services on GCP consume events through Pub/Sub subscriptions.
+
+:::note
+Authentication uses the standard Google Cloud credential chain — no credentials go in the
+config. See [Google Cloud credentials](/oura/v2/sinks/#google-cloud-credentials).
+:::
+
+## Configuration
+
+```toml title="daemon.toml"
+[sink]
+type = "GcpPubSub"
+topic = "test"
+```
+
+- `type` (required): the literal value `GcpPubSub`.
+- `topic` (required): the short name of the topic to publish to.

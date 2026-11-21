@@ -1,0 +1,433 @@
+---
+title: "Escrow Contract"
+description: "Enable secure peer-to-peer asset exchanges with multi-signature verification"
+---
+
+import Link from "next/link";
+
+The Escrow contract enables two parties to securely exchange assets. One party initiates the escrow by depositing assets, the other party deposits their assets, and both parties sign to complete the exchange. Either party can cancel before completion to retrieve their assets.
+
+## Use Cases
+
+- Peer-to-peer trading without intermediaries
+- Trustless asset swaps
+- Secure over-the-counter (OTC) deals
+- Cross-asset exchanges (NFT for ADA, token for token)
+- Multi-party agreements
+
+## Quick Start
+
+### Install the Package
+
+```bash
+npm install @meshsdk/contract @meshsdk/core
+```
+
+### Initialize the Contract
+
+```typescript
+import { MeshEscrowContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshEscrowContract({
+  mesh: meshTxBuilder,
+  fetcher: provider,
+  wallet: wallet,
+  networkId: 0,
+});
+```
+
+## Contract Logic
+
+The Escrow contract follows a multi-step process:
+
+| Step | Action | Description |
+|------|--------|-------------|
+| 1 | **Initiate** | Party A deposits assets and creates the escrow |
+| 2 | **Deposit** | Party B deposits their assets into the same escrow |
+| 3 | **Complete** | Both parties sign to swap assets |
+
+### Cancellation Rules
+
+- Either party can cancel at any time before completion
+- Cancellation returns all assets to their original owners
+- Partial escrows (only one deposit) return assets to the depositor
+
+### Completion Requirements
+
+- Both parties must have deposited assets
+- Both parties must sign the completion transaction
+- This is a **multi-signature transaction**
+
+## Available Actions
+
+### Initiate Escrow
+
+Start a new escrow by depositing your assets.
+
+#### Method Signature
+
+```typescript
+contract.initiateEscrow(escrowAmount: Asset[]): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `escrowAmount` | `Asset[]` | Array of assets to deposit |
+
+#### Code Example
+
+```typescript
+import { MeshEscrowContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder, Asset } from "@meshsdk/core";
+
+// Initialize provider and contract
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshEscrowContract({
+  mesh: meshTxBuilder,
+  fetcher: provider,
+  wallet: wallet,
+  networkId: 0,
+});
+
+// Define assets to deposit (Party A offers 10 ADA)
+const escrowAmount: Asset[] = [
+  {
+    unit: "lovelace",
+    quantity: "10000000",
+  },
+];
+
+// Initiate the escrow
+const tx = await contract.initiateEscrow(escrowAmount);
+const signedTx = await wallet.signTx(tx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Escrow initiated. Transaction hash:", txHash);
+// Share this txHash with Party B
+```
+
+#### What Happens on Success
+
+- Assets transfer from Party A's wallet to the contract
+- Party A's address is recorded in the escrow datum
+- Transaction hash is needed for Party B to deposit
+
+### Recipient Deposit
+
+Party B deposits their assets into an existing escrow.
+
+#### Method Signature
+
+```typescript
+contract.recipientDeposit(escrowUtxo: UTxO, depositAmount: Asset[]): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `escrowUtxo` | `UTxO` | The UTxO from the initiate transaction |
+| `depositAmount` | `Asset[]` | Array of assets Party B is depositing |
+
+#### Code Example
+
+```typescript
+import { MeshEscrowContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder, Asset } from "@meshsdk/core";
+
+// Initialize provider and contract (Party B's wallet)
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshEscrowContract({
+  mesh: meshTxBuilder,
+  fetcher: provider,
+  wallet: partyBWallet, // Party B's wallet
+  networkId: 0,
+});
+
+// Get the escrow UTxO from Party A's transaction
+const escrowUtxo = await contract.getUtxoByTxHash("<initiate-transaction-hash>");
+
+// Define assets Party B is depositing (an NFT)
+const depositAmount: Asset[] = [
+  {
+    unit: "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e",
+    quantity: "1",
+  },
+];
+
+// Deposit into the escrow
+const tx = await contract.recipientDeposit(escrowUtxo, depositAmount);
+const signedTx = await partyBWallet.signTx(tx);
+const txHash = await partyBWallet.submitTx(signedTx);
+
+console.log("Deposit complete. Transaction hash:", txHash);
+```
+
+#### What Happens on Success
+
+- Party B's assets transfer to the contract
+- Both parties' addresses are now in the escrow datum
+- Escrow is ready for completion
+
+### Complete Escrow
+
+Finalize the escrow and swap assets between both parties. This requires signatures from both participants.
+
+#### Method Signature
+
+```typescript
+contract.completeEscrow(escrowUtxo: UTxO): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `escrowUtxo` | `UTxO` | The UTxO containing the escrow |
+
+#### Code Example (Two-Step Signing)
+
+**Step 1: Party A signs**
+
+```typescript
+import { MeshEscrowContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+// Party A initiates completion
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshEscrowContract({
+  mesh: meshTxBuilder,
+  fetcher: provider,
+  wallet: partyAWallet,
+  networkId: 0,
+});
+
+// Get the escrow UTxO (after Party B deposited)
+const escrowUtxo = await contract.getUtxoByTxHash("<deposit-transaction-hash>");
+
+// Build and partially sign the completion transaction
+const tx = await contract.completeEscrow(escrowUtxo);
+const signedTxByA = await partyAWallet.signTx(tx, true); // partial sign
+
+console.log("Party A signed. Send this to Party B:", signedTxByA);
+```
+
+**Step 2: Party B signs and submits**
+
+```typescript
+// Party B receives the partially signed transaction
+const signedTxByA = "<partially-signed-tx-from-party-a>";
+
+// Party B adds their signature and submits
+const signedTxByBoth = await partyBWallet.signTx(signedTxByA, true);
+const txHash = await partyBWallet.submitTx(signedTxByBoth);
+
+console.log("Escrow completed. Transaction hash:", txHash);
+```
+
+#### What Happens on Success
+
+- Party A receives Party B's assets
+- Party B receives Party A's assets
+- Escrow UTxO is consumed
+- View example: [Successful completion on Cardanoscan](https://preprod.cardanoscan.io/transaction/019b6ba41ee0a9de90068fe5c1eb1fd81489be5d2402bd560b548e1cd7f22056)
+
+### Cancel Escrow
+
+Cancel the escrow and return assets to their original owners.
+
+#### Method Signature
+
+```typescript
+contract.cancelEscrow(escrowUtxo: UTxO): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `escrowUtxo` | `UTxO` | The UTxO containing the escrow |
+
+#### Code Example
+
+```typescript
+import { MeshEscrowContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+// Initialize provider and contract
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshEscrowContract({
+  mesh: meshTxBuilder,
+  fetcher: provider,
+  wallet: wallet, // Either party can cancel
+  networkId: 0,
+});
+
+// Get the escrow UTxO
+const escrowUtxo = await contract.getUtxoByTxHash("<escrow-transaction-hash>");
+
+// Cancel the escrow
+const tx = await contract.cancelEscrow(escrowUtxo);
+const signedTx = await wallet.signTx(tx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Escrow cancelled. Transaction hash:", txHash);
+```
+
+#### What Happens on Success
+
+- All assets return to their original depositors
+- Escrow UTxO is consumed
+- No further action possible on this escrow
+
+## Full Working Example
+
+```typescript
+import { MeshEscrowContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder, Asset } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+async function escrowDemo() {
+  const provider = new BlockfrostProvider("<Your-API-Key>");
+
+  // Party A: Wants to trade 10 ADA for an NFT
+  const partyAWallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+  const contractA = new MeshEscrowContract({
+    mesh: new MeshTxBuilder({ fetcher: provider, submitter: provider }),
+    fetcher: provider,
+    wallet: partyAWallet,
+    networkId: 0,
+  });
+
+  // Step 1: Party A initiates with 10 ADA
+  const partyADeposit: Asset[] = [
+    { unit: "lovelace", quantity: "10000000" },
+  ];
+
+  const initTx = await contractA.initiateEscrow(partyADeposit);
+  const signedInitTx = await partyAWallet.signTx(initTx);
+  const initTxHash = await partyAWallet.submitTx(signedInitTx);
+
+  console.log("Escrow initiated:", initTxHash);
+  await new Promise((r) => setTimeout(r, 60000));
+
+  // Step 2: Party B deposits their NFT
+  const partyBWallet = await MeshCardanoBrowserWallet.enable("nami");
+
+  const contractB = new MeshEscrowContract({
+    mesh: new MeshTxBuilder({ fetcher: provider, submitter: provider }),
+    fetcher: provider,
+    wallet: partyBWallet,
+    networkId: 0,
+  });
+
+  const escrowUtxo = await contractB.getUtxoByTxHash(initTxHash);
+
+  const partyBDeposit: Asset[] = [
+    {
+      unit: "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e",
+      quantity: "1",
+    },
+  ];
+
+  const depositTx = await contractB.recipientDeposit(escrowUtxo, partyBDeposit);
+  const signedDepositTx = await partyBWallet.signTx(depositTx);
+  const depositTxHash = await partyBWallet.submitTx(signedDepositTx);
+
+  console.log("Party B deposited:", depositTxHash);
+  await new Promise((r) => setTimeout(r, 60000));
+
+  // Step 3: Complete the escrow (multi-sig)
+  const finalUtxo = await contractA.getUtxoByTxHash(depositTxHash);
+
+  // Party A signs first
+  const completeTx = await contractA.completeEscrow(finalUtxo);
+  const signedByA = await partyAWallet.signTx(completeTx, true, false);
+
+  // Party B signs and submits
+  const signedByBoth = await partyBWallet.signTx(signedByA, true, false);
+  const completeTxHash = await partyBWallet.submitTx(signedByBoth);
+
+  console.log("Escrow completed:", completeTxHash);
+}
+
+escrowDemo().catch(console.error);
+```
+
+## Troubleshooting
+
+### Common Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Script validation failed` | Missing signature | Ensure both parties sign the completion transaction |
+| `UTxO not found` | Wrong transaction hash | Verify you are using the latest escrow UTxO |
+| `Not a participant` | Wrong wallet | Only escrow participants can interact |
+| `Already completed` | Escrow finalized | Cannot modify a completed escrow |
+
+### Debugging Tips
+
+1. **Track transaction hashes**: Each step produces a new transaction hash
+2. **Use partial signing**: Always pass `true` to `signTx()` for escrow operations
+3. **Share transactions securely**: Use secure channels to exchange partially signed transactions
+4. **Verify before signing**: Check the escrow contents before completing
+
+### Multi-Signature Flow
+
+```
+Party A                    Contract                    Party B
+   |                          |                          |
+   |------ initiateEscrow --->|                          |
+   |                          |<---- recipientDeposit ---|
+   |                          |                          |
+   |---- completeEscrow ----->|                          |
+   |     (partial sign)       |                          |
+   |                          |                          |
+   |          signedTxByA -------------------------------->|
+   |                          |                          |
+   |                          |<----- signTx + submit ---|
+   |                          |       (both signatures)  |
+   |<----- Party B's assets --|---- Party A's assets --->|
+```
+
+## Related Links
+
+- [Source Code on GitHub](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/escrow)
+- [Successful Completion Example](https://preprod.cardanoscan.io/transaction/019b6ba41ee0a9de90068fe5c1eb1fd81489be5d2402bd560b548e1cd7f22056)
+- [MeshTxBuilder Documentation](/apis/transaction)
+- [Wallet Integration Guide](/wallets)

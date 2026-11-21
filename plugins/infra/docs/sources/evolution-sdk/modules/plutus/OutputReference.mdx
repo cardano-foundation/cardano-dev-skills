@@ -1,0 +1,110 @@
+---
+title: plutus/OutputReference.ts
+nav_order: 91
+parent: Modules
+---
+
+## OutputReference overview
+
+---
+
+<h2 className="text-delta">Table of contents</h2>
+
+- [utils](#utils)
+  - [Codec](#codec)
+  - [OutputReference](#outputreference)
+  - [OutputReference (type alias)](#outputreference-type-alias)
+  - [TransactionId](#transactionid)
+  - [TransactionId (type alias)](#transactionid-type-alias)
+  - [TransactionIdCodec](#transactionidcodec)
+
+---
+
+# utils
+
+## Codec
+
+**Signature**
+
+```ts
+export declare const Codec: {
+  toData: (
+    a: { readonly transaction_id: Uint8Array; readonly output_index: bigint },
+    overrideOptions?: ParseOptions
+  ) => Data.Constr
+  fromData: (
+    i: Data.Constr,
+    overrideOptions?: ParseOptions
+  ) => { readonly transaction_id: Uint8Array; readonly output_index: bigint }
+  toCBORHex: (
+    a: { readonly transaction_id: Uint8Array; readonly output_index: bigint },
+    overrideOptions?: ParseOptions
+  ) => string
+  toCBORBytes: (
+    a: { readonly transaction_id: Uint8Array; readonly output_index: bigint },
+    overrideOptions?: ParseOptions
+  ) => any
+  fromCBORHex: (
+    i: string,
+    overrideOptions?: ParseOptions
+  ) => { readonly transaction_id: Uint8Array; readonly output_index: bigint }
+  fromCBORBytes: (
+    i: any,
+    overrideOptions?: ParseOptions
+  ) => { readonly transaction_id: Uint8Array; readonly output_index: bigint }
+}
+```
+
+## OutputReference
+
+Output Reference - Uniquely identifies a UTxO
+
+**Signature**
+
+```ts
+export declare const OutputReference: TSchema.Struct<{
+  transaction_id: TSchema.ByteArray
+  output_index: TSchema.Integer
+}>
+```
+
+## OutputReference (type alias)
+
+**Signature**
+
+```ts
+export type OutputReference = typeof OutputReference.Type
+```
+
+## TransactionId
+
+Transaction ID (32 bytes hash)
+
+**Signature**
+
+```ts
+export declare const TransactionId: TSchema.ByteArray
+```
+
+## TransactionId (type alias)
+
+**Signature**
+
+```ts
+export type TransactionId = typeof TransactionId.Type
+```
+
+## TransactionIdCodec
+
+**Signature**
+
+```ts
+export declare const TransactionIdCodec: {
+  toData: (a: Uint8Array, overrideOptions?: ParseOptions) => Uint8Array
+  fromData: (i: Uint8Array, overrideOptions?: ParseOptions) => Uint8Array
+  toCBORHex: (a: Uint8Array, overrideOptions?: ParseOptions) => string
+  toCBORBytes: (a: Uint8Array, overrideOptions?: ParseOptions) => any
+  fromCBORHex: (i: string, overrideOptions?: ParseOptions) => Uint8Array
+  fromCBORBytes: (i: any, overrideOptions?: ParseOptions) => Uint8Array
+}
+```

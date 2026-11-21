@@ -1,0 +1,36 @@
+type: array
+items:
+  type: object
+  properties:
+    tx_hash:
+      type: string
+      description: Hash of the transaction containing the MIR
+    amount:
+      type: string
+      description: MIR amount in Lovelaces
+    tx_slot:
+      type: integer
+      description: Slot of the transaction containing the MIR
+    block_time:
+      type: integer
+      description: Block creation time in UNIX time of the transaction containing the MIR
+    block_height:
+      type: integer
+      description: Block height of the transaction containing the MIR
+  required:
+    - tx_hash
+    - amount
+    - tx_slot
+    - block_time
+    - block_height
+example:
+  - tx_hash: "69705bba1d687a816ff5a04ec0c358a1f1ef075ab7f9c6cc2763e792581cec6d"
+    amount: "2193707473"
+    tx_slot: 45093580
+    block_time: 1646437200
+    block_height: 6745358
+  - tx_hash: "baaa77b63d4d7d2bb3ab02c9b85978c2092c336dede7f59e31ad65452d510c13"
+    amount: "14520198574"
+    tx_slot: 48093580
+    block_time: 1649033600
+    block_height: 7126896

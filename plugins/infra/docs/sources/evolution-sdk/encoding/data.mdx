@@ -1,0 +1,332 @@
+---
+title: PlutusData
+description: On-chain data structures for Cardano smart contracts
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+# PlutusData
+
+PlutusData is the serialization format for all on-chain data in Cardano smart contracts. Every datum attached to a UTxO, every redeemer that unlocks a script, and every parameter passed to a validator must be encoded as PlutusData.
+
+The Evolution SDK's Data module gives you type-safe PlutusData creation without touching raw CBOR bytes.
+
+## The Five Types
+
+PlutusData consists of five primitive types:
+
+| Type | TypeScript | Use For |
+|------|-----------|---------|
+| **Integer** | `bigint` | Amounts, indices, timestamps, quantities |
+| **ByteArray** | `Uint8Array` | Hashes, addresses, policy IDs, asset names |
+| **Constructor** | `{ index: bigint, fields: Data[] }` | Variants, tagged unions, structured data |
+| **Map** | `Map<Data, Data>` | Metadata, key-value stores |
+| **List** | `ReadonlyArray<Data>` | Arrays of values |
+
+## Quick Start
+
+Create PlutusData using TypeScript primitives:
+
+```typescript twoslash
+import { Bytes, Data, Text } from "@evolution-sdk/evolution"
+
+// Integer (bigint)
+const lovelaceAmount: Data.Data = 5000000n
+
+// ByteArray (Uint8Array)
+const tokenName = Text.toBytes("HOSKY")
+const policyId = Bytes.fromHex("a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8")
+
+// Constructor (variant with fields)
+const unlockAction = Data.constr(0n, []) // variant 0, no fields
+
+// Map (key-value pairs)
+const metadata = Data.map([
+  [Text.toBytes("name"), Text.toBytes("My NFT")],
+  [Text.toBytes("image"), Text.toBytes("ipfs://Qm...")]
+])
+
+// List (array)
+const quantities: Data.Data = [100n, 200n, 300n]
+```
+
+## Integers
+
+Use `bigint` directly—no wrapper needed:
+
+```typescript twoslash
+import { Bytes, Data, Text } from "@evolution-sdk/evolution"
+
+// Lovelace amounts
+const fee: Data.Data = 170000n
+const deposit: Data.Data = 2000000n
+
+// Token quantities  
+const nftQuantity: Data.Data = 1n
+const ftQuantity: Data.Data = 1000000n
+
+// Negative values supported
+const delta: Data.Data = -500n
+
+// Large numbers
+const totalSupply: Data.Data = 45000000000000000n
+```
+
+## Byte Arrays
+
+Raw bytes for hashes, addresses, and binary data:
+
+```typescript twoslash
+import { Bytes, Data, Text } from "@evolution-sdk/evolution"
+
+// Transaction hash (32 bytes)
+const txHash = Bytes.fromHex(
+  "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+)
+
+// Policy ID (28 bytes)
+const policyId = Bytes.fromHex(
+  "1234567890abcdef1234567890abcdef1234567890abcdef12345678"
+)
+
+// Asset name (readable string)
+const assetName = Text.toBytes("MyToken")
+
+// Empty byte array (ada-only policyId)
+const adaPolicyId = new Uint8Array()
+```
+
+**When to use `Bytes.fromHex` vs `Text.toBytes`:**
+
+- **`Bytes.fromHex`**: For hashes, policy IDs, credential hashes (hexadecimal data)
+- **`Text.toBytes`**: For asset names, metadata values (human-readable strings)
+
+## Constructors
+
+Tagged unions representing variants or structured data:
+
+```typescript twoslash
+import { Bytes, Data, Text } from "@evolution-sdk/evolution"
+
+// Simple variant (no data)
+const claimAction = Data.constr(0n, [])
+const cancelAction = Data.constr(1n, [])
+
+// Variant with single field
+const verificationKeyCred = Data.constr(0n, [
+  Bytes.fromHex("abc123def456abc123def456abc123def456abc123def456abc123de")
+])
+
+const scriptCred = Data.constr(1n, [
+  Bytes.fromHex("def456abc123def456abc123def456abc123def456abc123def456ab")
+])
+
+// Multiple fields
+const outputRef = Data.constr(0n, [
+  Bytes.fromHex("a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"), // tx hash
+  2n // output index
+])
+```
+
+**Constructor index** determines which variant you're creating. Your Plutus validator defines what each index means.
+
+## Maps
+
+Key-value pairs where both keys and values are PlutusData:
+
+```typescript twoslash
+import { Bytes, Data, Text } from "@evolution-sdk/evolution"
+
+// NFT metadata
+const nftMetadata = Data.map([
+  [Text.toBytes("name"), Text.toBytes("CryptoKitty #1234")],
+  [Text.toBytes("image"), Text.toBytes("ipfs://QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco")],
+  [Text.toBytes("description"), Text.toBytes("A rare cryptokitty with rainbow fur")]
+])
+
+// Nested maps
+const tokenMetadata = Data.map([
+  [Text.toBytes("name"), Text.toBytes("MyToken")],
+  [Text.toBytes("ticker"), Text.toBytes("MTK")],
+  [Text.toBytes("decimals"), 6n],
+  [Text.toBytes("properties"), Data.map([
+    [Text.toBytes("mintable"), 1n], // boolean as 0/1
+    [Text.toBytes("burnable"), 1n]
+  ])]
+])
+```
+
+## Lists
+
+Ordered arrays of PlutusData:
+
+```typescript twoslash
+import { Bytes, Data, Text } from "@evolution-sdk/evolution"
+
+// List of integers
+const prices: Data.Data = [100n, 250n, 500n, 1000n]
+
+// List of byte arrays (hashes)
+const approvedSigners: Data.Data = [
+  Bytes.fromHex("abc123def456abc123def456abc123def456abc123def456abc123de"),
+  Bytes.fromHex("def456abc123def456abc123def456abc123def456abc123def456ab"),
+  Bytes.fromHex("123456789abc123456789abc123456789abc123456789abc12345678")
+]
+
+// List of constructors
+const actions: Data.Data = [
+  Data.constr(0n, []), // Claim
+  Data.constr(1n, []), // Cancel
+  Data.constr(2n, [5000000n]) // PartialClaim(amount)
+]
+```
+
+## CBOR Encoding
+
+Convert PlutusData to CBOR for blockchain submission:
+
+```typescript twoslash
+import { Bytes, Data, Text } from "@evolution-sdk/evolution"
+
+const datum = Data.constr(0n, [
+  Data.map([
+    [Text.toBytes("beneficiary"), Text.toBytes("addr1...")],
+    [Text.toBytes("deadline"), 1735689600000n]
+  ]),
+  5000000n, // amount
+  1n // version
+])
+
+// Encode to hex string
+const cborHex = Data.toCBORHex(datum)
+// "d8799fa24b62656e..."
+
+// Encode to bytes  
+const cborBytes = Data.toCBORBytes(datum)
+// Uint8Array [216, 121, 159, ...]
+
+// Decode from CBOR
+const decoded = Data.fromCBORHex(cborHex)
+// Returns original PlutusData structure
+```
+
+By default the encoder writes the layout the node writes, `CBOR.PLUTUS_DATA_OPTIONS`: non-empty lists and constructor fields indefinite, maps definite. The map above starts with `a2`, a definite map of two entries. Earlier releases wrote maps indefinite. To reproduce those bytes or datum hashes, pass the deprecated `CBOR.CML_DATA_DEFAULT_OPTIONS` to `Data.toCBORHex`, `Data.toCBORBytes` or `Data.toDatumHash`.
+
+## Equality Comparison
+
+Check if two PlutusData structures are equal:
+
+```typescript twoslash
+import { Bytes, Data, Text } from "@evolution-sdk/evolution"
+
+const map1 = Data.map([
+  [Text.toBytes("name"), Text.toBytes("Alice")],
+  [Text.toBytes("age"), 30n]
+])
+
+const map2 = Data.map([
+  [Text.toBytes("name"), Text.toBytes("Alice")],
+  [Text.toBytes("age"), 30n]
+])
+
+// Deep equality check
+const isEqual = Data.equals(map1, map2)
+// true
+```
+
+## Real-World Examples
+
+### Escrow Datum
+
+```typescript twoslash
+import { Bytes, Data, Text } from "@evolution-sdk/evolution"
+
+// Escrow locked until deadline
+const escrowDatum = Data.constr(0n, [
+  Bytes.fromHex("abc123def456abc123def456abc123def456abc123def456abc123de"), // beneficiary
+  1735689600000n, // deadline (Unix timestamp)
+  10000000n // locked lovelace amount
+])
+
+const cborHex = Data.toCBORHex(escrowDatum)
+// Attach to UTxO as inline datum
+```
+
+### CIP-68 NFT Metadata
+
+```typescript twoslash
+import { Bytes, Data, Text } from "@evolution-sdk/evolution"
+
+// Reference NFT metadata (label 100)
+const metadata = Data.map([
+  [Text.toBytes("name"), Text.toBytes("SpaceAce #4242")],
+  [Text.toBytes("image"), Text.toBytes("ipfs://QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco")],
+  [Text.toBytes("rarity"), Text.toBytes("legendary")],
+  [Text.toBytes("attributes"), Data.map([
+    [Text.toBytes("class"), Text.toBytes("explorer")],
+    [Text.toBytes("power"), 9000n]
+  ])]
+])
+
+const cip68Datum = Data.constr(0n, [
+  metadata,
+  1n, // version
+  [] // extra fields
+])
+```
+
+### Redeemer with Multiple Actions
+
+```typescript twoslash
+import { Bytes, Data, Text } from "@evolution-sdk/evolution"
+
+// Action variants
+const claim = Data.constr(0n, [])
+const cancel = Data.constr(1n, [])
+const update = Data.constr(2n, [
+  1735776000000n // new deadline
+])
+
+// Use in transaction
+const redeemer = claim
+```
+
+### Multi-Sig Validator Redeemer
+
+```typescript twoslash
+import { Bytes, Data, Text } from "@evolution-sdk/evolution"
+
+const multiSigRedeemer = Data.constr(0n, [
+  // Required signers (list of key hashes)
+  [
+    Bytes.fromHex("abc123def456abc123def456abc123def456abc123def456abc123de"),
+    Bytes.fromHex("def456abc123def456abc123def456abc123def456abc123def456ab")
+  ] as Data.Data,
+  2n // threshold (2 of N)
+])
+```
+
+## When to Use PlutusData Directly
+
+Use the Data module directly when:
+
+- Quick prototyping or testing
+- Working with dynamic data structures
+- Debugging CBOR encoding issues
+- Building tooling or explorers
+
+For production smart contract integration, use [TSchema](/docs/encoding/tschema) for type-safe schema definitions with automatic validation.
+
+## Next Steps
+
+<Cards>
+  <Card title="TSchema" href="/docs/encoding/tschema">
+    Type-safe schema definitions with automatic validation
+  </Card>
+  <Card title="Plutus Types" href="/docs/encoding/plutus">
+    Pre-built types for addresses, credentials, values, and CIP-68
+  </Card>
+  <Card title="CBOR" href="/docs/encoding/cbor">
+    Low-level CBOR encoding and decoding
+  </Card>
+</Cards>

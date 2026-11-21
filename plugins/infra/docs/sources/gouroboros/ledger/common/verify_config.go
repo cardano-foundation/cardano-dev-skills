@@ -1,0 +1,265 @@
+// Copyright 2025 Blink Labs Software
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package common
+
+import (
+	"bytes"
+	"encoding/hex"
+	"fmt"
+	"math/big"
+
+	"github.com/blinklabs-io/gouroboros/cbor"
+	"golang.org/x/crypto/blake2b"
+)
+
+// ValidationError represents a structured validation error with additional context
+type ValidationError struct {
+	Type    ValidationErrorType
+	Message string
+	Details map[string]any
+	Cause   error
+	// ByteOffset is the byte offset within the underlying CBOR data where the
+	// problem was detected. Zero means unknown / not applicable.
+	ByteOffset int
+	// CborContext is a human-readable path within the CBOR structure (e.g.
+	// "block/body/tx[3]/inputs"). Empty means unknown / not applicable.
+	CborContext string
+	// Diagnostic is a CBOR diagnostic notation snippet describing the
+	// problematic element. Empty means unavailable.
+	Diagnostic string
+}
+
+type ValidationErrorType string
+
+const (
+	ValidationErrorTypeBodyHash      ValidationErrorType = "body_hash"
+	ValidationErrorTypeTransaction   ValidationErrorType = "transaction"
+	ValidationErrorTypeStakePool     ValidationErrorType = "stake_pool"
+	ValidationErrorTypeVRF           ValidationErrorType = "vrf"
+	ValidationErrorTypeKES           ValidationErrorType = "kes"
+	ValidationErrorTypeOpCert        ValidationErrorType = "opcert"
+	ValidationErrorTypeProtocol      ValidationErrorType = "protocol"
+	ValidationErrorTypeConfiguration ValidationErrorType = "configuration"
+)
+
+func (e ValidationError) Error() string {
+	var ctx string
+	if e.CborContext != "" || e.ByteOffset > 0 {
+		switch {
+		case e.CborContext != "" && e.ByteOffset > 0:
+			ctx = fmt.Sprintf(" [%s @offset %d]", e.CborContext, e.ByteOffset)
+		case e.CborContext != "":
+			ctx = fmt.Sprintf(" [%s]", e.CborContext)
+		default:
+			ctx = fmt.Sprintf(" [@offset %d]", e.ByteOffset)
+		}
+	}
+	if e.Cause != nil {
+		return fmt.Sprintf("%s: %s%s (%v)", e.Type, e.Message, ctx, e.Cause)
+	}
+	return fmt.Sprintf("%s: %s%s", e.Type, e.Message, ctx)
+}
+
+func (e ValidationError) Unwrap() error {
+	return e.Cause
+}
+
+// WithDiagnostic returns Error() followed by the stored Diagnostic snippet on
+// new lines. When Diagnostic is empty, it returns Error() unchanged.
+func (e ValidationError) WithDiagnostic() string {
+	if e.Diagnostic == "" {
+		return e.Error()
+	}
+	return fmt.Sprintf("%s\n\nDiagnostic:\n%s", e.Error(), e.Diagnostic)
+}
+
+// NewValidationError creates a new structured validation error
+func NewValidationError(
+	errType ValidationErrorType,
+	message string,
+	details map[string]any,
+	cause error,
+) *ValidationError {
+	return &ValidationError{
+		Type:    errType,
+		Message: message,
+		Details: details,
+		Cause:   cause,
+	}
+}
+
+// VerifyConfig holds runtime verification toggles.
+// Default values favor safety; tests or specific flows can opt out.
+type VerifyConfig struct {
+	// SkipHeaderValidation disables the public decoder's nil-header check.
+	// This is for callers that need to distinguish a representable block from
+	// a validation failure before applying their own validation.
+	SkipHeaderValidation bool
+	// SkipBodyHashValidation disables block body integrity verification in
+	// VerifyBlock(), including the signed body size and body hash checks. When
+	// false (default), full block CBOR must be available for validation. Useful
+	// for scenarios where full block CBOR is unavailable.
+	SkipBodyHashValidation bool
+	// SkipTransactionValidation disables transaction validation in VerifyBlock().
+	// When false (default), LedgerState and ProtocolParameters must be set.
+	SkipTransactionValidation bool
+	// SkipStakePoolValidation disables stake pool registration validation in VerifyBlock().
+	// When false (default), LedgerState must be set.
+	SkipStakePoolValidation bool
+	// SkipBlockLimitsValidation disables block-wide execution-unit and
+	// serialized-size limit enforcement in VerifyBlock() (the BBODY
+	// block-level checks: sum of transaction ExUnits against
+	// ppMaxBlockExUnits, and block body/header size against
+	// ppMaxBlockBodySize/ppMaxBlockHeaderSize). Unlike the other Skip*
+	// flags, this check does not require LedgerState and runs independently
+	// of SkipTransactionValidation: it only needs ProtocolParameters (for
+	// the limits) and, for the size checks, the block's raw CBOR. It returns a
+	// validation failure when ProtocolParameters is nil and is a no-op only
+	// when transactions, raw block CBOR, and header CBOR are all unavailable.
+	SkipBlockLimitsValidation bool
+	// LedgerState provides the current ledger state for transaction validation.
+	// Required if SkipTransactionValidation or SkipStakePoolValidation is false.
+	LedgerState LedgerState
+	// ProtocolParameters provides the current protocol parameters for
+	// transaction validation and block-limits validation.
+	// Required for Shelley-family transaction validation when
+	// SkipTransactionValidation is false. When set and
+	// SkipBlockLimitsValidation is false, also enables block-wide
+	// execution-unit and size validation (see SkipBlockLimitsValidation).
+	ProtocolParameters ProtocolParameters
+	// ByronTxFeePolicy is the Byron linear transaction fee policy. It is
+	// required for Byron transaction validation when SkipTransactionValidation
+	// is false; validation fails closed when it is nil.
+	ByronTxFeePolicy *ByronTxFeePolicy
+}
+
+// ByronTxFeePolicy is the Byron TxSizeLinear fee policy. Both values are in
+// nano-lovelace (1e-9 lovelace), the unit used by the Byron genesis
+// txFeePolicy, so the minimum fee for a transaction of size bytes is
+// ceil((Summand + Multiplier*size) / 1e9) lovelace.
+type ByronTxFeePolicy struct {
+	Summand    uint64
+	Multiplier uint64
+}
+
+// MinFee returns the minimum fee in lovelace for a serialized transaction of
+// txSize bytes.
+func (p ByronTxFeePolicy) MinFee(txSize int) *big.Int {
+	total := new(big.Int).SetUint64(p.Multiplier)
+	total.Mul(total, big.NewInt(int64(txSize)))
+	total.Add(total, new(big.Int).SetUint64(p.Summand))
+	denominator := big.NewInt(1_000_000_000)
+	quotient, remainder := new(big.Int).QuoRem(total, denominator, new(big.Int))
+	if remainder.Sign() > 0 {
+		quotient.Add(quotient, big.NewInt(1))
+	}
+	return quotient
+}
+
+// ValidateBlockBodyHash validates the block body hash during parsing.
+// It takes the raw CBOR data, expected body hash, and era-specific parameters.
+func ValidateBlockBodyHash(
+	data []byte,
+	expectedBodyHash Blake2b256,
+	eraName string,
+	minRawLength int,
+) error {
+	var raw []cbor.RawMessage
+	if _, err := cbor.Decode(data, &raw); err != nil {
+		return NewValidationError(
+			ValidationErrorTypeBodyHash,
+			"failed to decode block CBOR for body hash validation",
+			map[string]any{
+				"era": eraName,
+			},
+			err,
+		)
+	}
+	if len(raw) < minRawLength {
+		return NewValidationError(
+			ValidationErrorTypeBodyHash,
+			fmt.Sprintf(
+				"invalid %s block CBOR structure for body hash validation",
+				eraName,
+			),
+			map[string]any{
+				"era":           eraName,
+				"expected_min":  minRawLength,
+				"actual_length": len(raw),
+			},
+			nil,
+		)
+	}
+	// Compute body hash as per Cardano spec: blake2b_256(hash_tx || hash_wit || hash_aux [|| hash_invalid])
+	var bodyHashes []byte
+	for i := 1; i < minRawLength; i++ {
+		tmpHash := blake2b.Sum256(raw[i])
+		bodyHashes = append(bodyHashes, tmpHash[:]...)
+	}
+
+	actualBodyHash := blake2b.Sum256(bodyHashes)
+	if !bytes.Equal(actualBodyHash[:], expectedBodyHash.Bytes()) {
+		return NewValidationError(
+			ValidationErrorTypeBodyHash,
+			eraName+" block body hash mismatch during parsing",
+			map[string]any{
+				"era":           eraName,
+				"expected_hash": expectedBodyHash.String(),
+				"actual_hash":   hex.EncodeToString(actualBodyHash[:]),
+			},
+			nil,
+		)
+	}
+	return nil
+}
+
+// BlockBodySizeFromCbor returns the serialized size, in bytes, of a block's
+// body from the block's original raw CBOR: the sum of the raw CBOR lengths
+// of every top-level array element after the header (element 0).
+//
+// This matches cardano-ledger's default blockBodySize, which for
+// pre-Dijkstra blocks is the concatenation of transaction_bodies,
+// transaction_witness_sets, auxiliary_data_set, and (Alonzo+)
+// invalid_transactions, each encoded as normal top-level CBOR values with no
+// extra wrapping array around the group; and for Dijkstra (a 2-element
+// [header, block_body] block) is simply the single block_body element.
+// Summing raw[1:] covers both shapes without era-specific branching.
+//
+// NOTE: this re-decodes the entire block CBOR into []cbor.RawMessage just to
+// sum the lengths of the top-level elements, which is redundant with the
+// decode VerifyBlock's caller has typically already done (or will do) to
+// obtain the block/transactions in the first place. On the sync-pipeline hot
+// path this is an extra full re-tokenization of the block. A proper fix
+// would thread already-decoded top-level element boundaries (or their
+// lengths) through from the call site instead of handing this function raw
+// bytes, but that requires a larger refactor of how VerifyBlock threads CBOR
+// through the pipeline. As a low-risk mitigation, the call in VerifyBlock
+// only invokes this when MaxBlockBodySize > 0 (i.e. the limit is actually
+// enabled), so the redundant decode is skipped entirely when the check is a
+// no-op. Tracked as a known follow-up rather than addressed here.
+func BlockBodySizeFromCbor(rawCbor []byte) (uint64, error) {
+	raw, _, err := decodeBlockArrayBytes(rawCbor)
+	if err != nil {
+		return 0, fmt.Errorf(
+			"failed to decode block CBOR for body size calculation: %w",
+			err,
+		)
+	}
+	var size uint64
+	for _, item := range raw[1:] {
+		size += uint64(len(item))
+	}
+	return size, nil
+}

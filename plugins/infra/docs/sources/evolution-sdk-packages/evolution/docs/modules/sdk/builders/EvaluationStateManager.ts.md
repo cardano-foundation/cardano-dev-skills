@@ -1,0 +1,74 @@
+---
+title: sdk/builders/EvaluationStateManager.ts
+nav_order: 119
+parent: Modules
+---
+
+## EvaluationStateManager overview
+
+Evaluation State Manager
+
+Centralized module for managing evaluation-related state mutations.
+Provides utilities to invalidate and track redeemer execution units.
+
+Added in v2.0.0
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [state-management](#state-management)
+  - [allRedeemersEvaluated](#allredeemersevaluated)
+  - [hasUnevaluatedRedeemers](#hasunevaluatedredeemers)
+  - [invalidateExUnits](#invalidateexunits)
+
+---
+
+# state-management
+
+## allRedeemersEvaluated
+
+Check if all redeemers have been evaluated.
+
+Returns true if all redeemers have valid execution units (mem > 0 and steps > 0).
+
+**Signature**
+
+```ts
+export declare const allRedeemersEvaluated: (redeemers: TxBuilderState["redeemers"]) => boolean
+```
+
+Added in v2.0.0
+
+## hasUnevaluatedRedeemers
+
+Check if any redeemers need evaluation.
+
+Returns true if there are redeemers without valid execution units
+(exUnits are missing or set to zero).
+
+**Signature**
+
+```ts
+export declare const hasUnevaluatedRedeemers: (redeemers: TxBuilderState["redeemers"]) => boolean
+```
+
+Added in v2.0.0
+
+## invalidateExUnits
+
+Invalidate all redeemer exUnits.
+
+Sets all redeemer execution units to zero, signaling that re-evaluation
+is required. This should be called when transaction structure changes
+(e.g., new inputs added) that would affect validator execution.
+
+Returns a new Map with invalidated exUnits (immutable operation).
+
+**Signature**
+
+```ts
+export declare const invalidateExUnits: (redeemers: TxBuilderState["redeemers"]) => TxBuilderState["redeemers"]
+```
+
+Added in v2.0.0

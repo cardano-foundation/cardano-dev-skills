@@ -1,0 +1,334 @@
+---
+title: "Giftcard Contract"
+description: "Create redeemable gift cards that hold assets and can be claimed by any recipient"
+---
+
+import Link from "next/link";
+
+The Giftcard contract lets you create gift cards that hold assets. When you create a gift card, the contract mints a unique token and locks your assets. Anyone with the gift card token can redeem it to claim the locked assets, burning the token in the process.
+
+## Use Cases
+
+- Crypto gift cards for friends and family
+- Promotional token distributions
+- Prize redemption systems
+- Prepaid service credits
+- Voucher and coupon systems
+
+## Quick Start
+
+### Install the Package
+
+```bash
+npm install @meshsdk/contract @meshsdk/core
+```
+
+### Initialize the Contract
+
+```typescript
+import { MeshGiftCardContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshGiftCardContract({
+  mesh: meshTxBuilder,
+  fetcher: provider,
+  wallet: wallet,
+  networkId: 0,
+});
+```
+
+## Contract Logic
+
+The Giftcard contract uses a mint-and-lock pattern:
+
+| Action | Token | Assets |
+|--------|-------|--------|
+| **Create** | Mint gift card token | Lock assets in contract |
+| **Redeem** | Burn gift card token | Release assets to redeemer |
+
+### How It Works
+
+1. **Creation**: You specify a token name and assets. The contract mints a unique NFT-like token and locks your assets.
+2. **Distribution**: You send the gift card token to a recipient (or keep it for later).
+3. **Redemption**: The token holder calls redeem. The contract burns the token and sends the locked assets to their wallet.
+
+### Security Model
+
+- Only the token holder can redeem the gift card
+- The token is burned on redemption, preventing double-spending
+- Assets are locked until redemption or cancellation
+
+## Available Actions
+
+### Create Giftcard
+
+Create a new gift card by minting a token and locking assets.
+
+#### Method Signature
+
+```typescript
+contract.createGiftCard(tokenName: string, giftValue: Asset[]): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `tokenName` | `string` | Name for the gift card token |
+| `giftValue` | `Asset[]` | Array of assets to lock in the gift card |
+
+#### Code Example
+
+```typescript
+import { MeshGiftCardContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder, Asset } from "@meshsdk/core";
+
+// Initialize provider and contract
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshGiftCardContract({
+  mesh: meshTxBuilder,
+  fetcher: provider,
+  wallet: wallet,
+  networkId: 0,
+});
+
+// Define gift card value (10 ADA)
+const giftValue: Asset[] = [
+  {
+    unit: "lovelace",
+    quantity: "10000000",
+  },
+];
+
+// Create the gift card
+const tx = await contract.createGiftCard("Birthday_Gift_2024", giftValue);
+const signedTx = await wallet.signTx(tx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Gift card created. Transaction hash:", txHash);
+```
+
+#### What Happens on Success
+
+- A unique token named `Birthday_Gift_2024` is minted
+- 10 ADA is locked in the contract
+- The token is sent to your wallet
+- You can transfer this token to give the gift card to someone
+
+### Redeem Giftcard
+
+Redeem a gift card to claim the locked assets.
+
+#### Method Signature
+
+```typescript
+contract.redeemGiftCard(giftCardUtxo: UTxO): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `giftCardUtxo` | `UTxO` | The UTxO containing the locked gift card assets |
+
+#### Code Example
+
+```typescript
+import { MeshGiftCardContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+// Initialize provider and contract
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshGiftCardContract({
+  mesh: meshTxBuilder,
+  fetcher: provider,
+  wallet: wallet,
+  networkId: 0,
+});
+
+// Get the gift card UTxO from the creation transaction
+const giftCardUtxo = await contract.getUtxoByTxHash("<creation-transaction-hash>");
+
+// Redeem the gift card
+const tx = await contract.redeemGiftCard(giftCardUtxo);
+const signedTx = await wallet.signTx(tx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Gift card redeemed. Transaction hash:", txHash);
+```
+
+#### What Happens on Success
+
+- The gift card token is burned
+- Locked assets transfer to the redeemer's wallet
+- View example: [Successful redemption on Cardanoscan](https://preprod.cardanoscan.io/transaction/2bc1c39337de3ebcb2650aa41c73b1a873288282b8c7e1ed130d31f5c34090b7)
+
+## Full Working Example
+
+```typescript
+import { MeshGiftCardContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder, Asset } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+async function giftcardDemo() {
+  // Connect wallet (gift card creator)
+  const creatorWallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+  // Initialize provider
+  const provider = new BlockfrostProvider("<Your-API-Key>");
+
+  const meshTxBuilder = new MeshTxBuilder({
+    fetcher: provider,
+    submitter: provider,
+  });
+
+  // Initialize contract
+  const contract = new MeshGiftCardContract({
+    mesh: meshTxBuilder,
+    fetcher: provider,
+    wallet: creatorWallet,
+    networkId: 0,
+  });
+
+  // Step 1: Create a gift card with 5 ADA
+  const giftValue: Asset[] = [
+    {
+      unit: "lovelace",
+      quantity: "5000000",
+    },
+  ];
+
+  const createTx = await contract.createGiftCard("Holiday_Gift", giftValue);
+  const signedCreateTx = await creatorWallet.signTx(createTx);
+  const createTxHash = await creatorWallet.submitTx(signedCreateTx);
+
+  console.log("Gift card created:", createTxHash);
+
+  // Wait for confirmation
+  await new Promise((resolve) => setTimeout(resolve, 60000));
+
+  // Step 2: Recipient redeems (switch wallet in production)
+  const recipientWallet = await MeshCardanoBrowserWallet.enable("nami");
+
+  const recipientContract = new MeshGiftCardContract({
+    mesh: new MeshTxBuilder({ fetcher: provider, submitter: provider }),
+    fetcher: provider,
+    wallet: recipientWallet,
+    networkId: 0,
+  });
+
+  const giftCardUtxo = await recipientContract.getUtxoByTxHash(createTxHash);
+
+  const redeemTx = await recipientContract.redeemGiftCard(giftCardUtxo);
+  const signedRedeemTx = await recipientWallet.signTx(redeemTx);
+  const redeemTxHash = await recipientWallet.submitTx(signedRedeemTx);
+
+  console.log("Gift card redeemed:", redeemTxHash);
+}
+
+giftcardDemo().catch(console.error);
+```
+
+## Multiple Asset Gift Cards
+
+You can create gift cards containing multiple assets:
+
+```typescript
+const giftValue: Asset[] = [
+  {
+    unit: "lovelace",
+    quantity: "10000000", // 10 ADA
+  },
+  {
+    unit: "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e",
+    quantity: "1", // 1 NFT
+  },
+  {
+    unit: "abc123...tokenunit",
+    quantity: "100", // 100 fungible tokens
+  },
+];
+
+const tx = await contract.createGiftCard("Super_Bundle_Gift", giftValue);
+```
+
+## Finding Gift Card UTxOs
+
+You can search for gift card UTxOs by token name instead of transaction hash:
+
+```typescript
+// Custom function to find gift card by token name
+async function findGiftCardByName(
+  contract: MeshGiftCardContract,
+  tokenName: string
+): Promise<UTxO | undefined> {
+  const scriptAddress = contract.getScriptAddress();
+  const utxos = await provider.fetchAddressUTxOs(scriptAddress);
+
+  return utxos.find((utxo) =>
+    utxo.output.amount.some((asset) =>
+      asset.unit.includes(Buffer.from(tokenName).toString("hex"))
+    )
+  );
+}
+
+const giftCardUtxo = await findGiftCardByName(contract, "Birthday_Gift_2024");
+```
+
+## Troubleshooting
+
+### Common Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Script validation failed` | Token not in wallet | Ensure you hold the gift card token before redeeming |
+| `UTxO not found` | Gift card already redeemed | Each gift card can only be redeemed once |
+| `Insufficient funds` | Not enough ADA for fees | Ensure wallet has ADA for transaction fees |
+| `Token minting failed` | Invalid token name | Use alphanumeric characters and underscores |
+
+### Debugging Tips
+
+1. **Verify token ownership**: Check your wallet contains the gift card token before redeeming
+2. **Check UTxO status**: Use `getUtxoByTxHash()` to verify the gift card still exists
+3. **Inspect transaction**: View the creation transaction on a block explorer to see the token policy ID
+4. **Use unique names**: Each gift card should have a unique token name
+
+### Token Name Best Practices
+
+```typescript
+// Good token names
+"Birthday_Gift_2024"
+"Holiday_Bonus"
+"Prize_Winner_001"
+
+// Avoid these
+"Gift Card"      // Spaces not recommended
+"gift@card#1"    // Special characters may cause issues
+""               // Empty names will fail
+```
+
+## Related Links
+
+- [Source Code on GitHub](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/giftcard)
+- [Successful Redemption Example](https://preprod.cardanoscan.io/transaction/2bc1c39337de3ebcb2650aa41c73b1a873288282b8c7e1ed130d31f5c34090b7)
+- [MeshTxBuilder Documentation](/apis/transaction)
+- [Wallet Integration Guide](/wallets)

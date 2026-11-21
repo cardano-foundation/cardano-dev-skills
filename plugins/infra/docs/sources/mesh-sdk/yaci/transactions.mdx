@@ -1,0 +1,397 @@
+---
+title: "Build Transactions on Yaci"
+description: "Create, sign, and submit transactions on your Yaci devnet. Learn to build simple transfers and complex smart contract interactions."
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+This guide shows you how to build and submit transactions on a Yaci devnet using Mesh SDK. The same code works on both local and hosted devnets - only the provider URL changes.
+
+### What you will learn
+
+- Connect YaciProvider to your devnet
+- Fetch UTxOs and protocol parameters
+- Build and submit basic ADA transfers
+- Handle transaction errors
+
+## Prerequisites
+
+Before building transactions, ensure you have:
+
+| Requirement | Description |
+|-------------|-------------|
+| **Yaci devnet** | Running locally or using Mesh's hosted devnet |
+| **Funded wallet** | Address with test ADA (use `topup` command) |
+| **Mesh SDK** | `@meshsdk/core` package installed |
+
+```bash
+npm install @meshsdk/core
+```
+
+## Quick start
+
+Send 1 ADA to another address:
+
+```typescript
+import { YaciProvider, MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+
+// Connect to devnet
+const provider = new YaciProvider("https://yaci-node.meshjs.dev/api/v1/");
+
+// Create wallet
+const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+  networkId: 0,
+  walletAddressType: AddressType.Base,
+  fetcher: provider,
+  submitter: provider,
+  mnemonic: "your mnemonic words here".split(" "),
+});
+
+// Build and submit transaction
+const utxos = await wallet.getUtxosMesh();
+const changeAddress = await wallet.getChangeAddressBech32();
+
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+const unsignedTx = await txBuilder
+  .txOut("addr_test1...", [{ unit: "lovelace", quantity: "1000000" }])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, false);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Transaction submitted:", txHash);
+```
+
+## Setup
+
+### Connect to hosted devnet
+
+```typescript
+import { YaciProvider } from "@meshsdk/core";
+
+// Default: Mesh hosted devnet
+const provider = new YaciProvider();
+
+// Or explicit URL
+const providerExplicit = new YaciProvider("https://yaci-node.meshjs.dev/api/v1/");
+```
+
+### Connect to local devnet
+
+```typescript
+import { YaciProvider } from "@meshsdk/core";
+
+// Local Yaci DevKit
+const provider = new YaciProvider("http://localhost:8080/api/v1/");
+```
+
+### YaciProvider constructor
+
+```typescript
+const provider = new YaciProvider(
+  yaciUrl?: string,    // Yaci Store API URL
+  adminUrl?: string    // Optional admin API for advanced operations
+);
+```
+
+## API reference
+
+### Fetch UTxOs
+
+Get all UTxOs for an address:
+
+```typescript
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider("https://yaci-node.meshjs.dev/api/v1/");
+
+const utxos = await provider.fetchAddressUTxOs(
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9"
+);
+
+console.log("UTxOs found:", utxos.length);
+utxos.forEach((utxo) => {
+  console.log(`  ${utxo.input.txHash}#${utxo.input.outputIndex}`);
+});
+```
+
+### Fetch protocol parameters
+
+Get current protocol parameters for transaction building:
+
+```typescript
+import { YaciProvider } from "@meshsdk/core";
+
+const provider = new YaciProvider();
+
+const params = await provider.fetchProtocolParameters();
+console.log("Min fee coefficient:", params.minFeeA);
+console.log("Min fee constant:", params.minFeeB);
+```
+
+## Build a basic transaction
+
+### Step 1: Set up wallet and provider
+
+```typescript
+import { YaciProvider, MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+
+const provider = new YaciProvider();
+
+const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+  networkId: 0, // testnet
+  walletAddressType: AddressType.Base,
+  fetcher: provider,
+  submitter: provider,
+  mnemonic: [
+    "test", "test", "test", "test", "test", "test",
+    "test", "test", "test", "test", "test", "test",
+    "test", "test", "test", "test", "test", "test",
+    "test", "test", "test", "test", "test", "sauce"
+  ],
+});
+```
+
+### Step 2: Get UTxOs and addresses
+
+```typescript
+const utxos = await wallet.getUtxosMesh();
+const changeAddress = await wallet.getChangeAddressBech32();
+
+console.log("Available UTxOs:", utxos.length);
+console.log("Change address:", changeAddress);
+```
+
+### Step 3: Build the transaction
+
+```typescript
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+});
+
+const recipientAddress = "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9";
+
+const unsignedTx = await txBuilder
+  .txOut(recipientAddress, [{ unit: "lovelace", quantity: "1000000" }])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+### Step 4: Sign and submit
+
+```typescript
+const signedTx = await wallet.signTx(unsignedTx, false);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Transaction hash:", txHash);
+```
+
+## Complete example
+
+Full working example with error handling:
+
+```typescript
+import { YaciProvider, MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+
+async function sendAda() {
+  // Configuration
+  const YACI_URL = "https://yaci-node.meshjs.dev/api/v1/";
+  const MNEMONIC = "test test test test test test test test test test test test test test test test test test test test test test test sauce";
+  const RECIPIENT = "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9";
+  const AMOUNT = "5000000"; // 5 ADA in lovelace
+
+  // Initialize provider
+  const provider = new YaciProvider(YACI_URL);
+
+  // Verify connection
+  try {
+    const params = await provider.fetchProtocolParameters();
+    console.log("Connected to Yaci devnet");
+  } catch (error) {
+    console.error("Failed to connect to devnet:", error);
+    return;
+  }
+
+  // Initialize wallet
+  const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+    networkId: 0,
+    walletAddressType: AddressType.Base,
+    fetcher: provider,
+    submitter: provider,
+    mnemonic: MNEMONIC.split(" "),
+  });
+
+  // Get wallet state
+  const changeAddress = await wallet.getChangeAddressBech32();
+  const utxos = await wallet.getUtxosMesh();
+
+  console.log("Sender address:", changeAddress);
+  console.log("Available UTxOs:", utxos.length);
+
+  if (utxos.length === 0) {
+    console.error("No UTxOs available. Fund the wallet first:");
+    console.log(`  devnet:default> topup ${changeAddress} 1000`);
+    return;
+  }
+
+  // Calculate total available
+  const totalLovelace = utxos.reduce((sum, utxo) => {
+    const lovelace = utxo.output.amount.find((a) => a.unit === "lovelace");
+    return sum + BigInt(lovelace?.quantity || 0);
+  }, BigInt(0));
+
+  console.log("Total available:", totalLovelace.toString(), "lovelace");
+
+  // Build transaction
+  const txBuilder = new MeshTxBuilder({
+    fetcher: provider,
+  });
+
+  try {
+    const unsignedTx = await txBuilder
+      .txOut(RECIPIENT, [{ unit: "lovelace", quantity: AMOUNT }])
+      .changeAddress(changeAddress)
+      .selectUtxosFrom(utxos)
+      .complete();
+
+    console.log("Transaction built successfully");
+
+    // Sign transaction
+    const signedTx = await wallet.signTx(unsignedTx, false);
+    console.log("Transaction signed");
+
+    // Submit transaction
+    const txHash = await wallet.submitTx(signedTx);
+    console.log("Transaction submitted!");
+    console.log("Transaction hash:", txHash);
+
+    // Verify submission
+    console.log("\nVerify on Yaci Viewer: http://localhost:5173");
+    console.log(`Or fetch UTxOs for recipient to confirm receipt`);
+
+  } catch (error) {
+    console.error("Transaction failed:", error);
+  }
+}
+
+sendAda().catch(console.error);
+```
+
+## Fund your wallet
+
+Before running transactions, fund your wallet using yaci-cli:
+
+```bash
+devnet:default> topup addr_test1qryvgass5dsrf2kxl3vgfz76uhp83kv5lagzcp29tcana68ca5aqa6swlq6llfamln09tal7n5kvt4275ckwedpt4v7q48uhex 1000
+```
+
+Then verify the funding:
+
+```typescript
+const utxos = await provider.fetchAddressUTxOs(address);
+console.log("Funded UTxOs:", utxos);
+```
+
+## Transaction patterns
+
+### Send to multiple recipients
+
+```typescript
+const unsignedTx = await txBuilder
+  .txOut(recipient1, [{ unit: "lovelace", quantity: "1000000" }])
+  .txOut(recipient2, [{ unit: "lovelace", quantity: "2000000" }])
+  .txOut(recipient3, [{ unit: "lovelace", quantity: "3000000" }])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+### Send native tokens
+
+```typescript
+const unsignedTx = await txBuilder
+  .txOut(recipient, [
+    { unit: "lovelace", quantity: "2000000" },
+    { unit: "<policy_id><asset_name>", quantity: "100" }
+  ])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+```
+
+### Set explicit fee
+
+```typescript
+const unsignedTx = await txBuilder
+  .txOut(recipient, [{ unit: "lovelace", quantity: "1000000" }])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .setFee("200000") // Explicit 0.2 ADA fee
+  .complete();
+```
+
+## Troubleshooting
+
+### "No UTxOs available"
+
+Fund your wallet using the devnet topup command:
+
+```bash
+devnet:default> topup <your-address> 1000
+```
+
+### "Insufficient funds"
+
+Check your available balance:
+
+```typescript
+const utxos = await wallet.getUtxosMesh();
+const total = utxos.reduce((sum, u) => {
+  const lovelace = u.output.amount.find((a) => a.unit === "lovelace");
+  return sum + BigInt(lovelace?.quantity || 0);
+}, BigInt(0));
+console.log("Available:", total.toString(), "lovelace");
+```
+
+### "Connection refused"
+
+Verify the devnet is running:
+
+```bash
+curl http://localhost:8080/api/v1/protocol-parameters
+```
+
+For hosted devnet:
+
+```bash
+curl https://yaci-node.meshjs.dev/api/v1/protocol-parameters
+```
+
+### Transaction not appearing
+
+Wait a few seconds for the next block, then check:
+
+```typescript
+// Wait for block production
+await new Promise((resolve) => setTimeout(resolve, 5000));
+
+// Check recipient UTxOs
+const recipientUtxos = await provider.fetchAddressUTxOs(recipientAddress);
+console.log("Recipient UTxOs:", recipientUtxos);
+```
+
+## Related resources
+
+- [Getting Started](/docs/yaci/getting-started) - Install and configure Yaci DevKit
+- [Yaci Overview](/docs/yaci) - Introduction to Yaci
+- [MeshTxBuilder](/docs/transactions/builder) - Full transaction builder documentation
+- [Cardano Providers](/providers) - All available blockchain providers

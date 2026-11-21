@@ -1,0 +1,83 @@
+type: object
+properties:
+  id:
+    type: string
+    description: Governance Action Identifier (CIP-0129)
+  tx_hash:
+    type: string
+    description: Hash of the proposal transaction.
+  cert_index:
+    type: integer
+    description: Index of the certificate within the proposal transaction.
+  governance_type:
+    type: string
+    enum:
+      [
+        hard_fork_initiation,
+        new_committee,
+        new_constitution,
+        info_action,
+        no_confidence,
+        parameter_change,
+        treasury_withdrawals,
+      ]
+    description: Type of proposal.
+  governance_description:
+    additionalProperties: true
+    type: object
+    nullable: true
+    description: An object describing the content of this GovActionProposal in a readable way.
+  deposit:
+    type: string
+    description: The deposit amount paid for this proposal.
+  return_address:
+    type: string
+    description: Bech32 stake address of the reward address to receive the deposit when it is repaid.
+  ratified_epoch:
+    type: integer
+    nullable: true
+    description: The epoch at which the proposal was ratified. Null if the proposal has not been ratified.
+  enacted_epoch:
+    type: integer
+    nullable: true
+    description: The epoch at which the proposal was enacted. Null if the proposal has not been enacted.
+  dropped_epoch:
+    type: integer
+    nullable: true
+    description: The epoch at which the proposal was dropped. A proposal is dropped if it expires or if any of its dependencies expire.
+  expired_epoch:
+    type: integer
+    nullable: true
+    description: The epoch at which the proposal expired. Null if the proposal has not expired.
+  expiration:
+    type: integer
+    description: The epoch at which this governance action will expire.
+
+required:
+  - id
+  - tx_hash
+  - cert_index
+  - governance_type
+  - deposit
+  - return_address
+  - governance_description
+  - ratified_epoch
+  - enacted_epoch
+  - dropped_epoch
+  - expired_epoch
+  - expiration
+
+example:
+  id: "gov_action1zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsq6dmejn"
+  tx_hash: "2dd15e0ef6e6a17841cb9541c27724072ce4d4b79b91e58432fbaa32d9572531"
+  cert_index: 1
+  governance_type: "treasury_withdrawals"
+  deposit: "12000"
+  return_address: "stake_test1urd3hs7rlxwwdzthe6hj026dmyt3y0heuulctscyydh2kgck6nkmz"
+  governance_description:
+    tag: "InfoAction"
+  ratified_epoch: null
+  enacted_epoch: 123
+  dropped_epoch: null
+  expired_epoch: null
+  expiration: 120

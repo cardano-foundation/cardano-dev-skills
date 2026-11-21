@@ -1,0 +1,75 @@
+---
+title: TransactionIndex.ts
+nav_order: 172
+parent: Modules
+---
+
+## TransactionIndex overview
+
+---
+
+<h2 className="text-delta">Table of contents</h2>
+
+- [arbitrary](#arbitrary)
+  - [arbitrary](#arbitrary-1)
+- [predicates](#predicates)
+  - [is](#is)
+- [schemas](#schemas)
+  - [TransactionIndex](#transactionindex)
+- [utils](#utils)
+  - [TransactionIndex (type alias)](#transactionindex-type-alias)
+
+---
+
+# arbitrary
+
+## arbitrary
+
+FastCheck arbitrary for generating random TransactionIndex instances.
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<bigint>
+```
+
+Added in v2.0.0
+
+# predicates
+
+## is
+
+Check if a value is a valid TransactionIndex.
+
+**Signature**
+
+```ts
+export declare const is: (u: unknown, overrideOptions?: ParseOptions | number) => u is bigint
+```
+
+Added in v2.0.0
+
+# schemas
+
+## TransactionIndex
+
+Schema for TransactionIndex representing a transaction index within a block.
+CDDL: transaction_index = uint .size 2
+
+**Signature**
+
+```ts
+export declare const TransactionIndex: Schema.refine<bigint, typeof Schema.BigInt>
+```
+
+Added in v2.0.0
+
+# utils
+
+## TransactionIndex (type alias)
+
+**Signature**
+
+```ts
+export type TransactionIndex = typeof TransactionIndex.Type
+```

@@ -1,0 +1,42 @@
+type: array
+items:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Governance Action Identifier (CIP-0129)
+    tx_hash:
+      type: string
+      description: Hash of the proposal transaction.
+    cert_index:
+      type: integer
+      description: Index of the certificate within the proposal transaction.
+    governance_type:
+      type: string
+      enum:
+        [
+          hard_fork_initiation,
+          new_committee,
+          new_constitution,
+          info_action,
+          no_confidence,
+          parameter_change,
+          treasury_withdrawals,
+        ]
+      description: Type of proposal.
+
+  required:
+    - id
+    - tx_hash
+    - cert_index
+    - governance_type
+
+example:
+  - id: "gov_action1zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsq6dmejn"
+    tx_hash: "2dd15e0ef6e6a17841cb9541c27724072ce4d4b79b91e58432fbaa32d9572531"
+    cert_index: 1
+    governance_type: "treasury_withdrawals"
+  - id: "gov_action1zyx3zyx3zyx3zyx3zyx3zyx3zyx3zyx3zyx3zyx3zyx3zyx3zyx3zyx3zyx3"
+    tx_hash: "71317e951b20aa46e9fbf45a46a6e950d5723a481225519655bf6c60"
+    cert_index: 4
+    governance_type: "no_confidence"

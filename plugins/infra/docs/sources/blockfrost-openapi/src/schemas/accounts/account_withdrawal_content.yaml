@@ -1,0 +1,36 @@
+type: array
+items:
+  type: object
+  properties:
+    tx_hash:
+      type: string
+      description: Hash of the transaction containing the withdrawal
+    amount:
+      type: string
+      description: Withdrawal amount in Lovelaces
+    tx_slot:
+      type: integer
+      description: Slot of the transaction containing the withdrawal
+    block_time:
+      type: integer
+      description: Block creation time in UNIX time of the transaction containing the withdrawal
+    block_height:
+      type: integer
+      description: Block height of the transaction containing the withdrawal
+  required:
+    - tx_hash
+    - amount
+    - tx_slot
+    - block_time
+    - block_height
+example:
+  - tx_hash: "48a9625c841eea0dd2bb6cf551eabe6523b7290c9ce34be74eedef2dd8f7ecc5"
+    amount: "454541212442"
+    tx_slot: 45093580
+    block_time: 1646437200
+    block_height: 6745358
+  - tx_hash: "4230b0cbccf6f449f0847d8ad1d634a7a49df60d8c142bb8cc2dbc8ca03d9e34"
+    amount: "97846969"
+    tx_slot: 48093580
+    block_time: 1649033600
+    block_height: 7126896

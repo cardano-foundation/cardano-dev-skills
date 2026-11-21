@@ -1,0 +1,32 @@
+get:
+  tags:
+    - Cardano » Epochs
+  summary: Specific epoch
+  description: Return the content of the requested epoch.
+  parameters:
+    - in: path
+      name: number
+      required: true
+      schema:
+        type: integer
+      description: Number of the epoch
+      example: 225
+  responses:
+    "200":
+      description: Return the epoch data.
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../schemas/epochs/epoch_content.yaml
+    "400":
+      $ref: ../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../responses/errors/500.yaml

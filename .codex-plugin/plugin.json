@@ -1,7 +1,7 @@
 {
   "name": "cardano-dev-skills",
-  "version": "0.1.2",
-  "description": "Community-curated Cardano developer knowledge and workflows for smart contracts, transactions, governance, and tooling",
+  "version": "0.0.1",
+  "description": "Community-curated Cardano developer knowledge and workflows for smart contracts, transactions, governance, and tooling. Packaging-proof branch, not for use.",
   "author": {
     "name": "Cardano Foundation",
     "url": "https://cardanofoundation.org"
@@ -11,6 +11,7 @@
   "license": "Apache-2.0",
   "keywords": ["cardano", "blockchain", "smart-contracts", "aiken", "web3", "eutxo"],
   "skills": "./skills/",
+  "mcpServers": "./mcp.json",
   "interface": {
     "displayName": "Cardano Dev Skills",
     "shortDescription": "Current Cardano development workflows and reference knowledge",

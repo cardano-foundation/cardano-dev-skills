@@ -1,0 +1,67 @@
+post:
+  tags:
+    - Cardano » Transactions
+  summary: Submit a transaction
+  description: |
+    Submit an already serialized transaction to the network.
+
+    <p>
+      <span class="hosted">Hosted</span> Endpoint only available for hosted variant.
+    </p>
+  x-codeSamples:
+    - lang: "Shell"
+      label: "cURL"
+      source: |
+        # Assuming `data` is a serialized transaction on the file-system.
+        curl "https://cardano-mainnet.blockfrost.io/api/v0/tx/submit" \
+          -X POST \
+          -H "Content-Type: application/cbor" \
+          -H "project_id: $PROJECT_ID" \
+          --data-binary @./data
+    - lang: "Shell"
+      label: "cardano-cli"
+      source: |
+        # Assuming `tx.signed` is signed transaction constructed by cardano-cli
+        xxd -r -p <<< $(jq .cborHex tx.signed) > tx.submit-api.raw
+        curl "https://cardano-mainnet.blockfrost.io/api/v0/tx/submit" \
+          -X POST \
+          -H "Content-Type: application/cbor" \
+          -H "project_id: $PROJECT_ID" \
+          --data-binary @./tx.submit-api.raw
+  requestBody:
+    description: |
+      The transaction to submit, serialized in CBOR.
+    required: true
+    content:
+      application/cbor:
+        schema:
+          type: string
+          description: |
+            The transaction to submit, serialized in CBOR.
+        example: |
+          83a400818258208911f640d452c3be4ff3d89db63b41ce048c056951286e2e28bbf8a51588ab44000181825839009493315cd92eb5d8c4304e67b7e16ae36d61d34502694657811a2c8e32c728d3861e164cab28cb8f006448139c8f1740ffb8e7aa9e5232dc1a10b2531f021a00029519075820cb798b0bce50604eaf2e0dc89367896b18f0a6ef6b32b57e3c9f83f8ee71e608a1008182582073fea80d424276ad0978d4fe5310e8bc2d485f5f6bb3bf87612989f112ad5a7d5840c40425229749a9434763cf01b492057fd56d7091a6372eaa777a1c9b1ca508c914e6a4ee9c0d40fc10952ed668e9ad65378a28b149de6bd4204bd9f095b0a902a11907b0a1667469636b657281a266736f757263656b736f757263655f6e616d656576616c7565736675676961742076656e69616d206d696e7573
+  responses:
+    "200":
+      description: Return the ID of the submitted transaction.
+      content:
+        application/json:
+          schema:
+            type: string
+            format: hex
+            minLength: 64
+            maxLength: 64
+            example: "d1662b24fa9fe985fc2dce47455df399cb2e31e1e1819339e885801cc3578908"
+    "400":
+      $ref: ../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../responses/errors/404.yaml
+    "418":
+      $ref: ../../../responses/errors/418.yaml
+    "425":
+      $ref: ../../../responses/errors/425.yaml
+    "429":
+      $ref: ../../../responses/errors/429.yaml
+    "500":
+      $ref: ../../../responses/errors/500.yaml

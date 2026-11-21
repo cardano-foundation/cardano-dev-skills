@@ -1,0 +1,145 @@
+---
+title: "Installation"
+description: "Run the Midnight Contracts Wizard CLI to generate smart contract projects"
+---
+
+The Midnight Contracts Wizard runs directly via npx, so you do not need to install anything globally. This guide covers all the ways to run the wizard and verify your environment.
+
+## Quick start
+
+Run the wizard immediately with npx:
+
+```bash
+npx @meshsdk/midnight-contracts-wizard
+```
+
+This command:
+1. Downloads the latest version automatically
+2. Launches the interactive wizard
+3. Generates your project with selected contracts
+
+## Prerequisites
+
+Before running the wizard, verify you have the required tools installed.
+
+### Check Node.js version
+
+```bash
+node --version
+```
+
+You need Node.js 18 or higher. If you need to install or update Node.js, visit [nodejs.org](https://nodejs.org/).
+
+### Check npm version
+
+```bash
+npm --version
+```
+
+You need npm 8 or higher (includes npx). npm is included with Node.js, so updating Node.js will also update npm.
+
+## Running the wizard
+
+### Basic usage
+
+```bash
+npx @meshsdk/midnight-contracts-wizard
+```
+
+### Check available version
+
+```bash
+npx @meshsdk/midnight-contracts-wizard --version
+```
+
+### Display help
+
+```bash
+npx @meshsdk/midnight-contracts-wizard --help
+```
+
+## What happens when you run npx
+
+When you execute the npx command:
+
+1. **Downloads package** - npx fetches the latest version from npm registry
+2. **Runs wizard** - Launches the interactive CLI interface
+3. **Creates project** - Generates files based on your selections
+4. **Cleans up** - The package is not permanently installed
+
+## Troubleshooting
+
+### "npx: command not found"
+
+**Cause**: npm is not installed or not in your PATH.
+
+**Solution**: Install Node.js from [nodejs.org](https://nodejs.org/), which includes npm and npx.
+
+### "Node.js version too old"
+
+**Cause**: You have Node.js < 18 installed.
+
+**Solution**: Update Node.js using your preferred method:
+
+```bash
+# Using nvm (recommended)
+nvm install 18
+nvm use 18
+
+# Or download directly from nodejs.org
+```
+
+### Slow download
+
+**Cause**: First-time download or npm cache cleared.
+
+**Solution**: Wait for the download to complete. Subsequent runs use the npm cache and are faster.
+
+### Permission errors
+
+**Cause**: npm directory permissions issue.
+
+**Solution**: Fix npm permissions:
+
+```bash
+# Create npm directory in home folder
+mkdir -p ~/.npm-global
+npm config set prefix '~/.npm-global'
+
+# Add to your shell profile (.bashrc, .zshrc, etc.)
+export PATH=~/.npm-global/bin:$PATH
+```
+
+## Verifying installation
+
+After running the wizard, verify the generated project:
+
+```bash
+# Navigate to your project
+cd my-project
+
+# Check the files were created
+ls -la
+
+# Verify package.json exists
+cat package.json
+```
+
+You should see:
+- `package.json` with project configuration
+- `src/` directory with contract files
+- `tsconfig.json` for TypeScript configuration
+
+## Next steps
+
+Now that you can run the wizard:
+
+- [Usage](/docs/midnight/midnight-contracts-wizard/usage) - Create your first project
+- [Contracts](/docs/midnight/midnight-contracts-wizard/contracts) - Learn about available templates
+- [Project Structure](/docs/midnight/midnight-contracts-wizard/project-structure) - Understand generated files
+
+## Related resources
+
+- [Node.js Downloads](https://nodejs.org/)
+- [npm Documentation](https://docs.npmjs.com/)
+- [Midnight Network Documentation](https://docs.midnight.network/)

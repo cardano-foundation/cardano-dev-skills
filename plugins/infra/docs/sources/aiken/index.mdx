@@ -1,0 +1,894 @@
+---
+title: The modern smart contract platform for Cardano
+---
+
+import Image from 'next/image';
+import { LightDarkIframe } from '../components/light-dark-iframe';
+import theCodeOfLife from '../../public/the-code-of-life.webp';
+import theFirstContact from '../../public/the-first-contact.webp';
+
+export const palette = {
+  dark: {
+    border: "#604185",
+    borderText: "#f2f2f2",
+    bullet: "#f0a5e7",
+    link: "#f0a5e7",
+    separator: "#292929",
+    text: "#f2f2f2",
+    window: "#1E2127",
+  },
+  light: {
+    border: "#604185",
+    borderText: "#f2f2f2",
+    bullet: "#f0a5e7",
+    link: "#f0a5e7",
+    separator: "#ededed",
+    text: "#000000",
+    window: "#1E2127",
+  }
+};
+
+export function icon(name, color) {
+  let svg;
+  switch(name) {
+    case 'carret':
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
+      break;
+
+    case 'checkbox-checked':
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-check-circle"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
+      break;
+
+    case 'checkbox-todo':
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-circle"><circle cx="12" cy="12" r="10"></circle></svg>`
+      break;
+
+    case 'icon-coffee':
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-coffee"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>`
+      break;
+
+    case 'icon-heart':
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-heart"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`
+      break;
+
+    case 'icon-grid':
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-grid"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>`
+      break;
+
+    case 'icon-fast-forward':
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-fast-forward"><polygon points="13 19 22 12 13 5 13 19"></polygon><polygon points="2 19 11 12 2 5 2 19"></polygon></svg>`
+      break;
+
+    case 'icon-play':
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-play"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`
+      break;
+
+    case 'icon-package':
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-package"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`
+      break;
+
+    case 'icon-activity':
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-activity"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>`
+      break;
+
+    case 'icon-map':
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-map"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></svg>`
+      break;
+
+    case 'icon-compass':
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-compass"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>`
+      break;
+
+    default:
+      throw new Error(`Unknown icon name: ${name}`);
+  }
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+<style>{`
+  :root {
+    --color-window-bg: ${palette.dark.window};
+    --color-hr: ${palette.dark.separator};
+    --color-border: ${palette.dark.border};
+    --color-link: ${palette.dark.link};
+    --color-text: ${palette.dark.text};
+    --color-border-text: ${palette.dark.borderText};
+    --font-title: 'Fira Mono', sans-serif;
+  }
+  html.light {
+    --color-window-bg: ${palette.light.window};
+    --color-hr: ${palette.light.separator};
+    --color-border: ${palette.light.border};
+    --color-link: ${palette.light.link};
+    --color-text: ${palette.light.text};
+    --color-border-text: ${palette.light.borderText};
+  }
+  section a, section a:visited,
+  main a, main a:visited {
+    color: var(--color-link);
+  }
+  details > summary {
+    cursor: pointer;
+  }
+  details > summary:hover {
+    color: var(--color-link);
+  }
+  details summary::-webkit-details-marker,
+  details summary::marker {
+    display: none;
+    content: '';
+  }
+  details summary > h3 {
+    font-weight: bold;
+    display: inline;
+    margin: 0;
+  }
+  details summary > h3::before {
+    display: inline-block;
+    content: '';
+    width: 20px;
+    height: 20px;
+    margin: 0 0.5rem -0.25rem 0;
+    background-repeat: no-repeat;
+    background-position: 50%;
+    background-image: url("${icon('carret', palette.dark.text)}");
+    transition: transform .15s;
+  }
+  html.light details summary > h3::before {
+    background-image: url("${icon('carret', palette.light.text)}");
+  }
+  details[open] summary > h3::before {
+    transform: rotate(90deg);
+  }
+  details + details {
+    margin-top: 1rem;
+  }
+  details > p {
+    padding: 1rem;
+  }
+  section ul,
+  main ul {
+    padding: 1rem;
+    list-style: none;
+  }
+  section ul > li::before,
+  main ul > li::before {
+    content: url("${icon('checkbox-checked', palette.dark.bullet)}");
+    padding-right: 0.5rem;
+    vertical-align: middle;
+  }
+  section ul > li.todo::before,
+  main ul > li.todo::before {
+    content: url("${icon('checkbox-todo', palette.dark.bullet)}");
+  }
+  li.icon-grid::before         { content: url("${icon('icon-grid', palette.dark.bullet)}"); }
+  li.icon-fast-forward::before { content: url("${icon('icon-fast-forward', palette.dark.bullet)}"); }
+  li.icon-coffee::before       { content: url("${icon('icon-coffee', palette.dark.bullet)}"); }
+  li.icon-heart::before        { content: url("${icon('icon-heart', palette.dark.bullet)}"); }
+  section ul > li + li,
+  main ul > li + li {
+    margin-top: 1rem;
+  }
+  @media(max-width: 700px) {
+    section ul,
+    main ul {
+      padding-left: 1rem;
+    }
+  }
+  header#landing {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    box-sizing: border-box;
+  }
+  header#landing img {
+    width: auto;
+    max-height: 80vh;
+  }
+  header#landing h1 {
+    background: rgba(17,17,17,0.8);
+    border-radius: 0.5rem;
+    border: 2px solid var(--color-border);
+    color: var(--color-text);
+    font-family: var(--font-title);
+    font-weight: 500;
+    font-size: 1.5em;
+    margin: -5rem 1rem 0 1rem;
+    padding: 0.5rem 1rem;
+    position: relative;
+    text-align: center;
+    letter-spacing: -0.075em;
+  }
+  html.light header#landing h1 {
+    background: rgba(255, 255, 255, 0.8);
+  }
+  html.light header#landing h1 {
+    color: var(--color-border);
+  }
+  header > nav {
+    display: flex;
+    margin: 1rem auto;
+    justify-content: space-around;
+    padding: 0 1rem;
+  }
+  header > nav > a,
+  header > nav > a:visited {
+    background: var(--color-border);
+    color: var(--color-border-text);
+    border-radius: 0.5rem;
+    padding: 1rem 2rem;
+    text-decoration: none;
+    transition: opacity 0.3s;
+  }
+  header > nav > a:hover {
+    opacity: 0.7;
+  }
+  header > nav > a + a {
+    margin-left: 1rem;
+  }
+  @media(orientation: portrait) {
+    header#landing img {
+      max-height: none;
+      height: auto;
+      max-width: 100vw;
+    }
+  }
+  @media(max-width: 900px) {
+    header#landing h1 {
+      margin-top: -4rem;
+      font-size: 1.5em;
+    }
+    header > nav {
+      margin: 1rem auto;
+    }
+  }
+  @media(max-width: 750px) {
+    header#landing h1 {
+      font-size: 1.25em;
+    }
+  }
+  @media(max-width: 500px) {
+    header > nav > a,
+    header > nav > a:visited {
+      padding: 0.75rem 1rem;
+    }
+  }
+  @media(max-width: 440px) {
+    header > nav > a,
+    header > nav > a:visited {
+      font-size: 0.8em;
+    }
+  }
+  nav > a.playground::before {
+    content: url("${icon('icon-play', palette.dark.text)}");
+    position: relative;
+    top: 0.25rem;
+    margin-right: 0.25rem;
+  }
+  nav > a.get-started::before {
+    content: url("${icon('icon-compass', palette.dark.text)}");
+    position: relative;
+    top: 0.25rem;
+    margin-right: 0.25rem;
+  }
+  main {
+    max-width: 75vw;
+    display: flex;
+    margin: 5rem auto;
+    flex-direction: column;
+  }
+  main article + article {
+    margin-top: 5rem;
+  }
+  main article {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+  }
+  main article h2 {
+    font-weight: bold;
+    font-size: 1.5em;
+  }
+  main article div.window,
+  main article div.terminal {
+    background: var(--color-window-bg);
+    border-radius: 0.5rem;
+    box-shadow: 7px 7px 0px 1px var(--color-border);
+    padding-top: 2rem;
+    position: relative;
+    min-width: 45%;
+  }
+  main article > div#socials {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 55%;
+  }
+  main article > div#socials > * + * {
+    margin-top: 1rem;
+  }
+  main article pre {
+    margin: 0;
+    padding: 0;
+  }
+  main article div.window > pre,
+  main article div.terminal > pre.hljs {
+    border-radius: 0 0 0.5rem 0.5rem;
+  }
+  main article pre.hljs {
+    display:block;
+    border-radius: 0.5rem;
+    overflow-x:auto;
+  }
+  main article pre {
+    padding: 1rem;
+    line-height: 1.2em;
+  }
+  main article div.window::before {
+    content: attr(data-title);
+    font-size: 0.85rem;
+    position: absolute;
+    top: 0.5rem;
+    left: 1rem;
+    opacity: 0.8;
+    color: var(--color-border-text);
+  }
+  main article div.terminal::before {
+    content: '● ● ●';
+    font-size: 0.85rem;
+    position: absolute;
+    top: 0.5rem;
+    left: 1rem;
+    color: transparent;
+    background: -webkit-linear-gradient(left, #e74c3c, #e74c3c 33%, #f1c40f 33%, #f1c40f 66%, #2ecc71 66%, #2ecc71);
+    background-clip: text;
+    -webkit-background-clip: text;
+  }
+  main article#trusted-by {
+    display: flex;
+    flex-direction: column;
+  }
+  main article#trusted-by > div {
+    margin-top: 2rem;
+    display: flex;
+    gap: 3rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  main article#trusted-by img {
+    height: 3rem;
+    width: auto;
+  }
+  main article#trusted-by img.white {
+    filter: brightness(0) invert(1);
+  }
+  html.light main article#trusted-by img:not(.white) {
+    filter: invert(1);
+  }
+  html.light main article#trusted-by img.white {
+    filter: brightness(0) invert(0);
+  }
+  main article#trusted-by h2 {
+    text-align: center;
+  }
+  @media(max-width: 1000px) {
+    main {
+      max-width: 100vw;
+      padding: 0 2rem;
+      margin: 3rem auto;
+    }
+  }
+  @media(max-width: 700px) {
+    main {
+      max-width: 100vw;
+      padding: 0 1rem;
+    }
+    main article {
+      flex-direction: column;
+    }
+    main article h2 {
+      font-size: 1.25em;
+    }
+    main article > div + div {
+      margin-top: 1rem;
+    }
+    main article > div.window,
+    main article > div.terminal,
+    main article > div#socials {
+      width: 100%;
+      box-shadow: none;
+    }
+    main article + article {
+      margin-top: 3rem;
+    }
+  }
+  section#roadmap {
+    background-color: #604185;
+    background-image: url('${theFirstContact.src}');
+    background-repeat: no-repeat;
+    background-size: 100%;
+    color: var(--color-border-text);
+    display: flex;
+    flex-direction: column;
+    padding: 45vw 0 2rem 32vw;
+  }
+  section#roadmap h2,
+  section#faq h2 {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin-bottom: 1rem;
+  }
+  section#roadmap h2 {
+    font-size: 2em;
+  }
+  @media(max-width: 700px) {
+    section#faq h2 {
+      font-size: 1.25em;
+    }
+    section#roadmap h2 {
+      font-size: 1.5em;
+    }
+    section#roadmap h3 > span {
+      display: none;
+    }
+  }
+  section#roadmap h3 > span {
+    font-size: 0.75em;
+    padding: 0 0.5rem;
+    font-variant: small-caps;
+  }
+  section#roadmap h3 > span + span {
+    padding-left: 0;
+  }
+  section#roadmap h3 {
+    font-size: 1.25em;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+  }
+  section#roadmap h3::before {
+    position: relative;
+    top: 0.25rem;
+    margin-right: 0.5rem;
+  }
+  section#roadmap h3.icon-package::before {
+    content: url("${icon('icon-package', palette.dark.text)}");
+  }
+  section#roadmap h3.icon-activity::before {
+    content: url("${icon('icon-activity', palette.dark.text)}");
+  }
+  section#roadmap h3.icon-map::before {
+    content: url("${icon('icon-map', palette.dark.text)}");
+  }
+  section#roadmap > div {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  section#roadmap article {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    margin-top: 1rem;
+  }
+  @media(max-width: 900px) {
+    section#roadmap {
+      padding: 47.5vw 2rem 2rem 2rem;
+    }
+    section#roadmap h2 {
+      padding-left: 30vw;
+      margin-bottom: 2.5rem;
+    }
+    section#roadmap article {
+      margin-top: 2rem;
+    }
+  }
+  @media(max-width: 700px) {
+    section#roadmap h2 {
+      margin: 0;
+    }
+    section#roadmap > div {
+      grid-template-columns: 1fr;
+    }
+  }
+  section#faq {
+    max-width: 75vw;
+    display: flex;
+    margin: 2rem auto;
+    flex-direction: column;
+  }
+  @media(max-width: 1000px) {
+    section#faq {
+      max-width: 100vw;
+      padding: 0 2rem;
+    }
+  }
+  @media(max-width: 700px) {
+    section#faq {
+      padding: 0 1rem;
+    }
+  }
+  #discord-button .icon {
+    width: 25px;
+    height: 25px;
+    margin-right: 15px;
+  }
+  #discord-button svg {
+    fill: white;
+  }
+  #discord-button a {
+    color: white;
+    font-weight: bold;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: #7289da;
+    text-decoration: none;
+  }
+  #discord-button a:hover {
+    background-color: #6a7fc9;
+  }
+  .fadein1 {
+    opacity: 0;
+    animation: 10s infinite normal fadein1;
+  }
+  @keyframes fadein1 {
+      0% {opacity: 0;}
+     10% {opacity: 0;}
+     20% {opacity: 1;}
+     99% {opacity: 1;}
+    100% {opacity: 0;}
+  }
+  .fadein2 {
+    opacity: 0;
+    animation: 10s infinite normal fadein2;
+  }
+  @keyframes fadein2 {
+      0% {opacity: 0;}
+     20% {opacity: 0;}
+     25% {opacity: 1;}
+     99% {opacity: 1;}
+    100% {opacity: 0;}
+  }
+  .fadein3 {
+    opacity: 0;
+    animation: 10s infinite normal fadein3;
+  }
+  @keyframes fadein3 {
+      0% {opacity: 0;}
+     25% {opacity: 0;}
+     30% {opacity: 1;}
+     99% {opacity: 1;}
+    100% {opacity: 0;}
+  }
+  @keyframes jump-shake {
+    0% { transform: translateX(0) }
+    5% { transform: translateY(-9px) }
+    7% { transform: translateY(-9px) rotate(17deg) }
+    11% { transform: translateY(-9px) rotate(-17deg) }
+    13% { transform: translateY(-9px) rotate(17deg) }
+    15% { transform: translateY(-9px) rotate(-17deg) }
+    20% { transform: translateY(0) rotate(0) }
+    20.5% { transform: translateX(0) }
+    100% { transform: translateX(0) }
+  }
+  .shake {
+    animation: 4s infinite normal jump-shake;
+  }
+`}</style>
+
+export const aikenCodeExample = `<span class="hljs-keyword">validator </span>hello_world <span class="hljs-keyword">{</span>
+  <span class="hljs-function"><span class="hljs-title function_">spend</span></span><span class="hljs-title function_ invoke__">(</span>datum, redeemer, input, self<span class="hljs-title function_ invoke__">)</span> <span class="hljs-keyword">{</span>
+    <span class="hljs-keyword">expect</span> <span class="hljs-type">Some</span><span class="hljs-type">(</span><span class="hljs-type">Datum</span> <span class="hljs-keyword">{</span> owner <span class="hljs-keyword">}</span><span class="hljs-type">)</span> <span class="hljs-operator">=</span> datum
+
+    <span class="hljs-keyword">let</span></span> must_say_hello <span class="hljs-operator">=</span>
+      redeemer <span class="hljs-operator">==</span> <span class="hljs-string">"Hello, World!"</span>
+
+    <span class="hljs-keyword"><span class="hljs-keyword">let</span></span> must_be_signed <span class="hljs-operator">=</span>
+      list<span class="hljs-operator">.</span><span class="hljs-title function_ invoke__">has</span><span class="hljs-title function_ invoke__">(</span>self<span class="hljs-operator">.</span>extra_signatories, owner<span class="hljs-title function_ invoke__">)</span>
+
+    must_say_hello<span class="hljs-operator">?</span> <span class="hljs-operator">&amp;&amp;</span> must_be_signed<span class="hljs-operator">?</span>
+  <span class="hljs-keyword">}</span>
+<span class="hljs-keyword">}</span>`;
+
+
+export const aikenErrorExample = `<strong>Error:</strong> <span class="hljs-error">err::aiken::check::unknown_record_field</span>
+
+<span class="hljs-error">×</span> While trying to make sense of your code...
+<span class="hljs-error">╰─▶</span> I looked for the field <span class="hljs-title function_">'extra_signatures'</span> in a record
+    of type <span class="hljs-title">'Transaction'</span> but didn't find it.
+
+   ╭─[<span class="hljs-title">examples/hello_world/validators/hello_world.ak:18:1</span>]
+<span class="hljs-line-number">18</span> │   let must_be_signed =
+<span class="hljs-line-number">19</span> │     list.has(
+<span class="hljs-line-number">20</span> │       context.transaction.extra_signatures,
+   ·       <span class="hljs-operator">────────────────────────────────────</span>
+<span class="hljs-line-number">21</span> │       datum.owner
+<span class="hljs-line-number">22</span> │     )
+   ╰─────────────────────────────────────────────────────
+
+<span class="hljs-title">help</span>: <i>Did you mean <span class="hljs-title function_">'extra_signatories'</span>?</i>`;
+
+
+export const aikenTestResultExample = `<span class="hljs-keyword"><strong>Compiling</strong></span> aiken-lang/stdlib 2.0.0
+  <span class="fadein1"><span class="hljs-keyword"><strong>Testing</strong></span> ...</span>
+
+<span class="fadein2">    ┍━ <span class="hljs-title"><strong>aiken/option</strong></span> ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │ <span class="hljs-string">PASS</span> [<span class="hljs-title function_">mem:</span>   5099, <span class="hljs-title function_">cpu:</span>   1884852] <span class="hljs-title">or_else_1</span>
+    │ <span class="hljs-string">PASS</span> [<span class="hljs-title function_">mem:</span>   5963, <span class="hljs-title function_">cpu:</span>   3091855] <span class="hljs-title">map_1</span>
+    │ <span class="hljs-string">PASS</span> [<span class="hljs-title function_">mem:</span>  11985, <span class="hljs-title function_">cpu:</span>   5076974] <span class="hljs-title">map_2</span>
+    │ <span class="hljs-string">PASS</span> [<span class="hljs-title function_">mem:</span>   6863, <span class="hljs-title function_">cpu:</span>   3298855] <span class="hljs-title">and_then_1</span>
+    │ <span class="hljs-string">PASS</span> [<span class="hljs-title function_">mem:</span>  14187, <span class="hljs-title function_">cpu:</span>   5872937] <span class="hljs-title">and_then_2</span>
+    │ <span class="hljs-string">PASS</span> [<span class="hljs-title function_">mem:</span>  11657, <span class="hljs-title function_">cpu:</span>   4918544] <span class="hljs-title">and_then_3</span>
+    ┕━━━━━━━━━━━━━━ <strong>13 tests</strong> | <span class="hljs-string"><strong>13 passed</strong></span> | <span class="hljs-error"><strong>0 failed</strong></span></span>
+
+  <span class="fadein3"><span class="hljs-keyword"><strong>Summary</strong></span> 0 error, 0 warning(s)</span>`;
+
+<link rel="stylesheet" href="/css/highlightjs-theme.css"/>
+
+<header id="landing">
+  <Image src={theCodeOfLife} alt="Credit: © Hurcastock! - https://www.hurcastock.com" loading="eager" />
+  <h1>The modern smart contract platform for Cardano</h1>
+  <nav>
+    <a className="playground" target="_blank" href="https://play.aiken-lang.org">Playground</a>
+    <a className="stdlib" target="_blank" href="https://aiken-lang.github.io/stdlib">❯_ Stdlib</a>
+    <a className="get-started" href="/fundamentals/getting-started">Get started</a>
+  </nav>
+</header>
+
+<main>
+  <article>
+    <div>
+      <h2>A pure functional programming language</h2>
+      <ul>
+        <li>Small and easy to learn</li>
+        <li>Strong static typing with inference</li>
+        <li>First-class functions and expressions, referential transparency</li>
+        <li>Custom types, recursion, modules, generics...</li>
+        <li>Modules, imports and package manager</li>
+      </ul>
+    </div>
+    <div className="window" data-title="hello_world.ak">
+      <pre className="hljs" dangerouslySetInnerHTML={{ __html: aikenCodeExample }}></pre>
+    </div>
+  </article>
+
+  <article>
+    <div>
+      <h2>A modern development environment</h2>
+      <ul>
+        <li>Zero configuration, one single capable tool</li>
+        <li>Quick and friendly feedback with helpful error diagnotics</li>
+        <li>Language-Server Protocol (LSP) with auto-formatting</li>
+        <li>Easy-to-produce and beautiful libraries documentation</li>
+        <li>Editors integration (VSCode, NeoVim, Emacs, Zed...)</li>
+        <li>Tree-sitter support</li>
+      </ul>
+    </div>
+    <div className="terminal">
+      <pre className="hljs" dangerouslySetInnerHTML={{ __html: aikenErrorExample }}></pre>
+    </div>
+  </article>
+
+  <article>
+    <div>
+      <h2>A toolkit for working with Plutus</h2>
+      <ul>
+        <li>Baked-in unit test framework</li>
+        <li>Property test framework with integrated shrinking</li>
+        <li>UPLC type reification into Aiken types</li>
+        <li>Full-blown Plutus interpreter & disassembler</li>
+        <li>Execution cost evaluation with trace reporting</li>
+        <li>Low-level scripts arguments injection</li>
+      </ul>
+    </div>
+    <div className="terminal">
+      <pre className="hljs" dangerouslySetInnerHTML={{ __html: aikenTestResultExample }}></pre>
+    </div>
+  </article>
+
+  <article>
+    <div>
+      <h2>A truly open source ecosystem</h2>
+      <ul>
+        <li>Written in Rust, licensed under <i>Apache-2.0</i></li>
+        <li>200+ contributors from the Cardano community</li>
+        <li><a target="_blank" href="https://github.com/aiken-lang/aiken/issues/947">Open contribution process</a> with clear guidelines</li>
+        <li>Fully documented with end-to-end examples</li>
+        <li>Initiated by <a target="_blank" href="https://txpipe.io">TxPipe</a>, nurtured by <a target="_blank" href="https://cardanofoundation.org/">Cardano Foundation</a>, elevated by <a target="_blank" href="https://pragma.io">PRAGMA</a></li>
+      </ul>
+    </div>
+    <div id="socials">
+      <LightDarkIframe
+        src={{
+          dark: "https://cardanosolutions.github.io/github-buttons/github-btn.html?user=aiken-lang&repo=aiken&type=star&count=true&size=large&title=aiken-lang%2Faiken&background=%23111111",
+          light: "https://cardanosolutions.github.io/github-buttons/github-btn.html?user=aiken-lang&repo=aiken&type=star&count=true&size=large&title=aiken-lang%2Faiken&background=%23FFFFFF",
+        }}
+        frameBorder="0"
+        scrolling="0"
+        width="260"
+        height="30"
+        title="GitHub"
+      ></LightDarkIframe>
+
+      <div id="discord-button">
+        <a href="https://discord.gg/JnWjkrErJr" target="_blank">
+          <div className="icon">
+            <svg className="shake" id="icon-discord" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 245 240">
+              <path className="st0" d="M104.4 103.9c-5.7 0-10.2 5-10.2 11.1s4.6 11.1 10.2 11.1c5.7 0 10.2-5 10.2-11.1.1-6.1-4.5-11.1-10.2-11.1zM140.9 103.9c-5.7 0-10.2 5-10.2 11.1s4.6 11.1 10.2 11.1c5.7 0 10.2-5 10.2-11.1s-4.5-11.1-10.2-11.1z" />
+              <path className="st0" d="M189.5 20h-134C44.2 20 35 29.2 35 40.6v135.2c0 11.4 9.2 20.6 20.5 20.6h113.4l-5.3-18.5 12.8 11.9 12.1 11.2 21.5 19V40.6c0-11.4-9.2-20.6-20.5-20.6zm-38.6 130.6s-3.6-4.3-6.6-8.1c13.1-3.7 18.1-11.9 18.1-11.9-4.1 2.7-8 4.6-11.5 5.9-5 2.1-9.8 3.5-14.5 4.3-9.6 1.8-18.4 1.3-25.9-.1-5.7-1.1-10.6-2.7-14.7-4.3-2.3-.9-4.8-2-7.3-3.4-.3-.2-.6-.3-.9-.5-.2-.1-.3-.2-.4-.3-1.8-1-2.8-1.7-2.8-1.7s4.8 8 17.5 11.8c-3 3.8-6.7 8.3-6.7 8.3-22.1-.7-30.5-15.2-30.5-15.2 0-32.2 14.4-58.3 14.4-58.3 14.4-10.8 28.1-10.5 28.1-10.5l1 1.2c-18 5.2-26.3 13.1-26.3 13.1s2.2-1.2 5.9-2.9c10.7-4.7 19.2-6 22.7-6.3.6-.1 1.1-.2 1.7-.2 6.1-.8 13-1 20.2-.2 9.5 1.1 19.7 3.9 30.1 9.6 0 0-7.9-7.5-24.9-12.7l1.4-1.6s13.7-.3 28.1 10.5c0 0 14.4 26.1 14.4 58.3 0 0-8.5 14.5-30.6 15.2z" />
+            </svg>
+          </div>
+          <span>Join the Discord</span>
+        </a>
+      </div>
+    </div>
+  </article>
+
+  <article id="trusted-by">
+    <h2>Trusted by builders at</h2>
+    <div>
+      <img src="/companies/minswap.svg" alt="MinSwap" />
+      <img src="/companies/jpg-store.svg" alt="jpg.store" />
+      <img src="/companies/sundae-labs.svg" alt="Sundae Labs" />
+      <img src="/companies/cardano-foundation.svg" alt="Cardano Foundation" />
+      <img src="/companies/txpipe.svg" alt="TxPipe" className="white"/>
+      <img src="/companies/iohk.svg" alt="Input Output HK" className="white"/>
+      <img src="/companies/lenfi.svg" alt="Lenfi" className="white" />
+      <img src="/companies/butane.webp" alt="Butane" className="white" />
+      <img src="/companies/book.png" alt="Book.io" className="white" />
+    </div>
+  </article>
+</main>
+
+<section id="roadmap">
+  <h2>Roadmap</h2>
+  <div>
+    <article>
+      <h3 className="icon-package">Recently delivered<span> ― </span><span>see the <a target="_blank" href="https://github.com/aiken-lang/aiken/blob/main/CHANGELOG.md#changelog">full CHANGELOG</a></span></h3>
+      <ul>
+        <li>New standard library v3.1.0 - see <a target="_blank" href="https://aiken-lang.github.io/stdlib/">aiken-lang/stdlib</a></li>
+        <li>Aiken's benchmark tool: <code>aiken bench</code></li>
+        <li>Additional LSP quickfixes and support</li>
+        <li>Custom traces for <code>expect</code> expressions</li>
+        <li>Compiler optimizations for builtins and constants</li>
+        <li>Better test reports when using continuation-passing style</li>
+        <li>State-machine testing framework for smart contracts - see <a target="_blank" href="https://aiken-lang.github.io/fuzz/aiken/fuzz/scenario.html">aiken-lang/fuzz/scenario</a></li>
+        <li>Various fixes in formatter, parser, type-checker and UPLC backend</li>
+      </ul>
+    </article>
+
+    <article>
+      <h3 className="icon-activity">Currently working on<span> ― </span><span>see <a target="_blank" href="https://github.com/orgs/aiken-lang/projects/2">project tracking</a></span></h3>
+      <ul>
+        <li className="todo">PlutusV4 support</li>
+        <li className="todo">Sourcemaps & code coverage tooling ― see <a href="https://github.com/aiken-lang/aiken/pull/1250">aiken-lang/aiken#1250</a></li>
+        <li className="todo">SMT-based reasoning for Lean via IOG's Blaster - see<a href="https://github.com/aiken-lang/aiken/pull/1311">aiken-lang/aiken#1250</a></li>
+        <li className="todo">Using Aiken (compiler) in browser via WASM</li>
+      </ul>
+    </article>
+
+    <article>
+      <h3 className="icon-map">Future steps & ideas<span> ― </span><span>see <a target="_blank" href="https://github.com/aiken-lang/aiken/discussions">ongoing discussions</a></span></h3>
+      <ul>
+        <li className="todo">First-class zero-knowledge support</li>
+        <li className="todo">Layer-2 builtin support ― see <a href="https://github.com/aiken-lang/aiken/discussions/976">aiken-lang/aiken#976</a></li>
+      </ul>
+    </article>
+  </div>
+</section>
+
+<section id="faq">
+  <h2>FAQ</h2>
+
+  <details open>
+    <summary><h3>What is Aiken?</h3></summary>
+    <p>
+      Aiken is a modern <strong>programming language and toolkit for developing
+      smart contracts</strong> on the <a href="https://cardano.org/"
+      target="_blank">Cardano</a> blockchain. It is geared towards robustness
+      and developer experience.
+      <br/>
+      Aiken takes inspiration from many modern languages such as Gleam, Rust,
+      and Elm, which are known for friendly error messages and an overall
+      excellent developer experience. We believe Cardano deserves a dedicated
+      language with these kinds of features, developed in the open with the
+      community.
+    </p>
+  </details>
+
+  <details>
+    <summary><h3>Why build another smart contract platform?</h3></summary>
+    <p>
+      We love functional programming. Yet, we couldn't help to think that the
+      current Haskell framework wasn't <i>quite right</i> in terms of developer
+      experience and felt we could do something about it. So we came up with a
+      set of shared goals we kept in mind while building Aiken:
+    </p>
+    <ul>
+      <li className="icon-coffee">Writing smart contracts should be <strong>easy and
+      safe</strong>. You should be able to get started in minutes, not days,
+      and rapidly build confidence that your on-chain code is doing what is
+      intended.</li>
+
+      <li className="icon-heart">We want a complete and delightful experience. A modern
+      blockchain deserves a modern smart contract toolkit. <strong>You should
+      be and feel productive</strong> when writing contracts. This includes
+      editor integrations such as LSP and tree-sitter, beautiful error
+      messages, rapid and intuitive test feedback loop and easy-to-produce
+      documentation.</li>
+
+      <li className="icon-fast-forward">We want there to be <strong>as little configuration as
+      possible</strong>. It should work out of the box and establish reasonable
+      opinionated conventions with the community.</li>
+
+      <li className="icon-grid">We want to have a <strong>modular design</strong> such
+      that components can be picked and chosen as needed. Like the Unix
+      philosophy. Aiken is only one part of a much bigger picture; While we
+      firmly believe it is a great tool, we want to encourage other approaches
+      and favour interoperability as much as possible. </li>
+    </ul>
+  </details>
+
+  <details>
+    <summary><h3>I thought Cardano smart contracts had to be written in Haskell?</h3></summary>
+    <p>
+      This is a common misconception. The current Cardano node implementation
+      does indeed happen to be written in Haskell. The virtual machine for
+      executing smart contracts that comes baked into the node is also
+      implemented in Haskell. But that does not mean that it is Haskell which
+      is executed by the smart contract virtual machine.
+      <br/>
+      The virtual machine is a language interpreter which executes a
+      smart contract language called <i>'Untyped Plutus Core'</i> (abbrev.
+      <code>UPLC</code>) often referred to simply as <i>'Plutus'</i>.
+      <br/>
+      Yet UPLC isn't something developers are expected to write by hand.
+      Instead, it is a compilation target (like WebAssembly for the world wide
+      web). Oddly enough, until recently, the only established framework that
+      produced UPLC from a high-level syntax was called <i>'Plutus-Tx'</i> and
+      happened to be a Haskell framework.
+      <br/>
+      Aiken changes the game by providing a modern framework that compiles
+      straight to UPLC.
+    </p>
+  </details>
+
+  <details>
+    <summary><h3>Can I write off-chain/backend code with Aiken?</h3></summary>
+    <p>
+      Our main goal is to improve the smart contract development experience
+      <strong>for the Cardano blockchain</strong>. By developing Aiken as a
+      bespoke language, we can better align its features with what is truly
+      needed for on-chain development.
+      <br/>
+      We want to keep the language simple and manageable. In a decentralized
+      architecture, smart contracts present a significant challenge where a
+      single flaw can escalate into a multi-million financial exploit. More so,
+      on-chain code typically represents a small fraction of an entire DApp
+      source code. While writing contracts should be as straightforward as possible,
+      smart contracts ought to be optimized for review, audit, and static
+      analysis.
+      <br/>
+      Hence, Aiken is <strong>not</strong> intended as a general-purpose
+      language. Rather, it focuses on Cardano and aims for a high-quality
+      toolkit for developing reliable smart contracts with confidence.
+    </p>
+  </details>
+
+  <details>
+    <summary><h3>Are there any projects using Aiken? Where can I find them?</h3></summary>
+    <p>
+      We keep an <a target="_blank" href="https://github.com/aiken-lang/awesome-aiken#readme">Awesome List</a>
+      of projects and resources built with and on Aiken. The list contains resources
+      that **we are aware of**.
+      <br/>
+      If you have a cool project not listed but want to see it up there, do not hesitate to
+      make a pull request and introduce yourself!
+    </p>
+  </details>
+
+</section>

@@ -1,0 +1,33 @@
+---
+title: Smart Contracts
+description: Masumi leverages smart contracts to build a fully decentralized registry and payment system which is truly trustless and permissionless.
+icon: FileText
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+<Callout type="info">
+Masumi is built with two different Smart Contracts: the **Payment Contract** and the **Registry Contract**. A Governance Contract will be added at a later stage of Masumi.
+</Callout>
+
+## Understanding our Two Smart Contracts
+
+A smart contract is basically a set of rules which gets evaluated based on the inputs given to a smart contract. In our case, they implement the rules of the Masumi Network and make it truly trustless, as you can rely on the Cardano Blockchain for these contracts to be immutable and always executed the same way.
+
+1. **Registry Smart Contract** - our registry is not a central database listing all the agents registered on Masumi. Our registry is truly decentralized, governed by this [registry smart contract](/documentation/technical-documentation/smart-contracts/registry-smart-contract). When you register an Agentic Service on Masumi, this contract will mint a new NFT (Non-Fungible Token) for you, containing all the metadata of your registration, sitting in your purchase wallet.
+
+2. **Payment Smart Contract** - our [payment smart contract](/documentation/technical-documentation/smart-contracts/payment-smart-contract) implements the entire [Payment](/core-concepts/payments) process of Masumi, which facilitates the process of locking money provided by the buyer, only unlocking the money if the [decision logging](/core-concepts/decision-logging) process was followed and the smart contract also knows the rules for how to solve [disputes](/core-concepts/refunds-and-disputes).
+
+<Callout type="info">
+For more details, see our **technical documentation** for the [registry](/documentation/technical-documentation/smart-contracts/registry-smart-contract) and [payment](/documentation/technical-documentation/smart-contracts/payment-smart-contract) smart contract.
+</Callout>
+
+## Benefits of Smart Contracts on Cardano
+
+Cardano's distinctive extended UTXO (eUTXO) model provides several advantages, including predictable and efficient execution of smart contracts. Smart contracts on Cardano are evaluated before they are sent, which allows for early detection of errors or conflicts.
+
+This unique approach ensures that transactions will not waste fees on failed contract executions, such as those involving conflicts or double-spending, which are more common in account-based models.
+
+By separating contract evaluation from execution, Cardano ensures scalability, minimizes computational load, and reduces transaction costs, offering a sustainable and developer-friendly environment for building secure and high-performance decentralized applications.
+
+Our Smart Contracts [are written in Aiken](https://aiken-lang.org), the most popular Smart Contract language on Cardano.

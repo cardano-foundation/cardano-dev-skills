@@ -1,0 +1,478 @@
+---
+title: "Content Ownership Contract"
+description: "Register and manage ownership of digital content on-chain"
+---
+
+import Link from "next/link";
+
+The Content Ownership contract creates an on-chain registry for digital content ownership. It tracks who owns what content (like IPFS files) with blockchain-verifiable proof. While anyone can copy digital files, this contract provides the single source of truth for ownership, enabling applications like royalties, licensing, and verified provenance.
+
+## Use Cases
+
+- Digital art ownership registration
+- Music and media rights management
+- Document authenticity verification
+- Content licensing platforms
+- NFT provenance tracking
+- Intellectual property registries
+
+## Quick Start
+
+### Install the Package
+
+```bash
+npm install @meshsdk/contract @meshsdk/core
+```
+
+### Setup Overview
+
+The Content Ownership contract requires multiple setup steps:
+
+| Step | Action | Purpose |
+|------|--------|---------|
+| 1 | Mint One-Time Policy | Create oracle NFT for contract state |
+| 2 | Setup Oracle UTxO | Lock oracle in contract |
+| 3 | Send Reference Scripts | Deploy contract scripts on-chain |
+| 4 | Create Registries | Initialize content and ownership registries |
+
+After setup, users can register and manage content ownership.
+
+## Contract Logic
+
+The contract uses a dual-registry architecture:
+
+| Registry | Purpose |
+|----------|---------|
+| **Content Registry** | Maps content hashes to registry entries |
+| **Ownership Registry** | Tracks which tokens own which content |
+
+### Scalability
+
+- Each registry pair handles approximately 50 content entries
+- Create additional registry pairs for larger collections
+- Enables parallel content registration
+
+## Setup Actions
+
+### Step 1: Mint One-Time Minting Policy
+
+Create the oracle NFT that governs the contract.
+
+#### Method Signature
+
+```typescript
+contract.mintOneTimeMintingPolicy(): Promise<{ tx: string; paramUtxo: { outputIndex: number; txHash: string } }>
+```
+
+#### Code Example
+
+```typescript
+import { MeshContentOwnershipContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+// Initialize provider
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+// Initialize contract with operation address
+const contract = new MeshContentOwnershipContract(
+  {
+    mesh: meshTxBuilder,
+    fetcher: provider,
+    wallet: wallet,
+    networkId: 0,
+  },
+  {
+    operationAddress: "addr_test1qp...your_operation_address",
+  }
+);
+
+// Mint the one-time policy
+const { tx, paramUtxo } = await contract.mintOneTimeMintingPolicy();
+const signedTx = await wallet.signTx(tx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Policy minted. Transaction hash:", txHash);
+console.log("SAVE THIS - paramUtxo:", JSON.stringify(paramUtxo));
+```
+
+### Step 2: Setup Oracle UTxO
+
+Lock the oracle NFT in the contract.
+
+#### Method Signature
+
+```typescript
+contract.setupOracleUtxo(): Promise<string>
+```
+
+#### Code Example
+
+```typescript
+// Use the paramUtxo from step 1
+const contract = new MeshContentOwnershipContract(
+  {
+    mesh: meshTxBuilder,
+    fetcher: provider,
+    wallet: wallet,
+    networkId: 0,
+  },
+  {
+    operationAddress: "addr_test1qp...your_operation_address",
+    paramUtxo: paramUtxo, // From step 1
+  }
+);
+
+const tx = await contract.setupOracleUtxo();
+const signedTx = await wallet.signTx(tx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Oracle setup complete:", txHash);
+```
+
+### Step 3: Send Reference Scripts On-Chain
+
+Deploy the contract scripts for efficient transactions. Run this once for each script type.
+
+#### Method Signature
+
+```typescript
+contract.sendRefScriptOnchain(scriptIndex: string): Promise<string>
+```
+
+#### Script Types
+
+| Script | Purpose |
+|--------|---------|
+| `OracleNFT` | Oracle validation |
+| `ContentRegistry` | Content storage |
+| `ContentRefToken` | Content reference tokens |
+| `OwnershipRegistry` | Ownership tracking |
+| `OwnershipRefToken` | Ownership reference tokens |
+
+#### Code Example
+
+```typescript
+// Deploy each script (wait for confirmation between each)
+const scripts = [
+  "OracleNFT",
+  "ContentRegistry",
+  "ContentRefToken",
+  "OwnershipRegistry",
+  "OwnershipRefToken",
+];
+
+const refScriptTxHashes: Record<string, string> = {};
+
+for (const script of scripts) {
+  const tx = await contract.sendRefScriptOnchain(script);
+  const signedTx = await wallet.signTx(tx);
+  const txHash = await wallet.submitTx(signedTx);
+
+  refScriptTxHashes[script] = txHash;
+  console.log(`${script} deployed:`, txHash);
+
+  // Wait for confirmation
+  await new Promise((r) => setTimeout(r, 60000));
+}
+
+console.log("SAVE THESE - refScriptTxHashes:", JSON.stringify(refScriptTxHashes));
+```
+
+### Step 4: Create Content Registry
+
+Initialize a content registry.
+
+#### Method Signature
+
+```typescript
+contract.createContentRegistry(): Promise<string>
+```
+
+#### Code Example
+
+```typescript
+// Initialize with all reference script hashes
+const contract = new MeshContentOwnershipContract(
+  {
+    mesh: meshTxBuilder,
+    fetcher: provider,
+    wallet: wallet,
+    networkId: 0,
+  },
+  {
+    operationAddress: "addr_test1qp...your_operation_address",
+    paramUtxo: paramUtxo,
+    refScriptUtxos: {
+      contentRegistry: { outputIndex: 0, txHash: refScriptTxHashes.ContentRegistry },
+      contentRefToken: { outputIndex: 0, txHash: refScriptTxHashes.ContentRefToken },
+      ownershipRegistry: { outputIndex: 0, txHash: refScriptTxHashes.OwnershipRegistry },
+      ownershipRefToken: { outputIndex: 0, txHash: refScriptTxHashes.OwnershipRefToken },
+    },
+  }
+);
+
+const tx = await contract.createContentRegistry();
+const signedTx = await wallet.signTx(tx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Content registry created:", txHash);
+```
+
+### Step 5: Create Ownership Registry
+
+Initialize an ownership registry (pairs with content registry).
+
+#### Method Signature
+
+```typescript
+contract.createOwnershipRegistry(): Promise<string>
+```
+
+#### Code Example
+
+```typescript
+const tx = await contract.createOwnershipRegistry();
+const signedTx = await wallet.signTx(tx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Ownership registry created:", txHash);
+```
+
+## User Actions
+
+### Mint User Token
+
+Create a token that represents ownership capability.
+
+#### Method Signature
+
+```typescript
+contract.mintUserToken(tokenName: string, metadata: object): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `tokenName` | `string` | Name for the ownership token |
+| `metadata` | `object` | Token metadata |
+
+#### Code Example
+
+```typescript
+const tx = await contract.mintUserToken("MeshContentOwnership", {
+  name: "Mesh Content Ownership",
+  description: "Ownership token for content registry",
+});
+const signedTx = await wallet.signTx(tx, true);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("User token minted:", txHash);
+```
+
+### Create Content
+
+Register new content in the registry.
+
+#### Method Signature
+
+```typescript
+contract.createContent(
+  ownerAsset: Asset,
+  contentHashHex: string,
+  registryNumber: number
+): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `ownerAsset` | `Asset` | Token representing ownership |
+| `contentHashHex` | `string` | Unique identifier for the content (e.g., IPFS hash) |
+| `registryNumber` | `number` | Which registry to use (0 for first) |
+
+#### Code Example
+
+```typescript
+// Define the ownership token
+const ownerAsset = {
+  unit: "policyId...tokenName",
+  quantity: "1",
+};
+
+// Content identifier (e.g., IPFS CID)
+const contentHashHex = "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua";
+
+// Register in the first registry
+const registryNumber = 0;
+
+const tx = await contract.createContent(
+  ownerAsset,
+  contentHashHex,
+  registryNumber
+);
+const signedTx = await wallet.signTx(tx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Content registered:", txHash);
+```
+
+### Get Oracle Data
+
+Fetch current registry state.
+
+#### Method Signature
+
+```typescript
+contract.getOracleData(): Promise<{ contentNumber: number; ownershipNumber: number }>
+```
+
+#### Code Example
+
+```typescript
+const oracleData = await contract.getOracleData();
+
+console.log("Content registries:", oracleData.contentNumber);
+console.log("Ownership registries:", oracleData.ownershipNumber);
+```
+
+### Get Content
+
+Retrieve content ownership information.
+
+#### Method Signature
+
+```typescript
+contract.getContent(registryNumber: number, contentIndex: number): Promise<ContentData>
+```
+
+#### Code Example
+
+```typescript
+// Get the first content in the first registry
+const content = await contract.getContent(0, 0);
+
+console.log("Content hash:", content.contentHash);
+console.log("Owner token:", content.ownerToken);
+```
+
+## Full Working Example
+
+```typescript
+import { MeshContentOwnershipContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+async function contentOwnershipDemo() {
+  const wallet = await MeshCardanoBrowserWallet.enable("eternl");
+  const provider = new BlockfrostProvider("<Your-API-Key>");
+
+  // Step 1: Initial Setup (ONE TIME)
+  let meshTxBuilder = new MeshTxBuilder({
+    fetcher: provider,
+    submitter: provider,
+  });
+
+  const operationAddress = await wallet.getChangeAddress();
+
+  let contract = new MeshContentOwnershipContract(
+    {
+      mesh: meshTxBuilder,
+      fetcher: provider,
+      wallet: wallet,
+      networkId: 0,
+    },
+    {
+      operationAddress: operationAddress,
+    }
+  );
+
+  // Mint one-time policy
+  const { tx: policyTx, paramUtxo } = await contract.mintOneTimeMintingPolicy();
+  await wallet.submitTx(await wallet.signTx(policyTx));
+  console.log("Policy minted, paramUtxo:", paramUtxo);
+
+  await new Promise((r) => setTimeout(r, 60000));
+
+  // Setup oracle
+  contract = new MeshContentOwnershipContract(
+    {
+      mesh: new MeshTxBuilder({ fetcher: provider, submitter: provider }),
+      fetcher: provider,
+      wallet: wallet,
+      networkId: 0,
+    },
+    {
+      operationAddress: operationAddress,
+      paramUtxo: paramUtxo,
+    }
+  );
+
+  const oracleTx = await contract.setupOracleUtxo();
+  await wallet.submitTx(await wallet.signTx(oracleTx));
+  console.log("Oracle setup complete");
+
+  await new Promise((r) => setTimeout(r, 60000));
+
+  // Deploy reference scripts (abbreviated - do all 5 in production)
+  // ... deploy scripts and save txHashes ...
+
+  // After full setup, register content
+  // const contentTx = await contract.createContent(ownerAsset, contentHash, 0);
+  // await wallet.submitTx(await wallet.signTx(contentTx));
+
+  console.log("Setup complete!");
+}
+
+contentOwnershipDemo().catch(console.error);
+```
+
+## Troubleshooting
+
+### Common Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Oracle not found` | Missing or wrong paramUtxo | Verify paramUtxo from setup |
+| `Registry not found` | Registries not created | Complete all setup steps |
+| `Script not deployed` | Missing reference scripts | Deploy all 5 reference scripts |
+| `Invalid operation address` | Wrong signer | Use the operation address wallet |
+
+### Debugging Tips
+
+1. **Complete setup in order**: Each step depends on the previous
+2. **Save all transaction hashes**: You need them for configuration
+3. **Wait for confirmations**: Allow 1-2 minutes between steps
+4. **Use consistent addresses**: Operation address must match throughout
+
+### Configuration Storage
+
+Store this configuration after setup:
+
+```typescript
+const config = {
+  operationAddress: "addr_test1qp...",
+  paramUtxo: { outputIndex: 0, txHash: "..." },
+  refScriptUtxos: {
+    contentRegistry: { outputIndex: 0, txHash: "..." },
+    contentRefToken: { outputIndex: 0, txHash: "..." },
+    ownershipRegistry: { outputIndex: 0, txHash: "..." },
+    ownershipRefToken: { outputIndex: 0, txHash: "..." },
+  },
+};
+
+// Save to database or config file
+```
+
+## Related Links
+
+- [Source Code on GitHub](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/content-ownership)
+- [IPFS Documentation](https://docs.ipfs.io/)
+- [MeshTxBuilder Documentation](/apis/transaction)
+- [Wallet Integration Guide](/wallets)

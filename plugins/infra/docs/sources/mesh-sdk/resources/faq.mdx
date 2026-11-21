@@ -1,0 +1,299 @@
+---
+title: "FAQ"
+description: "Answers to common questions about Mesh SDK for Cardano development."
+---
+
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';
+
+## Getting started
+
+### What is Mesh?
+
+Mesh is an open-source TypeScript SDK for building Cardano applications. It provides wallet integrations, transaction builders, React components, and smart contract tools to help you ship dApps faster.
+
+### Why use Mesh?
+
+| Benefit | Details |
+|---------|---------|
+| Lightweight | Less than 60kB bundle size |
+| Production-ready | 1M+ downloads, battle-tested |
+| Developer-friendly | Intuitive APIs with TypeScript support |
+| Comprehensive | Wallet integration, transactions, smart contracts |
+| Always current | Updated with Cardano network changes |
+
+### Is Mesh free?
+
+Yes. Mesh is open-source under Apache 2.0 and MIT licenses. Use it for personal or commercial projects without licensing fees. View the source on [GitHub](https://github.com/MeshJS/mesh).
+
+### What are the requirements?
+
+- Node.js 16+
+- npm, yarn, or bun
+- TypeScript 4.5+ (recommended)
+- React 18+ (for React components)
+
+---
+
+## Installation
+
+### How do I install Mesh?
+
+```bash
+npm install @meshsdk/core
+```
+
+For React projects, also install the React bindings:
+
+```bash
+npm install @meshsdk/react
+```
+
+### Does Mesh work with Next.js?
+
+Yes. Mesh supports both App Router and Pages Router. See the [Next.js integration guide](/guides/nextjs) for setup instructions.
+
+### What frameworks are supported?
+
+| Framework | Package |
+|-----------|---------|
+| React | `@meshsdk/react` |
+| Next.js | `@meshsdk/react` |
+| Svelte | `@meshsdk/svelte` |
+| Vue.js | `@meshsdk/core` |
+| Node.js | `@meshsdk/core` |
+| Vanilla JS | `@meshsdk/core` |
+
+---
+
+## Wallets
+
+### Which wallets are supported?
+
+Mesh supports all CIP-30 compliant wallets:
+
+- Eternl
+- Lace
+- Yoroi
+- Typhon
+- Nami
+- Flint
+- And any other CIP-30 wallet
+
+New CIP-30 wallets work automatically.
+
+### How do I connect a wallet?
+
+Use the `CardanoWallet` component for the simplest integration:
+
+```tsx
+import { CardanoWallet } from '@meshsdk/react';
+
+export default function App() {
+  return (
+    <CardanoWallet
+      label="Connect Wallet"
+      onConnected={() => console.log('Connected!')}
+    />
+  );
+}
+```
+
+See [wallet hooks documentation](/react/wallet-hooks) for advanced patterns.
+
+### Can I build a wallet app?
+
+Yes. The `MeshCardanoHeadlessWallet` class supports:
+
+- Mnemonic phrase generation
+- Private key import
+- cardano-cli compatibility
+- Multi-signature workflows
+- Browser extension development
+
+See the [Wallet documentation](/apis/wallets).
+
+---
+
+## Transactions
+
+### How do I build transactions?
+
+Use `MeshTxBuilder` for intuitive transaction construction:
+
+```typescript
+import { MeshTxBuilder } from '@meshsdk/core';
+
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  verbose: true,
+});
+
+const unsignedTx = await txBuilder
+  .txOut('addr1...', [{ unit: 'lovelace', quantity: '1000000' }])
+  .changeAddress(changeAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+See the [MeshTxBuilder documentation](/apis/txbuilder).
+
+### Does Mesh support smart contracts?
+
+Yes. Mesh provides full support for Plutus and Aiken smart contracts:
+
+- Transaction building with script execution
+- Datum and redeemer handling
+- Script validation
+- Multi-asset operations
+
+See [Smart Contracts guides](/smart-contracts) and [Aiken tutorials](/aiken).
+
+### Can I mint NFTs?
+
+Yes. Mesh supports:
+
+- Single NFT minting
+- Collection minting
+- Multi-signature minting
+- CIP-25 and CIP-68 metadata
+
+See the [Minting guide](/guides/nft-collection).
+
+---
+
+## Development
+
+### How do I test my dApp?
+
+| Environment | Use case |
+|-------------|----------|
+| Preprod/Preview | Free test ADA, real network conditions |
+| [Yaci DevNet](/yaci) | Local development, fast iteration |
+| Mainnet | Production deployment |
+
+### Where can I find examples?
+
+- [Documentation](/docs) - Guides with code samples
+- [GitHub examples](https://github.com/MeshJS/examples) - Working projects
+- [API pages](/apis) - Interactive demos
+
+### How do I get help?
+
+| Channel | Best for |
+|---------|----------|
+| [Discord](https://discord.gg/dH48jH3BKa) | Real-time help |
+| [GitHub Issues](https://github.com/MeshJS/mesh/issues) | Bug reports, feature requests |
+| [Stack Overflow](https://stackoverflow.com/questions/tagged/meshsdk) | Searchable Q&A |
+| [Twitter](https://twitter.com/meshsdk) | Updates and announcements |
+
+---
+
+## Production
+
+### Is Mesh production-ready?
+
+Yes. Mesh powers live Cardano applications with:
+
+- 1M+ downloads
+- Comprehensive error handling
+- TypeScript type safety
+- Less than 60kB bundle size
+- Regular updates for network changes
+
+### How do I optimize bundle size?
+
+Mesh supports tree-shaking. To minimize bundle size:
+
+1. Import only what you need
+2. Use code splitting
+3. Enable production builds
+4. Use Next.js automatic optimization
+
+### Does Mesh work offline?
+
+| Feature | Offline | Online required |
+|---------|---------|-----------------|
+| Transaction building | Yes | No |
+| Address generation | Yes | No |
+| Key management | Yes | No |
+| Blockchain queries | No | Yes |
+| Transaction submission | No | Yes |
+| UTXO fetching | No | Yes |
+
+---
+
+## Commercial use
+
+### Can I use Mesh commercially?
+
+Yes. Mesh is dual-licensed under Apache 2.0 and MIT. Build and sell applications without licensing fees.
+
+### How can I contribute?
+
+- Submit [bug reports](https://github.com/MeshJS/mesh/issues)
+- Open [pull requests](https://github.com/MeshJS/mesh)
+- Improve documentation
+- Help others on Discord
+- [Support financially](/about/support-us)
+
+See the [contributing guide](https://github.com/MeshJS/mesh/blob/main/CONTRIBUTING.md).
+
+---
+
+## Still have questions?
+
+- [Discord community](https://discord.gg/dH48jH3BKa)
+- [GitHub Discussions](https://github.com/MeshJS/mesh/discussions)
+- [Documentation](/docs)
+
+<script type="application/ld+json">
+{JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is MeshJS?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Mesh is an open-source TypeScript SDK that makes it easy to build Cardano blockchain applications. It provides a comprehensive suite of tools, React components, wallet integrations, and transaction builders to help developers Ship Cardano dApps faster."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is Mesh free to use?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes! Mesh is completely open-source and free to use for both personal and commercial projects under Apache 2.0 and MIT licenses."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which Cardano wallets does Mesh support?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Mesh supports all CIP-30 compliant Cardano wallets including Eternl, Typhon, Yoroi, Lace, and many more. Any new CIP-30 wallet is automatically supported."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does Mesh support smart contracts?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes! Mesh provides comprehensive smart contract support for both Plutus and Aiken, including transaction building with smart contract execution, datum and redeemer handling, script validation, and multi-asset operations."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is Mesh suitable for production applications?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Absolutely! Mesh is production-ready with 1M+ downloads, comprehensive error handling, TypeScript support, small bundle size, and regular updates aligned with Cardano network changes."
+      }
+    }
+  ]
+})}
+</script>

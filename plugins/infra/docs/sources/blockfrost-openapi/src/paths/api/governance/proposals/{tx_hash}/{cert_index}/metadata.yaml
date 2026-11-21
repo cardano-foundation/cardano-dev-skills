@@ -1,0 +1,40 @@
+get:
+  tags:
+    - Cardano » Governance
+  summary: Specific proposal metadata
+  description: |
+    Proposal metadata information.
+
+    If this endpoint returns `404` or empty metadata for a known proposal, the off-chain metadata could not be fetched (e.g. unreachable URL or hash mismatch). Use the [`/governance/proposals/{gov_action_id}/metadata`](#tag/cardano--governance/GET/governance/proposals/{gov_action_id}/metadata) variant instead — it always returns the anchor `url` and `hash` along with an `error` object describing the fetch failure, so you can retrieve the metadata manually if needed.
+  parameters:
+    - in: path
+      name: tx_hash
+      required: true
+      schema:
+        type: string
+      description: Transaction hash of the proposal.
+      example: "2403339d2f344202fb3583353e11a693a82860e59e65939dcb0e2ac72336d631"
+    - in: path
+      name: cert_index
+      required: true
+      schema:
+        type: integer
+      description: Index of the certificate within the proposal transaction.
+      example: 0
+  responses:
+    "200":
+      description: Return the proposal information content
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../../../schemas/governance/proposal_metadata.yaml
+    "400":
+      $ref: ../../../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../../../responses/errors/403.yaml
+    "429":
+      $ref: ../../../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../../../responses/errors/500.yaml

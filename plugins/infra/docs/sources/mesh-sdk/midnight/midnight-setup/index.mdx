@@ -1,0 +1,75 @@
+---
+title: "Midnight Setup"
+description: "Complete development setup for building privacy-preserving dApps on Midnight Network"
+icon: Cog6ToothIcon
+---
+
+import { linksMidnightSetup } from "@/data/links-midnight";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+The `@meshsdk/midnight-setup` package provides everything you need to build decentralized applications on the Midnight Network. It handles wallet integration, provider configuration, and contract deployment so you can focus on your application logic.
+
+## What you get
+
+| Component | Description |
+|-----------|-------------|
+| **MidnightSetupAPI** | Deploy and interact with smart contracts |
+| **Provider configuration** | Connect to indexers, provers, and the network |
+| **Wallet integration** | Full Lace Beta Wallet support |
+| **TypeScript types** | Complete type definitions for type-safe development |
+
+## Installation
+
+```bash
+npm install @meshsdk/midnight-setup
+```
+
+## Quick example
+
+```typescript
+import { MidnightSetupAPI } from '@meshsdk/midnight-setup';
+import { setupProviders } from './providers';
+
+// Set up providers with wallet connection
+const providers = await setupProviders();
+
+// Deploy a new contract
+const api = await MidnightSetupAPI.deployContract(providers, contractInstance);
+console.log('Deployed at:', api.deployedContractAddress);
+
+// Read contract state
+const state = await api.getContractState();
+console.log('Current state:', state);
+```
+
+## Documentation sections
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {linksMidnightSetup.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## Requirements
+
+Before you begin, ensure you have:
+
+- **Node.js 18+** installed
+- **Lace Beta Wallet** browser extension for Midnight Network
+- Basic familiarity with TypeScript and React (for frontend integration)
+
+## Next steps
+
+1. Follow the [Getting Started](/docs/midnight/midnight-setup/getting-started) guide to set up your project
+2. Configure [Wallet Integration](/docs/midnight/midnight-setup/wallet) for transaction signing
+3. Explore the [API Reference](/docs/midnight/midnight-setup/api) for all available methods

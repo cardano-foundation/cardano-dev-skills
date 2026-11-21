@@ -1,0 +1,166 @@
+---
+sidebar_label: File naming convention
+title: File naming convention/schema
+sidebar_position: 2
+slug: /tutorials/file-naming-convention
+---
+
+To align the tutorials, examples, and also third-party tooling, you can find a suggested file naming convention/schema related to the Conway and Voltaire eras in this document.
+
+The schemas can be extended with a `*.` prefix if needed. For example:
+
+- Suggested file name: `drep.skey`
+- Extended with a prefix: `myname.drep.skey`
+
+The naming convention is a work in progress. Please revisit this page regularly to check if any new or modified schemas have been selected.
+
+### Constitution files
+
+Below is a list of currently used files related to the constitution's text-content/action/vote.
+
+#### Text/content
+
+`constitution.txt / *.constitution.txt` constitution in cleartext utf-8
+
+#### Action
+
+`constitution.action / *.constitution.action` for action file content in JSON
+
+Example content:
+
+```json
+{
+    "type": "Governance proposal",
+    "description": "",
+    "cborHex": "841a000f4240581c1b7a61b...36a56ff490a4af6"
+}
+```
+
+#### Vote
+`constitution.vote / *.constitution.vote` for the vote ballot in JSON
+
+Example content:
+
+```json
+{
+    "type": "Governance vote",
+    "description": "",
+    "cborHex": "8482582064e7cad9b3ece...1e235709ffa691001f6"
+}
+```
+
+### SanchoNet delegate representatives (DReps) files
+
+Below is a list of currently used files related to SanchoNet DRep usage.
+
+#### Signing key
+
+Generated as a normal ed25519 key or derived from path `1852'/1815'/acc'/3/idx'`
+`drep.skey / *.drep.skey` for the SanchoNet DRep secret-key JSON (see example content below)
+
+Example content:
+
+```json
+{
+    "type": "DRepSigningKey_ed25519",
+    "description": "Delegate Representative Signing Key",
+    "cborHex": "00000"
+}
+{
+    "type": "DRepExtendedSigningKey_ed25519_bip32",
+    "description": "Delegate Representative Signing Key",
+    "cborHex": "5840d84f8646463b03accf....da82c5dba3b1e4aa0df20b7"
+}
+```
+The keys derived from hardware wallets will have the keyword 'Hardware' in the description field, such as: 'Hardware Delegate Representative Signing Key'.
+
+#### Verification key
+
+`drep.vkey / *.drep.vkey` for the SanchoNet DRep verification-key JSON (see example content below)
+
+Example content:
+
+```json
+{
+    "type": "DRepVerificationKey_ed25519",
+    "description": "Delegate Representative Verification Key",
+    "cborHex": "00000"
+}
+{
+    "type": "DRepExtendedVerificationKey_ed25519_bip32",
+    "description": "Delegate Representative Verification Key",
+    "cborHex": "5820fd6b3cda64cf11f9b91ea3c88dffed906bc872f1e24566d68637c718788638d9"
+}
+```
+
+The keys derived from hardware wallets will have the keyword 'Hardware' in the description field, such as: `Hardware Delegate Representative Verification Key`
+
+#### Identification file (ID)
+
+`drep.id / *.drep.id` for the DRep ID in bech format `drep1...`
+
+Example content:
+
+`drep12dggdndq3hhjzszukw5k5sulsesjux780s39h087s0p9vk6ylra`
+
+#### Registration certificate
+
+`drep-reg.cert / *.drep-reg.cert` for the registration certificate JSON
+
+Example content:
+
+```json
+{
+    "type": "CertificateConway",
+    "description": "DRep Registration Certificate",
+    "cborHex": "00000000"
+}
+```
+
+#### Retirement certificate
+
+`drep-ret.cert / *.drep-ret.cert` for the de-registration/retirement certificate JSON
+
+Example content:
+
+```json
+{
+    "type": "CertificateConway",
+    "description": "DRep Retirement Certificate",
+    "cborHex": "00000000"
+}
+```
+
+#### Vote delegation certificate
+
+`vote-deleg.cert / *.vote-deleg.cert` for the vote delegation certificate JSON
+
+Example content:
+
+```json
+{
+	"type": "CertificateConway",
+	"description": "Vote Delegation Certificate",
+	"cborHex": "83098200581cc827e7d1fb57cf12662203612fe1f0bb3578574b16f90f4a78cd355c8200581c44924d8233e23a4eda97ba2ce0a336d6152171e70960396b4903eb8a"
+}
+```
+
+### Constitution committee files
+
+Below is a list of currently used files related to the constitution committee member usage.
+
+#### Signing key (cold)
+
+`cc-cold.skey / *.cc-cold.skey` for the cold constitutional committee member secret-key JSON
+
+#### Signing key (hot)
+
+`cc-hot.skey / *.cc-hot.skey` for the hot constitutional committee member secret-key JSON
+
+#### Verification key (cold)
+
+`cc-cold.vkey / *.cc-cold.vkey` for the cold constitutional committee member verification-key JSON
+
+#### Verification key (hot)
+
+`cc-hot.vkey / *.cc-hot.vkey` for the hot constitutional committee member verification-key JSON

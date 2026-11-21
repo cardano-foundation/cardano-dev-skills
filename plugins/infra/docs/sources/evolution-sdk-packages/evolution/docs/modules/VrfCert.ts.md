@@ -1,0 +1,440 @@
+---
+title: VrfCert.ts
+nav_order: 189
+parent: Modules
+---
+
+## VrfCert overview
+
+---
+
+<h2 class="text-delta">Table of contents</h2>
+
+- [FastCheck](#fastcheck)
+  - [arbitrary](#arbitrary)
+- [decoding](#decoding)
+  - [fromCBORHex](#fromcborhex)
+- [encoding](#encoding)
+  - [fromCBORBytes](#fromcborbytes)
+  - [toCBORBytes](#tocborbytes)
+  - [toCBORHex](#tocborhex)
+- [model](#model)
+  - [VrfCert (class)](#vrfcert-class)
+    - [toJSON (method)](#tojson-method)
+    - [toString (method)](#tostring-method)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method)
+    - [[Equal.symbol] (method)](#equalsymbol-method)
+    - [[Hash.symbol] (method)](#hashsymbol-method)
+- [predicates](#predicates)
+  - [isVrfCert](#isvrfcert)
+- [schemas](#schemas)
+  - [FromCBORBytes](#fromcborbytes-1)
+  - [FromCBORHex](#fromcborhex-1)
+  - [FromCDDL](#fromcddl)
+  - [VRFOutput (class)](#vrfoutput-class)
+    - [toJSON (method)](#tojson-method-1)
+    - [toString (method)](#tostring-method-1)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method-1)
+    - [[Equal.symbol] (method)](#equalsymbol-method-1)
+    - [[Hash.symbol] (method)](#hashsymbol-method-1)
+  - [VRFOutputFromBytes](#vrfoutputfrombytes)
+  - [VRFOutputHexSchema](#vrfoutputhexschema)
+  - [VRFProof (class)](#vrfproof-class)
+    - [toJSON (method)](#tojson-method-2)
+    - [toString (method)](#tostring-method-2)
+    - [[Inspectable.NodeInspectSymbol] (method)](#inspectablenodeinspectsymbol-method-2)
+    - [[Equal.symbol] (method)](#equalsymbol-method-2)
+    - [[Hash.symbol] (method)](#hashsymbol-method-2)
+  - [VRFProofFromBytes](#vrfprooffrombytes)
+  - [VRFProofHexSchema](#vrfproofhexschema)
+- [utils](#utils)
+  - [CDDLSchema](#cddlschema)
+
+---
+
+# FastCheck
+
+## arbitrary
+
+**Signature**
+
+```ts
+export declare const arbitrary: FastCheck.Arbitrary<VrfCert>
+```
+
+Added in v2.0.0
+
+# decoding
+
+## fromCBORHex
+
+Convert CBOR hex to VrfCert (unsafe).
+
+**Signature**
+
+```ts
+export declare const fromCBORHex: (hex: string, options?: CBOR.CodecOptions) => VrfCert
+```
+
+Added in v2.0.0
+
+# encoding
+
+## fromCBORBytes
+
+Convert CBOR bytes to VrfCert (unsafe).
+
+**Signature**
+
+```ts
+export declare const fromCBORBytes: (bytes: Uint8Array, options?: CBOR.CodecOptions) => VrfCert
+```
+
+Added in v2.0.0
+
+## toCBORBytes
+
+Convert VrfCert to CBOR bytes (unsafe).
+
+**Signature**
+
+```ts
+export declare const toCBORBytes: (vrfCert: VrfCert, options?: CBOR.CodecOptions) => any
+```
+
+Added in v2.0.0
+
+## toCBORHex
+
+Convert VrfCert to CBOR hex (unsafe).
+
+**Signature**
+
+```ts
+export declare const toCBORHex: (vrfCert: VrfCert, options?: CBOR.CodecOptions) => string
+```
+
+Added in v2.0.0
+
+# model
+
+## VrfCert (class)
+
+Schema for VrfCert representing a VRF certificate.
+vrf_cert = [vrf_output, vrf_proof]
+
+**Signature**
+
+```ts
+export declare class VrfCert
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+# predicates
+
+## isVrfCert
+
+Check if the given value is a valid VrfCert.
+
+**Signature**
+
+```ts
+export declare const isVrfCert: (u: unknown, overrideOptions?: ParseOptions | number) => u is VrfCert
+```
+
+Added in v2.0.0
+
+# schemas
+
+## FromCBORBytes
+
+CBOR bytes transformation schema for VrfCert.
+
+**Signature**
+
+```ts
+export declare const FromCBORBytes: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.transformOrFail<
+    typeof Schema.Uint8ArrayFromSelf,
+    Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+    never
+  >,
+  Schema.transformOrFail<
+    Schema.Tuple2<typeof Schema.Uint8ArrayFromSelf, typeof Schema.Uint8ArrayFromSelf>,
+    Schema.SchemaClass<VrfCert, VrfCert, never>,
+    never
+  >
+>
+```
+
+Added in v2.0.0
+
+## FromCBORHex
+
+CBOR hex transformation schema for VrfCert.
+
+**Signature**
+
+```ts
+export declare const FromCBORHex: (
+  options?: CBOR.CodecOptions
+) => Schema.transform<
+  Schema.Schema<Uint8Array, string, never>,
+  Schema.transform<
+    Schema.transformOrFail<
+      typeof Schema.Uint8ArrayFromSelf,
+      Schema.declare<CBOR.CBOR, CBOR.CBOR, readonly [], never>,
+      never
+    >,
+    Schema.transformOrFail<
+      Schema.Tuple2<typeof Schema.Uint8ArrayFromSelf, typeof Schema.Uint8ArrayFromSelf>,
+      Schema.SchemaClass<VrfCert, VrfCert, never>,
+      never
+    >
+  >
+>
+```
+
+Added in v2.0.0
+
+## FromCDDL
+
+CDDL schema for VrfCert as tuple structure.
+vrf_cert = [vrf_output, vrf_proof]
+vrf_output = bytes .size 32
+vrf_proof = bytes .size 80
+
+**Signature**
+
+```ts
+export declare const FromCDDL: Schema.transformOrFail<
+  Schema.Tuple2<typeof Schema.Uint8ArrayFromSelf, typeof Schema.Uint8ArrayFromSelf>,
+  Schema.SchemaClass<VrfCert, VrfCert, never>,
+  never
+>
+```
+
+Added in v2.0.0
+
+## VRFOutput (class)
+
+Schema for VRF output (32 bytes).
+vrf_output = bytes .size 32
+
+**Signature**
+
+```ts
+export declare class VRFOutput
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## VRFOutputFromBytes
+
+Schema for VRF output as a byte array.
+vrf_output = bytes .size 32
+
+**Signature**
+
+```ts
+export declare const VRFOutputFromBytes: Schema.transform<
+  Schema.SchemaClass<Uint8Array, Uint8Array, never>,
+  Schema.SchemaClass<VRFOutput, VRFOutput, never>
+>
+```
+
+Added in v2.0.0
+
+## VRFOutputHexSchema
+
+Schema for VRF output as a hex string.
+vrf_output = bytes .size 32
+
+**Signature**
+
+```ts
+export declare const VRFOutputHexSchema: Schema.transform<
+  Schema.filter<Schema.Schema<Uint8Array, string, never>>,
+  Schema.SchemaClass<VRFOutput, VRFOutput, never>
+>
+```
+
+Added in v2.0.0
+
+## VRFProof (class)
+
+Schema for VRF proof (80 bytes).
+vrf_proof = bytes .size 80
+
+**Signature**
+
+```ts
+export declare class VRFProof
+```
+
+Added in v2.0.0
+
+### toJSON (method)
+
+**Signature**
+
+```ts
+toJSON()
+```
+
+### toString (method)
+
+**Signature**
+
+```ts
+toString(): string
+```
+
+### [Inspectable.NodeInspectSymbol] (method)
+
+**Signature**
+
+```ts
+[Inspectable.NodeInspectSymbol](): unknown
+```
+
+### [Equal.symbol] (method)
+
+**Signature**
+
+```ts
+[Equal.symbol](that: unknown): boolean
+```
+
+### [Hash.symbol] (method)
+
+**Signature**
+
+```ts
+[Hash.symbol](): number
+```
+
+## VRFProofFromBytes
+
+Schema for VRF proof as a byte array.
+vrf_proof = bytes .size 80
+
+**Signature**
+
+```ts
+export declare const VRFProofFromBytes: Schema.transform<
+  Schema.SchemaClass<Uint8Array, Uint8Array, never>,
+  Schema.SchemaClass<VRFProof, VRFProof, never>
+>
+```
+
+Added in v2.0.0
+
+## VRFProofHexSchema
+
+Schema for VRF proof as a hex string.
+vrf_proof = bytes .size 80
+
+**Signature**
+
+```ts
+export declare const VRFProofHexSchema: Schema.transform<
+  Schema.filter<Schema.Schema<Uint8Array, string, never>>,
+  Schema.SchemaClass<VRFProof, VRFProof, never>
+>
+```
+
+Added in v2.0.0
+
+# utils
+
+## CDDLSchema
+
+**Signature**
+
+```ts
+export declare const CDDLSchema: Schema.Tuple2<typeof Schema.Uint8ArrayFromSelf, typeof Schema.Uint8ArrayFromSelf>
+```

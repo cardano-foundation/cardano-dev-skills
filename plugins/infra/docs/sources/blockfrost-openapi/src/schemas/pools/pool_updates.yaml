@@ -1,0 +1,28 @@
+type: array
+items:
+  type: object
+  properties:
+    tx_hash:
+      type: string
+      description: Transaction ID
+    cert_index:
+      type: integer
+      description: Certificate within the transaction
+    action:
+      type: string
+      enum: [registered, deregistered]
+      description: Action in the certificate
+  required:
+    - tx_hash
+    - cert_index
+    - action
+example:
+  - tx_hash: "6804edf9712d2b619edb6ac86861fe93a730693183a262b165fcc1ba1bc99cad"
+    cert_index: 0
+    action: "registered"
+  - tx_hash: "9c190bc1ac88b2ab0c05a82d7de8b71b67a9316377e865748a89d4426c0d3005"
+    cert_index: 0
+    action: "deregistered"
+  - tx_hash: "e14a75b0eb2625de7055f1f580d70426311b78e0d36dd695a6bdc96c7b3d80e0"
+    cert_index: 1
+    action: "registered"

@@ -1,0 +1,69 @@
+---
+title: "Cardano Transaction Parser"
+description: "Parse, analyze, and test Cardano transactions from CBOR hex."
+icon: MagnifyingGlassIcon
+---
+
+import { linksTxParser } from "@/data/links-txparser";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+
+## Overview
+
+`TxParser` parses Cardano transaction CBOR hex back into a structured `MeshTxBuilderBody` object. This enables you to analyze transactions, rebuild them with modifications, or run unit tests against transaction logic.
+
+**When to use TxParser:**
+- Debugging transaction building issues
+- Analyzing on-chain transactions
+- Rebuilding transactions with modifications
+- Unit testing transaction logic
+- Verifying transaction structure before submission
+
+## Quick Start
+
+```tsx
+import { BlockfrostProvider, TxParser } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+// Initialize parser
+const fetcher = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, fetcher);
+
+// Parse a transaction
+const txHex = "84a400..."; // Your transaction CBOR hex
+const utxos = await wallet.getUtxos(); // Input UTxOs
+
+const txBuilderBody = await txParser.parse(txHex, utxos);
+
+// Inspect the parsed transaction
+console.log("Inputs:", txBuilderBody.inputs);
+console.log("Outputs:", txBuilderBody.outputs);
+console.log("Mints:", txBuilderBody.mints);
+
+// Convert to tester for unit testing
+const txTester = txParser.toTester();
+```
+
+## Documentation
+
+<div className="grid md:grid-cols-2 gap-6 items-stretch">
+  {linksTxParser.map((card) => (
+    <Link key={card.title} href={card.link} className="no-underline">
+      <Card className="h-full text-center hover:border-primary/50 transition-colors px-4 py-8">
+        <CardTitle className="font-heading">{card.title}</CardTitle>
+        <CardDescription>{card.desc}</CardDescription>
+      </Card>
+    </Link>
+  ))}
+</div>
+
+## Related
+
+- <Link href="/apis/txbuilder">Transaction Builder</Link> - Build transactions
+- <Link href="/providers">Providers</Link> - Blockchain data providers
+- <Link href="/apis/data">Data Types</Link> - Working with Cardano data

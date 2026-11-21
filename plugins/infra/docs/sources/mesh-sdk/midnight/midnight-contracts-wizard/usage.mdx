@@ -1,0 +1,216 @@
+---
+title: "Usage"
+description: "Create Midnight smart contract projects with the interactive CLI wizard"
+---
+
+This guide walks you through using the Midnight Contracts Wizard to generate a complete smart contract project. You will learn how to select contracts, understand the prompts, and set up your development environment.
+
+## Quick start
+
+Run the wizard:
+
+```bash
+npx @meshsdk/midnight-contracts-wizard
+```
+
+## Step-by-step walkthrough
+
+### Step 1: Enter project name
+
+The wizard first asks for your project name:
+
+```
+Welcome to Midnight Contracts Wizard!
+? Enter your project name: my-midnight-project
+```
+
+Enter a valid directory name. The wizard creates a new folder with this name in your current directory.
+
+**Tips:**
+- Use lowercase letters, numbers, and hyphens
+- Avoid spaces and special characters
+- Choose a descriptive name for your project
+
+### Step 2: Select contracts
+
+Next, select which contract templates to include:
+
+```
+? Select contracts to include: (Use arrow keys and space to select)
+  [ ] Tokenization Contract (7 ZK circuits)
+  [ ] Staking Contract (8 ZK circuits)
+  [ ] Identity Contracts (1 ZK circuit)
+  [ ] Oracle Contract (7 ZK circuits)
+  [ ] Lending & Borrowing Contract (7 ZK circuits)
+```
+
+**Controls:**
+- **Arrow keys** - Navigate between options
+- **Space** - Toggle selection
+- **Enter** - Confirm and continue
+
+You can select one or multiple contracts. Each contract is independent and can be used standalone or combined with others.
+
+### Step 3: Review and confirm
+
+The wizard shows a summary of your selections:
+
+```
+Creating project: my-midnight-project
+Selected contracts:
+  - Tokenization Contract
+  - Identity Contracts
+
+Proceed? (Y/n)
+```
+
+Press Enter or type `Y` to confirm.
+
+### Step 4: Project generation
+
+The wizard creates your project:
+
+```
+Creating project structure...
+Adding Tokenization contract...
+Adding Identity contracts...
+
+Project created successfully!
+
+Next steps:
+1. cd my-midnight-project
+2. npm install
+3. compact compile src/tokenization/token.compact src/managed/tokenization
+```
+
+## Complete example session
+
+```bash
+$ npx @meshsdk/midnight-contracts-wizard
+
+Welcome to Midnight Contracts Wizard!
+
+? Enter your project name: defi-platform
+
+? Select contracts to include:
+  [x] Tokenization Contract (7 ZK circuits)
+  [ ] Staking Contract (8 ZK circuits)
+  [ ] Identity Contracts (1 ZK circuit)
+  [x] Oracle Contract (7 ZK circuits)
+  [x] Lending & Borrowing Contract (7 ZK circuits)
+
+Creating project: defi-platform
+Selected contracts:
+  - Tokenization Contract
+  - Oracle Contract
+  - Lending & Borrowing Contract
+
+Proceed? Y
+
+Creating project structure...
+Adding Tokenization contract...
+Adding Oracle contract...
+Adding Lending contract...
+
+Project created successfully!
+
+Next steps:
+1) Navigate to the project folder:
+   cd ./defi-platform
+
+2) Install dependencies:
+   npm install
+
+3) Compile your smart contracts:
+   compact compile src/tokenization/token.compact src/managed/tokenization
+   compact compile src/oracle/oracle.compact src/managed/oracle
+   compact compile src/lending/lending.compact src/managed/lending
+
+Your contracts will be compiled to src/managed/
+Check the README.md for detailed instructions
+```
+
+## After project generation
+
+### Install dependencies
+
+Navigate to your project and install dependencies:
+
+```bash
+cd my-midnight-project
+npm install
+```
+
+### Compile contracts
+
+Compile each contract using the Compact compiler:
+
+```bash
+# Compile tokenization contract
+compact compile src/tokenization/token.compact src/managed/tokenization
+
+# Compile identity contract
+compact compile src/identity/identity.compact src/managed/identity
+```
+
+### Verify output
+
+Check that the compiled TypeScript files were generated:
+
+```bash
+ls src/managed/
+```
+
+You should see TypeScript files corresponding to your contracts.
+
+## Command line options
+
+### Display help
+
+```bash
+npx @meshsdk/midnight-contracts-wizard --help
+```
+
+Shows all available options and usage information.
+
+### Check version
+
+```bash
+npx @meshsdk/midnight-contracts-wizard --version
+```
+
+Displays the current version of the wizard.
+
+## Troubleshooting
+
+### Project folder already exists
+
+**Problem**: The wizard cannot create a folder that already exists.
+
+**Solution**: Choose a different project name or delete the existing folder first.
+
+### Compact compiler not found
+
+**Problem**: The `compact` command is not available.
+
+**Solution**: Install the Midnight Compact compiler. See the [Midnight documentation](https://docs.midnight.network/develop/tutorial/compact) for installation instructions.
+
+### TypeScript compilation errors
+
+**Problem**: TypeScript reports errors after compiling contracts.
+
+**Solutions**:
+1. Ensure you ran `npm install` first
+2. Verify the Compact compiler completed successfully
+3. Check that `src/managed/` contains the generated files
+
+## Next steps
+
+- [Contracts](/docs/midnight/midnight-contracts-wizard/contracts) - Explore each contract template in detail
+- [Project Structure](/docs/midnight/midnight-contracts-wizard/project-structure) - Understand the generated files
+- [Midnight Setup](/docs/midnight/midnight-setup) - Connect your contracts to a dApp
+
+## Related resources
+
+- [Midnight Network Documentation](https://docs.midnight.network/)
+- [Compact Language Guide](https://docs.midnight.network/develop/tutorial/compact)

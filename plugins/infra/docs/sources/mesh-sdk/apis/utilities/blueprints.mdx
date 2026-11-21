@@ -1,0 +1,378 @@
+---
+title: "Smart Contract Blueprints"
+description: "Create and manage smart contract blueprints for Cardano validators"
+---
+
+Use the Blueprint utility classes to manage serialization and deserialization logic for Cardano smart contracts. Blueprints support three validator types: Spending, Minting, and Withdrawal.
+
+## Overview
+
+Blueprint classes simplify working with Plutus scripts by providing:
+
+- Automatic script hash calculation
+- Script CBOR serialization
+- Address generation (for spending and withdrawal validators)
+- Policy ID extraction (for minting validators)
+- Parameter application to parameterized scripts
+
+You can also use the [Cardano Bar VSCode extension](https://marketplace.visualstudio.com/items?itemName=sidan-lab.cardano-bar-vscode) from [SIDAN Lab](https://x.com/sidan_lab) to parse CIP-57 blueprint objects into Mesh types.
+
+## Quick Start
+
+```tsx
+import { SpendingBlueprint, MintingBlueprint, WithdrawalBlueprint } from "@meshsdk/core";
+
+// Create a spending blueprint
+const spendingBlueprint = new SpendingBlueprint("V2", 0);
+spendingBlueprint.noParamScript(compiledCode);
+
+// Access script information
+const scriptHash = spendingBlueprint.hash;
+const scriptAddress = spendingBlueprint.address;
+```
+
+---
+
+## SpendingBlueprint
+
+Create a blueprint for spending validators. Use this when you need to lock funds at a script address and later spend them.
+
+### Constructor
+
+```tsx
+new SpendingBlueprint(plutusVersion: string, networkId: number, stakeKeyHash?: string)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `plutusVersion` | `string` | Plutus version (`"V1"`, `"V2"`, or `"V3"`) |
+| `networkId` | `number` | Network ID (`0` for testnet, `1` for mainnet) |
+| `stakeKeyHash` | `string` | Optional. Stake key hash for the script address |
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `hash` | `string` | The script hash |
+| `cbor` | `string` | The script in CBOR format |
+| `address` | `string` | The bech32 script address |
+
+### Methods
+
+#### noParamScript
+
+Use this method for validators that require no parameters.
+
+```tsx
+noParamScript(compiledCode: string): void
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `compiledCode` | `string` | The compiled Plutus script code |
+
+#### paramScript
+
+Use this method for parameterized validators that require initialization parameters.
+
+```tsx
+paramScript(compiledCode: string, params: any[], dataType: string): void
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `compiledCode` | `string` | The compiled Plutus script code |
+| `params` | `any[]` | Array of parameters to apply to the script |
+| `dataType` | `string` | Data type format (`"Mesh"` or `"JSON"`) |
+
+### Example: Spending Blueprint Without Parameters
+
+```tsx
+import { SpendingBlueprint } from "@meshsdk/core";
+
+const compiledCode = "5906f4010100..."; // Your compiled script
+
+const blueprint = new SpendingBlueprint("V2", 0);
+blueprint.noParamScript(compiledCode);
+
+const scriptHash = blueprint.hash;
+const scriptCbor = blueprint.cbor;
+const scriptAddress = blueprint.address;
+```
+
+### Example: Spending Blueprint With Parameters
+
+```tsx
+import { SpendingBlueprint, mPubKeyAddress } from "@meshsdk/core";
+
+const compiledCode = "5906f4010100..."; // Your compiled script
+const stakeHash = "9e8a6e5fcbbb5b84deefc71d7cb6319a3da9cc3d19765efb303647ef";
+
+const blueprint = new SpendingBlueprint("V2", 0, stakeHash);
+blueprint.paramScript(
+  compiledCode,
+  [
+    mPubKeyAddress(
+      "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+      "9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6"
+    ),
+  ],
+  "Mesh"
+);
+
+const scriptHash = blueprint.hash;
+const scriptCbor = blueprint.cbor;
+const scriptAddress = blueprint.address;
+```
+
+---
+
+## MintingBlueprint
+
+Create a blueprint for minting validators. Use this when you need to define a minting policy for native assets.
+
+### Constructor
+
+```tsx
+new MintingBlueprint(plutusVersion: string)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `plutusVersion` | `string` | Plutus version (`"V1"`, `"V2"`, or `"V3"`) |
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `hash` | `string` | The policy ID (script hash) |
+| `cbor` | `string` | The script in CBOR format |
+
+### Methods
+
+#### noParamScript
+
+Use this method for minting policies that require no parameters.
+
+```tsx
+noParamScript(compiledCode: string): void
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `compiledCode` | `string` | The compiled Plutus script code |
+
+#### paramScript
+
+Use this method for parameterized minting policies.
+
+```tsx
+paramScript(compiledCode: string, params: any[], dataType: string): void
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `compiledCode` | `string` | The compiled Plutus script code |
+| `params` | `any[]` | Array of parameters to apply to the script |
+| `dataType` | `string` | Data type format (`"Mesh"` or `"JSON"`) |
+
+### Example: Minting Blueprint Without Parameters
+
+```tsx
+import { MintingBlueprint } from "@meshsdk/core";
+
+const compiledCode = "5906f4010100..."; // Your compiled script
+
+const blueprint = new MintingBlueprint("V2");
+blueprint.noParamScript(compiledCode);
+
+const policyId = blueprint.hash;
+const scriptCbor = blueprint.cbor;
+```
+
+### Example: Minting Blueprint With Parameters
+
+```tsx
+import { MintingBlueprint, mPubKeyAddress } from "@meshsdk/core";
+
+const compiledCode = "5906f4010100..."; // Your compiled script
+
+const blueprint = new MintingBlueprint("V2");
+blueprint.paramScript(
+  compiledCode,
+  [
+    mPubKeyAddress(
+      "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+      "9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6"
+    ),
+    100,
+  ],
+  "Mesh"
+);
+
+const policyId = blueprint.hash;
+const scriptCbor = blueprint.cbor;
+```
+
+---
+
+## WithdrawalBlueprint
+
+Create a blueprint for withdrawal validators. Use this when you need to control stake reward withdrawals.
+
+### Constructor
+
+```tsx
+new WithdrawalBlueprint(plutusVersion: string, networkId: number)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `plutusVersion` | `string` | Plutus version (`"V1"`, `"V2"`, or `"V3"`) |
+| `networkId` | `number` | Network ID (`0` for testnet, `1` for mainnet) |
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `hash` | `string` | The script hash |
+| `cbor` | `string` | The script in CBOR format |
+| `address` | `string` | The reward address (stake address) |
+
+### Methods
+
+#### noParamScript
+
+Use this method for withdrawal validators that require no parameters.
+
+```tsx
+noParamScript(compiledCode: string): void
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `compiledCode` | `string` | The compiled Plutus script code |
+
+#### paramScript
+
+Use this method for parameterized withdrawal validators.
+
+```tsx
+paramScript(compiledCode: string, params: any[], dataType: string): void
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `compiledCode` | `string` | The compiled Plutus script code |
+| `params` | `any[]` | Array of parameters to apply to the script |
+| `dataType` | `string` | Data type format (`"Mesh"` or `"JSON"`) |
+
+### Example: Withdrawal Blueprint Without Parameters
+
+```tsx
+import { WithdrawalBlueprint } from "@meshsdk/core";
+
+const compiledCode = "5906f4010100..."; // Your compiled script
+
+const blueprint = new WithdrawalBlueprint("V2", 0);
+blueprint.noParamScript(compiledCode);
+
+const scriptHash = blueprint.hash;
+const scriptCbor = blueprint.cbor;
+const rewardAddress = blueprint.address;
+```
+
+### Example: Withdrawal Blueprint With Parameters
+
+```tsx
+import { WithdrawalBlueprint, mPubKeyAddress } from "@meshsdk/core";
+
+const compiledCode = "5906f4010100..."; // Your compiled script
+
+const blueprint = new WithdrawalBlueprint("V2", 0);
+blueprint.paramScript(
+  compiledCode,
+  [
+    mPubKeyAddress(
+      "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+      "9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6"
+    ),
+    100,
+  ],
+  "Mesh"
+);
+
+const scriptHash = blueprint.hash;
+const scriptCbor = blueprint.cbor;
+const rewardAddress = blueprint.address;
+```
+
+---
+
+## Complete Example
+
+This example demonstrates using all three blueprint types in a dApp:
+
+```tsx
+import {
+  SpendingBlueprint,
+  MintingBlueprint,
+  WithdrawalBlueprint,
+  mPubKeyAddress,
+} from "@meshsdk/core";
+
+// Configuration
+const plutusVersion = "V2";
+const networkId = 0; // testnet
+const stakeKeyHash = "9e8a6e5fcbbb5b84deefc71d7cb6319a3da9cc3d19765efb303647ef";
+
+// Script parameters
+const ownerAddress = mPubKeyAddress(
+  "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6",
+  "9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6"
+);
+
+// Spending validator for locking funds
+const spendingBlueprint = new SpendingBlueprint(plutusVersion, networkId, stakeKeyHash);
+spendingBlueprint.paramScript(spendingCompiledCode, [ownerAddress], "Mesh");
+
+console.log("Spending Script Address:", spendingBlueprint.address);
+console.log("Spending Script Hash:", spendingBlueprint.hash);
+
+// Minting policy for NFTs
+const mintingBlueprint = new MintingBlueprint(plutusVersion);
+mintingBlueprint.paramScript(mintingCompiledCode, [ownerAddress, 1], "Mesh");
+
+console.log("Policy ID:", mintingBlueprint.hash);
+
+// Withdrawal validator for stake rewards
+const withdrawalBlueprint = new WithdrawalBlueprint(plutusVersion, networkId);
+withdrawalBlueprint.paramScript(withdrawalCompiledCode, [ownerAddress], "Mesh");
+
+console.log("Reward Address:", withdrawalBlueprint.address);
+```
+
+---
+
+## Troubleshooting
+
+### Script hash does not match expected value
+
+Ensure you are using the correct Plutus version. Different versions produce different hashes for the same script code.
+
+### Address generation fails
+
+Check that you provided a valid network ID (`0` for testnet, `1` for mainnet). For spending blueprints, verify the stake key hash is a valid 56-character hex string.
+
+### Parameter application fails
+
+Verify your parameters match the expected types in your Plutus script. Use Mesh data types (`mPubKeyAddress`, `mConStr0`, etc.) when specifying `"Mesh"` as the data type.
+
+---
+
+## Related
+
+- [Serializers](/apis/utilities/serializers) - Serialize scripts and addresses
+- [Deserializers](/apis/utilities/deserializers) - Parse script and address data
+- [Mesh Data](/apis/data/mesh) - Build parameters using Mesh data types
+- [Transaction Builder](/apis/txbuilder/smart-contracts) - Use blueprints in transactions

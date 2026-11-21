@@ -1,0 +1,22 @@
+type: array
+items:
+  type: object
+  properties:
+    pool_id:
+      type: string
+      example: "pool1z5uqdk7dzdxaae5633fqfcu2eqzy3a3rgtuvy087fdld7yws0xt"
+      description: Bech32 encoded pool ID
+    epoch:
+      type: integer
+      example: 242
+      description: Retirement epoch number
+  required:
+    - pool_id
+    - epoch
+example:
+  - pool_id: "pool19u64770wqp6s95gkajc8udheske5e6ljmpq33awxk326zjaza0q"
+    epoch: 225
+  - pool_id: "pool1dvla4zq98hpvacv20snndupjrqhuc79zl6gjap565nku6et5zdx"
+    epoch: 215
+  - pool_id: "pool1wvccajt4eugjtf3k0ja3exjqdj7t8egsujwhcw4tzj4rzsxzw5w"
+    epoch: 231

@@ -1,0 +1,19 @@
+description: Pin queue is currently full, not accepting new txs straight away
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 425
+        error:
+          type: string
+          example: "Pin Queue Full"
+        message:
+          type: string
+          example: "Your pin queue is currently full, please try pinning again later."
+      required:
+        - error
+        - message
+        - status_code

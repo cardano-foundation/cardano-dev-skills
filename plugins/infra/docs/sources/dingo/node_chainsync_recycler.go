@@ -1,0 +1,652 @@
+// Copyright 2026 Blink Labs Software
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package dingo
+
+import (
+	"context"
+	"time"
+
+	"github.com/blinklabs-io/dingo/chainselection"
+	"github.com/blinklabs-io/dingo/chainsync"
+	"github.com/blinklabs-io/dingo/event"
+	"github.com/blinklabs-io/dingo/internal/chainsyncrecycler"
+	"github.com/blinklabs-io/dingo/peergov"
+	ouroboros "github.com/blinklabs-io/gouroboros"
+	ochainsync "github.com/blinklabs-io/gouroboros/protocol/chainsync"
+	ocommon "github.com/blinklabs-io/gouroboros/protocol/common"
+)
+
+const (
+	chainSelectedNoneInitialRetryInterval = 10 * time.Millisecond
+	chainSelectedNoneMaxRetryInterval     = time.Second
+)
+
+// chainsyncObservePeerTip stages a header frontier for the Genesis apply gate.
+// The staged value is not selectable until ledger admission promotes it.
+func (n *Node) chainsyncObservePeerTip(
+	e chainselection.PeerTipUpdateEvent,
+) chainselection.PeerTipUpdateDisposition {
+	if n.chainSelector == nil {
+		return chainselection.PeerTipUpdateUnhandled
+	}
+	if e.AdmissionID == 0 {
+		active, _ := n.chainSelector.GenesisSelectionState()
+		if !active {
+			return chainselection.PeerTipUpdateUnhandled
+		}
+		return n.chainSelector.ObservePeerTipUpdate(e)
+	}
+	disposition := n.chainSelector.PreparePeerTipAdmissionDisposition(e)
+	if disposition == chainselection.PeerTipUpdateAccepted {
+		n.touchPeerByConnId(e.ConnectionId)
+	}
+	return disposition
+}
+
+func (n *Node) chainsyncRecordDeliveredPeerTip(
+	e chainselection.PeerTipUpdateEvent,
+) {
+	if n.chainSelector == nil {
+		return
+	}
+	n.chainSelector.RecordDeliveredPeerTip(e)
+}
+
+func (n *Node) chainsyncRecordDeliveredPeerRollback(
+	e chainselection.PeerRollbackEvent,
+) {
+	if n.chainSelector == nil {
+		return
+	}
+	n.chainSelector.RecordDeliveredPeerRollback(e)
+}
+
+// chainsyncResolvePeerTip removes rejected candidates immediately and promotes
+// admitted candidates before the event-bus notification is dispatched.
+func (n *Node) chainsyncResolvePeerTip(
+	e chainselection.PeerTipUpdateEvent,
+	admitted bool,
+) {
+	if n.chainSelector == nil {
+		return
+	}
+	if admitted {
+		n.chainSelector.CommitPeerTipAdmissionPinned(e)
+		n.touchPeerByConnId(e.ConnectionId)
+		return
+	}
+	n.chainSelector.RejectPeerTipAdmission(e)
+}
+
+// chainsyncObservePeerRollback synchronously applies a peer rollback into chain
+// selection when Genesis selection is active. This keeps the density frontier
+// ordered before a later AwaitReply and ensures the ChainsyncApplyEligible
+// check immediately following a roll-backward sees the post-rollback state. It
+// returns true when handled synchronously, so the ouroboros layer skips the
+// async PeerRollbackEvent publish to avoid a double update. Unlike
+// chainsyncObservePeerTip there is no peergov touch: only the chain selector
+// subscribes to PeerRollbackEvent.
+//
+// Outside Genesis selection the async path is used unchanged (returns false).
+func (n *Node) chainsyncObservePeerRollback(
+	e chainselection.PeerRollbackEvent,
+) bool {
+	if n.chainSelector == nil {
+		return false
+	}
+	genesisActive, _ := n.chainSelector.GenesisSelectionState()
+	if !genesisActive {
+		return false
+	}
+	n.chainSelector.HandlePeerRollbackEvent(
+		event.NewEvent(chainselection.PeerRollbackEventType, e),
+	)
+	return true
+}
+
+// chainsyncObserveAwaitReply records the explicit ChainSync idle frontier in
+// the selector. The nil check keeps standalone Ouroboros config construction
+// safe before Run has built the selector.
+func (n *Node) chainsyncObserveAwaitReply(
+	connId ouroboros.ConnectionId,
+	point ocommon.Point,
+) {
+	if n.chainSelector == nil {
+		return
+	}
+	n.chainSelector.SetPeerIdling(connId, point)
+}
+
+// chainsyncApplyEligible gates whether a peer's headers/rollbacks are APPLIED to
+// the ledger, on top of ingress eligibility. It defers to the chain selector's
+// corroboration decision so an uncorroborated Genesis fast source is observed
+// (its tips still feed corroboration) but its blocks are withheld — the real
+// enforcement of the corroboration stall, since ingress is otherwise independent
+// of the selected best peer. Returns true (apply) when no chain selector is
+// wired yet or outside Genesis corroboration.
+func (n *Node) chainsyncApplyEligible(
+	connId ouroboros.ConnectionId,
+) bool {
+	if n.chainSelector == nil {
+		return true
+	}
+	return n.chainSelector.ShouldApplyIngress(connId)
+}
+
+func (n *Node) chainsyncPrepareForecastWitness(
+	update chainselection.PeerTipUpdateEvent,
+) []ouroboros.ConnectionId {
+	if n.chainSelector == nil {
+		return nil
+	}
+	return n.chainSelector.PrepareForecastHorizonWitness(update)
+}
+
+func (n *Node) chainsyncRemoveForecastWitness(
+	update chainselection.PeerTipUpdateEvent,
+) {
+	if n.chainSelector != nil {
+		n.chainSelector.RemoveForecastHorizonWitness(update)
+	}
+}
+
+// chainsyncAwaitCorroboration holds a header denied only for lack of Genesis
+// corroboration. With no chain selector wired there is no such denial.
+func (n *Node) chainsyncAwaitCorroboration(
+	ctx context.Context,
+	connId ouroboros.ConnectionId,
+) (bool, error) {
+	if n.chainSelector == nil {
+		return false, nil
+	}
+	return n.chainSelector.AwaitIngressCorroboration(ctx, connId)
+}
+
+// chainsyncIntersectAtLedgerTip reports whether new chainsync sessions must
+// intersect at the applied ledger tip. It holds while Genesis corroboration is
+// active, which needs every peer's frontier to begin at that tip.
+func (n *Node) chainsyncIntersectAtLedgerTip() bool {
+	return n.chainSelector != nil &&
+		n.chainSelector.GenesisCorroborationActive()
+}
+
+// chainsyncAwaitEagerness pauses a peer's header stream while its next header
+// is past the Limit on Eagerness. With no chain selector wired it never waits.
+func (n *Node) chainsyncAwaitEagerness(
+	ctx context.Context,
+	connId ouroboros.ConnectionId,
+	blockNumber uint64,
+	appliedTip func() ochainsync.Tip,
+) error {
+	if n.chainSelector == nil {
+		return nil
+	}
+	return n.chainSelector.AwaitEagernessLimit(
+		ctx,
+		connId,
+		blockNumber,
+		appliedTip,
+	)
+}
+
+// chainsyncAwaitCatchUpBand pauses a connection whose next header overshoots the
+// catch-up band because the ledger lags. With no chain selector wired it never
+// waits.
+func (n *Node) chainsyncAwaitCatchUpBand(
+	ctx context.Context,
+	connId ouroboros.ConnectionId,
+	observedTip ochainsync.Tip,
+) error {
+	if n.chainSelector == nil {
+		return nil
+	}
+	return n.chainSelector.AwaitCatchUpBand(ctx, connId, observedTip)
+}
+
+// chainsyncHasBestPeer reports whether chain selection has a best peer.
+func (n *Node) chainsyncHasBestPeer() bool {
+	return n.chainSelector != nil && n.chainSelector.GetBestPeer() != nil
+}
+
+func (n *Node) isChainsyncIngressEligible(
+	connId ouroboros.ConnectionId,
+) bool {
+	if eligible, ok := n.peerChainSelectionEligible(connId); ok {
+		return eligible
+	}
+	n.chainsyncIngressEligibilityMu.RLock()
+	defer n.chainsyncIngressEligibilityMu.RUnlock()
+	if n.chainsyncIngressEligibilityCache == nil {
+		return false
+	}
+	eligible, ok := n.chainsyncIngressEligibilityCache[connId]
+	if !ok {
+		return false
+	}
+	return eligible
+}
+
+func (n *Node) peerChainSelectionEligible(
+	connId ouroboros.ConnectionId,
+) (bool, bool) {
+	n.peerGovMu.RLock()
+	defer n.peerGovMu.RUnlock()
+	if n.peerGov == nil {
+		return false, false
+	}
+	return n.peerGov.IsChainSelectionEligible(connId), true
+}
+
+func (n *Node) setChainsyncIngressEligibility(
+	connId ouroboros.ConnectionId,
+	eligible bool,
+) {
+	n.chainsyncIngressEligibilityMu.Lock()
+	defer n.chainsyncIngressEligibilityMu.Unlock()
+	if n.chainsyncIngressEligibilityCache == nil {
+		n.chainsyncIngressEligibilityCache = make(
+			map[ouroboros.ConnectionId]bool,
+		)
+	}
+	n.chainsyncIngressEligibilityCache[connId] = eligible
+}
+
+func (n *Node) deleteChainsyncIngressEligibility(
+	connId ouroboros.ConnectionId,
+) {
+	n.chainsyncIngressEligibilityMu.Lock()
+	defer n.chainsyncIngressEligibilityMu.Unlock()
+	if n.chainsyncIngressEligibilityCache == nil {
+		return
+	}
+	delete(n.chainsyncIngressEligibilityCache, connId)
+}
+
+func (n *Node) handlePeerEligibilityChangedEvent(evt event.Event) {
+	e, ok := evt.Data.(peergov.PeerEligibilityChangedEvent)
+	if !ok {
+		return
+	}
+	n.setChainsyncIngressEligibility(e.ConnectionId, e.Eligible)
+}
+
+func (n *Node) handleChainSwitchEvent(evt event.Event) {
+	e, ok := evt.Data.(chainselection.ChainSwitchEvent)
+	if !ok {
+		return
+	}
+	// chainSelector's evaluation loop is never paused during a live
+	// database restore/truncate, which briefly nils n.chainsyncState while
+	// swapping in a rebuilt one and holds n.liveLifecycleMu for its entire
+	// quiesce-through-reinitialize duration -- so this event can still fire
+	// mid-operation. TryLock, not Lock, matching nodeRecyclerComponents'
+	// identical guard below: this handler runs on the EventBus's own
+	// per-subscriber dispatch goroutine, so blocking it for a possibly
+	// long-running truncate is worse than dropping one update, since
+	// chainSelector re-evaluates and emits again once connections reattach
+	// after reinit.
+	if !n.liveLifecycleMu.TryLock() {
+		return
+	}
+	defer n.liveLifecycleMu.Unlock()
+	if n.chainsyncState == nil {
+		return
+	}
+	if n.chainSelector != nil {
+		best := n.chainSelector.GetBestPeer()
+		if best == nil || *best != e.NewConnectionId {
+			n.config.logger.Debug(
+				"ignoring stale chain switch superseded by selection",
+				"new_connection", e.NewConnectionId.String(),
+			)
+			return
+		}
+	}
+	prevConn := "(none)"
+	if e.PreviousConnectionId.LocalAddr != nil &&
+		e.PreviousConnectionId.RemoteAddr != nil {
+		prevConn = e.PreviousConnectionId.String()
+	}
+	// Peer switches only change which already-running chainsync stream feeds
+	// the ledger. Restarting chainsync here re-enters FindIntersect and can
+	// race the protocol state machine under load.
+	if !n.chainsyncState.TrySetClientConnId(e.NewConnectionId) {
+		n.config.logger.Debug(
+			"ignoring stale chain switch for unavailable connection",
+			"previous_connection", prevConn,
+			"new_connection", e.NewConnectionId.String(),
+		)
+		return
+	}
+	n.config.logger.Info(
+		"chain switch: updating active connection",
+		"previous_connection", prevConn,
+		"new_connection", e.NewConnectionId.String(),
+		"new_tip_block", e.NewTip.BlockNumber,
+		"new_tip_slot", e.NewTip.Point.Slot,
+	)
+}
+
+// handleChainSelectedNoneEvent clears the previous active connection after a
+// selected-to-none transition. This keeps ledger and blockfetch consumers on
+// the same tracked-tip and eligibility decision as ChainSelector.
+func (n *Node) handleChainSelectedNoneEvent(evt event.Event) {
+	e, ok := evt.Data.(chainselection.ChainSelectedNoneEvent)
+	if !ok {
+		return
+	}
+	// Match handleChainSwitchEvent's live-lifecycle guard. A delayed event
+	// rechecks the selector before clearing, so it cannot erase a newer switch.
+	// Unlike a switch, selected-to-none is a one-shot transition and cannot be
+	// dropped on contention. A single
+	// context-owned worker below coalesces contended transitions instead of
+	// detaching an unbounded goroutine for every event.
+	if !n.liveLifecycleMu.TryLock() {
+		n.deferChainSelectedNoneEvent(e)
+		return
+	}
+	defer n.liveLifecycleMu.Unlock()
+	n.handleChainSelectedNoneEventLocked(e)
+}
+
+func (n *Node) handleChainSelectedNoneEventLocked(
+	e chainselection.ChainSelectedNoneEvent,
+) {
+	if n.chainsyncState == nil {
+		return
+	}
+	prevConn := "(none)"
+	if e.PreviousConnectionId.LocalAddr != nil &&
+		e.PreviousConnectionId.RemoteAddr != nil {
+		prevConn = e.PreviousConnectionId.String()
+	}
+	if n.chainSelector != nil {
+		if n.chainSelector.GetBestPeer() != nil {
+			n.config.logger.Debug(
+				"ignoring stale selected-to-none event superseded by selection",
+				"previous_connection", prevConn,
+			)
+			return
+		}
+	}
+	n.config.logger.Info(
+		"chain selection stalled: no selectable peer",
+		"previous_connection", prevConn,
+		"genesis_corroboration", e.GenesisCorroboration,
+	)
+	n.recordChainSelectionStall(e.GenesisCorroboration)
+	if n.chainSelector == nil {
+		// Direct callers without a selector cannot perform the current-selection
+		// recheck above, so retain the event's compare-and-clear behavior.
+		n.chainsyncState.ClearClientConnId(e.PreviousConnectionId)
+		return
+	}
+	// When the selector still has no best peer, clear whichever connection the
+	// chainsync registry currently considers active. A coalesced newer event may
+	// name a different previous peer after intervening switch events were
+	// skipped during the same lifecycle operation; compare-clearing only the
+	// newest event's ID would leave that older active connection behind.
+	if active := n.chainsyncState.GetClientConnId(); active != nil {
+		n.chainsyncState.ClearClientConnId(*active)
+	}
+}
+
+// startChainSelectedNoneWorker starts the one node-owned retry worker before
+// ChainSelector subscriptions can publish selected-to-none transitions.
+func (n *Node) startChainSelectedNoneWorker(ctx context.Context) {
+	n.chainSelectedNoneMu.Lock()
+	defer n.chainSelectedNoneMu.Unlock()
+	if n.chainSelectedNoneWorkerDone != nil {
+		return
+	}
+	wake := make(chan struct{}, 1)
+	done := make(chan struct{})
+	n.chainSelectedNoneWake = wake
+	n.chainSelectedNoneWorkerDone = done
+	go n.runChainSelectedNoneWorker(ctx, wake, done)
+}
+
+// waitChainSelectedNoneWorker waits for the context-owned worker to exit. The
+// caller must cancel the worker context first.
+func (n *Node) waitChainSelectedNoneWorker() {
+	n.chainSelectedNoneMu.Lock()
+	done := n.chainSelectedNoneWorkerDone
+	n.chainSelectedNoneMu.Unlock()
+	if done != nil {
+		<-done
+	}
+}
+
+func (n *Node) deferChainSelectedNoneEvent(
+	e chainselection.ChainSelectedNoneEvent,
+) {
+	n.chainSelectedNoneMu.Lock()
+	// Retain only the newest transition. The locked handler rechecks current
+	// ChainSelector state, so an older transition cannot erase a later
+	// selection; if selection is still empty, it clears the registry's current
+	// active connection even when a dropped intermediate switch made that differ
+	// from the newest event's previous connection.
+	n.chainSelectedNonePending = e
+	n.chainSelectedNonePendingSet = true
+	wake := n.chainSelectedNoneWake
+	n.chainSelectedNoneMu.Unlock()
+	if wake == nil {
+		n.config.logger.Error(
+			"cannot defer selected-to-none event: worker is not running",
+		)
+		return
+	}
+	select {
+	case wake <- struct{}{}:
+	default:
+		// A queued wake already covers the coalesced pending transition.
+	}
+}
+
+func (n *Node) runChainSelectedNoneWorker(
+	ctx context.Context,
+	wake <-chan struct{},
+	done chan<- struct{},
+) {
+	defer close(done)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-wake:
+		}
+
+		retryInterval := chainSelectedNoneInitialRetryInterval
+		for {
+			n.chainSelectedNoneMu.Lock()
+			hasPending := n.chainSelectedNonePendingSet
+			n.chainSelectedNoneMu.Unlock()
+			if !hasPending {
+				break
+			}
+			if !n.liveLifecycleMu.TryLock() {
+				retry := time.NewTimer(retryInterval)
+				select {
+				case <-ctx.Done():
+					if !retry.Stop() {
+						select {
+						case <-retry.C:
+						default:
+						}
+					}
+					return
+				case <-retry.C:
+				}
+				retryInterval = nextChainSelectedNoneRetryInterval(
+					retryInterval,
+					false,
+				)
+				continue
+			}
+			// A successful acquisition ends this contention period. If another
+			// lifecycle operation takes the lock before a newly queued transition
+			// is drained, ramp that fresh contention from the initial interval.
+			retryInterval = nextChainSelectedNoneRetryInterval(
+				retryInterval,
+				true,
+			)
+
+			n.chainSelectedNoneMu.Lock()
+			pending := n.chainSelectedNonePending
+			n.chainSelectedNonePendingSet = false
+			n.chainSelectedNoneMu.Unlock()
+			n.handleChainSelectedNoneEventLocked(pending)
+			n.liveLifecycleMu.Unlock()
+		}
+	}
+}
+
+func nextChainSelectedNoneRetryInterval(
+	current time.Duration,
+	lockAcquired bool,
+) time.Duration {
+	if lockAcquired {
+		return chainSelectedNoneInitialRetryInterval
+	}
+	if current >= chainSelectedNoneMaxRetryInterval/2 {
+		return chainSelectedNoneMaxRetryInterval
+	}
+	return 2 * current
+}
+
+// nodeRecyclerComponents adapts the node's swappable storage/networking
+// components to the recycler's ComponentProvider contract.
+type nodeRecyclerComponents struct {
+	node *Node
+}
+
+// recyclerComponents returns the provider the stall recycler reads live
+// components through.
+func (n *Node) recyclerComponents() chainsyncrecycler.ComponentProvider {
+	return nodeRecyclerComponents{node: n}
+}
+
+// withLiveChainsyncState runs fn while the chainsync state is stable across a
+// live database restore or truncate. Callers must tolerate a false result:
+// lifecycle work holds liveLifecycleMu while it discards and rebuilds the
+// state, and blocking a background ledger callback there can deadlock the
+// quiesce that waits for the callback's goroutine to exit.
+func (n *Node) withLiveChainsyncState(fn func(*chainsync.State)) bool {
+	if !n.liveLifecycleMu.TryLock() {
+		return false
+	}
+	defer n.liveLifecycleMu.Unlock()
+	if n.chainsyncState == nil {
+		return false
+	}
+	fn(n.chainsyncState)
+	return true
+}
+
+// WithLiveComponents runs fn against the node's current ledger, chainsync
+// state, and chain selector while holding liveLifecycleMu, so a live database
+// restore/truncate cannot swap them mid-tick.
+//
+// A live restore/truncate briefly nils n.ledgerState and n.chainsyncState while
+// it swaps in rebuilt ones, and holds n.liveLifecycleMu for its entire
+// quiesce-through-reinitialize duration. TryLock, not Lock: the recycler's tick
+// is a best-effort periodic check, so it must skip a contended tick rather than
+// block waiting behind a possibly long-running truncate — and a blocking Lock()
+// cannot be interrupted by context cancellation, so shutdown (which waits for
+// the recycler) would hang behind it past its configured timeout. The lock is
+// held for the whole callback, not just the nil check, because the tick
+// dereferences both fields many more times after that check. The two fields are
+// also not nilled/reassigned atomically together — reinitializeCoreStorage
+// rebuilds n.ledgerState before reinitializeNetworkingCore rebuilds
+// n.chainsyncState — so both are checked even under the lock.
+func (c nodeRecyclerComponents) WithLiveComponents(
+	fn func(chainsyncrecycler.LiveComponents),
+) bool {
+	n := c.node
+	if !n.liveLifecycleMu.TryLock() {
+		return false
+	}
+	defer n.liveLifecycleMu.Unlock()
+	if n.ledgerState == nil || n.chainsyncState == nil {
+		return false
+	}
+	live := chainsyncrecycler.LiveComponents{
+		Ledger:         n.ledgerState,
+		ChainsyncState: n.chainsyncState,
+	}
+	// Assign the interface only when the selector exists: a typed-nil
+	// *ChainSelector in the interface would be non-nil to the recycler.
+	if n.chainSelector != nil {
+		live.ChainSelector = n.chainSelector
+	}
+	fn(live)
+	return true
+}
+
+// startChainsyncStallRecycler builds and starts the chainsync stall recycler.
+// It detects stalled chainsync clients and recycles truly stuck connections,
+// using a grace period + cooldown to avoid flapping healthy but quiet peers.
+func (n *Node) startChainsyncStallRecycler(
+	ctx context.Context,
+	chainsyncCfg chainsync.Config,
+) error {
+	n.chainsyncStallRecycler = chainsyncrecycler.New(
+		n.buildChainsyncRecyclerConfig(chainsyncCfg),
+	)
+	return n.chainsyncStallRecycler.Start(ctx)
+}
+
+// buildChainsyncRecyclerConfig assembles the recycler's configuration, the
+// single composition site for its dependencies and hooks.
+func (n *Node) buildChainsyncRecyclerConfig(
+	chainsyncCfg chainsync.Config,
+) chainsyncrecycler.Config {
+	return chainsyncrecycler.Config{
+		Components:   n.recyclerComponents(),
+		EventBus:     n.eventBus,
+		Logger:       n.config.logger,
+		StallTimeout: chainsyncCfg.StallTimeout,
+		Interval: min(
+			max(chainsyncCfg.StallTimeout/2, 10*time.Second),
+			30*time.Second,
+		),
+		Grace:             max(chainsyncCfg.StallTimeout, 30*time.Second),
+		Cooldown:          max(2*chainsyncCfg.StallTimeout, 2*time.Minute),
+		OnPlateauDecision: n.recordPlateauDecision,
+	}
+}
+
+// waitChainsyncStallRecycler stops the recycler and waits for it to exit.
+//
+// The wait itself is unbounded: advancing while the recycler is still active
+// can race dependency teardown. shutdown() bounds it from outside with
+// stopWithDeadline, which is safe only because the recycler reaches node
+// components solely through WithLiveComponents, whose TryLock on
+// liveLifecycleMu fails while shutdown holds that lock.
+func (n *Node) waitChainsyncStallRecycler() {
+	if n.chainsyncStallRecycler == nil {
+		return
+	}
+	n.chainsyncStallRecycler.Stop()
+}
+
+// chainsyncHeaderVerificationSettled returns the ledger's settle channel, or
+// nil when no ledger is wired, so a deferred header is parked without a wait.
+func (n *Node) chainsyncHeaderVerificationSettled() <-chan struct{} {
+	if n.ledgerState == nil {
+		return nil
+	}
+	return n.ledgerState.HeaderVerificationSettledChan()
+}

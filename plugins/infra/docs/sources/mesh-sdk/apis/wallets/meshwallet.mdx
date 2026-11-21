@@ -1,0 +1,428 @@
+---
+title: "Headless Wallet (Server-Side)"
+description: "Build server-side wallet functionality for minting, multi-signature transactions, and automated blockchain operations."
+---
+
+`MeshCardanoHeadlessWallet` provides programmatic access to wallet functionality without requiring a browser extension. Use it for minting scripts, automated transactions, multi-signature coordination, and any scenario where your application needs to sign transactions directly.
+
+## Installation
+
+```bash
+npm install @meshsdk/wallet @meshsdk/core
+```
+
+## Quick Start
+
+```tsx
+import { MeshCardanoHeadlessWallet, AddressType } from '@meshsdk/wallet';
+import { MaestroProvider } from '@meshsdk/core';
+
+// 1. Set up a provider
+const provider = new MaestroProvider({
+  network: 'Preprod',
+  apiKey: '<Your-API-Key>'
+});
+
+// 2. Create wallet from mnemonic
+const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+  networkId: 0, // 0: testnet, 1: mainnet
+  walletAddressType: AddressType.Base,
+  fetcher: provider,
+  submitter: provider,
+  mnemonic: ['solution', 'solution', '...'] // 24 words
+});
+
+// 3. Use the wallet
+const address = await wallet.getChangeAddressBech32();
+const balance = await wallet.getBalanceMesh();
+```
+
+## Initialize Wallet
+
+Create a headless wallet instance using one of the factory methods. The wallet requires a fetcher for querying blockchain data and optionally a submitter for transaction submission.
+
+### Configure a Provider
+
+Choose a provider based on your needs:
+
+<Tabs items={["Maestro", "Blockfrost", "Koios", "UTxORPC"]}>
+  <Tab value="Maestro">
+    ```tsx
+    import { MaestroProvider } from '@meshsdk/core';
+
+    const provider = new MaestroProvider({
+      network: 'Preprod',
+      apiKey: '<Your-API-Key>',
+      turboSubmit: false
+    });
+    ```
+  </Tab>
+  <Tab value="Blockfrost">
+    ```tsx
+    import { BlockfrostProvider } from '@meshsdk/core';
+
+    const provider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');
+    ```
+  </Tab>
+  <Tab value="Koios">
+    ```tsx
+    import { KoiosProvider } from '@meshsdk/core';
+
+    const provider = new KoiosProvider('<api|preview|preprod|guild>', '<token>');
+    ```
+  </Tab>
+  <Tab value="UTxORPC">
+    ```tsx
+    import { U5CProvider } from "@meshsdk/core";
+
+    const provider = new U5CProvider({
+      url: "http://localhost:5005",
+      headers: { "dmtr-api-key": "<api-key>" }
+    });
+    ```
+  </Tab>
+</Tabs>
+
+### Address Types
+
+The wallet requires specifying an address type:
+
+| Address Type | Description | Use Case |
+|--------------|-------------|----------|
+| `AddressType.Base` | Includes staking capabilities | Standard wallets with staking |
+| `AddressType.Enterprise` | No staking component | Script addresses, simple wallets |
+
+```tsx
+import { AddressType } from '@meshsdk/wallet';
+
+// Base address (with staking)
+walletAddressType: AddressType.Base
+
+// Enterprise address (no staking)
+walletAddressType: AddressType.Enterprise
+```
+
+### Factory Methods
+
+#### fromMnemonic
+
+The most common initialization method using a BIP39 recovery phrase:
+
+```tsx
+const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+  networkId: 0, // 0: testnet, 1: mainnet
+  walletAddressType: AddressType.Base,
+  fetcher: provider,
+  submitter: provider,
+  mnemonic: [
+    "solution", "solution", "solution", "solution",
+    "solution", "solution", "solution", "solution",
+    "solution", "solution", "solution", "solution",
+    "solution", "solution", "solution", "solution",
+    "solution", "solution", "solution", "solution",
+    "solution", "solution", "solution", "solution"
+  ],
+  password: undefined // Optional passphrase
+});
+```
+
+#### fromBip32Root
+
+Initialize with a root private key in bech32 format:
+
+```tsx
+const wallet = await MeshCardanoHeadlessWallet.fromBip32Root({
+  networkId: 0,
+  walletAddressType: AddressType.Base,
+  fetcher: provider,
+  submitter: provider,
+  bech32: 'xprv1cqa46gk29plgkg98upclnjv5t425fcpl4rgf9mq2txdxuga7jfq...'
+});
+```
+
+#### fromBip32RootHex
+
+Initialize with a root private key in hex format:
+
+```tsx
+const wallet = await MeshCardanoHeadlessWallet.fromBip32RootHex({
+  networkId: 0,
+  walletAddressType: AddressType.Base,
+  fetcher: provider,
+  submitter: provider,
+  hex: '5820aaca553a7b95b38b5d9b82a5daa7a27ac8e34f3cf27152a978f4576520dd6503'
+});
+```
+
+#### fromCredentialSources
+
+Initialize with explicit credential sources for advanced use cases:
+
+```tsx
+const wallet = await MeshCardanoHeadlessWallet.fromCredentialSources({
+  networkId: 0,
+  walletAddressType: AddressType.Base,
+  fetcher: provider,
+  submitter: provider,
+  paymentCredentialSource: { /* credential source */ },
+  stakeCredentialSource: { /* optional stake credential */ },
+  drepCredentialSource: { /* optional drep credential */ }
+});
+```
+
+## Query Wallet Data
+
+### getBalanceMesh
+
+Retrieve all assets in the wallet:
+
+```tsx
+const balance = await wallet.getBalanceMesh();
+```
+
+**Response:**
+```tsx
+[
+  { "unit": "lovelace", "quantity": "796105407" },
+  { "unit": "9c8e9da7f81e3ca90485f32ebefc98137c8ac260a072a00c4aaf142d4d657368546f6b656e", "quantity": "2" }
+]
+```
+
+### getUtxosMesh
+
+List all unspent transaction outputs:
+
+```tsx
+const utxos = await wallet.getUtxosMesh();
+```
+
+**Response:**
+```tsx
+[
+  {
+    "input": {
+      "outputIndex": 0,
+      "txHash": "16dcbb1f93b4f9d5e...9106c7b121463c210ba"
+    },
+    "output": {
+      "address": "addr_test1qzag7whju08xwrq...z0fr8c3grjmysgaw9y8",
+      "amount": [
+        { "unit": "lovelace", "quantity": "1314550" },
+        { "unit": "f05c91a850...3d824d657368546f6b656e3032", "quantity": "1" }
+      ]
+    }
+  }
+]
+```
+
+## Address Management
+
+### getChangeAddressBech32
+
+The address where transaction change is sent:
+
+```tsx
+const changeAddress = await wallet.getChangeAddressBech32();
+```
+
+### getUsedAddressesBech32
+
+Addresses that have received transactions:
+
+```tsx
+const usedAddresses = await wallet.getUsedAddressesBech32();
+```
+
+### getUnusedAddressesBech32
+
+Fresh addresses for new transactions:
+
+```tsx
+const unusedAddresses = await wallet.getUnusedAddressesBech32();
+```
+
+### getRewardAddressesBech32
+
+Stake addresses for staking rewards:
+
+```tsx
+const rewardAddresses = await wallet.getRewardAddressesBech32();
+// ["stake_test1uzx0ksy9f4qnj2mzfdncqyjy84sszh64w43853nug5pedjgytgke9"]
+```
+
+### getNetworkId
+
+Check if the wallet is on testnet or mainnet:
+
+```tsx
+const networkId = await wallet.getNetworkId();
+// 0 = Testnet, 1 = Mainnet
+```
+
+## Transaction Operations
+
+### signTx
+
+Sign an unsigned transaction. Returns a witness set in CBOR hex format.
+
+```tsx
+const witnessSet = await wallet.signTx(unsignedTx, false);
+
+// For partial signing (multi-sig scenarios)
+const witnessSet = await wallet.signTx(unsignedTx, true);
+```
+
+> **Note:** This method requires a fetcher to resolve input UTxOs for determining required signers.
+
+### signTxReturnFullTx
+
+Sign a transaction and return the full signed transaction with witnesses merged:
+
+```tsx
+const signedTx = await wallet.signTxReturnFullTx(unsignedTx, false);
+```
+
+### submitTx
+
+Submit a signed transaction to the network:
+
+```tsx
+const txHash = await wallet.submitTx(signedTx);
+console.log(`Transaction submitted: ${txHash}`);
+```
+
+> **Note:** Requires a submitter to be configured.
+
+### signData
+
+Sign arbitrary data for authentication or verification:
+
+```tsx
+const address = await wallet.getChangeAddressBech32();
+const signature = await wallet.signData(address, 'mesh');
+```
+
+**Response:**
+```tsx
+{
+  "signature": "845846a2012...f9119a18e8977d436385cecb08",
+  "key": "a4010103272006215...b81a7f6ed4fa29cc7b33186c"
+}
+```
+
+Verify signatures using the [wallet ownership guide](https://meshjs.dev/guides/prove-wallet-ownership#server-verify-signature).
+
+## Collateral Management
+
+### getCollateralMesh
+
+Retrieve UTXOs suitable for Plutus script collateral:
+
+```tsx
+const collateral = await wallet.getCollateralMesh();
+```
+
+The wallet automatically selects the smallest pure ADA UTxO that is at least 5 ADA.
+
+## fetchAccountUtxos
+
+Fetch all UTxOs for the wallet's addresses directly:
+
+```tsx
+const utxos = await wallet.fetchAccountUtxos();
+```
+
+This is useful for getting UTxOs in the native Mesh format without CBOR conversion.
+
+## API Reference
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `create(config)` | `Promise<MeshCardanoHeadlessWallet>` | Static - Create from config |
+| `fromMnemonic(config)` | `Promise<MeshCardanoHeadlessWallet>` | Static - Create from mnemonic |
+| `fromBip32Root(config)` | `Promise<MeshCardanoHeadlessWallet>` | Static - Create from bech32 key |
+| `fromBip32RootHex(config)` | `Promise<MeshCardanoHeadlessWallet>` | Static - Create from hex key |
+| `fromCredentialSources(config)` | `Promise<MeshCardanoHeadlessWallet>` | Static - Create from credentials |
+| `getNetworkId()` | `Promise<number>` | Network ID (0=testnet, 1=mainnet) |
+| `getUtxos()` | `Promise<string[]>` | UTXOs in CBOR hex format |
+| `getUtxosMesh()` | `Promise<UTxO[]>` | UTXOs in Mesh format |
+| `getCollateral()` | `Promise<string[]>` | Collateral UTXOs in CBOR hex format |
+| `getCollateralMesh()` | `Promise<UTxO[]>` | Collateral UTXOs in Mesh format |
+| `getBalance()` | `Promise<string>` | Balance in CBOR hex format |
+| `getBalanceMesh()` | `Promise<Asset[]>` | Balance as Asset array |
+| `getUsedAddresses()` | `Promise<string[]>` | Used addresses in hex format |
+| `getUsedAddressesBech32()` | `Promise<string[]>` | Used addresses in Bech32 |
+| `getUnusedAddresses()` | `Promise<string[]>` | Unused addresses in hex format |
+| `getUnusedAddressesBech32()` | `Promise<string[]>` | Unused addresses in Bech32 |
+| `getChangeAddress()` | `Promise<string>` | Change address in hex format |
+| `getChangeAddressBech32()` | `Promise<string>` | Change address in Bech32 |
+| `getRewardAddresses()` | `Promise<string[]>` | Reward addresses in hex format |
+| `getRewardAddressesBech32()` | `Promise<string[]>` | Reward addresses in Bech32 |
+| `signTx(tx, partialSign)` | `Promise<string>` | Sign transaction |
+| `signTxReturnFullTx(tx, partialSign)` | `Promise<string>` | Sign and return full transaction |
+| `signData(address, data)` | `Promise<DataSignature>` | Sign arbitrary data |
+| `submitTx(tx)` | `Promise<string>` | Submit transaction |
+| `fetchAccountUtxos()` | `Promise<UTxO[]>` | Fetch UTxOs directly |
+
+## Important Notes
+
+### Stateless Design
+
+The headless wallet is stateless and does not track:
+- Which UTxOs are set as collateral (overlap possible between `getUtxosMesh()` and `getCollateralMesh()`)
+- Which addresses have been previously used
+- Address derivation history
+
+This makes it effective as a **single-address wallet**.
+
+### Fetcher Requirement
+
+Many operations require a fetcher:
+- `getUtxosMesh()`
+- `getBalanceMesh()`
+- `getCollateralMesh()`
+- `signTx()` - needs to resolve input UTxOs for determining required signers
+
+### Submitter Requirement
+
+The `submitTx()` method requires a submitter to be configured.
+
+## Migration from MeshWallet
+
+If you're migrating from the old `MeshWallet` class:
+
+```tsx
+// Old API
+import { MeshWallet } from "@meshsdk/core";
+const wallet = new MeshWallet({
+  networkId: 0,
+  fetcher: provider,
+  submitter: provider,
+  key: { type: "mnemonic", words: [...] }
+});
+await wallet.init();
+
+// New API
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+  networkId: 0,
+  walletAddressType: AddressType.Base,
+  fetcher: provider,
+  submitter: provider,
+  mnemonic: [...]
+});
+// No init() needed
+```
+
+Key changes:
+- Import from `@meshsdk/wallet` instead of `@meshsdk/core`
+- Use factory methods instead of constructor
+- Specify `walletAddressType` (Base or Enterprise)
+- No `init()` call needed
+
+## Related Resources
+
+- [Browser Wallet](/apis/wallets/browserwallet) - Connect to user wallets
+- [Transaction Builder](/apis/txbuilder) - Build transactions to sign
+- [Providers](/providers) - Configure blockchain data providers
+- [Prove Wallet Ownership](/guides/prove-wallet-ownership) - Verify signatures

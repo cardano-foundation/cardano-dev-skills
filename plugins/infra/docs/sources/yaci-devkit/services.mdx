@@ -1,0 +1,138 @@
+import { Callout } from 'nextra/components'
+
+## Services
+
+Yaci DevKit starts a local Cardano development network and can run optional services around it depending on your workflow.
+
+## Components
+
+- **Yaci CLI / Admin API:** Command-line and HTTP administration layer. It also serves the Wallet UI, Wallet SDK, Swagger UI, and MCP endpoint.
+- **Yano:** Lightweight Cardano devnet node used for fast PV11 bootstrap and Yano-only devnets.
+- **Cardano Node:** Haskell node used in companion mode after Yano completes bootstrap.
+- **Yaci Store:** Indexer with Blockfrost-compatible APIs.
+- **Yaci Viewer:** Browser UI for exploring chain data from Yaci Store.
+- **Ogmios:** WebSocket bridge for Cardano node mini-protocols.
+- **Kupo:** Lightweight chain indexer that works with Ogmios.
+
+## Default Settings
+
+- **Docker distribution:** Yaci Store is enabled by default. Ogmios and Kupo are optional.
+- **Zip distribution:** Optional services are disabled by default.
+- **NPM distribution:** The basic `up` command starts a Cardano devnet; optional services are enabled with flags.
+
+The default node mode is `companion`, where Yano bootstraps the network and then hands over to the Haskell node. See [Node Modes](/yano-node-modes) for details.
+
+## Transaction Evaluation in v0.12.0+
+
+<Callout type="info">
+This behavior applies to Yaci DevKit `v0.12.0` and later.
+</Callout>
+
+Yaci Store uses the `scalus` transaction evaluator by default. Ogmios is no longer required for normal Yaci Store transaction building, evaluation, and submission flows.
+
+If Ogmios is enabled and already running when Yaci Store starts, DevKit switches Yaci Store transaction evaluation to `ogmios` mode automatically.
+
+The selected mode is printed during startup:
+
+```text
+Yaci Store tx evaluator mode: scalus
+```
+
+or:
+
+```text
+Yaci Store tx evaluator mode: ogmios
+```
+
+## Common URLs
+
+With the default Docker ports:
+
+| Service | URL |
+|---|---|
+| CLI/Admin Swagger UI | `http://localhost:10000/swagger-ui.html` |
+| Wallet page | `http://localhost:10000/wallet` |
+| Wallet SDK | `http://localhost:10000/wallet-sdk.js` |
+| MCP endpoint | `http://localhost:10000/mcp` |
+| Yaci Store API | `http://localhost:8080/api/v1/` |
+| Yaci Store Swagger UI | `http://localhost:8080/swagger-ui.html` |
+| Yaci Viewer | `http://localhost:5173` |
+| Ogmios | `ws://localhost:1337` |
+| Kupo | `http://localhost:1442` |
+| Yano HTTP | `http://localhost:6060` |
+
+Run `info` in Yaci CLI to see the URLs for the active distribution and port configuration.
+
+## Configuration
+
+Configuration varies by distribution.
+
+### Docker Distribution
+
+For Docker, services are configured in `config/env` with underscore notation.
+
+```shell
+yaci_store_enabled=true
+# Ogmios is enabled by default and used as the Yaci Store tx evaluator.
+# Set to false to fall back to the embedded Scalus evaluator.
+ogmios_enabled=true
+kupo_enabled=false
+```
+
+Useful host ports:
+
+```shell
+HOST_STORE_API_PORT=8080
+HOST_VIEWER_PORT=5173
+HOST_CLUSTER_API_PORT=10000
+HOST_OGMIOS_PORT=1337
+HOST_KUPO_PORT=1442
+HOST_YANO_HTTP_PORT=6060
+HOST_YANO_N2N_PORT=14447
+```
+
+### Zip Distribution
+
+For the native CLI zip distribution, services are configured in `config/application.properties` with dot notation.
+
+```properties
+yaci.store.enabled=false
+ogmios.enabled=false
+kupo.enabled=false
+```
+
+### NPM Distribution
+
+For the NPM distribution, services are enabled using `up` flags:
+
+```bash
+# Enable Yaci Store
+yaci-devkit up --enable-yaci-store
+
+# Enable Ogmios and Kupo
+yaci-devkit up --enable-kupomios
+
+# Start interactive CLI
+yaci-devkit up --enable-yaci-store --interactive
+```
+
+## Service Dependencies
+
+- **Yaci Store** provides Blockfrost-compatible APIs used by many SDKs.
+- **Ogmios** is useful for SDKs that need direct Ogmios APIs or Ogmios-backed transaction evaluation.
+- **Kupo** requires Ogmios.
+- **Yano-only mode** runs without the Haskell node; Yaci Store syncs directly from Yano.
+- **Wallet SDK** and **MCP** are served by the CLI/admin service on port `10000` by default.
+
+## Runtime Commands
+
+You can enable or disable optional services at runtime:
+
+```bash
+yaci-cli:> enable-yaci-store
+yaci-cli:> enable-kupomios
+yaci-cli:> disable-yaci-store
+yaci-cli:> disable-kupomios
+```
+
+Runtime changes are temporary. For persistent configuration, update the relevant configuration file for your distribution.

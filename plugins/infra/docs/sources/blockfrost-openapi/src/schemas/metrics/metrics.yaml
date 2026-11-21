@@ -1,0 +1,18 @@
+type: array
+items:
+  type: object
+  properties:
+    time:
+      type: integer
+      description: Starting time of the call count interval (ends midnight UTC) in UNIX time
+    calls:
+      type: integer
+      description: Sum of all calls for a particular day
+  required:
+    - time
+    - calls
+example:
+  - time: 1612543884
+    calls: 42
+  - time: 1614523884
+    calls: 6942

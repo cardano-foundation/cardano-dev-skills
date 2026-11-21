@@ -1,0 +1,489 @@
+---
+title: "Mint an NFT Collection on Cardano"
+description: "Create native NFT assets on Cardano using Mesh SDK and Bun. Learn CIP-25 metadata, native scripts, and transaction building."
+---
+
+import Youtube from "@/components/ui/Youtube";
+import { HowToSchema } from "@/components/seo";
+import Link from "fumadocs-core/link";
+
+<HowToSchema
+  name="Mint an NFT Collection on Cardano"
+  description="Learn how to mint native assets on the Cardano blockchain using Mesh SDK and Bun runtime."
+  totalTime="PT45M"
+  steps={[
+    { name: "Set up project", text: "Install Bun and initialize a new project with Mesh SDK." },
+    { name: "Generate wallet", text: "Create a new Cardano wallet and fund it with test ADA." },
+    { name: "Create native script", text: "Define a minting policy with time lock and signature requirements." },
+    { name: "Build metadata", text: "Create CIP-25 compliant NFT metadata." },
+    { name: "Mint collection", text: "Build, sign, and submit the minting transaction." }
+  ]}
+/>
+
+<Youtube id="KewdzkAqsvw" />
+
+## Overview
+
+In this guide, you mint an NFT collection on Cardano using native scripts. Cardano's [native multi-asset](https://developers.cardano.org/docs/native-tokens/) system allows minting tokens without smart contracts, making them simpler and cheaper to create. Token metadata follows the [CIP-25](https://cips.cardano.org/cip/CIP-0025) standard.
+
+### What you will build
+
+- A minting script that creates multiple NFTs in one transaction
+- CIP-25 compliant metadata for marketplace compatibility
+- A time-locked minting policy that expires after a set slot
+
+### What you will learn
+
+- How Cardano native tokens work without smart contracts
+- Building minting transactions with Mesh SDK
+- Implementing CIP-25 metadata standards
+
+### Prerequisites
+
+- [Bun](https://bun.sh/docs/installation) installed
+- A Blockfrost API key ([get one free](https://blockfrost.io/))
+- Basic TypeScript knowledge
+
+### Time to complete
+
+45 minutes
+
+## Quick Start
+
+If you want to start with a working example:
+
+```bash
+git clone https://github.com/MeshJS/examples
+cd examples/minting
+bun install
+```
+
+Add your credentials to `.env` and run `bun run index.ts`.
+
+## Step-by-Step Guide
+
+### Step 1: Set up the project
+
+Install Bun if you have not already:
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+Create and initialize a new project:
+
+```bash
+mkdir nft-collection
+cd nft-collection
+bun init -y
+bun add @meshsdk/core
+```
+
+**What to expect:** A new project with `package.json` and `@meshsdk/core` installed.
+
+### Step 2: Generate a wallet
+
+Create `scripts/generate-wallet.ts`:
+
+```typescript
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+import { generateMnemonic } from "@meshsdk/core";
+
+// Generate a new mnemonic phrase
+const words = generateMnemonic(256);
+
+console.log("Mnemonic phrase:");
+console.log(words.join(" "));
+console.log("");
+
+// Create wallet from mnemonic
+const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+  mnemonic: words,
+  networkId: 0, // 0 = testnet
+  walletAddressType: AddressType.Base,
+});
+
+const address = await wallet.getChangeAddressBech32();
+console.log("Wallet address:");
+console.log(address);
+```
+
+Run the script:
+
+```bash
+bun run scripts/generate-wallet.ts
+```
+
+**What to expect:** A 24-word mnemonic phrase and a wallet address starting with `addr_test1`.
+
+### Step 3: Fund your wallet
+
+1. Copy the wallet address from the previous step
+2. Go to the [Cardano testnet faucet](https://docs.cardano.org/cardano-testnets/tools/faucet)
+3. Paste your address and request test ADA
+4. Wait 1-2 minutes for the transaction to confirm
+
+**What to expect:** Your wallet receives test ADA (usually 10,000 tADA).
+
+### Step 4: Configure environment
+
+Create a `.env` file:
+
+```bash
+MNEMONIC=your twenty four word mnemonic phrase goes here
+BLOCKFROST_KEY=your_blockfrost_preprod_api_key
+```
+
+**What to expect:** Your credentials are stored securely and not committed to git.
+
+### Step 5: Create the minting script
+
+Create `index.ts`:
+
+```typescript
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  ForgeScript,
+  resolveScriptHash,
+  stringToHex,
+  deserializeAddress,
+} from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+import type { NativeScript, AssetMetadata } from "@meshsdk/core";
+
+// Load environment variables
+const BLOCKFROST_KEY = process.env.BLOCKFROST_KEY!;
+const MNEMONIC = process.env.MNEMONIC!;
+
+if (!BLOCKFROST_KEY || !MNEMONIC) {
+  throw new Error("Missing BLOCKFROST_KEY or MNEMONIC in environment");
+}
+
+// Initialize provider and wallet
+const provider = new BlockfrostProvider(BLOCKFROST_KEY);
+
+const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+  mnemonic: MNEMONIC.split(" "),
+  networkId: 0,
+  walletAddressType: AddressType.Base,
+  fetcher: provider,
+  submitter: provider,
+});
+
+const address = await wallet.getChangeAddressBech32();
+const utxos = await wallet.getUtxosMesh();
+const { pubKeyHash } = deserializeAddress(address);
+
+console.log("Wallet address:", address);
+console.log("Available UTxOs:", utxos.length);
+
+if (utxos.length === 0) {
+  throw new Error("No UTxOs available. Fund the wallet first.");
+}
+```
+
+**What to expect:** The script initializes the wallet and provider.
+
+### Step 6: Define the native script
+
+Add the native script (minting policy) to `index.ts`:
+
+```typescript
+// Define the native script (minting policy)
+// This policy requires your signature AND expires at a specific slot
+const LOCK_SLOT = 90000000; // Adjust this to a future slot on preprod
+
+const nativeScript: NativeScript = {
+  type: "all",
+  scripts: [
+    {
+      type: "before",
+      slot: LOCK_SLOT.toString(),
+    },
+    {
+      type: "sig",
+      keyHash: pubKeyHash,
+    },
+  ],
+};
+
+const forgingScript = ForgeScript.fromNativeScript(nativeScript);
+const policyId = resolveScriptHash(forgingScript);
+
+console.log("Policy ID:", policyId);
+```
+
+The native script enforces two conditions:
+
+- `before` - Minting is only valid before the specified slot
+- `sig` - The transaction must be signed by your wallet
+
+**What to expect:** A deterministic policy ID derived from the script.
+
+### Step 7: Create the metadata function
+
+Add the CIP-25 metadata generator:
+
+```typescript
+type NFTMetadata = {
+  name: string;
+  image: string;
+  mediaType: string;
+  description?: string;
+  attributes?: Record<string, unknown>;
+  files?: Array<{
+    mediaType: string;
+    name: string;
+    src: string;
+  }>;
+};
+
+function createMetadata(
+  name: string,
+  imageIpfs: string,
+  attributes?: Record<string, unknown>
+): NFTMetadata {
+  return {
+    name,
+    image: imageIpfs,
+    mediaType: "image/png",
+    description: `${name} from my NFT collection`,
+    attributes,
+    files: [
+      {
+        mediaType: "image/png",
+        name,
+        src: imageIpfs,
+      },
+    ],
+  };
+}
+```
+
+**What to expect:** A function that generates CIP-25 compliant metadata.
+
+### Step 8: Build the minting transaction
+
+Add the transaction building logic:
+
+```typescript
+// Prepare metadata for all NFTs
+const collectionMetadata: {
+  [policyId: string]: { [assetName: string]: NFTMetadata };
+} = { [policyId]: {} };
+
+const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+// Mint 9 NFTs
+const COLLECTION_SIZE = 9;
+const IMAGE_IPFS = "ipfs://QmPS4PBvpGc2z6Dd6JdYqfHrKnURjtRGPTJWdhnAXNA8bQ";
+
+for (let i = 1; i <= COLLECTION_SIZE; i++) {
+  const tokenName = `MyNFT #${i}`;
+  const tokenNameHex = stringToHex(tokenName);
+
+  // Add mint instruction
+  txBuilder
+    .mint("1", policyId, tokenNameHex)
+    .mintingScript(forgingScript);
+
+  // Add metadata
+  collectionMetadata[policyId][tokenName] = createMetadata(
+    tokenName,
+    IMAGE_IPFS,
+    { edition: i, rarity: i <= 3 ? "rare" : "common" }
+  );
+}
+
+// Complete and submit the transaction
+const unsignedTx = await txBuilder
+  .metadataValue(721, collectionMetadata)
+  .changeAddress(address)
+  .invalidHereafter(LOCK_SLOT)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const signedTx = await wallet.signTx(unsignedTx, false);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Transaction submitted!");
+console.log("Transaction hash:", txHash);
+console.log(`View on explorer: https://preprod.cardanoscan.io/transaction/${txHash}`);
+```
+
+**What to expect:** The transaction mints 9 NFTs and sends them to your wallet.
+
+### Step 9: Run the minting script
+
+Execute the complete script:
+
+```bash
+bun run index.ts
+```
+
+**What to expect:** Console output showing the transaction hash. After 1-2 minutes, your NFTs appear in your wallet.
+
+## Complete Example
+
+Here is the complete `index.ts`:
+
+```typescript
+import {
+  MeshTxBuilder,
+  BlockfrostProvider,
+  ForgeScript,
+  resolveScriptHash,
+  stringToHex,
+  deserializeAddress,
+} from "@meshsdk/core";
+import { MeshCardanoHeadlessWallet, AddressType } from "@meshsdk/wallet";
+import type { NativeScript } from "@meshsdk/core";
+
+// Configuration
+const BLOCKFROST_KEY = process.env.BLOCKFROST_KEY!;
+const MNEMONIC = process.env.MNEMONIC!;
+const LOCK_SLOT = 90000000;
+const COLLECTION_SIZE = 9;
+const IMAGE_IPFS = "ipfs://QmPS4PBvpGc2z6Dd6JdYqfHrKnURjtRGPTJWdhnAXNA8bQ";
+
+if (!BLOCKFROST_KEY || !MNEMONIC) {
+  throw new Error("Missing environment variables");
+}
+
+// Types
+type NFTMetadata = {
+  name: string;
+  image: string;
+  mediaType: string;
+  description?: string;
+  attributes?: Record<string, unknown>;
+  files?: Array<{ mediaType: string; name: string; src: string }>;
+};
+
+function createMetadata(
+  name: string,
+  imageIpfs: string,
+  attributes?: Record<string, unknown>
+): NFTMetadata {
+  return {
+    name,
+    image: imageIpfs,
+    mediaType: "image/png",
+    description: `${name} from my NFT collection`,
+    attributes,
+    files: [{ mediaType: "image/png", name, src: imageIpfs }],
+  };
+}
+
+async function main() {
+  // Initialize
+  const provider = new BlockfrostProvider(BLOCKFROST_KEY);
+  const wallet = await MeshCardanoHeadlessWallet.fromMnemonic({
+    mnemonic: MNEMONIC.split(" "),
+    networkId: 0,
+    walletAddressType: AddressType.Base,
+    fetcher: provider,
+    submitter: provider,
+  });
+
+  const address = await wallet.getChangeAddressBech32();
+  const utxos = await wallet.getUtxosMesh();
+  const { pubKeyHash } = deserializeAddress(address);
+
+  console.log("Wallet:", address);
+  console.log("UTxOs:", utxos.length);
+
+  // Create minting policy
+  const nativeScript: NativeScript = {
+    type: "all",
+    scripts: [
+      { type: "before", slot: LOCK_SLOT.toString() },
+      { type: "sig", keyHash: pubKeyHash },
+    ],
+  };
+
+  const forgingScript = ForgeScript.fromNativeScript(nativeScript);
+  const policyId = resolveScriptHash(forgingScript);
+  console.log("Policy ID:", policyId);
+
+  // Build transaction
+  const collectionMetadata: Record<string, Record<string, NFTMetadata>> = {
+    [policyId]: {},
+  };
+  const txBuilder = new MeshTxBuilder({ fetcher: provider });
+
+  for (let i = 1; i <= COLLECTION_SIZE; i++) {
+    const tokenName = `MyNFT #${i}`;
+    const tokenNameHex = stringToHex(tokenName);
+
+    txBuilder.mint("1", policyId, tokenNameHex).mintingScript(forgingScript);
+    collectionMetadata[policyId][tokenName] = createMetadata(tokenName, IMAGE_IPFS, {
+      edition: i,
+      rarity: i <= 3 ? "rare" : "common",
+    });
+  }
+
+  const unsignedTx = await txBuilder
+    .metadataValue(721, collectionMetadata)
+    .changeAddress(address)
+    .invalidHereafter(LOCK_SLOT)
+    .selectUtxosFrom(utxos)
+    .complete();
+
+  const signedTx = await wallet.signTx(unsignedTx, false);
+  const txHash = await wallet.submitTx(signedTx);
+
+  console.log("Success! TX:", txHash);
+  console.log(`https://preprod.cardanoscan.io/transaction/${txHash}`);
+}
+
+main().catch(console.error);
+```
+
+## Next Steps
+
+- **Add unique images** - Upload artwork to IPFS and use unique hashes per NFT
+- **Expand metadata** - Add more attributes following the [CIP-25 specification](https://cips.cardano.org/cip/CIP-25)
+- **Deploy to mainnet** - Change `networkId` to `1` and use a mainnet Blockfrost key
+- <Link href="/guides/multisig-minting">Multi-signature minting</Link> - Let users pay for minting
+
+## Troubleshooting
+
+### Slot has already passed
+
+**Cause:** The `LOCK_SLOT` value is in the past.
+
+**Solution:** Check the current slot on [preprod.cardanoscan.io](https://preprod.cardanoscan.io/) and set `LOCK_SLOT` to a value at least a few hours in the future.
+
+### Transaction too large
+
+**Cause:** Minting too many NFTs in one transaction.
+
+**Solution:** Reduce `COLLECTION_SIZE` or split into multiple transactions. A single transaction can typically handle 20-50 mints depending on metadata size.
+
+### Invalid metadata
+
+**Cause:** Metadata does not follow CIP-25 format.
+
+**Solution:** Ensure the metadata structure matches CIP-25 requirements. The top-level key must be the policy ID, and each asset must have `name` and `image` fields.
+
+### Insufficient funds
+
+**Cause:** Not enough ADA to cover the transaction fee and min-UTXO requirements.
+
+**Solution:** Request more test ADA from the faucet. Each NFT requires approximately 1.5 ADA for the min-UTXO deposit.
+
+## References
+
+- [CIP-25: Media NFT Metadata Standard](https://cips.cardano.org/cip/CIP-0025) - The Cardano standard for NFT metadata used in this guide
+- [Cardano Developer Portal: Native Tokens](https://developers.cardano.org/docs/native-tokens/) - Official documentation on Cardano's native multi-asset system
+- [Cardano Developer Portal](https://developers.cardano.org) - Official Cardano development resources and tools
+
+## Related Links
+
+- <Link href="https://cips.cardano.org/cip/CIP-25">CIP-25 Metadata Standard</Link> - Official NFT metadata specification
+- <Link href="https://docs.cardano.org/cardano-testnets/tools/faucet">Cardano Testnet Faucet</Link> - Get free test ADA
+- <Link href="https://blockfrost.io/">Blockfrost</Link> - API provider for Cardano
+- <Link href="/guides/minting-on-nodejs">Server-Side Minting</Link> - Mint and distribute tokens
+- <Link href="/apis/txbuilder/minting">Minting API Reference</Link> - Advanced minting options

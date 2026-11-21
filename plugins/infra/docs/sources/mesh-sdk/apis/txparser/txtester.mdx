@@ -1,0 +1,697 @@
+---
+title: "Transaction Unit Testing"
+description: "Test and validate Cardano transactions with a fluent testing API."
+---
+
+import Link from "fumadocs-core/link";
+
+## Overview
+
+`TxTester` provides a fluent API for unit testing Cardano transactions. After parsing a transaction with `TxParser`, you can use `TxTester` to validate inputs, outputs, mints, validity ranges, and signatures.
+
+**When to use this:**
+- Unit testing smart contract transactions
+- Validating transaction structure in CI/CD pipelines
+- Debugging transaction building logic
+- Ensuring transactions meet specific requirements
+- Testing DeFi protocol transactions
+
+## Quick Start
+
+```tsx
+import { BlockfrostProvider, TxParser, MeshValue } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+// Initialize and parse
+const fetcher = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, fetcher);
+
+const txHex = "84a400818258...";
+const utxos = await wallet.getUtxos();
+await txParser.parse(txHex, utxos);
+
+// Create tester
+const txTester = txParser.toTester();
+
+// Run tests
+txTester
+  .outputsAt("addr_test1qz...")
+  .outputsValue(
+    MeshValue.fromAssets([{ unit: "lovelace", quantity: "5000000" }])
+  );
+
+// Check results
+const passed = txTester.success();
+console.log("Tests passed:", passed);
+console.log("Errors:", txTester.errors());
+```
+
+## API Reference
+
+### Result Methods
+
+#### success()
+
+Check if all tests passed.
+
+```tsx
+txTester.success(): boolean
+```
+
+**Returns:** `true` if all tests passed, `false` otherwise
+
+#### errors()
+
+Get all error messages from failed tests.
+
+```tsx
+txTester.errors(): string
+```
+
+**Returns:** Concatenated error messages (empty string if no errors)
+
+### Input Filters
+
+Filter inputs before testing. Filters persist until changed.
+
+#### allInputs()
+
+Clear filters and select all inputs.
+
+```tsx
+txTester.allInputs(): TxTester
+```
+
+#### inputsAt()
+
+Filter inputs by address.
+
+```tsx
+txTester.inputsAt(address: string): TxTester
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `address` | `string` | Address to filter by |
+
+#### inputsWith()
+
+Filter inputs containing a specific token.
+
+```tsx
+txTester.inputsWith(unit: string): TxTester
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `unit` | `string` | Asset unit (policyId + tokenName) |
+
+#### inputsWithPolicy()
+
+Filter inputs containing any token from a policy.
+
+```tsx
+txTester.inputsWithPolicy(policyId: string): TxTester
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `policyId` | `string` | Policy ID to filter by |
+
+#### inputsAtWith()
+
+Filter inputs by address AND token.
+
+```tsx
+txTester.inputsAtWith(address: string, unit: string): TxTester
+```
+
+#### inputsAtWithPolicy()
+
+Filter inputs by address AND policy.
+
+```tsx
+txTester.inputsAtWithPolicy(address: string, policyId: string): TxTester
+```
+
+### Input Tests
+
+#### inputsValue()
+
+Test the total value of filtered inputs.
+
+```tsx
+txTester.inputsValue(expected: MeshValue): TxTester
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `expected` | `MeshValue` | Expected total value |
+
+### Output Filters
+
+Filter outputs before testing. Filters persist until changed.
+
+#### allOutputs()
+
+Clear filters and select all outputs.
+
+```tsx
+txTester.allOutputs(): TxTester
+```
+
+#### outputsAt()
+
+Filter outputs by address.
+
+```tsx
+txTester.outputsAt(address: string): TxTester
+```
+
+#### outputsWith()
+
+Filter outputs containing a specific token.
+
+```tsx
+txTester.outputsWith(unit: string): TxTester
+```
+
+#### outputsWithPolicy()
+
+Filter outputs containing any token from a policy.
+
+```tsx
+txTester.outputsWithPolicy(policyId: string): TxTester
+```
+
+#### outputsAtWith()
+
+Filter outputs by address AND token.
+
+```tsx
+txTester.outputsAtWith(address: string, unit: string): TxTester
+```
+
+#### outputsAtWithPolicy()
+
+Filter outputs by address AND policy.
+
+```tsx
+txTester.outputsAtWithPolicy(address: string, policyId: string): TxTester
+```
+
+### Output Tests
+
+#### outputsValue()
+
+Test the total value of filtered outputs.
+
+```tsx
+txTester.outputsValue(expected: MeshValue): TxTester
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `expected` | `MeshValue` | Expected total value |
+
+#### outputsInlineDatumExist()
+
+Check if any filtered output contains specific inline datum.
+
+```tsx
+txTester.outputsInlineDatumExist(datumCbor: string): TxTester
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `datumCbor` | `string` | Expected datum CBOR |
+
+### Mint Tests
+
+#### tokenMinted()
+
+Check if a specific token was minted.
+
+```tsx
+txTester.tokenMinted(policyId: string, tokenName: string, quantity: number): TxTester
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `policyId` | `string` | Policy ID |
+| `tokenName` | `string` | Token name (hex or empty) |
+| `quantity` | `number` | Expected mint quantity |
+
+#### onlyTokenMinted()
+
+Check if only this specific token was minted (no other mints).
+
+```tsx
+txTester.onlyTokenMinted(policyId: string, tokenName: string, quantity: number): TxTester
+```
+
+#### policyOnlyMintedToken()
+
+Check that a policy only minted this specific token.
+
+```tsx
+txTester.policyOnlyMintedToken(policyId: string, tokenName: string, quantity: number): TxTester
+```
+
+#### checkPolicyOnlyBurn()
+
+Check that a policy only burned tokens (negative quantity).
+
+```tsx
+txTester.checkPolicyOnlyBurn(policyId: string): TxTester
+```
+
+### Time Tests
+
+#### validAfter()
+
+Check if transaction is valid after a timestamp.
+
+```tsx
+txTester.validAfter(timestamp: number): TxTester
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `timestamp` | `number` | Unix timestamp (milliseconds) |
+
+#### validBefore()
+
+Check if transaction is valid before a timestamp.
+
+```tsx
+txTester.validBefore(timestamp: number): TxTester
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `timestamp` | `number` | Unix timestamp (milliseconds) |
+
+### Signature Tests
+
+#### keySigned()
+
+Check if a specific key signed the transaction.
+
+```tsx
+txTester.keySigned(keyHash: string): TxTester
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `keyHash` | `string` | Public key hash |
+
+#### oneOfKeysSigned()
+
+Check if at least one of the keys signed.
+
+```tsx
+txTester.oneOfKeysSigned(keyHashes: string[]): TxTester
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `keyHashes` | `string[]` | Array of public key hashes |
+
+#### allKeysSigned()
+
+Check if all specified keys signed.
+
+```tsx
+txTester.allKeysSigned(keyHashes: string[]): TxTester
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `keyHashes` | `string[]` | Array of public key hashes |
+
+## Common Patterns
+
+### Test Output Values
+
+Verify outputs at specific addresses:
+
+```tsx
+import { BlockfrostProvider, TxParser, MeshValue } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+const fetcher = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, fetcher);
+
+await txParser.parse(txHex, utxos);
+const txTester = txParser.toTester();
+
+// Test outputs at a specific address
+txTester
+  .outputsAt("addr_test1qz...")
+  .outputsValue(
+    MeshValue.fromAssets([
+      { unit: "lovelace", quantity: "5000000" },
+      { unit: "policyId...tokenName", quantity: "1" },
+    ])
+  );
+
+// Test outputs containing a specific token
+txTester
+  .outputsWith("policyId...tokenName")
+  .outputsValue(
+    MeshValue.fromAssets([{ unit: "lovelace", quantity: "2000000" }])
+  );
+
+console.log("Passed:", txTester.success());
+console.log("Errors:", txTester.errors());
+```
+
+### Test Minting
+
+Verify token minting behavior:
+
+```tsx
+import { BlockfrostProvider, TxParser } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+const fetcher = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, fetcher);
+
+await txParser.parse(txHex, utxos);
+const txTester = txParser.toTester();
+
+const policyId = "eab3a1d125a3bf4cd941a6a0b5d7752af96fae7f5bcc641e8a0b6762";
+const tokenName = "MeshToken";
+
+// Check specific token was minted
+txTester.tokenMinted(policyId, tokenName, 1);
+
+// Check only this token was minted
+txTester.onlyTokenMinted(policyId, tokenName, 1);
+
+// Check policy only minted this token
+txTester.policyOnlyMintedToken(policyId, tokenName, 1);
+
+console.log("Passed:", txTester.success());
+console.log("Errors:", txTester.errors());
+```
+
+### Test Burning
+
+Verify token burning:
+
+```tsx
+import { BlockfrostProvider, TxParser } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+const fetcher = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, fetcher);
+
+await txParser.parse(txHex, utxos);
+const txTester = txParser.toTester();
+
+const policyId = "eab3a1d125a3bf4cd941a6a0b5d7752af96fae7f5bcc641e8a0b6762";
+
+// Check token was burned (negative quantity)
+txTester.tokenMinted(policyId, "MeshToken", -1);
+
+// Check policy only burned (no mints)
+txTester.checkPolicyOnlyBurn(policyId);
+
+console.log("Passed:", txTester.success());
+```
+
+### Test Time Validity
+
+Verify transaction time bounds:
+
+```tsx
+import { BlockfrostProvider, TxParser } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+const fetcher = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, fetcher);
+
+await txParser.parse(txHex, utxos);
+const txTester = txParser.toTester();
+
+const now = Date.now();
+const oneHourAgo = now - 60 * 60 * 1000;
+const oneHourLater = now + 60 * 60 * 1000;
+
+// Check transaction validity window
+txTester
+  .validAfter(oneHourAgo)
+  .validBefore(oneHourLater);
+
+console.log("Passed:", txTester.success());
+console.log("Errors:", txTester.errors());
+```
+
+### Test Signatures
+
+Verify required signatures:
+
+```tsx
+import { BlockfrostProvider, TxParser, deserializeAddress } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+const fetcher = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, fetcher);
+
+await txParser.parse(txHex, utxos);
+const txTester = txParser.toTester();
+
+// Get key hashes
+const { pubKeyHash: keyHash1 } = deserializeAddress(address1);
+const { pubKeyHash: keyHash2 } = deserializeAddress(address2);
+
+// Check specific key signed
+txTester.keySigned(keyHash1);
+
+// Check at least one key signed
+txTester.oneOfKeysSigned([keyHash1, keyHash2]);
+
+// Check all keys signed
+txTester.allKeysSigned([keyHash1, keyHash2]);
+
+console.log("Passed:", txTester.success());
+console.log("Errors:", txTester.errors());
+```
+
+### Test Input Values
+
+Verify input consumption:
+
+```tsx
+import { BlockfrostProvider, TxParser, MeshValue } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+const fetcher = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, fetcher);
+
+await txParser.parse(txHex, utxos);
+const txTester = txParser.toTester();
+
+const scriptAddress = "addr_test1wz...";
+
+// Test all inputs
+txTester
+  .allInputs()
+  .inputsValue(
+    MeshValue.fromAssets([{ unit: "lovelace", quantity: "10000000" }])
+  );
+
+// Test inputs from script address
+txTester
+  .inputsAt(scriptAddress)
+  .inputsValue(
+    MeshValue.fromAssets([{ unit: "lovelace", quantity: "5000000" }])
+  );
+
+// Test inputs with specific policy
+txTester
+  .inputsWithPolicy("policyId...")
+  .inputsValue(
+    MeshValue.fromAssets([
+      { unit: "lovelace", quantity: "2000000" },
+      { unit: "policyId...tokenName", quantity: "1" },
+    ])
+  );
+
+console.log("Passed:", txTester.success());
+```
+
+### Test Inline Datum
+
+Verify inline datum in outputs:
+
+```tsx
+import { BlockfrostProvider, TxParser } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+const fetcher = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, fetcher);
+
+await txParser.parse(txHex, utxos);
+const txTester = txParser.toTester();
+
+const scriptAddress = "addr_test1wz...";
+const expectedDatumCbor = "d8799f..."; // Your expected datum CBOR
+
+// Check outputs at script address have expected datum
+txTester
+  .outputsAt(scriptAddress)
+  .outputsInlineDatumExist(expectedDatumCbor);
+
+console.log("Passed:", txTester.success());
+console.log("Errors:", txTester.errors());
+```
+
+## Complete Example
+
+Full unit testing workflow for a DeFi swap transaction:
+
+```tsx
+import {
+  BlockfrostProvider,
+  TxParser,
+  MeshValue,
+  deserializeAddress
+} from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
+
+const provider = new BlockfrostProvider("<YOUR_API_KEY>");
+const serializer = new CSLSerializer();
+const txParser = new TxParser(serializer, provider);
+
+// Test a swap transaction
+async function testSwapTransaction(
+  txHex: string,
+  utxos: any[],
+  config: {
+    userAddress: string;
+    poolAddress: string;
+    inputTokenPolicy: string;
+    outputTokenPolicy: string;
+    inputAmount: string;
+    minOutputAmount: string;
+  }
+) {
+  await txParser.parse(txHex, utxos);
+  const txTester = txParser.toTester();
+
+  const { pubKeyHash: userKeyHash } = deserializeAddress(config.userAddress);
+
+  // 1. Verify user signed the transaction
+  txTester.keySigned(userKeyHash);
+
+  // 2. Verify input tokens consumed from user
+  txTester
+    .inputsAtWithPolicy(config.userAddress, config.inputTokenPolicy)
+    .inputsValue(
+      MeshValue.fromAssets([
+        { unit: config.inputTokenPolicy, quantity: config.inputAmount },
+      ])
+    );
+
+  // 3. Verify pool received input tokens
+  txTester
+    .outputsAtWithPolicy(config.poolAddress, config.inputTokenPolicy)
+    .outputsValue(
+      MeshValue.fromAssets([
+        { unit: config.inputTokenPolicy, quantity: config.inputAmount },
+      ])
+    );
+
+  // 4. Verify user received output tokens
+  txTester
+    .outputsAtWithPolicy(config.userAddress, config.outputTokenPolicy)
+    .outputsValue(
+      MeshValue.fromAssets([
+        { unit: config.outputTokenPolicy, quantity: config.minOutputAmount },
+      ])
+    );
+
+  // 5. Verify transaction validity
+  const now = Date.now();
+  txTester
+    .validAfter(now - 5 * 60 * 1000)  // Valid from 5 min ago
+    .validBefore(now + 30 * 60 * 1000); // Valid for 30 min
+
+  // Get results
+  const passed = txTester.success();
+  const errors = txTester.errors();
+
+  return {
+    passed,
+    errors,
+    summary: {
+      signatureValid: !errors.includes("key"),
+      inputsValid: !errors.includes("input"),
+      outputsValid: !errors.includes("output"),
+      timeValid: !errors.includes("valid"),
+    },
+  };
+}
+
+// Usage
+async function main() {
+  const txHex = "84a400818258...";
+  const utxos = await wallet.getUtxos();
+
+  const result = await testSwapTransaction(txHex, utxos, {
+    userAddress: "addr_test1qz...",
+    poolAddress: "addr_test1wz...",
+    inputTokenPolicy: "policyA...",
+    outputTokenPolicy: "policyB...",
+    inputAmount: "1000000",
+    minOutputAmount: "950000",
+  });
+
+  console.log("Test Results:");
+  console.log("  Passed:", result.passed);
+  console.log("  Summary:", result.summary);
+
+  if (!result.passed) {
+    console.log("  Errors:", result.errors);
+  }
+}
+```
+
+## Troubleshooting
+
+### "Filter returned no results" issue
+- Check that the address/policy exists in the transaction
+- Use `allInputs()` or `allOutputs()` to reset filters
+- Verify you're testing the correct transaction
+
+### "Value mismatch" error
+- Check asset units are correct (policyId + tokenName)
+- Verify quantities match exactly
+- Use `MeshValue.fromAssets()` for proper value construction
+
+### "Key not signed" error
+- Ensure you're using the correct key hash format
+- Transaction may require partial signing first
+- Check that the key is in the required signers list
+
+### "Datum not found" error
+- Verify the datum CBOR is correct
+- Check the output has inline datum (not datum hash)
+- Ensure you're testing the right output address
+
+## Related
+
+- <Link href="/apis/txparser/basics">Parser Basics</Link> - Parse transactions
+- <Link href="/apis/txbuilder">Transaction Builder</Link> - Build transactions
+- <Link href="/apis/data">Data Types</Link> - Working with MeshValue and datum

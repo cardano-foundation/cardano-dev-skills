@@ -1,0 +1,426 @@
+---
+title: "Vesting Contract"
+description: "Lock funds for a beneficiary and release them after a specified time period"
+---
+
+import Link from "next/link";
+
+The Vesting contract locks funds until a specified time and then allows a designated beneficiary to withdraw them. This pattern is common in employee compensation, token distributions, and any scenario requiring time-locked asset release.
+
+## Use Cases
+
+- Employee compensation vesting schedules
+- Token unlock schedules for investors
+- Scheduled payments and allowances
+- Time-locked savings or escrow
+- Deferred compensation arrangements
+
+## Quick Start
+
+### Install the Package
+
+```bash
+npm install @meshsdk/contract @meshsdk/core
+```
+
+### Initialize the Contract
+
+```typescript
+import { MeshVestingContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshVestingContract({
+  mesh: meshTxBuilder,
+  fetcher: provider,
+  wallet: wallet,
+  networkId: 0,
+});
+```
+
+## Contract Logic
+
+The Vesting contract stores three pieces of information in its datum:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `lock_until` | `Int` | POSIX timestamp (milliseconds) when funds unlock |
+| `owner` | `ByteArray` | Public key hash of the depositor |
+| `beneficiary` | `ByteArray` | Public key hash of the recipient |
+
+### Withdrawal Conditions
+
+The contract allows withdrawal under two scenarios:
+
+**Scenario 1: Owner Withdrawal**
+- Transaction signed by the owner
+- No time restriction
+
+**Scenario 2: Beneficiary Withdrawal**
+- Transaction signed by the beneficiary
+- Current time is after `lock_until`
+
+### On-Chain Validator
+
+```rust
+validator {
+  pub fn vesting(datum: VestingDatum, _redeemer: Data, ctx: ScriptContext) {
+    when ctx.purpose is {
+      Spend(_) -> or {
+          key_signed(ctx.transaction.extra_signatories, datum.owner),
+          and {
+            key_signed(ctx.transaction.extra_signatories, datum.beneficiary),
+            valid_after(ctx.transaction.validity_range, datum.lock_until),
+          },
+        }
+      _ -> False
+    }
+  }
+}
+```
+
+### Datum Structure
+
+```rust
+pub type VestingDatum {
+  lock_until: Int,
+  owner: ByteArray,
+  beneficiary: ByteArray,
+}
+```
+
+## Available Actions
+
+### Deposit Fund
+
+Deposit assets into the vesting contract with a lockup period and beneficiary address.
+
+#### Method Signature
+
+```typescript
+contract.depositFund(
+  assets: Asset[],
+  lockUntilTimeStampMs: number,
+  beneficiary: string
+): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `assets` | `Asset[]` | Array of assets to deposit |
+| `lockUntilTimeStampMs` | `number` | POSIX timestamp in milliseconds when funds unlock |
+| `beneficiary` | `string` | Bech32 address of the beneficiary |
+
+#### Code Example
+
+```typescript
+import { MeshVestingContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder, Asset } from "@meshsdk/core";
+
+// Initialize provider and contract
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshVestingContract({
+  mesh: meshTxBuilder,
+  fetcher: provider,
+  wallet: wallet,
+  networkId: 0,
+});
+
+// Define assets to vest
+const assets: Asset[] = [
+  {
+    unit: "lovelace",
+    quantity: "10000000", // 10 ADA
+  },
+];
+
+// Set lockup period (1 hour from now)
+const lockUntilTimeStamp = new Date();
+lockUntilTimeStamp.setHours(lockUntilTimeStamp.getHours() + 1);
+
+// Define beneficiary address
+const beneficiary = "addr_test1qp...your_beneficiary_address";
+
+// Deposit funds
+const tx = await contract.depositFund(
+  assets,
+  lockUntilTimeStamp.getTime(),
+  beneficiary
+);
+const signedTx = await wallet.signTx(tx);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Funds deposited. Transaction hash:", txHash);
+```
+
+#### What Happens on Success
+
+- Assets transfer from your wallet to the contract address
+- Datum stores the lock time, your address, and beneficiary address
+- You receive a transaction hash to track the vesting position
+
+### Withdraw Fund
+
+Withdraw vested funds after the lockup period expires (beneficiary) or at any time (owner).
+
+#### Method Signature
+
+```typescript
+contract.withdrawFund(vestingUtxo: UTxO): Promise<string>
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `vestingUtxo` | `UTxO` | The UTxO containing the vested funds |
+
+#### Code Example
+
+```typescript
+import { MeshVestingContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+
+// Initialize provider and contract
+const provider = new BlockfrostProvider("<Your-API-Key>");
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+const contract = new MeshVestingContract({
+  mesh: meshTxBuilder,
+  fetcher: provider,
+  wallet: wallet,
+  networkId: 0,
+});
+
+// Get the UTxO from the deposit transaction
+const utxo = await contract.getUtxoByTxHash("<your-deposit-transaction-hash>");
+
+// Withdraw funds (must be owner or beneficiary after lock period)
+const tx = await contract.withdrawFund(utxo);
+const signedTx = await wallet.signTx(tx, true);
+const txHash = await wallet.submitTx(signedTx);
+
+console.log("Funds withdrawn. Transaction hash:", txHash);
+```
+
+#### What Happens on Success
+
+- Contract validates signer is owner or beneficiary
+- If beneficiary, contract validates current time is after lock_until
+- Funds transfer to the signer's wallet
+- View example: [Successful withdrawal on Cardanoscan](https://preprod.cardanoscan.io/transaction/e61815bcfe46ababf3d024ae470f779fa738cded55f02127b9e211847c77af8b)
+
+## Full Working Example
+
+```typescript
+import { MeshVestingContract } from "@meshsdk/contract";
+import { BlockfrostProvider, MeshTxBuilder, Asset } from "@meshsdk/core";
+import { MeshCardanoBrowserWallet } from "@meshsdk/wallet";
+
+async function vestingDemo() {
+  // Connect wallet (owner/depositor)
+  const ownerWallet = await MeshCardanoBrowserWallet.enable("eternl");
+
+  // Initialize provider
+  const provider = new BlockfrostProvider("<Your-API-Key>");
+
+  const meshTxBuilder = new MeshTxBuilder({
+    fetcher: provider,
+    submitter: provider,
+  });
+
+  // Initialize contract
+  const contract = new MeshVestingContract({
+    mesh: meshTxBuilder,
+    fetcher: provider,
+    wallet: ownerWallet,
+    networkId: 0,
+  });
+
+  // Step 1: Deposit funds with 1-minute lockup
+  const assets: Asset[] = [
+    {
+      unit: "lovelace",
+      quantity: "5000000", // 5 ADA
+    },
+  ];
+
+  const lockUntil = new Date();
+  lockUntil.setMinutes(lockUntil.getMinutes() + 1);
+
+  const beneficiaryAddress = "addr_test1qp...beneficiary_address";
+
+  const depositTx = await contract.depositFund(
+    assets,
+    lockUntil.getTime(),
+    beneficiaryAddress
+  );
+  const signedDepositTx = await ownerWallet.signTx(depositTx);
+  const depositTxHash = await ownerWallet.submitTx(signedDepositTx);
+
+  console.log("Deposit transaction:", depositTxHash);
+
+  // Wait for lockup period to expire
+  console.log("Waiting for lockup period...");
+  await new Promise((resolve) => setTimeout(resolve, 70000)); // 70 seconds
+
+  // Step 2: Beneficiary withdraws (switch to beneficiary wallet in production)
+  const utxo = await contract.getUtxoByTxHash(depositTxHash);
+
+  const withdrawTx = await contract.withdrawFund(utxo);
+  const signedWithdrawTx = await ownerWallet.signTx(withdrawTx, true);
+  const withdrawTxHash = await ownerWallet.submitTx(signedWithdrawTx);
+
+  console.log("Withdraw transaction:", withdrawTxHash);
+}
+
+vestingDemo().catch(console.error);
+```
+
+## Advanced: Manual Transaction Building
+
+For more control over the transaction, you can build it manually:
+
+### Manual Deposit
+
+```typescript
+import { MeshTxBuilder, deserializeAddress, mConStr0 } from "@meshsdk/core";
+
+const { utxos, walletAddress } = await getWalletInfoForTx();
+const { scriptAddr } = getScript();
+
+const { pubKeyHash: ownerPubKeyHash } = deserializeAddress(walletAddress);
+const { pubKeyHash: beneficiaryPubKeyHash } = deserializeAddress(beneficiary);
+
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+await txBuilder
+  .txOut(scriptAddr, amount)
+  .txOutInlineDatumValue(
+    mConStr0([lockUntilTimeStampMs, ownerPubKeyHash, beneficiaryPubKeyHash])
+  )
+  .changeAddress(walletAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const unsignedTx = txBuilder.txHex;
+```
+
+### Manual Withdrawal
+
+```typescript
+import {
+  MeshTxBuilder,
+  deserializeAddress,
+  deserializeDatum,
+  unixTimeToEnclosingSlot,
+  SLOT_CONFIG_NETWORK,
+} from "@meshsdk/core";
+
+const { utxos, walletAddress, collateral } = await getWalletInfoForTx();
+const { input: collateralInput, output: collateralOutput } = collateral;
+const { scriptAddr, scriptCbor } = getScript();
+const { pubKeyHash } = deserializeAddress(walletAddress);
+
+// Parse datum and calculate validity interval
+const datum = deserializeDatum(vestingUtxo.output.plutusData);
+const invalidBefore =
+  unixTimeToEnclosingSlot(
+    Math.min(datum.fields[0].int, Date.now() - 15000),
+    SLOT_CONFIG_NETWORK.preprod
+  ) + 1;
+
+const txBuilder = new MeshTxBuilder({
+  fetcher: provider,
+  submitter: provider,
+});
+
+await txBuilder
+  .spendingPlutusScriptV2()
+  .txIn(
+    vestingUtxo.input.txHash,
+    vestingUtxo.input.outputIndex,
+    vestingUtxo.output.amount,
+    scriptAddr
+  )
+  .spendingReferenceTxInInlineDatumPresent()
+  .spendingReferenceTxInRedeemerValue("")
+  .txInScript(scriptCbor)
+  .txOut(walletAddress, [])
+  .txInCollateral(
+    collateralInput.txHash,
+    collateralInput.outputIndex,
+    collateralOutput.amount,
+    collateralOutput.address
+  )
+  .invalidBefore(invalidBefore)
+  .requiredSignerHash(pubKeyHash)
+  .changeAddress(walletAddress)
+  .selectUtxosFrom(utxos)
+  .complete();
+
+const unsignedTx = txBuilder.txHex;
+const signedTx = await wallet.signTx(unsignedTx, true);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+## Troubleshooting
+
+### Common Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Script validation failed` | Lockup period not expired | Wait until the `lock_until` timestamp has passed |
+| `Missing required signer` | Wrong wallet signing | Use the owner or beneficiary wallet |
+| `Outside validity interval` | Transaction timing issue | Ensure `invalidBefore` is set correctly |
+| `UTxO not found` | Invalid transaction hash | Verify the transaction hash and wait for confirmation |
+
+### Debugging Tips
+
+1. **Check the current time**: Verify the lockup period has actually expired
+2. **Verify addresses**: Ensure you are using the correct owner or beneficiary wallet
+3. **Inspect the datum**: Use `deserializeDatum()` to verify the stored lock time
+4. **Check slot configuration**: Ensure you are using the correct network slot config
+
+### Testing the Contract
+
+Run the Aiken test suite:
+
+```bash
+aiken check
+```
+
+Test cases include:
+- Success: Unlocking with owner signature
+- Success: Unlocking with beneficiary signature after time passed
+- Fail: Unlocking with only beneficiary signature (before time)
+- Fail: Unlocking with only time passed (no signature)
+
+## Related Links
+
+- [Source Code on GitHub](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/vesting)
+- [Successful Deposit Example](https://preprod.cardanoscan.io/transaction/ede9f8176fe41f0c84cfc9802b693dedb5500c0cbe4377b7bb0d57cf0435200b)
+- [Successful Withdrawal Example](https://preprod.cardanoscan.io/transaction/b108f91a1dcd1b4c0bc978fb7557fc23ad052f1681cca078aa2515f8ab01e05e)
+- [MeshTxBuilder Documentation](/apis/transaction)
+- [Providers Setup Guide](/providers)

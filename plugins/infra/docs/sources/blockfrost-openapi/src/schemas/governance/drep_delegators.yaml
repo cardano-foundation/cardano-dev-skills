@@ -1,0 +1,20 @@
+type: array
+items:
+  type: object
+  properties:
+    address:
+      type: string
+      description: Bech32 encoded stake addresses
+    amount:
+      type: string
+      description: Currently delegated amount
+  required:
+    - address
+    - amount
+example:
+  - address: "stake1ux4vspfvwuus9uwyp5p3f0ky7a30jq5j80jxse0fr7pa56sgn8kha"
+    amount: "1137959159981411"
+  - address: "stake1uylayej7esmarzd4mk4aru37zh9yz0luj3g9fsvgpfaxulq564r5u"
+    amount: "16958865648"
+  - address: "stake1u8lr2pnrgf8f7vrs9lt79hc3sxm8s2w4rwvgpncks3axx6q93d4ck"
+    amount: "18605647"

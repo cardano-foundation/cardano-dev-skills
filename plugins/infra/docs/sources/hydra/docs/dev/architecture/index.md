@@ -1,0 +1,75 @@
+# Architecture
+
+This document describes the architecture of the current implementation
+of a `hydra-node`. The following diagram represents the main
+components of a Hydra node using the [C4 Component
+Diagram](https://c4model.com/#ComponentDiagram) notation.
+
+```mdx-code-block
+import ArchitectureSvg from './hydra-components.svg';
+
+<ArchitectureSvg className="architecture" />
+```
+
+:::info
+
+This diagram is manually produced using the [PlantUML](https://plantuml.com) graphing tool with [C4 extensions](https://github.com/plantuml-stdlib/C4-PlantUML).
+
+```
+$ plantuml -tsvg architecture-c4.puml
+```
+
+:::
+
+### Event sourcing
+
+The `hydra-node` is an event sourced application. This means that the main logic is processing _inputs_ (also called commands) and produces _events_. These events are saved and loaded to persist application state across restarts. Also, most events are transformed to _outputs_ and can be observed on the API. See [Event Sourcing](./event-sourcing.md) for details.
+
+### Network
+
+The _network_ component is responsible for communication between Hydra nodes related to the off-chain part of the Hydra protocol. See [Networking](./networking.md) for details.
+
+### Chain interaction
+
+#### Chain
+
+The chain component observes Cardano blocks and submits transactions that
+advance the head. Its backend can connect to a local `cardano-node` socket or
+use Blockfrost. Transaction construction and observation live in `hydra-tx`;
+the node coordinates chain access and its fuel wallet. See
+[chain configuration](../../configuration.md).
+
+#### Wallet
+
+The Hydra node maintains an internal wallet using the Cardano signing key provided to the `hydra-node`. This wallet is used to handle the payment of transaction fees and to sign transactions.
+
+### Head logic
+
+This component is at the core of the Hydra node, implementing the protocol's _state machine_. It is structured around the concepts of `Input`s and `Effect`s. `Input`s from the outside world are interpreted against the current state, potentially resulting in internal `Event`s, which are aggregated into an updated state. This can then produce `Effect`s, leading to 'side effects' on the outside world. The state available to the _head logic_ consists of the head's content (eg, current ledger, pending transactions) _and_ the data from layer 1 needed to observe and trigger on-chain transitions.
+
+### Hydra smart contracts
+
+This component represents all the Hydra smart contracts needed for the Hydra Head protocol operation. The head, minting, and CRS contracts use PlutusTx; the deposit validator uses Aiken. The implementation uses a KZG accumulator for UTxO commitments and fanout proofs, with native support in `rust-accumulator`.
+
+### Partial fanout
+
+A head with many outputs can be fanned out across several transactions, each distributing a chosen subset, using a KZG accumulator commitment and membership proofs. See [Partial fanout](./partial-fanout.md) for details.
+
+### API
+
+The node exposes HTTP endpoints and a WebSocket event stream. Clients can
+use JSON or negotiate CBOR. WebSocket history is opt-in; `Greetings` marks the
+end of replay when requested. HTTP submission endpoints wait for a result or
+return a pending response. See [API behavior](../../api-behavior.md).
+
+### Persistence
+
+The `hydra-node` state is persisted in a SQLite database file named `hydra.db`, located in the persistence directory specified by `--persistence-dir`. The persistence layer is responsible for loading historical messages and Hydra state from this database, as well as storing new events as they occur. Depending on the rotation configuration used at startup, old events may be compacted to improve restart times. The database schema is versioned using SQLite's `PRAGMA user_version` and migrations are applied automatically on startup. See [Event sourcing](./event-sourcing.md#sqlite-database) for details.
+
+### Logging
+
+The Hydra node logs all internal side effects as JSON-formatted messages to its _standard output_ stream.
+
+### Monitoring
+
+The Hydra node [optionally](../../getting-started.md#monitoring) exposes [Prometheus](https://prometheus.io/)-compliant _metrics_ through an HTTP server, on the standard `/metrics` endpoint.

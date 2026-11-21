@@ -1,0 +1,78 @@
+---
+title: Introduction
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Dolos reads its configuration from one TOML file, with environment variables over it. The content of the file follows the configuration [schema](./schema).
+
+## The configuration file
+
+Every command reads the file passed with `--config`, or else `dolos.toml` in the directory it runs in:
+
+```sh
+dolos daemon --config /my/custom/location/dolos.toml
+```
+
+Only that file is read; there is no system-wide file merged under it. A missing file is an error that suggests `--config` or `dolos init`.
+
+The file starts with the configuration contract it was written for:
+
+```toml
+compatibility = "v2-alpha.2"
+```
+
+Every table refuses a key it does not know, so a misspelt or removed field fails loading instead of being ignored. To validate a file without starting the node or opening any store, run:
+
+```sh
+dolos config check --config dolos.toml
+```
+
+It prints the network and the stores the file resolves to, and exits with an error naming the offending keys when the file is invalid.
+
+Only one instance is allowed to run over the same storage directory.
+
+## Environment variables
+
+A variable whose name starts with `DOLOS_` and contains `__` sets one key, overriding the file. The name after `DOLOS_` is the key's path, with `__` between levels; it is read in lowercase:
+
+| key | variable |
+| --- | -------- |
+| `upstream.peer_address` | `DOLOS_UPSTREAM__PEER_ADDRESS` |
+| `storage.path` | `DOLOS_STORAGE__PATH` |
+| `serve.minibf.listen_address` | `DOLOS_SERVE__MINIBF__LISTEN_ADDRESS` |
+| `storage.cache.admission.offchain-failures` | `DOLOS_STORAGE__CACHE__ADMISSION__OFFCHAIN-FAILURES` |
+
+Shells refuse a variable name that contains `-`, so `export` and the `NAME=value dolos …` form both fail for a key like the last one. Set it with `env`, as in `env 'DOLOS_STORAGE__CACHE__ADMISSION__OFFCHAIN-FAILURES=500' dolos daemon`, or through an orchestrator's environment list, such as a Kubernetes `env` entry.
+
+For example, with this file:
+
+```toml
+compatibility = "v2-alpha.2"
+
+[chain]
+protocol = "cardano"
+network = "preprod"
+
+[upstream]
+peer_address = "preprod-node.world.dev.cardano.org:30000"
+```
+
+the node follows another peer when started with:
+
+```sh
+DOLOS_UPSTREAM__PEER_ADDRESS="some-other-hostname:30000" dolos daemon
+```
+
+The rules:
+
+- An override is checked like the file: an unknown key, a value that cannot be converted to the field's type or a broken rule is refused, and the error names the variable rather than the file. A variable's value is text, converted as a string in the file is (see [rules across fields](./schema#rules-across-fields)): `DOLOS_MEMPOOL__PERSISTENT=on` sets `true`, and `DOLOS_SYNC__PULL_BATCH_SIZE=0.4` is refused, where `pull_batch_size = 0.4` in the file is rounded.
+- A name may use only letters, digits, `_` and `-` after `DOLOS_`; any other character is refused.
+- A variable that sets a table is refused beside one that sets a key inside it.
+- `compatibility` comes from the file alone.
+
+A `DOLOS_` variable without `__`, such as `DOLOS_MITHRIL_AGGREGATOR`, is not an override: it is an input of the command that reads it, listed under [command inputs](./schema#command-inputs).
+
+<Aside type="note">
+Overrides suit a configuration shared across deployments that differ in a few details, such as a peer address or a listen port per environment.
+</Aside>

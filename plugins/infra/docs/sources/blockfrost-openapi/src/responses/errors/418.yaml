@@ -1,0 +1,19 @@
+description: IP has been auto-banned for extensive sending of requests after usage limit has been reached
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 418
+        error:
+          type: string
+          example: "Requested Banned"
+        message:
+          type: string
+          example: "IP has been auto-banned for flooding."
+      required:
+        - error
+        - message
+        - status_code

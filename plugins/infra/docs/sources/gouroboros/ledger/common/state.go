@@ -1,0 +1,451 @@
+// Copyright 2026 Blink Labs Software
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package common
+
+// Related files:
+//   - tx.go: Transaction interface that validation rules operate on
+//   - rules.go: Validation rules that use LedgerState
+//   - github.com/blinklabs-io/ouroboros-mock/ledger: MockLedgerState for testing
+//   - ledger/{era}/rules.go: Era-specific validation using these interfaces
+
+import (
+	"math/big"
+	"time"
+
+	pcommon "github.com/blinklabs-io/gouroboros/protocol/common"
+)
+
+// UtxoState defines the interface for querying the UTxO state
+type UtxoState interface {
+	UtxoById(TransactionInput) (Utxo, error)
+}
+
+// CertState defines the interface for querying the certificate state
+type CertState interface {
+	StakeRegistration([]byte) ([]StakeRegistrationCertificate, error)
+	// IsStakeCredentialRegistered checks if a stake credential is currently registered.
+	// Returns true if the credential has an active registration (not deregistered).
+	// This is the authoritative check for stake credential presence in the ledger state.
+	IsStakeCredentialRegistered(Credential) bool
+}
+
+// StakeCredentialDepositState is the optional ledger-state capability used by
+// Conway certificate validation to retrieve the deposit held for a registered
+// stake credential. The returned pointer is nil when the credential is not
+// registered.
+type StakeCredentialDepositState interface {
+	StakeCredentialDeposit(Credential) (*uint64, error)
+}
+
+// StakeCredentialDepositOrDefault returns the recorded deposit when the
+// ledger state can report it, and fallback otherwise.
+func StakeCredentialDepositOrDefault(
+	ls LedgerState,
+	cred Credential,
+	fallback uint64,
+) (uint64, error) {
+	depositState, ok := StakeCredentialDepositStateFor(ls)
+	if !ok {
+		return fallback, nil
+	}
+	deposit, err := depositState.StakeCredentialDeposit(cred)
+	if err != nil {
+		return 0, err
+	}
+	if deposit == nil {
+		return fallback, nil
+	}
+	return *deposit, nil
+}
+
+// EpochState maps a slot to the epoch containing it. Rules that need an epoch
+// require this capability and fail closed when it is unavailable. The Shelley
+// POOL rule's retirement bound
+// (StakePoolRetirementWrongEpochPOOL) is expressed relative to the current
+// epoch, which the (transaction, slot, state, params) validation contract does
+// not otherwise carry.
+type EpochState interface {
+	// EpochForSlot returns the epoch number containing the given slot.
+	EpochForSlot(slot uint64) (uint64, error)
+}
+
+// ClassicProtocolParameterUpdateWindowState supplies the Shelley-family PPUP
+// voting boundary for a slot. SlotOfNoReturn is the first slot at which
+// proposals target the following epoch rather than the current one.
+type ClassicProtocolParameterUpdateWindowState interface {
+	ProtocolParameterUpdateWindow(slot uint64) (currentEpoch, slotOfNoReturn uint64, err error)
+}
+
+// PoolState defines the interface for querying the current pool state
+type PoolState interface {
+	// PoolCurrentState returns the latest active registration certificate for the given pool key hash.
+	// It also returns the epoch of a pending retirement certificate, if one exists.
+	// If the pool is not registered, the registration certificate will be nil.
+	//
+	// The returned retirement epoch must be pending relative to the returned
+	// registration. A retirement that a later registration superseded is no
+	// longer pending and must be reported as nil, not as the pool's most
+	// recent retirement.
+	//
+	// PoolRegistrationDepositDue reads the pair together and treats a
+	// retirement epoch the current epoch has reached as evidence that the pool
+	// is no longer registered, so an implementation that returned the latest
+	// retirement unconditionally would charge a second pool deposit on every
+	// parameter update made after a re-registration and reject a canonical
+	// block for failing value conservation.
+	PoolCurrentState(PoolKeyHash) (*PoolRegistrationCertificate, *uint64, error)
+	// IsPoolRegistered checks if a pool is currently registered
+	IsPoolRegistered(PoolKeyHash) bool
+	// IsVrfKeyInUse checks if a VRF key hash is registered by another pool.
+	// Returns (inUse, owningPoolId, error). Used for PV11+ VRF uniqueness validation.
+	IsVrfKeyInUse(vrfKeyHash Blake2b256) (bool, PoolKeyHash, error)
+}
+
+// FuturePoolParametersState exposes the VRF-key index retained for pool
+// parameter updates that take effect at the next epoch boundary.
+type FuturePoolParametersState interface {
+	IsFutureVrfKeyInUse(vrfKeyHash Blake2b256) (bool, PoolKeyHash, error)
+}
+
+// RewardState defines the interface for reward calculation and querying
+type RewardState interface {
+	// CalculateRewards calculates rewards for the given epoch based on stake snapshot
+	CalculateRewards(
+		pots AdaPots,
+		snapshot RewardSnapshot,
+		params RewardParameters,
+	) (*RewardCalculationResult, error)
+
+	// GetAdaPots returns the current ADA pots
+	GetAdaPots() AdaPots
+
+	// UpdateAdaPots updates the ADA pots (typically called after reward calculation)
+	UpdateAdaPots(pots AdaPots) error
+
+	// GetRewardSnapshot returns the stake snapshot for reward calculation
+	GetRewardSnapshot(epoch uint64) (RewardSnapshot, error)
+
+	// IsRewardAccountRegistered checks if a reward account (by stake credential) is registered.
+	// Returns true if the stake credential has an active registration, meaning the reward
+	// account exists and can receive rewards or be withdrawn from.
+	// This is typically equivalent to IsStakeCredentialRegistered but exists on RewardState
+	// to allow checking registration without requiring full CertState access.
+	IsRewardAccountRegistered(Credential) bool
+
+	// RewardAccountBalance returns the current reward balance for a stake credential.
+	//
+	// Return value semantics:
+	//   - nil, nil: The reward account is not registered (credential never registered or
+	//     has been deregistered). Callers should use IsRewardAccountRegistered to
+	//     distinguish this from an error condition if needed.
+	//   - *uint64 (including 0), nil: The reward account is registered. The pointed-to
+	//     value is the current balance, which may be zero if no rewards have accrued
+	//     or if all rewards have been withdrawn.
+	//   - nil, error: An error occurred while querying the balance.
+	//
+	// Callers needing to distinguish "unregistered" from "registered with zero balance"
+	// should check for nil before examining the value.
+	RewardAccountBalance(Credential) (*uint64, error)
+}
+
+// LedgerState defines the interface for querying the ledger
+type LedgerState interface {
+	UtxoState
+	CertState
+	SlotState
+	PoolState
+	RewardState
+	GovState
+	NetworkId() uint
+
+	// Plutus cost models
+	CostModels() map[PlutusLanguage]CostModel
+}
+
+// TipState defines the interface for querying the current tip
+type TipState interface {
+	Tip() (pcommon.Tip, error)
+}
+
+// DijkstraLeiosCertificateContext is the ledger state needed to verify a
+// Dijkstra block's Leios certificate. Committee seats are ordered by their
+// signer-bitfield index. A nil key represents a keyless seat.
+type DijkstraLeiosCertificateContext struct {
+	AnnouncingBlockHash Blake2b256
+	TotalActiveStake    uint64
+	Committee           []DijkstraLeiosCommitteeMember
+}
+
+// DijkstraLeiosCommitteeMember is one ordered Leios committee seat.
+type DijkstraLeiosCommitteeMember struct {
+	Stake uint64
+	Key   *LeiosKey
+}
+
+// DijkstraLeiosCertificateState is an optional capability required when a
+// Dijkstra block carries a Leios certificate. Implementations resolve the
+// announcing ranking block, epoch stake snapshot, and ordered committee for
+// the supplied header. Returned keys must be from the snapshot's registered
+// pool parameters; verification checks each key's proof of possession.
+type DijkstraLeiosCertificateState interface {
+	DijkstraLeiosCertificateContext(
+		header BlockHeader,
+	) (DijkstraLeiosCertificateContext, error)
+}
+
+// DijkstraLeiosHeaderContext is the chain state needed to check a Dijkstra
+// header that sets its Leios certificate flag.
+type DijkstraLeiosHeaderContext struct {
+	// Predecessor is the header immediately preceding the checked header on
+	// its chain, whose hash is the checked header's PrevHash, or nil when the
+	// checked header follows the chain origin.
+	Predecessor BlockHeader
+	// SlotLength is the slot length in force at the checked header's slot.
+	SlotLength time.Duration
+}
+
+// DijkstraLeiosHeaderState is an optional capability required when a Dijkstra
+// header sets its Leios certificate flag. Implementations resolve the header's
+// immediate predecessor and the slot length at the header's slot.
+type DijkstraLeiosHeaderState interface {
+	DijkstraLeiosHeaderContext(
+		header BlockHeader,
+	) (DijkstraLeiosHeaderContext, error)
+}
+
+// SlotState defines the interface for querying slots
+type SlotState interface {
+	SlotToTime(uint64) (time.Time, error)
+	TimeToSlot(time.Time) (uint64, error)
+}
+
+// Constitution is the current enacted constitution. ScriptHash is the
+// optional guardrails script hash: nil means that the constitution has no
+// guardrails script.
+type Constitution struct {
+	Anchor     GovAnchor
+	ScriptHash []byte
+}
+
+// Minimal placeholder types used by the extended interface. These are
+// intentionally lightweight so tests and era packages can compile while we
+// wire real parsing.
+type (
+	PlutusLanguage uint8
+	CostModel      struct{}
+)
+
+// Governance-related types required by the extended LedgerState.
+type CommitteeMember struct {
+	ColdKey     Blake2b224
+	HotKey      *Blake2b224 // nil if not authorized
+	ExpiryEpoch uint64
+	Resigned    bool
+}
+
+// CommitteeCredentialState is the optional authoritative committee-state
+// capability used by Conway certificate and voter validation. Credentials are
+// passed with their key/script tag intact so providers cannot alias identities
+// that share the same hash.
+//
+// CommitteeStateAvailable distinguishes an authoritative empty committee from
+// a provider that cannot answer committee queries for the validation snapshot.
+// Validation fails closed when this capability is absent or reports false.
+type CommitteeCredentialState interface {
+	CommitteeStateAvailable() (bool, error)
+	CommitteeCredentialMember(Credential) (*CommitteeMember, error)
+	CommitteeHotCredentialMember(Credential) (*CommitteeMember, error)
+}
+
+// CommitteeVotingState is the optional exact-identity capability used to
+// validate elected committee voters. It distinguishes enacted committee
+// credentials from members that appear only in pending UpdateCommittee
+// proposals, and preserves the credential tags on both hot and cold keys.
+type CommitteeVotingState interface {
+	// CommitteeHotCredentialColdCredentials returns only cold credentials
+	// currently authorized by this exact tagged key or script hot credential
+	// in the validation snapshot. Implementations must preserve the credential
+	// tag; the same hash under a key and script credential is a different hot
+	// credential. This lookup does not filter cold credentials by enacted
+	// membership or expiry. Callers combine it with CommitteeCredentialIsElected
+	// to apply the reference view. Pending committee proposals do not make a
+	// credential elected.
+	CommitteeHotCredentialColdCredentials(Credential) ([]Credential, error)
+	// CommitteeCredentialIsElected reports whether this cold credential is a
+	// member of the enacted committee at the validation snapshot. Expired
+	// enacted members still count; members present only in pending
+	// UpdateCommittee proposals do not. A snapshot without an enacted committee
+	// has no elected members. Resigned members have no active hot authorization
+	// and therefore must not be returned by CommitteeHotCredentialColdCredentials.
+	CommitteeCredentialIsElected(Credential) (bool, error)
+}
+
+// CommitteeHotCredentialMembers is an optional capability that resolves
+// every committee authorization -- seated or not, elected or not -- for an
+// exact hot credential. Reference: cardano-ledger-core's
+// authorizedHotCommitteeCredentials folds every csCommitteeCreds entry into
+// a Set of hot credentials, because (per that function's own doc comment)
+// "there is no unique mapping from Hot to Cold credential"; GOVCERT's
+// per-cold-credential certificate handlers do not prevent two cold
+// credentials from authorizing the same hot credential at once. A
+// known-voter check must therefore accept a hot credential whenever *any*
+// entry currently authorizes it, which the single-valued
+// CommitteeHotCredentialMember cannot express once more than one cold
+// credential shares a hot credential: it returns one witness, and callers
+// have no way to ask for another when that witness turns out unusable.
+//
+// The hot credential is matched with its key/script tag intact.
+// Implementations must omit a resigned cold credential's entry, and must
+// not otherwise filter by seated, elected, or expiry status -- an
+// authorized-but-unseated cold credential (for example, one named only in a
+// pending UpdateCommittee proposal) is still a known voter at every
+// protocol version; CommitteeVotingState applies the elected-only view
+// separately, from protocol version 11.
+//
+// This capability is optional and additive. It is separate from
+// CommitteeVotingState so that adopting the protocol-version-11 elected-voter
+// capability does not by itself change which committee votes the known-voter
+// rule accepts at earlier protocol versions. A provider that implements
+// only CommitteeCredentialState continues to resolve a shared hot credential
+// to one witness, which the known-voter rule cannot replace when this
+// transaction's own certificates moved that witness away from the hot
+// credential.
+type CommitteeHotCredentialMembers interface {
+	CommitteeHotCredentialMembers(Credential) ([]*CommitteeMember, error)
+}
+
+// DRepRegistration is the ledger state held for a registered DRep.
+type DRepRegistration struct {
+	// Credential identifies the DRep by its full credential, credential
+	// type included. The reference ledger keys DRep state by Credential
+	// (Cardano.Ledger.Conway.Governance vsDReps), so the same 28 hash
+	// bytes under a key-hash and a script-hash credential are two
+	// distinct DReps; a hash alone does not identify one.
+	Credential Credential
+	Anchor     *GovAnchor
+	// Deposit is the deposit recorded against this DRep's registration.
+	// It is a pointer for the same reason StakeCredentialDeposit returns
+	// one: nil is the absence of a recorded deposit, distinct from a
+	// recorded zero. The reference ledger's DRepState carries a
+	// non-optional drepDeposit, so a ledger state that reports a
+	// registration without one is internally inconsistent, and refund
+	// validation fails closed on nil rather than reading it as zero.
+	Deposit *uint64
+}
+
+// DRepDelegationState is the optional ledger-state capability used to query
+// governance vote delegations. Ledger states used to validate PV10 or PV11
+// key-hash reward withdrawals must implement this interface.
+type DRepDelegationState interface {
+	DRepDelegation(Credential) (*Drep, error)
+}
+
+// GenesisDelegationState is the optional ledger-state capability used to
+// authorize move-instantaneous-rewards certificates. MIR certificates carry no
+// field-level author, so Shelley through Babbage authorize them with signatures
+// from a quorum of the currently delegated genesis keys. Ledger states used to
+// validate those eras must implement this interface.
+type GenesisDelegationState interface {
+	// GenesisDelegateKeyHashes returns the currently delegated signing-key
+	// hashes at slot.
+	GenesisDelegateKeyHashes(slot uint64) ([]Blake2b224, error)
+	// GenesisDelegateForGenesisKey returns the currently delegated signing key
+	// for a genesis key at slot, or false if the key is not in the delegation
+	// map.
+	GenesisDelegateForGenesisKey(
+		genesisKeyHash Blake2b224,
+		slot uint64,
+	) (Blake2b224, bool, error)
+	// GenesisUpdateQuorum returns the number of distinct genesis delegate
+	// signatures required to authorize an MIR certificate.
+	GenesisUpdateQuorum() (uint, error)
+}
+
+// PendingInstantaneousRewardsState is the optional ledger-state capability that
+// reports the instantaneous rewards accumulated by move instantaneous rewards
+// certificates earlier in the current epoch. The DELEG rule bounds a new
+// certificate by them (MIRProducesNegativeUpdate). Without it, a negative
+// delta the block's own earlier certificates do not cover is rejected as
+// undecidable.
+type PendingInstantaneousRewardsState interface {
+	// PendingInstantaneousRewards returns the delta pending for cred in the
+	// pot named by source (0 reserves, 1 treasury), or nil when none is.
+	PendingInstantaneousRewards(source uint, cred Credential) (*big.Int, error)
+}
+
+type PoolDelegation struct {
+	Pool Blake2b224
+}
+
+// GovActionState holds the state of a governance proposal
+type GovActionState struct {
+	ActionId   GovActionId
+	ActionType GovActionType
+	ExpirySlot uint64
+	// Action is the governance action itself, as proposed. Rules that need
+	// proposal contents fail closed when it is nil.
+	Action GovAction
+	// Add more fields as needed for validation
+}
+
+// GovPurposeRoots holds the current root of each governance-action purpose
+// chain: the most recently enacted action of that purpose, or nil when
+// nothing of that purpose has been enacted yet. It mirrors the GovRelation
+// record reachable through pRootsL/toPrevGovActionIds in cardano-ledger's
+// Cardano.Ledger.Conway.Governance.Proposals.
+type GovPurposeRoots struct {
+	PParamUpdate *GovActionId
+	HardFork     *GovActionId
+	Committee    *GovActionId
+	Constitution *GovActionId
+}
+
+// GovPurposeRootsState exposes the current root of each governance-action
+// purpose chain. The Conway ancestry rule requires this capability whenever a
+// transaction proposes an action that belongs to a purpose chain.
+type GovPurposeRootsState interface {
+	GovPurposeRoots() (*GovPurposeRoots, error)
+}
+
+// GovState defines the interface for querying governance state
+type GovState interface {
+	// Committee queries
+	// CommitteeMember resolves a cold credential against both the current
+	// committee and every pending UpdateCommittee proposal. It returns nil only
+	// when the credential is neither a current nor a potential future member.
+	CommitteeMember(coldKey Blake2b224) (*CommitteeMember, error)
+	// CommitteeMembers returns the current committee members.
+	CommitteeMembers() ([]CommitteeMember, error)
+
+	// DRep queries
+	// DRepRegistration returns the registration held for the given DRep
+	// credential, or nil when that credential is not a registered DRep.
+	// The credential carries its type: a key-hash and a script-hash DRep
+	// sharing the same hash are distinct registrations.
+	// Callers migrating from the hash-only API must provide the matching
+	// CredentialType in Credential.CredType.
+	DRepRegistration(credential Credential) (*DRepRegistration, error)
+	DRepRegistrations() ([]DRepRegistration, error)
+
+	// Constitution
+	Constitution() (*Constitution, error)
+
+	// Treasury value
+	TreasuryValue() (uint64, error)
+
+	// Governance action queries
+	GovActionById(GovActionId) (*GovActionState, error)
+	GovActionExists(GovActionId) bool
+}

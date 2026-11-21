@@ -1,0 +1,32 @@
+get:
+  tags:
+    - Cardano » Scripts
+  summary: Datum value
+  description: Query JSON value of a datum by its hash
+  parameters:
+    - in: path
+      name: datum_hash
+      required: true
+      schema:
+        type: string
+      description: Hash of the datum
+      example: "db583ad85881a96c73fbb26ab9e24d1120bb38f45385664bb9c797a2ea8d9a2d"
+  responses:
+    "200":
+      description: Return the datum value
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../../schemas/scripts/script_datum.yaml
+    "400":
+      $ref: ../../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../../responses/errors/500.yaml

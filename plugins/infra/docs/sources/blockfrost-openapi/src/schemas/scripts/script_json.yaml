@@ -1,0 +1,37 @@
+type: object
+properties:
+  json:
+    anyOf:
+      - type: string
+      - type: object
+        additionalProperties: true
+      - type: array
+        items: {}
+      - type: integer
+      - type: number
+      - type: boolean
+      - type: "null"
+    description: JSON contents of the `timelock` script, null for `plutus` scripts
+required:
+  - json
+example:
+  json:
+    {
+      "type": "atLeast",
+      "scripts":
+        [
+          {
+            "type": "sig",
+            "keyHash": "654891a4db2ea44b5263f4079a33efa0358ba90769e3d8f86a4a0f81",
+          },
+          {
+            "type": "sig",
+            "keyHash": "8685ad48f9bebb8fdb6447abbe140645e0bf743ff98da62e63e2147f",
+          },
+          {
+            "type": "sig",
+            "keyHash": "cb0f3b3f91693374ff7ce1d473cf6e721c7bab52b0737f04164e5a2d",
+          },
+        ],
+      "required": 2,
+    }

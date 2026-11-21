@@ -1,0 +1,51 @@
+get:
+  tags:
+    - Cardano » Blocks
+  summary: Addresses affected in a specific block
+  description: Return list of addresses affected in the specified block with additional information, sorted by the bech32 address, ascending.
+  parameters:
+    - in: path
+      name: hash_or_number
+      required: true
+      schema:
+        type: string
+        format: 64-character case-sensitive hexadecimal string or block number.
+      description: Hash of the requested block.
+      example: "4873401"
+    - in: query
+      name: count
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 100
+      description: The number of results displayed on one page.
+    - in: query
+      name: page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 21474836
+        default: 1
+      description: The page number for listing the results.
+  responses:
+    "200":
+      description: Return the contents of the block
+      content:
+        application/json:
+          schema:
+            $ref: ../../../../schemas/blocks/block_content_addresses.yaml
+    "400":
+      $ref: ../../../../responses/errors/400.yaml
+    "403":
+      $ref: ../../../../responses/errors/403.yaml
+    "404":
+      $ref: ../../../../responses/errors/404.yaml
+    "429":
+      $ref: ../../../../responses/errors/429.yaml
+    "418":
+      $ref: ../../../../responses/errors/418.yaml
+    "500":
+      $ref: ../../../../responses/errors/500.yaml

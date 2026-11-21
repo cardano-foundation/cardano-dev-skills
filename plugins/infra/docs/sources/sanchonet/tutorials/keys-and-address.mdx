@@ -1,0 +1,48 @@
+---
+sidebar_label: Generate keys and an address
+title: Generate keys and address
+sidebar_position: 3
+slug: /tutorials/address
+---
+
+First, generate a payment key pair and a stake key pair. Then, use the payment verification key and the stake verification key to build an address that can be used to receive funds from the faucet.
+
+The payment keys control the funds, while the stake keys control the participation in the protocol: delegating stake to a pool and delegating votes to a delegate representative.
+
+### Pre-requisites
+
+* cardano-cli installed
+
+### Generate key pairs
+
+1. Generate payment keys:
+
+```
+cardano-cli conway address key-gen \
+--verification-key-file payment.vkey \
+--signing-key-file payment.skey
+```
+
+2. Generate stake keys:
+
+```
+cardano-cli conway stake-address key-gen \
+--verification-key-file stake.vkey \
+--signing-key-file stake.skey
+```
+
+### Build the address
+
+3. Build your address:
+
+```
+cardano-cli conway address build \
+--payment-verification-key-file payment.vkey \
+--stake-verification-key-file stake.vkey \
+--out-file payment.addr \
+--testnet-magic 4
+```
+
+### Get funds from the faucet
+
+4. Use your address on the [faucet](faucet.mdx) to get SanchoNet testnet tokens.

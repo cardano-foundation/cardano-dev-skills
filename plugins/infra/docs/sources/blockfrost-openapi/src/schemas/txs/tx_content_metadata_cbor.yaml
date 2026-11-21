@@ -1,0 +1,24 @@
+type: array
+items:
+  type: object
+  properties:
+    label:
+      type: string
+      description: Metadata label
+    cbor_metadata:
+      deprecated: true
+      type: string
+      nullable: true
+      description: Content of the CBOR metadata
+    metadata:
+      type: string
+      nullable: true
+      description: Content of the CBOR metadata in hex
+  required:
+    - label
+    - cbor_metadata
+    - metadata
+example:
+  - label: "1968"
+    cbor_metadata: "\\xa100a16b436f6d62696e6174696f6e8601010101010c"
+    metadata: "a100a16b436f6d62696e6174696f6e8601010101010c"

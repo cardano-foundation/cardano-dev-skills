@@ -1,0 +1,281 @@
+
+<p align="center">
+  <big><strong>Cardano Addresses</strong></big>
+</p>
+
+<p align="center">
+  <a href="https://github.com/IntersectMBO/cardano-addresses/releases" rel="nofollow"><img src="https://img.shields.io/github/v/release/IntersectMBO/cardano-addresses?color=%239b59b6&label=RELEASE&sort=semver&style=for-the-badge" height="26"/></a>
+  <a href="https://IntersectMBO.github.io/cardano-addresses/haddock/index.html" rel="nofollow"><img src="https://IntersectMBO.github.io/cardano-addresses/badges/haddock-badge.svg" height="26"/></a>
+  <a href="https://IntersectMBO.github.io/cardano-addresses/hpc_index.html" rel="nofollow"><img src="https://IntersectMBO.github.io/cardano-addresses/badges/badge.svg" height="26"/></a>
+  <a href="https://intersectmbo.github.io/cardano-addresses/intro/" rel="nofollow"><img src="https://IntersectMBO.github.io/cardano-addresses/badges/docusaurus-badge.svg" height="26"/></a>
+  <br />
+</p>
+
+<div align="center">
+
+  <a href="">[![Coding Standards](https://github.com/IntersectMBO/cardano-addresses/actions/workflows/coding-standards.yml/badge.svg?branch=master)](https://github.com/IntersectMBO/cardano-addresses/actions/workflows/coding-standards.yml)</a>
+  <a href="">[![Haskell CI using Cabal](https://github.com/IntersectMBO/cardano-addresses/actions/workflows/haskell.yml/badge.svg)](https://github.com/IntersectMBO/cardano-addresses/actions/workflows/haskell.yml)</a>
+  <a href="">[![Docs](https://github.com/IntersectMBO/cardano-addresses/actions/workflows/docs.yml/badge.svg)](https://github.com/IntersectMBO/cardano-addresses/actions/workflows/docs.yml)</a>
+  <a href="https://docusaurus.io/"><img src="https://img.shields.io/badge/Docusaurus-3.7.0-blue?logo=docusaurus"/></a>
+
+</div>
+
+
+## Overview
+
+This module provides mnemonic (backup phrase) creation, and conversion of a
+mnemonic to seed for wallet restoration, and address derivation functionalities.
+
+![](.github/example.gif)
+
+## Feature overview
+
+`cardano-addresses` ships a Haskell library and a `cardano-address` CLI that cover
+the whole lifecycle of Cardano wallet keys and addresses — from a human-readable
+recovery phrase to a spendable on-chain address.
+
+| Capability | What it provides |
+|---|---|
+| **Recovery phrases** | Generate BIP-0039 mnemonics of any multiple of 3 words (9–24) in English, Italian, French, Spanish, Japanese or Korean, and turn them back into keys. |
+| **Key derivation** | Convert a recovery phrase into an extended root private key for the `Shelley`, `Shared`, `Byron` or `Icarus` styles, then derive child keys along CIP-1852 / CIP-1854 / CIP-1855 paths such as `1852H/1815H/0H/0/0` (hardened indexes accept the legacy `H` or the standard `'` suffix). |
+| **Key handling** | Produce extended and non-extended signing/verification keys, extract the signing key or chain code, hash public keys (`--cip-0105`), inspect keys, and compute `cardano-wallet`-compatible wallet IDs. |
+| **Address construction** | Build payment, stake, delegation (base), pointer and legacy bootstrap (Byron/Icarus) addresses from key hashes or scripts, for any network tag. |
+| **Address inspection** | Decode any address into its style, type, network tag and spending/stake credentials. |
+| **Native scripts** | Express `all` / `any` / `at_least N` multi-signature scripts with `active_from` / `active_until` timelocks, then hash, validate or compute their preimages (the script may be given as an argument or read from stdin). |
+| **Governance** | Derive DRep and Constitutional Committee (cold/hot) keys together with their CIP-0129 credentials and scripts. |
+| **Input encodings** | Keys, key hashes, script hashes and addresses are read in bech32 (the native format), as well as raw base16 and, where unambiguous, base58. |
+| **Interoperability** | Round-trip keys, hashes and CBOR hex with `cardano-cli`, and pipe any output through `bech32` for hex encoding. |
+| **WebAssembly** | A single `cardano-addresses.wasm` binary (GHC WASM backend) runs address inspection, key derivation, address construction and Ed25519 signing/verification in the browser or any WASI runtime. |
+
+The functionality is exposed through four CLI command groups:
+
+- `recovery-phrase` — generate and work with recovery phrases.
+- `key` — create, derive, inspect and hash keys.
+- `address` — create and inspect addresses.
+- `script` — create, hash, validate and inspect scripts.
+
+> Proving ownership of a Cardano key with a zero-knowledge proof (experimental) is
+> documented on the
+> [ownership proving using ZKP](https://intersectmbo.github.io/cardano-addresses/zkp-ownership) page.
+
+## Documentation
+
+### Haddock documentation
+
+Haddock API documentation is available [here](https://IntersectMBO.github.io/cardano-addresses/haddock/index.html).
+
+### Docusaurus-powered documentation
+
+Powered by <a href="https://docusaurus.io/"><img src="https://images.icon-icons.com/2699/PNG/512/docusaurus_logo_icon_171229.png" width="64" alt="Docusaurus logo"/></a>
+
+CLI documentation is available [here](https://intersectmbo.github.io/cardano-addresses/command-line)
+
+### Supported platforms
+
+cardano-addresses is officially supported on the following operating systems:
+
+- **Linux** - Ubuntu 20.04+, Debian 11+, Fedora 38+, and other major distributions
+- **macOS** - version 11 (Big Sur) and later
+- **Windows** - Windows 10 and Windows 11
+
+cardano-addresses comes with CLI for Linux, MacOS and Windows. See [releases](https://github.com/IntersectMBO/cardano-addresses/releases) to get respective pre-compiled binaries. There is also straightforward way to [build Docker image](#docker-image).
+
+## Building/testing from source using nix
+
+Prerequisites: [Install Nix](https://nixos.org/download.html) with flakes enabled.
+
+### Enter development shell
+
+``` console
+nix develop
+```
+
+Inside the development shell:
+
+``` console
+# building
+cabal build all
+
+# testing
+cabal test cardano-addresses:unit
+
+# installing executable locally
+cabal install cardano-address
+```
+
+### Build using nix directly
+
+``` console
+# Build the Linux x86_64 binary
+nix build .
+
+# Run the built binary
+./result/bin/cardano-address
+```
+
+### Building for different platforms
+
+``` console
+# Linux x86_64
+nix build .
+
+# Darwin x86_64
+nix build .#packages.x86_64-darwin.default
+
+# Darwin aarch64 (Apple Silicon)
+nix build .#packages.aarch64-darwin.default
+
+# Linux aarch64
+nix build .#packages.aarch64-linux.default
+
+# Linux x86_64 to Windows (cross-compilation)
+nix build .#packages.x86_64-linux.default
+```
+
+### Building the Docker image
+
+``` console
+nix build .#packages.x86_64-linux.docker-image
+docker load < result
+```
+
+## Override command for cross-compilation
+
+We have now fixed cross-compilation (from Linux to Windows) by replacing runtime `git` call in `System.Git.TH` with CPP macro (ie., `GITREV`) defaulting to "unknown" but allowing overriding via `-DGITREV` as below:
+
+```console
+cabal build all --ghc-option=-DGITREV=\"$(git rev-parse HEAD)\"
+```
+
+## Preparation steps before uploading to hackage
+
+``` console
+cabal build all
+cabal haddock
+cabal sdist
+```
+
+Note: Make sure proper version is set in cardano-addresses.cabal
+
+## Docker Image
+
+Please make sure you have [just](https://github.com/casey/just) installed as `justfile` is used for building Docker image.
+
+### Build
+
+```console
+just clean-build-docker
+```
+
+### Run
+
+Use the auto-remove flag `--rm` when running commands.
+
+```console
+docker run --rm cardano-address recovery-phrase generate --size 15
+```
+
+Use the interactive flag `-i` when piping stdin:
+
+```console
+echo "addr1gqtnpvdhqrtpd4g424fcaq7k0ufuzyadt7djygf8qdyzevuph3wczvf2dwyx5u" | docker run --rm -i cardano-addresses address inspect
+```
+
+## Javascript support
+
+Javascript support was discontinued and dropped. One could look at the following now:
+
+1. [MeshJS](https://github.com/MeshJS/mesh)
+2. [blaze-cardano](https://github.com/butaneprotocol/blaze-cardano)
+
+Alternatively one could lean back on release [3.9.0](https://github.com/IntersectMBO/cardano-addresses/releases/tag/3.9.0) where Javascript was still present.
+
+## WebAssembly
+
+The library compiles to WebAssembly via GHC's WASM backend, producing a single `cardano-addresses.wasm` binary that runs in the browser or any WASI runtime.
+
+### Build
+
+```bash
+nix build github:IntersectMBO/cardano-addresses#wasm
+ls result/cardano-addresses.wasm   # 7.0MB
+```
+
+### Commands
+
+The binary reads JSON from stdin and writes JSON to stdout. A `cmd` field selects the operation:
+
+```bash
+# Address inspection
+echo '{"cmd":"inspect","address":"addr1..."}' | wasmtime result/cardano-addresses.wasm
+
+# Key derivation (CIP-1852 Shelley)
+# Hardened indexes can use the legacy 'H' suffix or the standard single-quote (') suffix.
+# An optional 'm/' prefix denotes absolute derivation from the master key.
+echo '{"cmd":"derive","mnemonic":"word1 word2 ...","path":"1852H/1815H/0H/0/0"}' | wasmtime result/cardano-addresses.wasm
+# Equivalent with standard notation:
+# echo '{"cmd":"derive","mnemonic":"word1 word2 ...","path":"m/1852'/1815'/0'/2/0"}' | wasmtime result/cardano-addresses.wasm
+
+# Address construction
+echo '{"cmd":"make-address","type":"enterprise","network":"testnet","payment_key":"hex..."}' | wasmtime result/cardano-addresses.wasm
+
+# Ed25519 signing and verification
+echo '{"cmd":"sign","key":"hex...","message":"hex..."}' | wasmtime result/cardano-addresses.wasm
+echo '{"cmd":"verify","key":"hex...","message":"hex...","signature":"hex..."}' | wasmtime result/cardano-addresses.wasm
+
+# Legacy bootstrap addresses (Byron/Icarus)
+echo '{"cmd":"bootstrap-address","style":"icarus-from-mnemonic","protocol_magic":764824073,...}' | wasmtime result/cardano-addresses.wasm
+```
+
+### Browser integration
+
+Use [@bjorn3/browser_wasi_shim](https://www.npmjs.com/package/@bjorn3/browser_wasi_shim) to run the WASM binary client-side:
+
+```javascript
+import { WASI, File, OpenFile, ConsoleStdout } from "@bjorn3/browser_wasi_shim";
+
+const mod = await WebAssembly.compile(await (await fetch("cardano-addresses.wasm")).arrayBuffer());
+
+async function call(input) {
+  let out = "";
+  const fds = [
+    new OpenFile(new File(new TextEncoder().encode(input))),
+    ConsoleStdout.lineBuffered(l => out += l + "\n"),
+    ConsoleStdout.lineBuffered(() => {}),
+  ];
+  const wasi = new WASI([], [], fds, { debug: false });
+  wasi.start(await WebAssembly.instantiate(mod, { wasi_snapshot_preview1: wasi.wasiImport }));
+  return JSON.parse(out.trim());
+}
+```
+
+Benchmarked: ~9ms compile (one-time), ~3ms per Shelley call, ~13ms for legacy.
+
+A live demo is available at: https://IntersectMBO.github.io/cardano-addresses/browser/
+
+### Nix integration
+
+Downstream flakes consume the WASM as a package:
+
+```nix
+{
+  inputs.cardano-addresses.url = "github:IntersectMBO/cardano-addresses";
+
+  outputs = { cardano-addresses, ... }: {
+    packages.wasm = cardano-addresses.packages.x86_64-linux.wasm;
+    # result/cardano-addresses.wasm
+  };
+}
+```
+
+## Contributing
+
+Pull requests are welcome.
+
+When creating a pull request, please make sure that your code adheres to our [coding standards](https://input-output-hk.github.io/adrestia/code/Coding-Standards).
+<hr />
+
+<p align="center">
+  <a href="https://github.com/IntersectMBO/cardano-addresses/blob/master/LICENSE"><img src="https://img.shields.io/github/license/IntersectMBO/cardano-addresses.svg?style=for-the-badge" /></a>
+</p>
+

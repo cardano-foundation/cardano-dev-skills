@@ -1,9 +1,11 @@
 use aiken/crypto/bls12_381/g1
+use aiken/crypto/bls12_381/g2
 use aiken/primitive/bytearray
 use common/blst_affine.{
-  G1Affine, G1Infinity, G1Point, G2Infinity, G2Point, g1_affine_compress,
-  g1_on_curve, g2_affine_compress,
+  G1Affine, G1Infinity, G1Point, G2Affine, G2Infinity, G2Point,
+  g1_affine_compress, g1_on_curve, g2_affine_compress, g2_affine_valid,
 }
+use common/common.{bls12_381_base_prime}
 use tests/plonk_tests.{test_plonk_proof_affine, test_plonk_vkey_affine}
 use tests/test_utils.{int_to_field_bytes}
 
@@ -83,31 +85,80 @@ test test_y_ordering_bit() {
 // G2 compression tests
 // ---------------------------------------------------------------------------
 
+/// The point used to be made-up coordinates, which compression now rejects
+/// (ADAOcommunity/zk#15); the generator is a real point.
 test test_g2_compression_format() {
-  let point =
-    G2Point {
-      x: (
-        int_to_field_bytes(
-          3704008370612030042639225780688100652501841279134321941704739881999208925475933291394297428500078646993316240973153,
-        ),
-        int_to_field_bytes(
-          1810906233092108589178121796443607027092699677349013567194850167065200892154306562227413644705236351395811153581123,
-        ),
-      ),
-      y: (
-        int_to_field_bytes(
-          1037602692507020953234459923280188933700635788749088578899524073006036329531065870292398532987175917561104371064333,
-        ),
-        int_to_field_bytes(
-          539240156603698219404689729686562881306656606356852620033422782463096424705762574130046909186283630196554411802829,
-        ),
-      ),
-    }
+  let point = g2_generator_affine
   let compressed = g2_affine_compress(point)
   let compressed_length = bytearray.length(compressed)
   let first_byte = bytearray.to_int_big_endian(bytearray.take(compressed, 1))
   let has_compression_bit = first_byte >= 128
   compressed_length == 96 && has_compression_bit
+}
+
+/// The standard BLS12-381 G2 generator in affine form, `x0`/`y0` real parts.
+const g2_generator_affine: G2Affine =
+  G2Point {
+    x: (
+      #"024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8",
+      #"13e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e",
+    ),
+    y: (
+      #"0ce5d527727d6e118cc9cdc6da2e351aadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801",
+      #"0606c4a02ea734cc32acd2b02bc28b99cb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be",
+    ),
+  }
+
+/// `(p - n) mod p` as 48 bytes: the coordinate of the negated point.
+fn negate_component(bytes: ByteArray) -> ByteArray {
+  let n = bytearray.to_int_big_endian(bytes)
+  int_to_field_bytes(( bls12_381_base_prime - n ) % bls12_381_base_prime)
+}
+
+/// Add `delta` to one component's integer value, keeping 48 bytes.
+fn bump(bytes: ByteArray, delta: Int) -> ByteArray {
+  int_to_field_bytes(bytearray.to_int_big_endian(bytes) + delta)
+}
+
+/// ADAOcommunity/zk#15, G2: the generator, its negation and the fixture's
+/// `x2` are valid, and the first two compress to exactly blst's bytes.
+test test_g2_affine_valid_points_match_blst() {
+  expect G2Point { x, y: (y0, y1) } = g2_generator_affine
+  let negated = G2Point { x, y: (negate_component(y0), negate_component(y1)) }
+  and {
+    g2_affine_valid(g2_generator_affine),
+    g2_affine_valid(negated),
+    g2_affine_valid(test_plonk_vkey_affine.x2),
+    g2_affine_compress(g2_generator_affine) == g2.compress(g2.generator),
+    g2_affine_compress(negated) == g2.compress(g2.sub(g2.zero, g2.generator)),
+  }
+}
+
+/// ADAOcommunity/zk#15, G2: a changed `y` component, a component at or above
+/// p, an `x1` with the sort bit already set, and an extra leading zero byte
+/// are each rejected.
+test test_g2_affine_rejects_bad_coordinates() {
+  expect G2Point { x: (x0, x1), y: (y0, y1) } = g2_generator_affine
+  let p = bls12_381_base_prime
+  and {
+    !g2_affine_valid(G2Point { x: (x0, x1), y: (bump(y0, 1), y1) }),
+    !g2_affine_valid(G2Point { x: (x0, x1), y: (y0, bump(y1, 1)) }),
+    !g2_affine_valid(G2Point { x: (x0, x1), y: (bump(y0, p), y1) }),
+    !g2_affine_valid(G2Point { x: (bump(x0, p), x1), y: (y0, y1) }),
+    !g2_affine_valid(
+      G2Point {
+        x: (x0, bytearray.push(bytearray.drop(x1, 1), bytearray.at(x1, 0) + 32)),
+        y: (y0, y1),
+      },
+    ),
+    !g2_affine_valid(G2Point { x: (bytearray.push(x0, 0), x1), y: (y0, y1) }),
+  }
+}
+
+/// ADAOcommunity/zk#15, G2: compressing a point with a wrong `y` fails.
+test test_g2_affine_compress_fails_on_wrong_y() fail {
+  expect G2Point { x, y: (y0, y1) } = g2_generator_affine
+  bytearray.length(g2_affine_compress(G2Point { x, y: (bump(y0, 1), y1) })) == 96
 }
 
 test test_g2_infinity_compression() {

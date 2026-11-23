@@ -6,10 +6,30 @@ use aiken/crypto/bls12_381/g2
 use aiken/crypto/bls12_381/pairing.{final_exponentiation, miller_loop}
 use aiken/crypto/bls12_381/scalar.{Scalar, scale2}
 use common/common.{concat_and_keccak_256, g1_sum, scalar_sum}
+use common/inputs.{check_public_inputs}
 use plonk/preinputs.{PreparedPlonkPreInputs}
 use plonk/proofs.{PreparedPlonkProof}
 
+/// Verify a PLONK proof. Returns `False` unless `pub_inputs` has exactly
+/// `n_public` entries, each in `[0, r)`, and the proof carries exactly one
+/// Lagrange inverse per generator. Without those checks an input could be
+/// hashed into the transcript yet left out of the constraint.
 pub fn verify_plonk(
+  preinputs: PreparedPlonkPreInputs,
+  pub_inputs: List<Int>,
+  proof: PreparedPlonkProof,
+) -> Bool {
+  and {
+    check_public_inputs(pub_inputs, preinputs.n_public),
+    !list.is_empty(proof.lagrange_inverses),
+    verify_checked(preinputs, pub_inputs, proof),
+  }
+}
+
+/// The verifier proper. Assumes the public-input checks in `verify_plonk`
+/// have passed and the proof has at least one Lagrange inverse. It checks
+/// the inverse count itself, in the same walk that checks each inverse.
+fn verify_checked(
   preinputs: PreparedPlonkPreInputs,
   pub_inputs: List<Int>,
   proof: PreparedPlonkProof,
@@ -248,18 +268,37 @@ pub fn verify_plonk(
 
   // verify lagrange polynomial inverses
   let lagrange_check =
-    list.all(
-      list.map2(
-        proof.lagrange_inverses,
-        preinputs.generators,
-        fn(inv, gen) {
-          scalar.mul(
-            inv,
-            scalar.mul(scalar.from_int(preinputs.n), scalar.sub(zeta, gen)),
-          ) == scalar.from_int(1)
-        },
-      ),
-      fn(b) { b },
+    inverses_ok(
+      proof.lagrange_inverses,
+      preinputs.generators,
+      scalar.from_int(preinputs.n),
+      zeta,
     )
   final_verification && lagrange_check
+}
+
+/// True when there is exactly one inverse per generator and each inverse is
+/// `1 / (n * (zeta - gen))` for its generator. Checking the count in this walk
+/// saves a separate `list.length` over each list.
+fn inverses_ok(
+  invs: List<State<Scalar>>,
+  gens: List<State<Scalar>>,
+  n: State<Scalar>,
+  zeta: State<Scalar>,
+) -> Bool {
+  when invs is {
+    [] ->
+      when gens is {
+        [] -> True
+        _ -> False
+      }
+    [inv, ..invs] ->
+      when gens is {
+        [] -> False
+        [gen, ..gens] ->
+          scalar.mul(inv, scalar.mul(n, scalar.sub(zeta, gen))) == scalar.from_int(
+            1,
+          ) && inverses_ok(invs, gens, n, zeta)
+      }
+  }
 }

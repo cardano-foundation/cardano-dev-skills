@@ -11,7 +11,10 @@ use aiken/crypto/bls12_381/g1
 use aiken/crypto/bls12_381/g2
 use aiken/crypto/bls12_381/scalar.{field_prime}
 use aiken/fuzz
-use groth/groth.{CompressedProof, CompressedVK, verify_compressed}
+use common/inputs.{check_public_inputs}
+use groth/groth.{
+  CompressedProof, CompressedVK, derive, uncompress_vk, verify_compressed,
+}
 
 /// Same fixture as `groth_verify_pass_1`: a proof valid for `[561, 3]`.
 pub const groth_vk: CompressedVK =
@@ -95,37 +98,67 @@ test prop_groth_rejects_replaced_proof_point(
   !verify_compressed(groth_vk, proof, groth_inputs)
 }
 
-/// Fewer inputs than the key expects must fail.
-test groth_rejects_missing_input() fail {
-  verify_compressed(groth_vk, groth_proof, [561])
+/// Fewer inputs than the key expects are rejected.
+test groth_rejects_missing_input() {
+  and {
+    !verify_compressed(groth_vk, groth_proof, [561]),
+    !verify_compressed(groth_vk, groth_proof, []),
+  }
 }
 
-// ---------------------------------------------------------------------------
-// Known issues
-// ---------------------------------------------------------------------------
-
-/// ADAOcommunity/zk#11: inputs past the end of `vkIC` are ignored.
-/// Once fixed, replace with `prop_groth_rejects_extra_inputs` (the same call
-/// must fail).
-test known_issue_11_groth_extra_inputs_ignored(
+/// ADAOcommunity/zk#11: inputs past the end of `vkIC` are rejected, whatever
+/// their values.
+test prop_groth_rejects_extra_inputs(
   extra via fuzz.list_between(fuzz.int(), 1, 5),
 ) {
-  verify_compressed(groth_vk, groth_proof, list.concat(groth_inputs, extra))
+  !verify_compressed(groth_vk, groth_proof, list.concat(groth_inputs, extra))
 }
 
-/// ADAOcommunity/zk#12: an input of `x + k * r` verifies like `x`.
-/// Once fixed, replace with `prop_groth_rejects_input_out_of_field` (the same
-/// call must fail).
-test known_issue_12_groth_input_not_range_checked(
-  (index, k) via fuzz.tuple(fuzz.int_between(0, 1), fuzz.int_between(1, 1000)),
+/// ADAOcommunity/zk#11: `derive` itself no longer drops inputs past the end of
+/// `vkIC`, for callers that use it directly. (Before the fix this returned
+/// `True`, since the extra input was dropped and both sides matched.)
+test groth_derive_fails_on_extra_input() fail {
+  expect [head, ..tail] = uncompress_vk(groth_vk).vkIC
+  derive(tail, list.concat(groth_inputs, [999]), head) == derive(
+    tail,
+    groth_inputs,
+    head,
+  )
+}
+
+/// ADAOcommunity/zk#12: an input of `x + k * r` or `x - k * r` is rejected,
+/// although the builtin maps it to the same point as `x`.
+test prop_groth_rejects_input_out_of_field(
+  (index, k, below) via fuzz.tuple3(
+    fuzz.int_between(0, 1),
+    fuzz.int_between(1, 1000),
+    fuzz.bool(),
+  ),
 ) {
-  let inputs = update_at(groth_inputs, index, fn(x) { x + k * field_prime })
-  verify_compressed(groth_vk, groth_proof, inputs)
+  let shift =
+    if below {
+      -k * field_prime
+    } else {
+      k * field_prime
+    }
+  let inputs = update_at(groth_inputs, index, fn(x) { x + shift })
+  !verify_compressed(groth_vk, groth_proof, inputs)
 }
 
-/// Sanity check that the builtin really reduces mod `r`, which is what makes
-/// #12 possible. Unlike the test above, this one should keep passing after #12
-/// is fixed, since the fix belongs in the verifier.
+/// The boundary values: `r - 1` is accepted by the range check (and then fails
+/// the pairing, being the wrong value), `r` and `-1` are rejected before it.
+test groth_input_range_boundaries() {
+  and {
+    check_public_inputs([field_prime - 1, 0], 2),
+    !check_public_inputs([field_prime, 0], 2),
+    !check_public_inputs([-1, 0], 2),
+    !verify_compressed(groth_vk, groth_proof, [field_prime - 1, 3]),
+  }
+}
+
+/// Sanity check that the builtin really reduces mod `r`, which is what made
+/// #12 possible. It keeps passing after the fix, since the fix belongs in the
+/// verifier, not the builtin.
 test prop_g1_scalar_mul_reduces_mod_r(
   (x, k) via fuzz.tuple(fuzz.int_between(0, 10000), fuzz.int_between(1, 1000)),
 ) {

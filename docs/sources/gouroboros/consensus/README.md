@@ -108,9 +108,24 @@ exclusive upper interval boundaries require no rational rounding or modulo.
 
 ### Chain Selection (`selection.go`)
 
+Set `PraosChainSelector.ProtocolMajor` from the active protocol parameters.
+Use `PreferCandidate(current, candidate)` to decide whether to switch chains.
+From Conway (protocol version 9), equal-height tips can win by VRF only when
+they are at most five slots apart. Earlier versions are unrestricted. The
+zero value retains the earlier behavior.
+
+Use `PreferredCandidate(current, candidates)` to choose from several tips.
+Every candidate is checked against the original current tip before ranking.
+The density-aware equivalents follow the same rule when density ties or the
+fork is shallow. `Compare` and `CompareWithDensity` remain ordering functions.
+The older `Preferred` methods only rank candidates and are deprecated for
+chain selection because they do not know the current tip.
+
 - `PraosChainSelector` - Implements Praos chain selection rules:
   1. Ordinary comparison (`Compare`): prefer longer chains (higher block
-     number); for equal length, prefer lower VRF output (tiebreaker)
+     number). At equal height and with the same issuer and slot, prefer the
+     higher opcert issue number. Otherwise break ties with the lower VRF
+     output.
   2. `IsDeepFork(fork, tipBlockNumber)` routes between the two regimes: a
      fork is deep when adopting it would roll back more than k *blocks*
      (k counts blocks, not slots)
@@ -119,6 +134,11 @@ exclusive upper interval boundaries require no rational rounding or modulo.
      while deep forks prefer the chain with more blocks within the genesis
      window (3k/f slots after the fork point) regardless of total length;
      equal density falls through to the ordinary comparison
+
+  `ChainTip` implementations must provide `IssuerVkey()` and
+  `OpCertSequenceNumber()` from the tip header. The issuer is the cold
+  verification key. The sequence number is the opcert issue number, not
+  its KES start period or the ledger's recorded counter.
 
   Tips that implement the optional `WindowBlockCounter` interface get the
   canonical integer window metric; others fall back to `ChainTip.Density`.

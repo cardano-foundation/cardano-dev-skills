@@ -70,6 +70,14 @@ small delimited import region in `CLAUDE.md` (`@AGENTS.md`) and Claude loads
 the block through it. One copy means a project can switch agents without its
 Cardano guidance drifting between two files.
 
+The skill also exposes an explicit generator-caller protocol. A scaffold or
+generator operation the user requested may invoke it without a redundant
+setup question, preserve proven custom instructions around fresh generated
+facts, and then run the same canonical setup algorithm. This is not a broad
+development trigger or a claim that a particular scaffold workflow already
+calls it. Documented file shape or host support remains conformance evidence,
+not proof that an installed native agent loaded the directive.
+
 ## Packaging and discovery
 
 - Claude Code consumes the root `skills/` directory through

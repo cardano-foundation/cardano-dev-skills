@@ -184,6 +184,14 @@ apart, and committing the files distributes the guidance to teammates.
 
 **Why this is an exception to Decision 2:** Decision 2 categorizes skills by developer workflow. `cardano-context` doesn't fit — its "workflow" is one-time project setup, not Cardano development. Treating it as just another workflow skill obscures its purpose and its different invocation pattern (run explicitly once per project; not auto-matched on related developer prompts).
 
+An explicitly requested scaffold or agent-driven generator operation may call
+the same meta-skill as a narrow workflow exception. That call counts as
+explicit invocation and includes setup or update without a second setup
+question. It preserves proven custom instructions around freshly generated
+facts and then enters the one canonical setup algorithm. This does not make
+ordinary development a context-maintenance trigger, and availability of the
+protocol does not mean every scaffold caller already integrates it.
+
 **How to recognize a meta-skill:** It modifies the user's *environment* (`CLAUDE.md`, `AGENTS.md`, settings, or project files) rather than producing Cardano code, advice, or analysis. Meta-skills:
 - Are run explicitly by the user, typically once per project.
 - Are idempotent on re-run; updates are versioned and atomic. An unedited

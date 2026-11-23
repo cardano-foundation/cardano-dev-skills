@@ -193,6 +193,11 @@ What it does:
   the current version. Edits you made inside the block, a newer block, or
   broken markers are shown to you and asked about first; nothing outside the
   marked regions changes.
+- An explicitly requested scaffold or generator operation can call the same
+  context protocol without a second setup question. It preserves proven
+  custom instructions around fresh generated facts and then uses the canonical
+  setup flow. The protocol is available to callers; `scaffold-project` does
+  not yet claim this integration.
 
 A project-local Claude skill may also appear as `/cardano-context`; the
 plugin-qualified form above avoids collisions with skills from other plugins.

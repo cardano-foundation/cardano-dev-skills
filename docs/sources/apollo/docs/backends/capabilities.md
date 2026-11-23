@@ -25,7 +25,7 @@ Helpers:
 |------------|:----------:|:-----:|:------:|:----------------:|:---------:|:--------:|:-----:|
 | Protocol params | yes | yes | yes | yes | yes | yes | yes |
 | Genesis params | yes | yes | yes | yes | yes | yes | yes |
-| Current epoch | yes | yes | yes | yes | yes | no | no |
+| Current epoch | yes | yes | yes | yes | yes | yes | no |
 | Max tx fee | yes | yes | yes | yes | yes | yes | yes |
 | Tip | yes | yes | yes | yes | yes | yes | no |
 | UTxOs by address | yes | yes | yes | no | yes | yes | yes |

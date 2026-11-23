@@ -57,8 +57,10 @@ type UtxoRpcChainContext struct {
 	cacheMu        sync.Mutex
 	cachedParams   *backend.ProtocolParameters
 	cachedGenesis  *backend.GenesisParameters
+	cachedEras     []*cardano.EraSummary
 	paramsCacheAt  time.Time
 	genesisCacheAt time.Time
+	eraCacheAt     time.Time
 }
 
 // cacheExpiry is how long protocol and genesis parameters are reused before
@@ -71,8 +73,7 @@ var _ backend.ContextChainContext = (*UtxoRpcChainContext)(nil)
 // Capabilities reports the UTxO RPC operations supported by this client.
 func (u *UtxoRpcChainContext) Capabilities() backend.CapabilitySet {
 	return backend.CapabilitySet(backend.AllCapabilities) &^
-		backend.CapabilitySet(backend.CapabilityCurrentEpoch|
-			backend.CapabilityEvaluateTxAdditionalUtxos|backend.CapabilityScriptCbor)
+		backend.CapabilitySet(backend.CapabilityEvaluateTxAdditionalUtxos|backend.CapabilityScriptCbor)
 }
 
 // EvaluationError reports deterministic Cardano transaction-evaluation errors
@@ -562,11 +563,188 @@ func (u *UtxoRpcChainContext) CurrentEpoch() (uint64, error) {
 	return u.CurrentEpochContext(context.Background())
 }
 
+// CurrentEpochContext computes the epoch of the chain tip from the era summary
+// (ReadEraSummary), the tip slot, and the genesis epoch length:
+// start.epoch + (tipSlot - start.slot) / epochLength, where start is the
+// start of the era containing the tip. A server that implements
+// ReadEraSummary in neither utxorpc.v1beta nor utxorpc.v1alpha yields an
+// error matching backend.ErrUnsupported.
+//
+// The genesis epoch length is the Shelley-era length, so a tip inside a Byron
+// era, which has a different one, is rejected rather than miscomputed. A
+// Byron era is recognised by its name or by a protocol major version below 2
+// in its parameters; an open era that carries neither cannot be told apart.
 func (u *UtxoRpcChainContext) CurrentEpochContext(ctx context.Context) (uint64, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
-	return 0, backend.NewUnsupportedError("UTxO RPC", backend.CapabilityCurrentEpoch)
+	tip, err := u.TipContext(ctx)
+	if err != nil {
+		return 0, err
+	}
+	genesis, err := u.GenesisParamsContext(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if genesis.EpochLength <= 0 {
+		return 0, errors.New("genesis epoch length is missing")
+	}
+	epochLength := uint64(genesis.EpochLength)
+
+	eras, err := u.eraSummaryContext(ctx)
+	if err != nil {
+		return 0, err
+	}
+	epoch, err := epochAtSlot(eras, tip, epochLength)
+	if err != nil {
+		// Some malformations (overlapping eras, a gap at the tip) only show
+		// once the tip is located, after the summary was cached; drop it so
+		// the next call fetches a fresh one.
+		u.cacheMu.Lock()
+		u.cachedEras = nil
+		u.cacheMu.Unlock()
+		return 0, err
+	}
+	return epoch, nil
+}
+
+// eraSummaryContext reads the era summaries with ReadEraSummary. The summary
+// only changes at era boundaries, so it shares the parameter cache lifetime.
+func (u *UtxoRpcChainContext) eraSummaryContext(ctx context.Context) ([]*cardano.EraSummary, error) {
+	u.cacheMu.Lock()
+	if u.cachedEras != nil && time.Since(u.eraCacheAt) < cacheExpiry {
+		eras := u.cachedEras
+		u.cacheMu.Unlock()
+		return eras, nil
+	}
+	u.cacheMu.Unlock()
+
+	msg, err := callEitherVersion(ctx, u,
+		func(ctx context.Context) (*query.ReadEraSummaryResponse, error) {
+			req := connect.NewRequest(&query.ReadEraSummaryRequest{})
+			u.client.AddHeadersToRequest(req)
+			resp, err := u.client.ReadEraSummaryWithContext(ctx, req)
+			if err != nil {
+				return nil, err
+			}
+			return resp.Msg, nil
+		},
+		func(ctx context.Context) (*query.ReadEraSummaryResponse, error) {
+			req := connect.NewRequest(&alphaquery.ReadEraSummaryRequest{})
+			u.alphaClient.AddHeadersToRequest(req)
+			resp, err := u.alphaClient.ReadEraSummaryWithContext(ctx, req)
+			if err != nil {
+				return nil, err
+			}
+			return transcodeTo(resp.Msg, &query.ReadEraSummaryResponse{})
+		},
+	)
+	if err != nil {
+		if isUnimplemented(err) {
+			return nil, fmt.Errorf(
+				"%w: %w",
+				backend.NewUnsupportedError("UTxO RPC server", backend.CapabilityCurrentEpoch),
+				err,
+			)
+		}
+		return nil, err
+	}
+	summary := msg.GetCardano()
+	if summary == nil {
+		return nil, errors.New("no cardano era summary in response")
+	}
+	eras := summary.GetSummaries()
+	if err := validateEraSummaries(eras); err != nil {
+		return nil, err
+	}
+
+	u.cacheMu.Lock()
+	u.cachedEras = eras
+	u.eraCacheAt = time.Now()
+	u.cacheMu.Unlock()
+	return eras, nil
+}
+
+// validateEraSummaries rejects a summary no epoch can be computed from. It is
+// checked before caching; faults that depend on the tip are caught by
+// epochAtSlot, whose caller then drops the cached summary.
+func validateEraSummaries(eras []*cardano.EraSummary) error {
+	if len(eras) == 0 {
+		return errors.New("era summary has no eras")
+	}
+	for _, era := range eras {
+		if era.GetStart() == nil {
+			return fmt.Errorf("era %q has no start boundary", era.GetName())
+		}
+		// An era may be empty: a network that forks past the early eras at
+		// genesis lists them with end equal to start, and no slot falls in
+		// them.
+		if end := era.GetEnd(); end != nil && end.GetSlot() < era.GetStart().GetSlot() {
+			return fmt.Errorf(
+				"era %q ends at slot %d, before its start at slot %d",
+				era.GetName(), end.GetSlot(), era.GetStart().GetSlot(),
+			)
+		}
+	}
+	return nil
+}
+
+// isByronEra reports whether era is a Byron era. Shelley introduced protocol
+// major version 2, so a lower version identifies Byron even when the server
+// leaves the era unnamed.
+func isByronEra(era *cardano.EraSummary) bool {
+	if strings.EqualFold(era.GetName(), "byron") {
+		return true
+	}
+	version := era.GetProtocolParams().GetProtocolVersion()
+	return version != nil && version.GetMajor() < 2
+}
+
+// epochAtSlot finds the single era with start.slot <= slot < end.slot (an
+// absent end is open-ended) and returns start.epoch plus the whole epochs
+// elapsed since. Entries are not assumed ordered; if zero or several eras
+// contain the slot the summary is ambiguous and is rejected.
+func epochAtSlot(eras []*cardano.EraSummary, slot, epochLength uint64) (uint64, error) {
+	if epochLength == 0 {
+		return 0, errors.New("epoch length is zero")
+	}
+	var match *cardano.EraSummary
+	for _, era := range eras {
+		start, end := era.GetStart(), era.GetEnd()
+		if slot < start.GetSlot() || (end != nil && slot >= end.GetSlot()) {
+			continue
+		}
+		if match != nil {
+			return 0, fmt.Errorf(
+				"eras %q and %q both contain slot %d", match.GetName(), era.GetName(), slot,
+			)
+		}
+		match = era
+	}
+	if match == nil {
+		return 0, fmt.Errorf("no era in the summary contains tip slot %d", slot)
+	}
+	if isByronEra(match) {
+		return 0, fmt.Errorf("tip slot %d is in Byron era %q, whose epoch length differs from genesis", slot, match.GetName())
+	}
+	start, end := match.GetStart(), match.GetEnd()
+	if end != nil {
+		// A closed era has to agree with the genesis epoch length, which
+		// also catches pre-Shelley eras that are not named as such.
+		epochs := end.GetEpoch() - start.GetEpoch()
+		span := end.GetSlot() - start.GetSlot()
+		if end.GetEpoch() <= start.GetEpoch() || span%epochLength != 0 || span/epochLength != epochs {
+			return 0, fmt.Errorf(
+				"era %q spans %d slots over %d epochs, inconsistent with epoch length %d",
+				match.GetName(), span, epochs, epochLength,
+			)
+		}
+	}
+	elapsed := (slot - start.GetSlot()) / epochLength
+	if elapsed > math.MaxUint64-start.GetEpoch() {
+		return 0, fmt.Errorf("epoch overflows for tip slot %d", slot)
+	}
+	return start.GetEpoch() + elapsed, nil
 }
 
 func (u *UtxoRpcChainContext) MaxTxFee() (uint64, error) {

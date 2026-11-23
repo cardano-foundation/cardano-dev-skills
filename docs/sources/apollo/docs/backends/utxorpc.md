@@ -22,7 +22,6 @@ context. Construction is unchanged.
 
 UTxO RPC does **not** report:
 
-- `CapabilityCurrentEpoch`
 - `CapabilityEvaluateTxAdditionalUtxos`
 - `CapabilityScriptCbor`
 
@@ -34,7 +33,15 @@ slot length must be a whole number of seconds, because
 `GenesisParameters.SlotLength` holds seconds, and the active slots coefficient
 must lie in (0, 1].
 
-Protocol and genesis parameters are cached for five minutes per context.
+The current epoch comes from `ReadEraSummary`, the tip slot, and the genesis
+epoch length: the start epoch of the era containing the tip plus the whole
+epochs since its start slot. A server that implements `ReadEraSummary` in
+neither version returns an error matching `backend.ErrUnsupported`. A summary
+with no eras, overlapping eras, or no era containing the tip is rejected, as is
+a tip inside a Byron era, whose epoch length differs from the genesis one.
+
+Protocol and genesis parameters and the era summary are cached for five
+minutes per context.
 
 Do not pass additional UTxOs into evaluation. Apollo already omits them when
 the capability is absent, so script transactions evaluate against the

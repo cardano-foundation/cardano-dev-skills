@@ -26,6 +26,7 @@ import (
 	"github.com/Salvionied/apollo/v2/backend"
 	"github.com/Salvionied/apollo/v2/internal/backendutil"
 	"github.com/Salvionied/apollo/v2/internal/ogmiosutil"
+	"github.com/Salvionied/apollo/v2/internal/scriptutil"
 )
 
 // KoiosChainContext implements backend.ChainContext using the Koios API.
@@ -1104,106 +1105,15 @@ func scriptRefFromKoios(scriptType string, bytesHex *string, value json.RawMessa
 	return nil, lastErr
 }
 
-// koiosNativeScript is the cardano-cli simple-script JSON form Koios returns
-// for native scripts.
-type koiosNativeScript struct {
-	Type     string              `json:"type"`
-	KeyHash  string              `json:"keyHash"`
-	Slot     *uint64             `json:"slot"`
-	Required *uint64             `json:"required"`
-	Scripts  []koiosNativeScript `json:"scripts"`
-}
-
-// maxNativeScriptDepth bounds recursion over provider-supplied JSON.
-const maxNativeScriptDepth = 64
-
 // nativeScriptRefFromJSON encodes a native script from its JSON form and
 // accepts it only if its hash matches hashHex.
 func nativeScriptRefFromJSON(value json.RawMessage, hashHex string) (*common.ScriptRef, error) {
-	var script koiosNativeScript
-	if err := json.Unmarshal(value, &script); err != nil {
-		return nil, fmt.Errorf("invalid native script JSON: %w", err)
-	}
-	if script.Type == "" {
+	scriptCbor, err := scriptutil.NativeScriptCborFromJSON(value)
+	if errors.Is(err, scriptutil.ErrNativeScriptNoType) {
 		return nil, fmt.Errorf("koios returned neither bytes nor JSON for native script %s", hashHex)
 	}
-	encoded, err := script.toCBORValue(0)
 	if err != nil {
 		return nil, fmt.Errorf("invalid native script %s: %w", hashHex, err)
 	}
-	scriptCbor, err := cbor.Encode(encoded)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode native script %s: %w", hashHex, err)
-	}
 	return backendutil.ScriptRefFromBytes(common.ScriptRefTypeNativeScript, scriptCbor, hashHex)
-}
-
-// toCBORValue returns the ledger CBOR structure of a native script:
-// [0, keyhash] | [1, [scripts]] | [2, [scripts]] | [3, n, [scripts]] |
-// [4, slot] (valid from slot) | [5, slot] (valid before slot).
-func (s *koiosNativeScript) toCBORValue(depth int) ([]any, error) {
-	if depth > maxNativeScriptDepth {
-		return nil, fmt.Errorf("nesting exceeds %d levels", maxNativeScriptDepth)
-	}
-	children := func() ([]any, error) {
-		out := make([]any, 0, len(s.Scripts))
-		for i := range s.Scripts {
-			child, err := s.Scripts[i].toCBORValue(depth + 1)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, child)
-		}
-		return out, nil
-	}
-	slot := func() (uint64, error) {
-		if s.Slot == nil {
-			return 0, fmt.Errorf("%s script has no slot", s.Type)
-		}
-		return *s.Slot, nil
-	}
-	switch s.Type {
-	case "sig":
-		keyHash, err := hex.DecodeString(s.KeyHash)
-		if err != nil || len(keyHash) != common.Blake2b224Size {
-			return nil, fmt.Errorf("invalid key hash %q", s.KeyHash)
-		}
-		return []any{0, keyHash}, nil
-	case "all", "any":
-		scripts, err := children()
-		if err != nil {
-			return nil, err
-		}
-		tag := 1
-		if s.Type == "any" {
-			tag = 2
-		}
-		return []any{tag, scripts}, nil
-	case "atLeast":
-		if s.Required == nil {
-			return nil, errors.New("atLeast script has no required count")
-		}
-		if *s.Required > uint64(len(s.Scripts)) {
-			return nil, fmt.Errorf("atLeast requires %d of %d scripts", *s.Required, len(s.Scripts))
-		}
-		scripts, err := children()
-		if err != nil {
-			return nil, err
-		}
-		return []any{3, *s.Required, scripts}, nil
-	case "after":
-		v, err := slot()
-		if err != nil {
-			return nil, err
-		}
-		return []any{4, v}, nil
-	case "before":
-		v, err := slot()
-		if err != nil {
-			return nil, err
-		}
-		return []any{5, v}, nil
-	default:
-		return nil, fmt.Errorf("unsupported native script type %q", s.Type)
-	}
 }

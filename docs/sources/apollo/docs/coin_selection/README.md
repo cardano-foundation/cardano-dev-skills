@@ -49,6 +49,12 @@ builder := apollo.New(ctx).SetMaxFee(1_000_000)
 // v1 greedy behaviour
 builder = builder.SetCoinSelector(&apollo.LargestFirstSelector{})
 
+// Random-Improve, alone or falling back to Largest-First
+randomImprove := apollo.NewRandomImproveSelector()
+randomImprove.Seed = 42
+builder = builder.SetCoinSelector(randomImprove)
+builder = builder.SetCoinSelector(apollo.NewRandomImproveThenLargestFirstSelector())
+
 // MACS without sweeping, or custom limits
 builder = builder.SetCoinSelector(&apollo.MACSSelector{})
 builder = builder.SetCoinSelector(&apollo.MACSSelector{
@@ -59,6 +65,46 @@ builder = builder.SetCoinSelector(&apollo.MACSSelector{
 
 `LargestFirstSelector` consumes ADA-only UTxOs before asset-carrying ones,
 largest lovelace first.
+
+## Random-Improve
+
+`RandomImproveSelector` implements the Random-Improve algorithm from
+[CIP-0002](https://cips.cardano.org/cip/CIP-0002). It covers the target by
+taking UTxOs in a pseudo-random order, drops any cover input that a later
+pick made redundant, then adds ADA-only UTxOs that bring the lovelace total
+closer to an ideal of twice the target, so the change output is roughly the
+size of the payment. The order comes from a PCG generator seeded with the full
+64-bit `Seed`: the same seed, pool, and target always select the same inputs,
+on every platform.
+
+`MaxInputs` limits the number of selected UTxOs. If the random cover reaches
+the limit before covering the target, the selector returns an error matching
+`ErrInsufficientUtxos`, even when a smaller selection exists; improvement stops
+at the limit. `NewRandomImproveSelector()` sets it to
+`DefaultRandomImproveMaxInputs` (100); the zero-value `RandomImproveSelector{}`
+has no limit.
+
+It is an adaptation, not a CIP-0002 reference implementation:
+
+- It selects for the transaction's aggregate target, not for each output.
+- An improvement may not take lovelace above twice the target; CIP-0002
+  allows up to three times.
+- Surplus native assets become change that needs its own min-UTxO lovelace,
+  so the selector avoids them: the cover takes only UTxOs that reduce a
+  remaining shortfall, and uses UTxOs carrying an untargeted asset, or a
+  targeted one the selection already has enough of, only when nothing else
+  covers the target. Pruning drops redundant token-carrying inputs before
+  ADA-only ones, and improvement adds only ADA-only UTxOs.
+
+`RandomImproveThenLargestFirstSelector` follows the Cardano Wallet strategy:
+it runs Random-Improve and, only when that reports `ErrInsufficientUtxos`
+(including a cover over the input limit), runs `LargestFirstSelector`.
+Malformed input, overflow, and cancellation are returned without a fallback.
+Its `RandomImprove` and `Fallback` fields replace either step; a nil or
+typed-nil field means the default.
+
+Every in-tree selector returns an error matching `ErrInsufficientUtxos` when
+the pool cannot cover the target.
 
 ## Implicit inputs
 

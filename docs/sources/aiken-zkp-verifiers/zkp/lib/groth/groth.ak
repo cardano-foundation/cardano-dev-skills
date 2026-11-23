@@ -4,6 +4,7 @@ use aiken/builtin.{
   bls12_381_mul_miller_loop_result,
 }
 use aiken/collection/list
+use common/inputs.{check_public_inputs}
 
 pub type CompressedProof {
   a: ByteArray,
@@ -91,37 +92,46 @@ pub fn pairing_check(
   bls12_381_final_verify(ab, mlr2)
 }
 
-// Main verification function
+/// Main verification function. Returns `False` unless `inputs` has exactly one
+/// entry for each `vkIC` element after the first, and each entry lies in
+/// `[0, r)`.
 pub fn verify(vk: VerifierKey, proof: Proof, inputs: List<Int>) -> Bool {
-  let k =
-    when vk.vkIC is {
-      [] -> fail @"empty vkIC?"
-      [head, ..tail] -> derive(tail, inputs, head)
-    }
-
-  // Pairing check
-  pairing_check(
-    proof.a,
-    proof.b,
-    proof.c,
-    vk.delta,
-    vk.alpha,
-    vk.beta,
-    k,
-    vk.gamma,
-  )
+  when vk.vkIC is {
+    [] -> fail @"empty vkIC?"
+    [head, ..tail] ->
+      if check_public_inputs(inputs, list.length(tail)) {
+        pairing_check(
+          proof.a,
+          proof.b,
+          proof.c,
+          vk.delta,
+          vk.alpha,
+          vk.beta,
+          derive(tail, inputs, head),
+          vk.gamma,
+        )
+      } else {
+        False
+      }
+  }
 }
 
+/// Fold the public inputs into the `vkIC` points. Fails if the two lists
+/// differ in length, so no input is ever left out of the result.
 pub fn derive(
   vk_ic: List<G1Element>,
   public: List<Int>,
   result: G1Element,
 ) -> G1Element {
   when vk_ic is {
-    [] -> result
+    [] ->
+      when public is {
+        [] -> result
+        _ -> fail @"more public inputs than vkIC entries"
+      }
     [i, ..vk_ic] ->
       when public is {
-        [] -> fail
+        [] -> fail @"fewer public inputs than vkIC entries"
         [scalar, ..public] ->
           derive(
             vk_ic,

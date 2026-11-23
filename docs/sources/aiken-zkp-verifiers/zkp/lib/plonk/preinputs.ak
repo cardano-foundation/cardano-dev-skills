@@ -22,7 +22,12 @@ pub type PlonkPreInputs {
 pub type PreparedPlonkPreInputs {
   n: Int,
   generator: State<Scalar>,
+  /// `w^0 .. w^(k - 1)` with `k = max(1, n_public)`: one per public input,
+  /// and always at least `w^0`, whose Lagrange term the permutation check uses.
   generators: List<State<Scalar>>,
+  /// How many public inputs the circuit takes. `verify_plonk` rejects any
+  /// other count.
+  n_public: Int,
   power: Int,
   k1: State<Scalar>,
   k2: State<Scalar>,
@@ -55,7 +60,18 @@ pub fn plonk_prepare_preinputs(
   PreparedPlonkPreInputs {
     n: scalar.to_int(scale(scalar.from_int(2), inputs.power)),
     generator,
-    generators: list.map(list.range(0, n_public), fn(n) { scale(generator, n) }),
+    generators: list.map(
+      list.range(
+        0,
+        if n_public > 1 {
+          n_public - 1
+        } else {
+          0
+        },
+      ),
+      fn(n) { scale(generator, n) },
+    ),
+    n_public,
     power: inputs.power,
     k1: inputs.k1,
     k2: inputs.k2,

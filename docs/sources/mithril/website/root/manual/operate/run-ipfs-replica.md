@@ -21,6 +21,7 @@ A Mithril aggregator can publish the immutable archives of its Cardano database 
 The replication works as follows:
 
 - The aggregator adds each new immutable archive to a directory and publishes the latest version of this directory under an **IPNS name**
+- The Mithril network gives this IPNS name a stable and human readable [DNSLink](https://dnslink.dev/) name in its domain (eg, `/ipns/immutables.testing-preview.api.mithril.network`)
 - The replica resolves the IPNS name periodically and pins the new version of the directory, fetching only the missing archives
 - The replica keeps the previous versions of the directory pinned, as older snapshots still reference them
 - The replica announces the archives to the IPFS network and serves them to the Mithril clients.
@@ -256,25 +257,28 @@ ipfs_node () {
 
 ##### Initialize the Kubo repository
 
-Initialize the repository with the `server` profile, which prevents the node from scanning the local network:
+Initialize the repository with the `server` profile, which prevents the node from scanning the local network, and raise:
+
+- The Bitswap server limits, which otherwise keep at most 1 MB in flight per peer and slow down the download of the archives by the clients
+- The connection manager limits and the provide workers, which otherwise cannot announce all the blocks of the archives to the IPFS network before their provider records expire.
 
 ```bash
 ipfs_node init --profile server
+ipfs_node config --json Internal.Bitswap.TaskWorkerCount 32
+ipfs_node config --json Internal.Bitswap.EngineTaskWorkerCount 32
+ipfs_node config --json Internal.Bitswap.EngineBlockstoreWorkerCount 256
+ipfs_node config --json Internal.Bitswap.MaxOutstandingBytesPerPeer 8388608
+ipfs_node config --json Swarm.ConnMgr.LowWater 200
+ipfs_node config --json Swarm.ConnMgr.HighWater 800
+ipfs_node config --json Provide.DHT.MaxWorkers 24
+ipfs_node config --json Provide.DHT.DedicatedPeriodicWorkers 4
+ipfs_node config --json Provide.DHT.MaxProvideConnsPerWorker 30
 ```
 
 If the machine is behind a NAT, announce its public address (use `/ip6/` instead of `/ip4/` for an IPv6 address):
 
 ```bash
 ipfs_node config --json Addresses.AppendAnnounce '["/ip4/**YOUR_PUBLIC_IP_ADDRESS**/tcp/4001", "/ip4/**YOUR_PUBLIC_IP_ADDRESS**/udp/4001/quic-v1"]'
-```
-
-Raise the Bitswap server limits, which otherwise keep at most 1 MB in flight per peer and slow down the download of the archives by the clients:
-
-```bash
-ipfs_node config --json Internal.Bitswap.TaskWorkerCount 32
-ipfs_node config --json Internal.Bitswap.EngineTaskWorkerCount 32
-ipfs_node config --json Internal.Bitswap.EngineBlockstoreWorkerCount 256
-ipfs_node config --json Internal.Bitswap.MaxOutstandingBytesPerPeer 8388608
 ```
 
 ##### Set up the service
@@ -452,7 +456,10 @@ The list of available Kubo images on the registry is listed [here](https://hub.d
 
 #### Prepare the configuration script
 
-Create a `/opt/mithril-ipfs/container-init.d/configure-node.sh` script run by the container before it starts the Kubo node:
+Create a `/opt/mithril-ipfs/container-init.d/configure-node.sh` script run by the container before it starts the Kubo node. The script also raises:
+
+- The Bitswap server limits, which otherwise keep at most 1 MB in flight per peer and slow down the download of the archives by the clients
+- The connection manager limits and the provide workers, which otherwise cannot announce all the blocks of the archives to the IPFS network before their provider records expire.
 
 ```bash
 sudo mkdir -p /opt/mithril-ipfs/container-init.d
@@ -462,6 +469,15 @@ set -e
 
 ipfs config Addresses.API /ip4/127.0.0.1/tcp/5001
 ipfs config Addresses.Gateway /ip4/127.0.0.1/tcp/8080
+ipfs config --json Internal.Bitswap.TaskWorkerCount 32
+ipfs config --json Internal.Bitswap.EngineTaskWorkerCount 32
+ipfs config --json Internal.Bitswap.EngineBlockstoreWorkerCount 256
+ipfs config --json Internal.Bitswap.MaxOutstandingBytesPerPeer 8388608
+ipfs config --json Swarm.ConnMgr.LowWater 200
+ipfs config --json Swarm.ConnMgr.HighWater 800
+ipfs config --json Provide.DHT.MaxWorkers 24
+ipfs config --json Provide.DHT.DedicatedPeriodicWorkers 4
+ipfs config --json Provide.DHT.MaxProvideConnsPerWorker 30
 EOF'
 ```
 
@@ -470,17 +486,6 @@ If the machine is behind a NAT, announce its public address (use `/ip6/` instead
 ```bash
 sudo bash -c 'cat >> /opt/mithril-ipfs/container-init.d/configure-node.sh << EOF
 ipfs config --json Addresses.AppendAnnounce "[\"/ip4/**YOUR_PUBLIC_IP_ADDRESS**/tcp/4001\", \"/ip4/**YOUR_PUBLIC_IP_ADDRESS**/udp/4001/quic-v1\"]"
-EOF'
-```
-
-Raise the Bitswap server limits, which otherwise keep at most 1 MB in flight per peer and slow down the download of the archives by the clients:
-
-```bash
-sudo bash -c 'cat >> /opt/mithril-ipfs/container-init.d/configure-node.sh << EOF
-ipfs config --json Internal.Bitswap.TaskWorkerCount 32
-ipfs config --json Internal.Bitswap.EngineTaskWorkerCount 32
-ipfs config --json Internal.Bitswap.EngineBlockstoreWorkerCount 256
-ipfs config --json Internal.Bitswap.MaxOutstandingBytesPerPeer 8388608
 EOF'
 ```
 

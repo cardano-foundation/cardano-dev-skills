@@ -3,7 +3,7 @@
 - **Module:** `zkp/lib/bullet/bullet.ak`
 - **Status:** Functional, tested, unaudited
 - **Test results:** 
-  - `aiken check` 10/10 in `bullet/bullet`, plus 4/4 property and known-issue tests in `tests/bullet_props` (part of 64/64 across the package)
+  - `aiken check` 17/17 in `bullet/bullet`, plus 7/7 property tests in `tests/bullet_props` (part of 89/89 across the package)
   - `aiken fmt` clean
   - `aiken build` succeeds
 
@@ -33,23 +33,63 @@ All 3 modules follow the same conventions (error handling, test structure) adopt
 ```
 BulletproofVerificationKey { g, h, u, g_vec, h_vec, g_sum, h_sum, n }
 BulletproofProof           { a, s, t1, t2, tau_x, mu, l_vec, r_vec }
+CompressedBulletproofProof { a, s, t1, t2, tau_x, mu, l_vec, r_vec }
 ProofBlinding               { alpha, rho, tau1, tau2, s_l, s_r }
 ```
 
 `g`, `h`, `u`, and every entry of `g_vec`/`h_vec` are native `G1Element` values; `tau_x`, `mu`, and every entry of `l_vec`/`r_vec` are native `Scalar` values from the BLS12-381 scalar field. `g_sum`/`h_sum` are precomputed folds of the generator vectors, carried in the key to avoid re-summing `n` points on every verification.
 
+`BulletproofVerificationKey` is opaque, so `setup` is the only way to make one: a key can't be decoded from a redeemer, datum or other `Data`, or built from chosen points ([#17](https://github.com/ADAOcommunity/zk/issues/17)). That matters because `verify` trusts every generator in the key. A prover who chose them, with `h = k·g` say, could open a commitment to any value. Hashing the key into the transcript wouldn't stop that, since such a prover knows the relations before any challenge is drawn.
+
+`BulletproofProof` can't be decoded from `Data` either, because its scalars are `State<Scalar>`, which is opaque in stdlib 3.0.0. `CompressedBulletproofProof` has the same fields as plain data: each point is a 48-byte compressed G1 encoding and each scalar an `Int`. A validator takes its proof in that form from a redeemer or datum and decodes it with `uncompress_proof`.
+
 **Entry points**
 
-- `setup(n) -> BulletproofVerificationKey` - derives all generators deterministically.
-- `commit_value(vk, value, gamma) -> G1Element` - builds the public Pedersen commitment `V`.
+- `setup(n) -> BulletproofVerificationKey` - derives all generators deterministically; the only way to make a key.
+- `commit_value(vk, value, gamma) -> G1Element` - builds the public Pedersen commitment `V`; fails unless `0 <= value < r`.
 - `generate_proof(vk, value, gamma, blinding) -> BulletproofProof` - the reference prover.
-- `verify(vk, v_commit, proof) -> Bool` - the verifier; the only function a validator needs.
+- `uncompress_proof(proof) -> BulletproofProof` - decodes a `CompressedBulletproofProof`. Fails unless every point is a valid compressed G1 point in the prime-order subgroup (`g1.decompress` checks this) and every scalar lies in `[0, r)`. Scalars are used mod `r`, so without the range check `x + r` and `x - r` would decode to the same proof as `x`, and one proof would have many encodings that all verify. It fails rather than returning `None`, like `commit_value` and the Groth16 and PLONK proof decoders; a bad point can't be reported any other way, since `g1.decompress` is a builtin that fails on one. Vector lengths are left to `verify`.
+- `compress_proof(proof) -> CompressedBulletproofProof` - the reverse, for building a redeemer from a proof made with `generate_proof`.
+- `verify(vk, v_commit, proof) -> Bool` - the verifier. With `setup` and `uncompress_proof`, it is all a validator needs.
 
 ## 4. Protocol walkthrough
 
-**Setup.** `setup(n)` derives `g` (the curve's standard generator), `h`, `u`, and length-`n` vectors `g_vec`/`h_vec` via `hash_to_group` with distinct domain-separation tags. This is nothing-up-my-sleeve by construction - no party ever holds a discrete-log relationship between any two generators - and is meant to be computed once and embedded as a deployed constant, not recomputed per transaction.
+**Setup.** `setup(n)` derives `g` (the curve's standard generator), `h`, `u`, and length-`n` vectors `g_vec`/`h_vec` via `hash_to_group` with distinct domain-separation tags. This is nothing-up-my-sleeve by construction - no party ever holds a discrete-log relationship between any two generators.
 
-**Commitment.** `commit_value` builds `V = g^value · h^gamma`, a standard Pedersen commitment.
+**Holding the key.** A validator must fix `n` itself rather than read it from the transaction, or the prover chooses the range. It can then call `setup(n)` or hold the key as a module constant. The measurements below use a spend validator that takes `V` from its datum as a compressed point and the proof from its redeemer:
+
+```aiken
+validator range_check {
+  spend(
+    datum: Option<ByteArray>,
+    redeemer: CompressedBulletproofProof,
+    _own_ref: OutputReference,
+    _self: Transaction,
+  ) {
+    expect Some(v_commit) = datum
+    bullet.verify(
+      bullet.setup(8),
+      g1.decompress(v_commit),
+      bullet.uncompress_proof(redeemer),
+    )
+  }
+
+  else(_) {
+    fail
+  }
+}
+```
+
+Measured at `n = 8` with Aiken v1.1.21: its script size, and the cost of one call to its spend handler in a test, with a constant datum and redeemer decoded from `Data` first, as the ledger passes them:
+
+| Key | Script size | Check cost |
+|---|---|---|
+| `bullet.setup(8)` called in the validator | 2,888 bytes | 3.40M memory, 8.09B CPU |
+| `const vk = bullet.setup(8)` | 22,647 bytes | 3.23M memory, 6.11B CPU |
+
+Aiken evaluates a constant at compile time, which saves the 2B CPU that `setup` costs, but embeds the key in the script: at `n = 8` that is over the 16,384-byte transaction limit, and at `n = 2` it is still 11,190 bytes. Calling `setup` in the validator is the option that fits. The validator was built to measure it and is not part of the package.
+
+**Commitment.** `commit_value` builds `V = g^value · h^gamma`, a standard Pedersen commitment. It fails unless `0 <= value < r`, where `r` is the order of the scalar field: exponents are taken mod `r`, so without the check `value + k·r`, a negative amount included, would give the same `V` as `value` and match its range proof ([#16](https://github.com/ADAOcommunity/zk/issues/16)).
 
 **Proof generation.** Given `value`, its blinding `gamma`, and a `ProofBlinding` record (Aiken has no RNG, so every random scalar the protocol needs is an explicit caller-supplied input):
 
@@ -90,7 +130,7 @@ The `u` generator is present in `BulletproofVerificationKey` but unused by `veri
 
 ## 7. Testing and verification
 
-Ten unit tests in `bullet.ak` exercise the module:
+Seventeen unit tests in `bullet.ak` exercise the module:
 
 | Test | Verifies |
 |---|---|
@@ -102,14 +142,23 @@ Ten unit tests in `bullet.ak` exercise the module:
 | `range_proof_fails_tampered_tau_x` | Mutating `tau_x` is rejected |
 | `range_proof_fails_tampered_l_vec` | Mutating one entry of `l_vec` is rejected |
 | `range_proof_fails_wrong_vector_length` | A truncated `l_vec` is rejected |
+| `commit_value_rejects_r` | `commit_value` fails for `r`, which would otherwise give the same point as `0` |
+| `commit_value_rejects_negative` | `commit_value` fails for `-1`, which would otherwise give the same point as `r - 1` |
+| `commit_value_accepts_field_boundary` | `commit_value` accepts `0` and `r - 1`, and `r - 1` commits to `g^-1` |
 | `generate_proof_rejects_out_of_range` | The prover's own guard traps for an out-of-range value |
 | `range_proof_fails_out_of_range_bypassing_guard` | Verification independently rejects an out-of-range value even if the prover-side guard is bypassed |
+| `compressed_proof_round_trip` | A proof encoded with `compress_proof` decodes with `uncompress_proof` to one that verifies, and encodes back to the same data |
+| `uncompress_proof_rejects_tau_x_plus_r` | `uncompress_proof` fails for `tau_x + r`, which would otherwise decode to the same proof |
+| `uncompress_proof_rejects_negative_l_vec_entry` | `uncompress_proof` fails for an `l_vec` entry given as `x - r`, which is negative |
+| `uncompress_proof_rejects_point_off_curve` | `uncompress_proof` fails for a point whose `x` is not on the curve |
 
 Because this module owns both prover and verifier, every test constructs a real proof in-language and checks it against a real verification run - no hardcoded external fixtures are required, unlike the Groth16 tests in this package, which depend on proofs generated by an external circuit toolchain.
 
-`tests/bullet_props.ak` adds property-based tests (using `aiken-lang/fuzz`, 100 random cases each). `prop_*` tests state behaviour that must hold for any input. `known_issue_*` tests pin a filed bug: they pass while the bug exists and fail once it's fixed, at which point they're replaced by the property named in their comment. At `n = 8`, its properties: every value in `[0, 2^n)` verifies with any blinding and seed; a proof doesn't verify against a commitment to a different value; and changing `tau_x`, `mu`, or the first entry of `l_vec` or `r_vec` is rejected. Its known-issue test covers [#16](https://github.com/ADAOcommunity/zk/issues/16) (`commit_value` reduces mod `r`).
+`tests/bullet_props.ak` adds property-based tests (using `aiken-lang/fuzz`, 100 random cases each). `prop_*` tests state behaviour that must hold for any input. At `n = 8`, its properties: every value in `[0, 2^n)` verifies with any blinding and seed; a proof doesn't verify against a commitment to a different value; changing `tau_x`, `mu`, or the first entry of `l_vec` or `r_vec` is rejected; and `commit_value` fails for `value + k·r` with `k` from -1000 to 1000, not zero ([#16](https://github.com/ADAOcommunity/zk/issues/16)). For decoding: a proof encoded with `compress_proof` decodes to one that verifies and encodes back to the same data; `uncompress_proof` fails when `tau_x`, `mu`, or the first entry of `l_vec` or `r_vec` is given as `x + k·r` with `k` from -1000 to 1000, not zero; and it fails when any of the four points is on the curve but outside the prime-order subgroup.
 
-At `n = 8`, a full `verify` call measures approximately 5.2M memory units and 14.2B CPU units - comfortably within Cardano's per-transaction execution budget. This has not yet been benchmarked at larger `n`; see §8.
+Each of `uncompress_proof`'s two range checks (`x < 0` and `x >= r`) was removed in turn to confirm that a unit test and the scalar property fail without it. The point tests were checked the same way by putting a valid point in place of the bad one; the point check itself is the `g1.decompress` builtin, which can't be removed.
+
+At `n = 8`, `verify` measures 3.00M memory units and 5.83B CPU units with a constant key, proof and commitment, or 3.16M and 7.81B when the validator calls `setup(8)` itself. Decoding `V` and the proof from a datum and redeemer adds about 0.23M memory and 0.28B CPU (§4, "Holding the key"). All of these are against Cardano's per-transaction limits of 14M memory and 10B CPU. A unit test that also derives the key and builds the proof, such as `range_proof_valid`, measures about 4.96M and 14.1B. This has not yet been benchmarked at larger `n`; see §8.
 
 **Implementation note.** During development, an anonymous lambda with a multi-statement body (`fn(b) { expect Some(s) = scalar.new(b); s }`) passed directly to `list.map` was found to crash the Aiken v1.1.21 compiler silently, with no diagnostic output. The identical logic as a named top-level function compiles and runs correctly. Every inline lambda in this module is single-expression; the one case that needed a multi-statement body was extracted into a named helper (`scalar_from_bit`) instead. This is recorded here as a toolchain finding relevant to future work on this and other modules in the package, not a defect in the protocol implementation itself.
 
@@ -117,11 +166,9 @@ At `n = 8`, a full `verify` call measures approximately 5.2M memory units and 14
 
 - **No IPA compression** - proof size is `O(n)` scalars, not `O(log n)` group elements. Deliberate for this milestone (§5); the natural next phase once a deployment target needs larger `n`.
 - **Execution-unit cost is unbenchmarked past `n = 8`.** The `max_n = 64` bound limits worst-case cost, but actual figures at `n = 32`/`64` should be measured before either is used in a real deployment.
-- **No on-chain entry point yet.** This module covers the cryptographic core; how a validator obtains and trusts a given `V` (datum/redeemer wiring) is separate, follow-on work.
+- **Trusting `V` is left to the validator.** A validator can take a proof from its redeemer with `uncompress_proof` (§3), and the example in §4 reads `V` from its datum. What `V` commits to, and why the validator should trust it (a datum written by a trusted party, a commitment computed in the same transaction, and so on), depends on the application and is outside this module.
 - **No external cryptographic audit.** This implementation has had internal design review and one external review pass; neither is a substitute for a formal audit before any mainnet or high-value use.
-- **`commit_value` reduces the value mod `r`**, so a commitment to `v + k·r`, including a negative amount, matches a valid proof for `v` ([#16](https://github.com/ADAOcommunity/zk/issues/16)). Callers must check the committed value's range themselves until this is fixed.
-- **`verify` trusts the generator vectors in the key it's given** ([#17](https://github.com/ADAOcommunity/zk/issues/17)); a validator must fix the key rather than accept one from a redeemer.
-- **The deterministic prover is a test fixture, not a production prover.** Aiken has no RNG, so `generate_proof` requires the caller to supply every blinding factor; `generate_proof_deterministic` exists only to make self-contained tests possible and is documented as such, though it is still public ([#18](https://github.com/ADAOcommunity/zk/issues/18)). A production integration must source genuine entropy for these values itself.
+- **The prover needs blinding from the caller.** Aiken has no RNG, so `generate_proof` requires the caller to supply every blinding factor, and a production integration must source genuine entropy for them. The tests derive theirs from a seed, which hides nothing: anyone with the seed can read the value back from `l_vec`. That seeded prover used to be public as `generate_proof_deterministic`; it is now private to the tests ([#18](https://github.com/ADAOcommunity/zk/issues/18)).
 
 ## 9. Conclusion
 

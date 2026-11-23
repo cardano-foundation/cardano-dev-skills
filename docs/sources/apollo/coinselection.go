@@ -28,6 +28,13 @@ type CoinSelector interface {
 	) ([]common.Utxo, error)
 }
 
+// ErrInsufficientUtxos reports that the available UTxOs cannot cover the
+// selection target. Every in-tree selector returns it, possibly wrapped, so
+// callers can match it with errors.Is.
+var ErrInsufficientUtxos = errors.New(
+	"insufficient UTxOs to cover required value",
+)
+
 // selectionCancelStride is how many pool entries a selector may process
 // between context checks. Small enough that cancellation is observed
 // promptly even on a pool of hundreds of thousands of UTxOs, large enough
@@ -139,5 +146,5 @@ func (s *LargestFirstSelector) Select(
 			return selected, nil
 		}
 	}
-	return nil, errors.New("insufficient UTxOs to cover required value")
+	return nil, ErrInsufficientUtxos
 }

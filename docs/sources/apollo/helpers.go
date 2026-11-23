@@ -14,6 +14,8 @@ import (
 	"github.com/blinklabs-io/gouroboros/ledger/common"
 	"github.com/blinklabs-io/gouroboros/ledger/conway"
 	"github.com/blinklabs-io/gouroboros/ledger/mary"
+
+	"github.com/Salvionied/apollo/v2/internal/scriptutil"
 )
 
 // Value represents an amount of ADA (in lovelace) with optional native assets.
@@ -407,6 +409,28 @@ func NewNativeScriptInvalidHereafter(slot uint64) (common.NativeScript, error) {
 		Slot uint64
 	}{Type: 5, Slot: slot}
 	return nativeScriptFromInner(&inner)
+}
+
+// NativeScriptFromJSON parses a native script from the cardano-cli
+// simple-script JSON form, in which each script is an object whose "type" is
+// "sig" (with "keyHash"), "all" or "any" (with "scripts"), "atLeast" (with
+// "required" and "scripts"), or "after" or "before" (with "slot"). Scripts may
+// nest up to 64 levels.
+//
+// It applies only the checks the ledger needs to encode the script: a 28-byte
+// key hash, a slot where one is required, and an atLeast count no larger than
+// its script list. Unlike NewNativeScriptNofK, it accepts empty script lists
+// and a zero atLeast count, which are valid ledger scripts.
+func NativeScriptFromJSON(data []byte) (common.NativeScript, error) {
+	scriptCbor, err := scriptutil.NativeScriptCborFromJSON(data)
+	if err != nil {
+		return common.NativeScript{}, err
+	}
+	var ns common.NativeScript
+	if err := ns.UnmarshalCBOR(scriptCbor); err != nil {
+		return common.NativeScript{}, err
+	}
+	return ns, nil
 }
 
 func nativeScriptFromInner(inner any) (common.NativeScript, error) {

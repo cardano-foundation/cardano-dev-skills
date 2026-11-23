@@ -3,7 +3,6 @@ package apollo
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
 	"sort"
@@ -337,9 +336,7 @@ func (s *MACSSelector) Select(
 		}
 		idx := view.next(cands, selected, deficit, cmp, minChange)
 		if idx < 0 {
-			return nil, errors.New(
-				"insufficient UTxOs to cover required value",
-			)
+			return nil, ErrInsufficientUtxos
 		}
 		selected[idx] = true
 		cand := cands[idx]

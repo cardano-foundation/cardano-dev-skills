@@ -22,7 +22,7 @@ GovTool uses external sources for DRep data, and these sources are maintained by
 
 #### The data that was originally used when this DRep was created has been formatted incorrectly.&#x20;
 
-GovTool uses external sources for DRep data, and these sources are maintained by the DReps themselves. This error means that the data stored by the DRep does not match the format defined by the DRep spec.
+GovTool uses external sources for DRep data, and these sources are maintained by the DReps themselves. This error means that the data stored by the DRep does not match the format defined by the DRep spec (CIP-119). For example, the DRep name is missing, or is longer than the 80 characters the spec allows.
 
 ### Data URL Blocked
 

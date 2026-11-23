@@ -202,7 +202,7 @@ problem at once rather than one per submit.
 
 | CIP | Required |
 |---|---|
-| 119 (DRep) | `givenName` |
+| 119 (DRep) | `givenName`; a `givenName` over 80 chars, the CIP-119 limit, is an error (D176). The 1000-char limits on `objectives`, `motivations` and `qualifications` are not enforced |
 | 108 (governance action) | `title`, `abstract`, `motivation`, `rationale`; `title` ≤ 80 chars, `abstract` ≤ 2500, as the CIP-108 text sets them (F43) |
 | 100 (base standard) | a JSON object; `hashAlgorithm`, when present, is `blake2b-256`. CIP-108 and CIP-119 include these checks |
 

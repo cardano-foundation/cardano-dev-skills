@@ -62,8 +62,10 @@ const (
 )
 
 // maxAddressQueryUtxos bounds the retained address-query result after the
-// node answers, before allocating and sorting the returned UTxO slice.
-const maxAddressQueryUtxos = 100_000
+// node answers, before allocating and sorting the returned UTxO slice. It is
+// a variable so tests can exercise the boundary without building 100,000
+// outputs.
+var maxAddressQueryUtxos = 100_000
 
 // OuroborosChainContext implements backend.ChainContext by talking to a
 // cardano-node directly over the node-to-client mini-protocols.

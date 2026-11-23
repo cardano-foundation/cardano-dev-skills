@@ -1,6 +1,91 @@
 This file contains a summary of changes to Haskell.nix and `nix-tools`
 that will impact users.
 
+## November 20, 2026
+
+  * `source-repository-package`s with an ssh location (`ssh://...`,
+    `git+ssh://...`, `ssh+git://...` or `[user@]host:path`) are now
+    fetched with `builtins.fetchGit`, which runs as you and uses your ssh
+    agent and config, so private repositories work.  They used to go to
+    `fetchgit` whenever a `--sha256` was given, and its build sandbox has
+    no `ssh` ("error: cannot run ssh").  Submodules are included.  A
+    `--sha256` is optional; one that is given is checked and gives the
+    source `fetchgit`'s store path.  `tag` may also be a tag, branch or
+    abbreviated hash (outside pure evaluation).  An scp-like location is
+    fetched as `ssh://[user@]host/path`.  Evaluation needs ssh access (or
+    Nix's fetcher cache): the source is no longer a fixed-output derivation
+    a binary cache could provide, and restricted evaluation (Hydra,
+    non-flake) refuses ssh fetches.  Use `inputMap` for those.  See
+    `docs/tutorials/source-repository-hashes.md`.
+  * `project.flake` (`haskellLib.mkFlake`) no longer builds, in `ciJobs`
+    and `hydraJobs`, a sub-library that only components left out of the
+    build use, such as a private library used only by test suites when the
+    plan disables them (`configureArgs = "--disable-tests"`) or by a
+    component that is not buildable, or only by another such sub-library.
+    cabal still plans such a sub-library, but nothing that is built needs
+    it.  It stays in the flake's `packages` (so
+    `nix build .#pkg:lib:sublib` works), and a sub-library that nothing
+    uses at all is still built, since it may be a public one.  Stack
+    projects leave nothing out.  Set `flake.ciSkip = [];` in the project
+    (or pass `ciSkip = [];` to `project.flake`) to build them all.
+
+## November 19, 2026
+
+  * New `projectPackages` and `localPackages` module options set package
+    options for all of the project's own packages (`package.isProject`) or
+    all local packages (`package.isLocal`, which also includes
+    `source-repository-package`s) without listing them, for instance
+    `modules = [{ projectPackages.ghcOptions = [ "-Werror" ]; }]` to use
+    `-Werror` only in Nix builds.  See the Modules section of
+    `docs/reference/library.md`.
+  * Each package now has an `sdist` attribute
+    (`project.hsPkgs.<pkg>.sdist`), the tarball `cabal sdist` makes for
+    it.  It needs no compiler and no dependencies, and fails if the
+    `.cabal` file lists a file that is not in the source.
+  * `project.flake` (and `haskellLib.mkFlake`) now adds `packages.default`
+    and `apps.default` when the project directory (the one holding
+    `cabal.project` or `stack.yaml`) is itself a package's directory, so
+    a bare `nix build` or `nix run` works, taking its target from the
+    same package a bare `cabal build` or `cabal run` would.
+    `packages.default` is that package's executable when it has exactly
+    one, and otherwise its library; `apps.default` is that executable.
+    Nothing is added when there is no such package or no single choice,
+    nor to cross or variant (prefixed) flakes.  A `default` passed in
+    `packages` or `apps` wins.  To turn it off set `flake.doDefaults =
+    false` (or pass `doDefaults = false`, `defaultPackage = null` or
+    `defaultApp = null` to `haskellLib.mkFlake`).  `ciJobs` and
+    `hydraJobs` do not get a second copy of the component.
+  * Local files a `cabal.project` (or `cabalProjectLocal`) pulls in with
+    `import:` are now kept in the source used to compute the plan, whatever
+    their names, and so are the files they import in turn.  Before only
+    `.cabal` and `package.yaml` files were kept, so cabal failed with
+    `withBinaryFile: does not exist` for the imported file.  Projects
+    without local imports get the same plan as before.  Imported files are
+    used as they are, so a `source-repository-package` or `repository`
+    stanza in one is reported as an error (move it to the project file or
+    `cabalProjectLocal`, where `sha256map`/`inputMap` apply).
+  * New component option `generateOptparseApplicativeCompletions` (and
+    `haskellLib.addOptparseApplicativeCompletions`) installs bash, zsh and
+    fish completion scripts for an exe built with optparse-applicative:
+
+        packages.my-pkg.components.exes.my-exe.generateOptparseApplicativeCompletions = true;
+
+    The scripts are made in a separate derivation that links to the exe,
+    so this does not rebuild it, and are installed with nixpkgs'
+    `installShellCompletion`.  When cross compiling the exe runs under
+    the component's `testWrapper` (emulator); without one the exe is left
+    without completions.  Set it per exe or per package, not project-wide
+    (that would include build tools such as `alex`).
+  * `shellFor` now includes the libraries of the project's `extra-packages`
+    in the shell's package db.  They are in the plan, but nothing depends
+    on them, so `cabal build` never builds them and an `exactDeps = true`
+    shell could not use them at all.  Set `includeExtraPackages = false`
+    to leave them out.  Under `builderVersion = 2` they are added to the
+    shell's composed cabal store.
+  * A `builderVersion = 2` shell with `exposePackagesVia = "ghc-pkg"` no
+    longer fails to build when every dependency is a boot package (the
+    composed store has no package db; an empty one is used).
+
 ## November 8, 2026
 
   * A v2 slice's pkg-config table now holds only the names declared by the

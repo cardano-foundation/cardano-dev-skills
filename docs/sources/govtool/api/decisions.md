@@ -5904,3 +5904,20 @@ active DRep stake in one epoch.
 - RENEWED and RETIRED read certificates and votes up to the tally's cutoff (`max_tx`), which for a
   live action is the chain as it stands.
 - No dedicated test: a retirement during the current epoch is rare and short-lived.
+
+## D176 — An over-long DRep givenName fails validation
+
+**Date:** 2026-11-03
+**Amends:** F43 (CIP-119 length limits are not enforced) and answers OPEN-69 for `givenName`.
+**Evidence:** issue #1984: a DRep registered outside GovTool with a name over 80 characters shows in
+the directory, though the registration form refuses one. On mainnet on 2026-11-03, Koios had a
+`givenName` for 449 of 1,049 registered DReps; none was over 80 UTF-16 units, the longest exactly
+80.
+
+- `POST /metadata/validate` reports a CIP-119 `givenName` longer than 80 characters (JavaScript
+  string length) as a `maxLength` error, so the document is `INCORRECT_FORMAT` and the DRep card
+  shows the data-format message instead of the name.
+- An error rather than a CIP-108-style warning: a warning changes nothing the directory shows, and
+  no existing mainnet document starts failing.
+- `objectives`, `motivations` and `qualifications` (1000 each) stay unenforced; OPEN-69 still
+  stands for them.

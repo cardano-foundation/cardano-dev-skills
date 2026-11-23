@@ -70,7 +70,9 @@ Search these directories locally for accurate, up-to-date information.
   service. Recorded exceptions use only normal host permissions and degrade
   safely: `give-feedback` files an approved GitHub issue (DESIGN Decision 14),
   while `assess-constitutionality` retrieves bounded public evidence and falls
-  back per unavailable item (Decision 15)
+  back per unavailable item (Decision 15), and `scaffold-project` orchestrates
+  an already installed Cardano Init release before falling back to manual setup
+  (Decision 16)
 - Claude domain controls and Codex network permissions are separate. Never
   change an allowlist automatically or claim that either host always has
   network access

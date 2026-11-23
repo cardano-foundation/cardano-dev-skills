@@ -114,10 +114,11 @@ CARDANO_INIT_NO_UPDATE_CHECK=1 cardano-init \
 cd PROJECT
 ```
 
-In the witnessed cell, the preview was nonwriting, initial generation
-succeeded, and both generated build recipes passed. The on-chain build and
-test are separate evidence: `just build-on-chain` compiled and published the
-blueprint, while the direct `aiken check` run executed the tests.
+In the witnessed cell, the preview created no output tree at the requested
+destination, initial generation succeeded, and both generated build recipes
+passed. The on-chain build and test are separate evidence: `just build-on-chain`
+compiled and published the blueprint, while the direct `aiken check` run
+executed the tests.
 
 ```sh
 just build-on-chain

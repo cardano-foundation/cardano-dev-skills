@@ -153,10 +153,13 @@ Never accept these checks from exit status alone:
   the witnessed version, produce no JSON report at all.
 - With `blueprint/plutus.json` absent, bundling emits a null placeholder and
   both local tests exit green as skipped.
-- Source inspection shows that a malformed blueprint fails bundling, while a
-  blueprint missing `gift_card.mint` or `redeem.spend`, or with incompatible
-  parameter application, fails the local unit test. Those negative cases were
-  not executed in the runtime witness.
+- In the bounded witness, deliberately malformed blueprint JSON made
+  `npm run --silent bundle-blueprint` exit 1; the captured stderr had SHA-256
+  `66d4ca5f23e12208e3bd8c4563cedc279f87ec6775c145a351157f980cbf3e3f`.
+- Source inspection shows that a blueprint missing `gift_card.mint` or
+  `redeem.spend`, or with incompatible parameter application, fails the local
+  unit test. Those missing-suffix and parameter negative cases were not
+  executed in the runtime witness.
 
 Acceptance therefore requires a present report, positive relevant test
 counts, no failures or skips, and the expected test file. Do not add
@@ -251,17 +254,25 @@ After it establishes a safe freshly generated baseline, invoke the canonical
   review updates because cardano-init has no standing context detector.
 
 In the witnessed update fixture, a dirty `remove --dry-run --json` succeeded
-without changing shared files, while the corresponding dirty apply was
-refused. After the custom marker was committed and the tree became clean, the
-remove succeeded, deleted the off-chain component directory, re-rendered
-shared files, and lost that marker from `AGENTS.md`. This is observed v0.4.1
-behavior, not a claim about the current upstream release, and it establishes no
-preservation guarantee for managed Cardano context. Source inspection explains
-the general boundary: shared files have `rerender = []` and are re-rendered,
-while kept component directories and generated `spec/` content are not
-re-rendered by role updates.
+without writing, while the corresponding dirty apply was refused. Both that
+preview and the later clean apply reported `data.changes.rerender = []`. This
+field summarizes `SlotOp::RerenderInfra` component-directory operations; it is
+not metadata on shared files and does not prove that shared files were
+untouched. After the custom marker was committed and the tree became clean,
+the remove succeeded, deleted the off-chain component directory, and lost that
+marker from `AGENTS.md`. This is observed v0.4.1 behavior, not a claim about
+the current upstream release, and it establishes no preservation guarantee
+for managed Cardano context.
+
+Source inspection independently explains the general mechanism:
+`UpdatePlan.shared_files` carries the freshly rendered shared top-level layer,
+and the writer content-diffs each shared file before deciding whether to write
+it. Kept component directories and generated `spec/` content are left
+untouched by role updates.
 [Update flow](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/src/cli/update.rs),
-[update plan](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/src/scaffold/update.rs)
+[JSON change summary](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/src/cli/output/update.rs),
+[update plan](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/src/scaffold/update.rs),
+[writer](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/src/scaffold/writer.rs)
 
 Command effects still require ordinary permission review. Aiken may retrieve
 its declared Git dependency and writes build output plus the shared blueprint.

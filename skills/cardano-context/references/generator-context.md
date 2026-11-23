@@ -25,23 +25,42 @@ upgrade, import, same-file, symlink, readback, or reporting rules.
    line endings, marked Cardano regions, bare imports, other owned regions,
    custom text, and newer, malformed, duplicated, or ambiguous content. A
    file's presence alone is not proof that a host loads it.
-4. Establish the generator's release and exact selection, the current commit
-   when one exists, the generator's predicted write set, and whether its dirty
-   tree prerequisite is satisfied. Preview where the supported interface has
-   a nonwriting preview, but do not treat preview output as a preservation
-   guarantee.
-5. Classify ownership before writing. Generator-owned facts require either a
-   known generated baseline for that exact release and selection or
-   trustworthy recorded provenance. Familiar headings, plausible prose, and
-   resemblance to another template are not provenance. Cardano context owns
-   only its marked regions; another adapter owns only its documented region;
-   developer text is custom only when its provenance or difference from the
-   established baseline proves that ownership.
+4. Establish separately the release and exact selection that produced the
+   existing instruction files and the installed or requested release and
+   selection that will produce the new files. Record the corresponding old
+   baseline and predicted new baseline, the current commit when one exists,
+   the predicted write set, and whether the dirty-tree prerequisite is
+   satisfied. Preview where the supported interface has a nonwriting preview,
+   but do not treat preview output as a preservation guarantee. If the origin
+   release or selection cannot be established from trustworthy provenance,
+   ownership is ambiguous: ask before the generator writes. Never compare an
+   old file only with today's template and call every difference custom.
+5. Classify ownership against the baseline that produced the existing file.
+   Generator-owned facts require that known origin baseline or trustworthy
+   recorded provenance. Familiar headings, plausible prose, and resemblance
+   to another template are not provenance. Cardano context owns only its
+   marked regions; another adapter owns only its documented region. A
+   developer change to a generated line or section is custom work when its
+   difference from the established origin baseline proves that ownership.
+
+Compare the old baseline, the current developer-edited file, and the predicted
+new baseline before writing. If the developer edited a generated line or
+section and the new generation changes that same region, it is a three-way
+conflict. Show the safe relevant old baseline, current edit, and new fact, then
+ask. Do not append the stale edited fact beside the new fact or silently drop
+the developer instruction. A requested stack switch is not approval to discard
+an existing pin or do-not-upgrade note. Where a supported nonwriting preview or
+other reliable prediction exposes the conflict, ask before the writer. If no
+reliable nonwriting comparison is available for an edited generated region,
+treat the merge as uncertain and ask before the writer. A clean appended team
+note that does not overlap a changed generated region and a routine replacement
+of a known unedited generator fact remain nonconflicting.
 
 If attribution is ambiguous, a marked region is edited, newer, malformed, or
-duplicated, an adapter conflicts with the canonical file, or a destructive
-writer step would discard material that cannot be safely preserved, show the
-relevant condition and proposed result and ask before the generator writes.
+duplicated, an adapter conflicts with the canonical file, a three-way merge is
+conflicting or uncertain, or a destructive writer step would discard material
+that cannot be safely preserved, show the relevant condition and proposed
+result and ask before the generator writes.
 Keep every existing ask from the canonical workflow. Do not use a force or
 dirty-bypass flag to avoid one. Routine replacement of generator-owned facts
 needs no extra question when their provenance is established and all proven
@@ -86,13 +105,17 @@ invent a pre-generation backup or copy the new repository wholesale.
    by this protocol.
 3. After success, inventory the actual write set and read every changed
    instruction and relevant adapter file in full. Fresh generator-owned facts
-   from the requested release and selection are the baseline. Preserve proven
-   custom text and owned regions by merging them into that fresh baseline;
-   never restore an old whole instruction file over newly generated facts.
+   from the requested release and selection are the new baseline. Preserve
+   proven custom text and owned regions by merging them into that fresh
+   baseline only where the three-way comparison is nonconflicting; never
+   restore an old whole instruction file over newly generated facts.
 4. Before each merge, compare the current file with the saved pre-write state
    or the just-generated expectation, whichever applies. If it changed
    concurrently, stop on that file and ask. Never silently overwrite the
-   third state.
+   third state. If an unforeseen same-region conflict becomes visible only
+   after generator output, stop before the conflicting merge, retain the safe
+   saved custom work and partial output, and ask. Report that the generator
+   already wrote; do not describe this post-write stop as zero writes.
 5. Keep ownership visible. Generator facts remain outside the Cardano marked
    region. The canonical Cardano directive remains in its one marked region.
    Preserve another adapter's proven owned region without claiming ownership
@@ -121,7 +144,17 @@ A dirty refusal leaves the target unchanged from this workflow's perspective;
 report the refusal, dirty prerequisite, and retained recovery location. A
 failed or interrupted write may leave partial output. Preserve bounded error
 evidence and the partial instruction state, then merge only material whose
-ownership is clear and whose repair is straightforward and in scope.
+ownership is clear and whose repair is straightforward and in scope. A failed
+generator remains failed even when a later context repair succeeds.
+
+When a partial `AGENTS.md` is clearly attributable generated guidance and an
+empty partial `CLAUDE.md` is a clearly attributable adapter in the requested
+write set, keep the generated guidance and run the canonical Steps 1 through 6
+once: append the v4 block to `AGENTS.md` and add the canonical import region to
+`CLAUDE.md`. Report both context statuses and the generator failure. If either
+file's ownership, intended adapter role, or safe result is uncertain, leave the
+partial files in place and ask without deleting or destructively repairing
+them.
 
 Stop and ask when recovery is ambiguous, would discard work, would overwrite a
 concurrent edit, or requires files outside the requested operation. Never

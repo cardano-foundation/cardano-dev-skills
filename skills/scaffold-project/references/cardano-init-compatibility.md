@@ -254,8 +254,9 @@ After it establishes a safe freshly generated baseline, invoke the canonical
   review updates because cardano-init has no standing context detector.
 
 In the witnessed update fixture, a dirty `remove --dry-run --json` succeeded
-without writing, while the corresponding dirty apply was refused. Both that
-preview and the later clean apply reported `data.changes.rerender = []`. This
+without changing the top-level shared files the fixture compared, while the
+corresponding dirty apply was refused. Both that preview and the later clean
+apply reported `data.changes.rerender = []`. This
 field summarizes `SlotOp::RerenderInfra` component-directory operations; it is
 not metadata on shared files and does not prove that shared files were
 untouched. After the custom marker was committed and the tree became clean,

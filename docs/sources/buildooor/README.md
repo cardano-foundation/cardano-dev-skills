@@ -23,3 +23,24 @@
 ```bash
 npm install @harmoniclabs/buildooor
 ```
+## Source maps: where a script failed
+
+Give the `TxBuilder` the source maps of your scripts (a Pebble project writes one next to the
+script, `out/out.flat.map`), and a failing script says where it failed:
+
+```ts
+const txBuilder = new TxBuilder( protocolParameters, genesisInfos, {
+    sourceMaps: [ readFileSync( "out/out.flat.map", "utf8" ) ]
+});
+```
+
+```text
+script '0d5b...' consumed with Spend redeemer and index '0'
+failed at src/index.pebble:42:9
+    at refund (src/index.pebble:42:9)
+```
+
+Add `saveFailedEvaluations: "./failed"` and each failing script is also saved, for
+`pebble debug --eval <file>` to step through it with the variables' values.
+
+See [docs/SOURCE_MAPS.md](./docs/SOURCE_MAPS.md).

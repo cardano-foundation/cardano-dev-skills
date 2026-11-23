@@ -2,7 +2,7 @@
 
 The Governance Actions Outcomes section is now part of Core GovTool as governance action history:
 
-* The **history UI** is part of the GovTool frontend source and is always enabled, at `/governance_actions/history`.
+* The **history UI** is part of the GovTool frontend source and is always enabled, at `/actions/history`.
 * The **governance action records** are served by the GovTool backend under `/governance-actions`, on the same `VITE_BASE_URL` as the rest of the frontend. No separate URL or flag is needed.
 
 The separate [Outcomes Pillar](https://github.com/IntersectMBO/govtool-outcomes-pillar) backend is no longer deployed, and you do not need to run it. Follow [Core GovTool](./core-govtool.md) to set up the frontend and backend.

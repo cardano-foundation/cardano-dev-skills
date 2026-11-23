@@ -67,7 +67,7 @@ They both are used in the [CreateGovernanceActionForm](https://github.com/Inters
 
 After defining a new governance action type and field, it is important to test the new governance action type and field in the [CreateGovernanceActionForm](https://github.com/IntersectMBO/govtool/blob/develop/govtool/frontend/src/components/organisms/CreateGovernanceActionSteps/CreateGovernanceActionForm.tsx) component.
 
-On the application it is approachable under `/create_governance_action` route.
+On the application it is approachable under the `/actions/new` route.
 
 ## Beyond the create form
 

@@ -73,6 +73,25 @@ components = {
 }
 ```
 
+A package also has an `sdist` attribute: the source distribution
+tarball `cabal sdist` makes for it, built with no compiler and no
+dependencies.  `sdist.tarball` is the path of the `.tar.gz` file, and
+Hydra lists it as a build product.  It fails to build if the `.cabal`
+file names a file (for example in `extra-source-files`) that is not in
+the package source, so checking it in CI catches that before an upload
+to Hackage.
+
+```nix
+project.hsPkgs.my-package.sdist          # directory holding my-package-1.0.tar.gz
+project.hsPkgs.my-package.sdist.tarball  # the .tar.gz itself
+```
+
+It uses the `.cabal` file that `components` are built from (a Hackage
+revision, or the file hpack generates from `package.yaml`) but not the
+`patches` or hooks set for the package.  Symlinks in the package
+directory that point outside it (such as `LICENSE -> ../LICENSE`) are
+packed as the files they point to.
+
 ## Component
 
 In [Haskell.nix][], a _component_ is a derivation corresponding to a
@@ -108,6 +127,44 @@ will be passed to it:
 | `buildModules` | | |
 | `config` | | |
 | `options` | | |
+
+### Options for all local or project packages
+
+Options for a single package go under `packages.<name>`.  To set options
+for every package of the project without naming them, use
+`projectPackages` (packages with `package.isProject` set: the packages
+listed in the project itself) or `localPackages` (packages with
+`package.isLocal` set: those plus the ones from `source-repository-package`
+stanzas, or local and git `extra-deps` for stack).  Packages from Hackage
+are never affected.
+
+For example, to turn warnings into errors when the project is built by
+Nix, but not when `cabal` is used in a development shell:
+
+```nix
+project = pkgs.haskell-nix.cabalProject' {
+  # ...
+  modules = [{
+    projectPackages = { ghcOptions = [ "-Werror" ]; };
+    # Skip building the documentation of the project's own packages
+    # and of the `source-repository-package`s.
+    localPackages = { doHaddock = false; };
+  }];
+};
+```
+
+Each takes the same options as `packages.<name>` (including `components`),
+or a function of the package's module arguments returning them.  Several
+definitions (from different modules, or as a list) are merged as if each
+was given for every one of those packages.  The function must not decide
+*which* options to set from the package's own `config` (that leads to
+infinite recursion), but it may set options that merge with the package's
+other definitions, such as appending to `postUnpack`.
+
+With `builderVersion = 2` these behave exactly like the same options set
+under `packages.<name>`, so the limits described in
+[migrating to v2](../dev/migrating-to-v2.md) apply (for instance
+`ghcOptions` is per package, not per component).
 
 
 # Top-level attributes
@@ -400,7 +457,8 @@ to `tests.mypackage.unit-tests`.
 
 These are just like `collectComponents` and `collectComponents'`, except that they collect
 the `checks` attributes of packages (which aren't components, and so can't be collected
-by the other functions.
+by the other functions). Only tests with `doCheck` enabled have a check; see
+[Running tests](../tutorials/testing.md).
 
 #### check
 
@@ -411,7 +469,8 @@ This function turns a derivation that builds a test into one to run it.
 | `drv`           | Derivation | One of `$pkg.components.tests.$test`. |
 
 For convenience `$pkg.components.tests` are mapped with this function
-to `$pkg.checks`.
+to `$pkg.checks` (only the tests with `doCheck` enabled; see
+[Running tests](../tutorials/testing.md)).
 
 This function is intended for use with `tests` but it should also work
 for `exes` and `benchmarks` if you just want to run them to make sure
@@ -450,10 +509,11 @@ shellFor =
 | `packages`     | Function | Package selection function. It takes a list of [Haskell packages](#haskell-package) and returns a subset of these packages. |
 | `components`   | Function | Similar to `packages`, by default all the components of the selected packages are selected. |
 | `additional`   | Function | Similar to `packages`, but the selected packages are built and included in `ghc-pkg list` (not just their dependencies). |
+| `includeExtraPackages` | Boolean | Also build and include the libraries of the project's `extra-packages` (as if they were in `additional`). `cabal build` never builds them, as nothing in the project depends on them. Defaults to `true`. |
 | `withHoogle`   | Boolean  | Whether to build a Hoogle documentation index and provide the `hoogle` command. |
 | `exactDeps`    | Boolean  | Prevents the Cabal solver from choosing any package dependency other than what are in the package set. |
 | `allToolDeps`  | Boolean  | Indicates if the shell should include all the tool dependencies of the haskell packages in the project. |
-| `tools`        | Function | AttrSet of tools to make available e.g. `{ cabal = "3.2.0.0"; }` or `{ cabal = { version = "3.2.0.0"; }; }`. If an AttrSet is provided for a tool, the additional arguments will be passed to the function creating the derivation for that tool. So you can provide an `index-state` or a `materialized` argument like that `{ cabal = { version = "3.2.0.0"; index-state = "2020-10-30T00:00:00Z"; materialized = ./cabal.materialized; }; }` for example. You can specify and materialize the version of hoogle used to construct the hoogle index by including something like `{ hoogle = { version = "5.0.17.15"; index-state = "2020-05-31T00:00:00Z"; materialized = ./hoogle.materialized; }`. Uses a default version of hoogle if omitted. |
+| `tools`        | Function | AttrSet of tools to make available e.g. `{ cabal = "3.2.0.0"; }` or `{ cabal = { version = "3.2.0.0"; }; }`. If an AttrSet is provided for a tool, the additional arguments will be passed to the function creating the derivation for that tool. So you can provide an `index-state` or a `materialized` argument like that `{ cabal = { version = "3.2.0.0"; index-state = "2020-10-30T00:00:00Z"; materialized = ./cabal.materialized; }; }` for example. You can specify and materialize the version of hoogle used to construct the hoogle index by including something like `{ hoogle = { version = "5.0.17.15"; index-state = "2020-05-31T00:00:00Z"; materialized = ./hoogle.materialized; }`. Uses a default version of hoogle if omitted. See [Tools](tools.md) for the details. |
 | `packageSetupDeps` | Boolean | Set this to `false` to exclude custom-setup dependencies.
 | `enableDWARF`  | Boolean  | Include debug info |
 | `crossPlatforms` | Function | Platform selection function for cross compilation targets to support eg. `ps: with ps; [ghcjs mingwW64]` (see nixpkgs lib.systems.examples for list of platform names). |

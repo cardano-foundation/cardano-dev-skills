@@ -37,7 +37,8 @@ Help the developer choose the right tools, SDKs, and libraries for their Cardano
 ## When NOT to use
 
 - Building a transaction once the stack is chosen (use `build-transaction`)
-- Setting up a new project once the stack is chosen (use `scaffold-project`)
+- Setting up a new project once the stack is chosen (use `scaffold-project`,
+  which discovers an installed Cardano Init or uses a manual fallback)
 - Setting up a devnet (use `setup-devnet` skill)
 - Querying chain data with a specific provider (use `query-chain` skill)
 - Detailed wallet integration steps (use `connect-wallet` skill)
@@ -49,6 +50,9 @@ Help the developer choose the right tools, SDKs, and libraries for their Cardano
 3. **Recommend production-ready tools first.** Flag experimental tools clearly.
 4. **Fewer tools is better.** Do not recommend 10 options when 2 will do.
 5. **Consider the full stack.** Smart contracts, off-chain code, infrastructure, testing, and deployment are all part of the picture.
+6. **Stay advisory.** Recommend and explain the stack from local evidence. Do
+   not require a shell, inspect an installed generator, or start project setup
+   here; route an accepted recommendation to `scaffold-project`.
 
 ## Workflow
 
@@ -258,6 +262,13 @@ For each recommendation, briefly note:
 - **Documentation**: Quality and completeness
 - **Maintenance**: Is it actively maintained? Who maintains it?
 - **Lock-in**: How easy is it to switch later?
+
+When the developer accepts a stack and wants a project created, hand off to
+`scaffold-project`. That workflow checks the actually installed Cardano Init
+release and catalog, previews supported generation, preserves generated
+constraints, adapts the requested application, and verifies builds plus
+meaningful non-E2E tests. A recommendation here is not proof that a generator
+release supports or has runtime-verified that selection.
 
 ## References
 

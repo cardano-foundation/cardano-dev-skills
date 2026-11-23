@@ -30,7 +30,7 @@ End result: the agent answers from current, project-authoritative sources instea
 |---|---|
 | `cardano-context` | Install one Cardano directive into `AGENTS.md`, imported from `CLAUDE.md` when the project has one, so Claude and Codex consult bundled skills and docs |
 | `give-feedback` | Draft and file a GitHub issue about a skill or doc that was wrong, stale, or notably helpful, with one approval |
-| `scaffold-project` | Bootstrap a new Cardano project across Aiken + 4 off-chain stacks |
+| `scaffold-project` | Discover an installed Cardano Init, preview/generate a supported stack, adapt the requested application, and verify builds plus non-E2E tests; manual fallback included |
 | `write-validator` | Guide writing a validator from spec (default Aiken) |
 | `review-contract` | Security review of a validator |
 | `optimize-validator` | Lower CPU / memory / script-size costs |
@@ -196,8 +196,8 @@ What it does:
 - An explicitly requested scaffold or generator operation can call the same
   context protocol without a second setup question. It preserves proven
   custom instructions around fresh generated facts and then uses the canonical
-  setup flow. The protocol is available to callers; `scaffold-project` does
-  not yet claim this integration.
+  setup flow. `scaffold-project` uses this entrypoint for initial generation
+  and later requested Cardano Init operations.
 
 A project-local Claude skill may also appear as `/cardano-context`; the
 plugin-qualified form above avoids collisions with skills from other plugins.
@@ -216,6 +216,21 @@ Vague prompts like *"help me build a Cardano dApp"* may not match any specific s
 
 The durable `cardano-context` directive is the fallback for prompts that do not
 match a skill description reliably.
+
+## Project scaffolding
+
+`scaffold-project` prefers an already installed Cardano Init when the release's
+actual help and catalog support the requested stack. It shows a nonwriting
+preview, asks before experimental or runtime-unverified selections, generates
+once, installs canonical Cardano context, and replaces stock example logic with
+the requested application before building and running meaningful non-E2E tests.
+
+The workflow never downloads or upgrades Cardano Init, uses a force/dirty
+bypass, silently switches stacks or versions, or treats zero/skipped/stock-only
+tests as proof. If the CLI is missing, denied, incompatible, or lacks the
+requested stack, it offers user-run setup or a best-effort manual path. Normal
+project dependency setup runs only through the host's existing permissions;
+devnet launch, deployment, and live-chain E2E remain follow-on work.
 
 ## Bundled documentation
 

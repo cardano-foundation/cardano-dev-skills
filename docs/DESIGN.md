@@ -300,3 +300,51 @@ choose providers and participate in governance; their job is not to adjudicate a
 public evidence. Converting every advisory skill into an executor would widen egress without the
 evidence need, endpoint allowlist, provenance schema, or three-state fallback that justify this
 exception.
+
+## Decision 16: Cardano Init is orchestrated inside `scaffold-project`
+
+**Decision:** Project setup remains one developer workflow. `scaffold-project`
+discovers an already installed Cardano Init release, reads that release's help
+and catalog, previews a supported selection, generates once, adapts the result
+to the requested application, invokes the canonical `cardano-context`
+generator entrypoint, and requires actual builds plus meaningful non-E2E tests.
+There is no separate Cardano Init skill.
+
+**Installed interface, not assumed interface:** Catalog membership establishes
+what the local release offers, not that every combination is runtime-proven.
+Experimental and runtime-unverified selections require a warning and explicit
+confirmation; placeholders and actual incompatibilities stop. The workflow
+does not download or update the CLI, use an implicit package bootstrap, widen
+host permissions, force a nonempty/dirty target, or silently switch stacks.
+When generation is unavailable or unsuitable, it offers user-run setup or a
+best-effort manual path that preserves the requested stack unless the developer
+chooses an alternative.
+
+**Generated output is a constrained starting point:** Generator versions,
+dependency constraints, lockfiles, layout, environment/ignore conventions, and
+normal initial Git behavior remain authoritative boundaries. The stock
+gift-card example does not override the requested application. Adaptation may
+replace validator, transaction, ABI-loader, test, and documentation logic, but
+does not silently refresh versions or paste the old manual layout over the
+generated one. A genuine requirement/version conflict returns to the developer.
+
+**Completion boundary:** One planned generation/review/adaptation/build-and-test
+pass replaces a disposable stock pre-build. Completion requires all applicable
+builds and positive, relevant, non-skipped non-E2E tests for the adapted result.
+Aggregate targets are inspected before use because they may start services or
+hide zero/skipped tests. Devnet launch, deployment, live-chain E2E, application
+launch, and runtime debugging remain follow-on work.
+
+**Context and host boundary:** Requested initial and later agent-driven Init
+operations enter the existing generator-safe context protocol before writes and
+the canonical setup/update algorithm after a safe generated baseline. That
+protocol, rather than a second copy here, owns recovery material, provenance,
+three-way instruction merges, ambiguity asks, symlinks, and partial failures.
+File/import shape is conformance evidence only: Claude Code and Codex still need
+native loading evidence, Cursor and Antigravity remain documented
+standards/adapter conformance, and Copilot is best effort.
+
+**Alternative considered:** Keep `scaffold-project` print-only and add a
+brand-specific generator skill. Rejected because it splits one user goal across
+contradictory workflows, encourages manual layouts to overwrite generated
+constraints, and makes context preservation and verification easier to skip.

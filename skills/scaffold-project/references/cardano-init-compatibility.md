@@ -43,7 +43,8 @@ Inspect the installed CLI before proposing a scaffold:
 | v0.4.1 | `cardano-init list --json` / `cardano-init table` |
 | v0.2.1 | `cardano-init list --format json` / `cardano-init list --table` |
 
-On the witnessed v0.4.1 binary, `cardano-init list --json` returned a successful
+On the observed v0.4.1 binary (not a claim about the current upstream release),
+`cardano-init list --json` returned a successful
 schema-version-1 envelope with the following inventory:
 
 | Role | Catalog entries | Experimental entries |
@@ -93,6 +94,12 @@ layout. The old documentation was flat under `docs/`; the newer source uses
 [v0.2.1 presenter](https://github.com/input-output-hk/cardano-init/tree/731d8fb12955724467eea5a3d1f91d8c93857802/src/cli/output.rs),
 [v0.4.1 arguments](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/src/cli/args.rs)
 
+Source inspection also establishes the unknown-component boundary for later
+updates: JSON mode stops, while human mode identifies the unknown component and
+asks whether to ignore it with a default of **No**. Declining leaves it in the
+stop path. This behavior was not exercised by the runtime witness.
+[Update flow](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/src/cli/update.rs)
+
 ## Reproducing the witnessed Aiken + Evolution cell
 
 Use a new empty directory and keep the update check disabled for unattended
@@ -108,7 +115,9 @@ cd PROJECT
 ```
 
 In the witnessed cell, the preview was nonwriting, initial generation
-succeeded, and both generated build recipes passed:
+succeeded, and both generated build recipes passed. The on-chain build and
+test are separate evidence: `just build-on-chain` compiled and published the
+blueprint, while the direct `aiken check` run executed the tests.
 
 ```sh
 just build-on-chain
@@ -144,16 +153,18 @@ Never accept these checks from exit status alone:
   the witnessed version, produce no JSON report at all.
 - With `blueprint/plutus.json` absent, bundling emits a null placeholder and
   both local tests exit green as skipped.
-- A malformed blueprint fails bundling. A blueprint missing
-  `gift_card.mint` or `redeem.spend`, or with incompatible parameter
-  application, fails the local unit test.
+- Source inspection shows that a malformed blueprint fails bundling, while a
+  blueprint missing `gift_card.mint` or `redeem.spend`, or with incompatible
+  parameter application, fails the local unit test. Those negative cases were
+  not executed in the runtime witness.
 
 Acceptance therefore requires a present report, positive relevant test
 counts, no failures or skips, and the expected test file. Do not add
-`--passWithNoTests` to the recommendation. The required stock ABI is a Plutus
-V3 CIP-57 blueprint containing those validator-purpose suffixes; the minting
-policy parameters are token-name bytes plus an output reference, and the
-spending validator parameters are token-name bytes plus policy-id bytes.
+`--passWithNoTests` to the recommendation. Source inspection defines the stock
+ABI as a Plutus V3 CIP-57 blueprint containing those validator-purpose
+suffixes; the minting policy parameters are token-name bytes plus an output
+reference, and the spending validator parameters are token-name bytes plus
+policy-id bytes. Those negative ABI/parameter cases were not run.
 [Aiken recipe](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/templates/aiken/on-chain/Justfile.jinja),
 [Evolution recipe](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/templates/evolution/off-chain/Justfile.jinja),
 [bundle script](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/templates/evolution/off-chain/scripts/bundle-blueprint.mjs),
@@ -170,9 +181,13 @@ It can also exit green with skipped or absent tests.
 `just test` is likewise not a non-E2E witness. It includes the unsafe
 off-chain recipe and can include infrastructure's intentional no-op test,
 Yaci's process-spawning integration workflow, and formal-method verification.
+Source inspection shows that the Yaci workflow may skip gracefully when its
+runtime is unavailable, so a green aggregate result does not prove Yaci ran.
 `just dev` recipes can start persistent processes, containers, and background
 services. Do not execute integration negatives or prescribe a devnet gate for
 this compatibility check. No live-chain E2E is required here.
+[Top-level orchestration](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/templates/_base/Justfile.jinja),
+[Yaci recipe](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/templates/yaci/devnet/Justfile.jinja)
 
 ## Observed CLI and write behavior
 
@@ -191,6 +206,12 @@ observed boundaries:
 The injected `scaffold_error` left a partial output tree. It demonstrates that
 writes are not transactional, but it is not evidence of an ordinary generator
 failure.
+
+Source inspection shows that `add` and `remove` can accept `--force` to bypass
+the dirty-worktree refusal. That option can overwrite or delete uncommitted
+work and is not part of this workflow: preview first, require the ordinary clean
+tree, and never use the bypass to make an update proceed.
+[Update flow](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/src/cli/update.rs)
 
 Initial planning emits `Justfile`, `README.md`, `AGENTS.md`, `CLAUDE.md`,
 `.gitignore`, and `.env`, followed by component files and optional layers. The
@@ -212,16 +233,20 @@ agent must not stage later environment changes without the user's request.
 
 ## Updates, ownership, and project context
 
-Keep ownership explicit:
+Before any requested generator write, use the canonical preflight, recovery,
+and three-way merge protocol in
+[`../../cardano-context/references/generator-context.md`](../../cardano-context/references/generator-context.md).
+After it establishes a safe freshly generated baseline, invoke the canonical
+`cardano-context` setup/update algorithm once. Keep ownership explicit:
 
-- cardano-init owns generated stack facts and undelimited prose in its base
-  `AGENTS.md`, plus the initial `CLAUDE.md` import.
+- cardano-init owns the facts and prose present in the established emitted
+  baseline for its base `AGENTS.md`, plus the initial `CLAUDE.md` import. Text
+  merely lacking delimiters is not automatically generator-owned; provenance
+  and comparison with the producing baseline establish ownership.
 - The Cardano context setup owns only its marked directive block in
-  `AGENTS.md` and marked import region in `CLAUDE.md`. For agent-driven
-  operations, run that canonical setup automatically after requested initial
-  scaffolding or an Init update: reuse/update existing canonical context and
-  never add a duplicate block or import. Edited, malformed, ambiguous, or
-  newer managed content still requires a user decision.
+  `AGENTS.md` and marked import region in `CLAUDE.md`. Reuse/update canonical
+  context and never add a duplicate block or import. Edited, malformed,
+  ambiguous, or newer managed content still requires a user decision.
 - Developer additions outside marked regions are developer-owned. Preview and
   review updates because cardano-init has no standing context detector.
 
@@ -229,10 +254,12 @@ In the witnessed update fixture, a dirty `remove --dry-run --json` succeeded
 without changing shared files, while the corresponding dirty apply was
 refused. After the custom marker was committed and the tree became clean, the
 remove succeeded, deleted the off-chain component directory, re-rendered
-shared files, and lost that marker from `AGENTS.md`. This is the current
-upstream behavior; it does not establish a preservation guarantee for managed
-Cardano context. Kept component directories and generated `spec/`
-content are not re-rendered by role updates according to source inspection.
+shared files, and lost that marker from `AGENTS.md`. This is observed v0.4.1
+behavior, not a claim about the current upstream release, and it establishes no
+preservation guarantee for managed Cardano context. Source inspection explains
+the general boundary: shared files have `rerender = []` and are re-rendered,
+while kept component directories and generated `spec/` content are not
+re-rendered by role updates.
 [Update flow](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/src/cli/update.rs),
 [update plan](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/src/scaffold/update.rs)
 
@@ -247,9 +274,11 @@ endpoints. CLI or tool acquisition remains user-run.
 
 Source inspection also shows that an attended, non-JSON invocation can check
 GitHub releases. JSON and unattended runs skip it, as do runs with
-`CARDANO_INIT_NO_UPDATE_CHECK` or `CI` set. The lookup has a one-second overall
-deadline, failures are silent, and a notice never authorizes an update. This
-attended notice was not exercised in the runtime witness.
+`CARDANO_INIT_NO_UPDATE_CHECK` or `CI` set. A fresh successful-result cache also
+avoids the request; a stale, missing, or invalid cache can trigger it. The
+lookup has a one-second overall deadline, failures are silent, and a notice
+never authorizes an update. This attended notice and its cache branches were
+not exercised in the runtime witness.
 [Version check](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/src/cli/version_check/mod.rs),
 [cache](https://github.com/input-output-hk/cardano-init/tree/d5950bbffa3ae3b3751754a4d0de477fdbc6307c/src/cli/version_check/cache.rs)
 
@@ -261,7 +290,7 @@ attended notice was not exercised in the runtime witness.
 | Generated imports/files, tracked environment, dirty preview/apply, clean remove, injected partial write | observed for Aiken + Evolution | unobserved | unobserved | native loading and permission denial unobserved |
 | Aiken + Evolution build and filtered stock non-E2E tests | 5 Aiken and 2 Evolution tests passed | unobserved | unobserved | n/a |
 | Other catalog stacks and versions | unobserved | unobserved | unobserved | n/a |
-| Canonical context setup and loading | file/import shape only | n/a | n/a | Claude and Codex native gates remain unobserved; other hosts are not certified |
+| Canonical context setup and loading | file/import shape only | n/a | n/a | Claude Code and Codex native gates remain unobserved; Cursor and Antigravity have documented standards/adapter conformance only; Copilot is best effort |
 | Attended update notification | unobserved | unobserved | unobserved | n/a |
 
 The Linux result is bounded to the exact tool identities and stock template

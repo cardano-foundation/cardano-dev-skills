@@ -29,10 +29,12 @@ the scope of each variable it references, their structural common ancestor is in
 too. This achieves the innermost placement of Plutus's `placeCseBinding`, including descent into
 immediately applied lambda bodies.
 
-Paths contain child positions. Each round collects from the current term and applies exactly one
-extraction, using those paths in a single substitution-and-insertion walk. Later rounds collect
-again. No traversal counter has to be synchronized after an edit. Candidates are ranked by their
-estimated lovelace saving; ties use deterministic traversal order, not names or hash-map iteration order.
+Nodes are numbered in preorder, so a subtree is a range of numbers and the ancestor test is two
+comparisons. Candidate keys are alpha-equivalence class numbers, built bottom-up by `AlphaIds`, so
+comparing two keys compares two ints. Candidates are ranked by their estimated lovelace saving;
+ties use deterministic traversal order, not names or hash-map iteration order. Each round collects
+from the current term and extracts a batch of candidates in a single substitution-and-insertion
+walk, which numbers the nodes as the collection did. Later rounds collect again.
 
 ## Candidate selection
 
@@ -60,8 +62,11 @@ computation once, rather than treating its small encoded size as evidence that i
 `Apply(LamAbs(...), arg)` expressions retain the fee gate too. No name or builtin-prefix rule
 establishes safety.
 
-Each round chooses the greatest eligible estimate and recollects after applying it. Termination
-uses the lexicographic pair (non-let structural nodes, estimated bits). The first component counts
+Each round extracts the greatest eligible estimate and, with it, every candidate whose occurrences
+neither contain nor lie inside an occurrence of a better-ranked candidate; then it recollects.
+Extraction changes only the candidates that nest with it, so no batched candidate is extracted
+with a stale count or estimate. A batch of 70 candidates replaces 70 collections of the whole term.
+Termination uses the lexicographic pair (non-let structural nodes, estimated bits). The first component counts
 nodes other than leaves and administrative Apply/LamAbs pairs. Runtime sharing removes at least
 one counted node; its new binding contributes none. Fee-only leaf sharing decreases bits instead.
 Collection skips the lambda in an immediate application, so lambda extraction cannot turn an
@@ -69,6 +74,15 @@ ignored let into a counted call. Alpha-equivalent copies have identical node str
 The bit estimate assumes minimum-width variable indices and worst-case byte-array padding.
 Marginal extractions can therefore increase actual serialized size. This affects profitability,
 not semantic safety. A regression test covers this at an index-width boundary.
+
+Batching does not reproduce the one-candidate-per-round loop of Scalus 1.5.0, which ranked again
+after each extraction. An extraction moves a right-hand side behind its let body, which changes the
+traversal order that breaks ties. So two lets can nest in the other order, or a tie can keep a
+different set of bindings. A held-back candidate can also bind inside the let of a candidate taken
+before it, where that loop extracted it first. Matching that loop exactly would give up most of
+the batching. Of the 89 Plutus use-case scripts, 57 get new bytes, with the same size, budget and
+bindings as in 1.5.0. `CseOutputHashTest` pins the output of all 89, and three small terms where
+the result differs from 1.5.0.
 
 The inliner shares the same cost calculation. It keeps exact occurrence counts, including guarded
 uses and excluding shadowed uses. For multiple uses, only variables, constants and builtins are
@@ -111,8 +125,9 @@ oracle tests reject speculation and capture. Seeded coverage checks require actu
 successful evaluations and failures. Budget exhaustion is detected separately; it is not accepted
 as evidence that two terms are equivalent.
 
-The existing cross-JVM tests check deterministic output. `scripts/cse-corpus.py` snapshots and
-compares all generated blueprint hashes and compiled sizes after `scalusExamplesJVM/blueprint`.
+The existing cross-JVM tests check deterministic output. `ExampleScriptHashTest` pins the script
+hash and size of every example contract, so a change in any optimizer pass that alters a script
+fails it and names the contract.
 
 CCE has its own bit-based profitability model. For `n` occurrences it credits the duplicated
 skeleton, subtracts the application/variable framing, and charges `3n + 3` additional CEK steps

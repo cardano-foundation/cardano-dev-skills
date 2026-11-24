@@ -1,15 +1,13 @@
 ---
 name: scaffold-project
 description: >-
-  Scaffold a new Cardano project with on-chain + off-chain toolchain wired up.
-  Helps pick a use case from the Cardano Foundation templates (or a custom
-  one), a stack (Aiken on-chain; Evolution SDK, Mesh SDK, PyCardano, or
-  cardano-client-lib off-chain), a network (Yaci DevKit, preview, preprod), and
-  optionally a Next.js frontend. Produces a canonical directory layout, config
-  files, devnet wiring, and starter validator + transaction skeletons.
-  Triggers: "scaffold project", "new Cardano project", "project structure",
-  "init Cardano", "starter template", "project layout", "bootstrap dApp",
-  "set up Cardano monorepo", "Cardano project skeleton", "scaffold dApp".
+  Scaffold and adapt a new Cardano project with Cardano Init when an installed
+  release supports the requested stack, or use a best-effort manual path.
+  Covers safe preview and generation, canonical project context, requested
+  validator and transaction logic, and real build plus non-E2E verification.
+  Triggers: "scaffold project", "new Cardano project", "init Cardano", "starter
+  template", "project layout", "bootstrap dApp", "set up Cardano monorepo",
+  "Cardano project skeleton", "scaffold dApp".
 allowed-tools: Read Grep Glob
 disallowed-tools: WebFetch WebSearch
 ---
@@ -28,246 +26,235 @@ Longer guidance: [SOURCE_GROUNDING](../../docs/SOURCE_GROUNDING.md).
 
 # Scaffold a Cardano Project
 
-Take a developer from "I want to build a Cardano dApp" to a working project skeleton: a chosen use case, directory layout, config files, devnet wiring, a starter validator, and the first off-chain transaction. The skill is read-only — it prints the canonical structure and file contents as guidance for the developer (or the agent) to write into their own working directory.
+Take an explicitly requested project from requirements to an adapted, buildable
+scaffold. Prefer an already installed Cardano Init when its actual catalog
+supports the selection. Its generated gift-card application is a starting
+example, not the requested business logic and not a completion result.
 
 ## When to use
 
-- Developer is starting a brand-new Cardano project from scratch
-- Developer asks "how do I structure a Cardano monorepo?"
-- Developer wants a starter template with on-chain + off-chain wired together
-- Developer wants to learn by building one of the canonical use cases (vesting, escrow, HTLC, etc.)
-- Developer needs an opinionated default layout for an Aiken + SDK stack
-- Developer wants the on-chain/off-chain bridge (CIP-57 `plutus.json`) wired up correctly
+- Starting a new Cardano project or dApp from scratch
+- Choosing and wiring on-chain, off-chain, network, infrastructure, and UI roles
+- Generating a supported project and adapting it to a custom use case
+- Using a best-effort manual path when Cardano Init is unavailable or unsuitable
+- Running a later Cardano Init operation that the user explicitly requested
 
 ## When NOT to use
 
-- Modifying an existing project's structure — this skill assumes a clean slate
-- Adding a single new package to an existing repo — use the language's own tooling
-- Frontend-only work (wallet connect UI, dApp pages) — hand off to `connect-wallet`
-- Picking between many SDKs in depth — hand off to `suggest-tooling`
-- Setting up Yaci DevKit details — hand off to `setup-devnet`
-- Writing validator business logic — hand off to `write-validator`
-- Writing transaction-building business logic — hand off to `build-transaction`
+- Choosing tools without setting up a project — use `suggest-tooling`
+- Adding one package to an established project — use its package tooling
+- Changing an existing project without an explicitly requested generator operation
+- Launching or debugging a devnet — use `setup-devnet`
+- Runtime or E2E debugging after scaffold acceptance
 
 ## Key principles
 
-1. **Read-only scaffolding.** Print the tree and file contents as guidance. Do not write files into the developer's working directory from inside the skill. The developer reviews each file before it lands on disk.
-2. **Use case first, stack second.** Pick what the contract does before picking what language writes it. The use case sets the datum / redeemer / validator shape; the stack is only a language choice.
-3. **One on-chain language for v1: Aiken.** Aiken has the strongest tooling, fastest compilation, and a native CIP-57 `plutus.json` blueprint emitter. Other on-chain languages exist; see `references/stack-decision.md` for why they are deferred.
-4. **Four off-chain stacks for v1.** Evolution SDK, Mesh SDK, PyCardano, cardano-client-lib. Match the off-chain choice to the team's primary language. Do not mix multiple off-chain SDKs in one project.
-5. **CIP-57 `plutus.json` is the contract between on-chain and off-chain.** Aiken emits this natively at build time. The off-chain code loads it and never re-derives script hashes manually.
-6. **Default to a testnet, always.** Devnet (Yaci DevKit) or a public testnet (preview, preprod) is the right starting point for every new project. Scaffolded code is for learning and testing. Never deploy "hello world" validators to mainnet — bugs in untested validators can lock user funds permanently. Switch to mainnet only after thorough testing and, for anything non-trivial, an audit.
-7. **Devnet from day one.** Wire Yaci DevKit into the scaffold from the start. Local feedback loops shorten iteration time and catch integration mistakes early.
-8. **Pin what breaks; never commit secrets.** Every manifest follows the pin rule below. Every project has `.env.example` (committed) and `.env` (ignored). Provider API keys live in env vars.
-9. **Reproducible builds.** Pin exactly the packages whose updates break builds: Cardano SDKs (Mesh, Evolution, PyCardano, cardano-client-lib), anything pre-1.0, and build-critical frameworks such as Next.js. Other dependencies take a `^` range on the current version. The project commits its lockfile, so a fresh clone installs the same tree. Never `latest`, never a placeholder.
-10. **Two-tier pinning policy.** *Aiken-side deps* (compiler, stdlib, vodka, design-patterns) are slow-moving and safe to pin in this skill's templates — the layout files list current pinned values. *Off-chain deps* (Evolution/Mesh/PyCardano/cclib SDKs, Next.js, tooling) move fast and ship frequent fixes — for each, run `npm view <pkg> version` (or `pip index versions <pkg>` / equivalent) at scaffold time, and write the returned value exactly or behind a `^` as principle 9 decides. The skill's layout files show current-at-time-of-writing values as defaults, but the agent must re-check.
-11. **Default to monorepo for full-stack; single-repo for solo or library work.** The monorepo splits `onchain/` and `offchain/` (and optionally `frontend/`) into sibling directories with a shared `plutus.json` reference path.
-12. **A scaffold isn't done until it builds.** The final step of scaffolding is verifying `aiken check && aiken build` produces `plutus.json` and `npm install && npm run typecheck && npm run build` (or the language equivalent) completes with zero errors. If the developer says "just scaffold it" without verification, still run the build commands and report the result — silent broken scaffolds waste hours downstream.
+1. **The requested application is authoritative.** Generate useful wiring, then
+   implement the requested validators, datum/redeemers, parameters, blueprint
+   consumers, transactions, tests, and documentation coherently.
+2. **Installed capability controls the plan.** Inspect the installed release,
+   help, and catalog. Never assume a remembered flag or catalog entry, and never
+   acquire or update Cardano Init implicitly, including through `npx`.
+3. **Preview once, generate once, adapt once.** Do not routinely build and test
+   a disposable stock gift-card project before replacing it.
+4. **Preserve generated constraints.** Keep dependency constraints, compiler/SDK
+   choices, environment conventions, and lockfiles. Never silently select latest
+   versions or substitute a toolchain to repair a conflict.
+5. **Use ordinary host permissions.** The requested scaffold authorizes normal
+   generation, project dependency setup, build, and test operations. It does not
+   authorize permission changes, CLI acquisition, global installers, updates,
+   deployment, or chain transactions. Respect a denial.
+6. **Use the one context protocol.** Every requested initial scaffold and later
+   agent-driven Init operation enters `cardano-context` through its explicit
+   generator caller entrypoint. Do not copy that protocol here.
+7. **Completion means evidence.** All applicable components build and meaningful
+   non-E2E tests for the adapted behavior execute and pass. Exit status,
+   compilation alone, zero tests, skips, or unchanged stock tests are not proof.
 
 ## Workflow
 
-### Step 1: Pick a use case
-
-Drive the scaffolding by what the contract does, not by the stack. Ask the developer to pick from one of the reference use cases or describe their own.
-
-The 5 curated use cases have hand-reviewed implementations across on-chain Aiken and all four off-chain stacks:
-
-- **simple-transfer** — plain spend validator that only releases funds to a designated recipient
-- **vesting** — time-locked funds with an owner clawback and a beneficiary withdrawal past the deadline
-- **escrow** — funds locked by a buyer, released by mutual agreement or arbitration
-- **token-transfer** — native-token movement under a spend validator (not bare ADA)
-- **htlc** — Hashed Time-Locked Contract; redeem-with-preimage or refund-after-deadline
-
-The other 16 use cases (bet, auction, crowdfund, vault, storage, simple-wallet, pricebet, payment-splitter, lottery, constant-product-amm, upgradable-proxy, factory, decentralized-identity, editable-nft, anonymous-data, atomic-transaction) ship an Aiken validator and, for most, off-chain code in all four stacks upstream, which has not been hand-reviewed here; the Evolution code uses the older `@evolution-sdk/lucid` package and needs porting. constant-product-amm and editable-nft ship only a Scalus full-stack version.
-
-For full descriptions and source-code paths see `references/use-cases.md`. For an end-to-end flagship walkthrough of vesting (the recommended first project) see `references/vesting-walkthrough.md`.
-
-If the developer's case doesn't match any entry, treat it as a custom use case: read the closest upstream Aiken validator under `../../docs/sources/cardano-use-case-templates/<name>/onchain/aiken/` as a structural model and generalise from there.
-
-### Step 2: Pick the stack
-
-Map the team's primary language and constraints to one of four stacks. Use this short decision matrix; for more depth see `references/stack-decision.md` and hand off to `suggest-tooling` if the developer wants a broader tour.
-
-| Stack | On-chain | Off-chain | Pick when |
-|---|---|---|---|
-| 1 | Aiken | Evolution SDK | TypeScript team, want a pure-JS toolchain with composable types |
-| 2 | Aiken | Mesh SDK | TypeScript team, want the broadest tutorial coverage |
-| 3 | Aiken | PyCardano | Python backend, data team, scripting-heavy |
-| 4 | Aiken | cardano-client-lib | Java/Kotlin team, JVM ecosystem |
-
-For a wallet-connected dApp with no custom validator yet, the developer portal's starters are a ready alternative to this scaffold: `evolution-vite-react` (stack 1, Vite + React) and `mesh-nextjs` (stack 2, Next.js), each keeping the Blockfrost key on the server. Their READMEs are under `../../docs/sources/developer-portal-templates/`.
-
-Search the bundled docs for SDK details:
-
-- `../../docs/sources/aiken/` — Aiken language docs
-- `../../docs/sources/aiken-stdlib/` — Aiken standard library
-- `../../docs/sources/evolution-sdk/` — Evolution SDK docs
-- `../../docs/sources/mesh-sdk/` — Mesh SDK docs
-- `../../docs/sources/pycardano/` — PyCardano docs
-- `../../docs/sources/cardano-client-lib/` — cardano-client-lib docs
-- `../../docs/sources/developer-portal-templates/` — READMEs of the portal's runnable starters
-
-### Step 3: Pick a network
-
-Before scaffolding the layout, settle which network the project targets first. The choice changes `.env.example`, the off-chain provider initialisation, and the faucet URL.
-
-| Network | Best for | Trade-off |
-|---|---|---|
-| **Yaci DevKit** (recommended default) | Learning, fast iteration, isolated testing | Instant finality; differs from mainnet behaviour around eras and slot timing |
-| **Preview testnet** | Pre-mainnet integration testing | Slower than devnet (~20s blocks); shared state |
-| **Preprod testnet** | Pre-production rehearsal | Mirrors mainnet parameters most closely |
-| **Mainnet** | Production deployment only | Real funds — see guardrail below |
-
-Mainnet guardrail. If the developer asks to scaffold with mainnet as the active network, stop and warn explicitly: scaffolded "hello world" validators must not be deployed to mainnet — bugs in untested code can lock real funds permanently. Default to a testnet. Only proceed with mainnet after the developer has explicitly acknowledged the warning, and even then, set the project's default `CARDANO_NETWORK` env to a testnet so a misconfigured run never accidentally lands on mainnet.
-
-For Yaci DevKit launch details, hand off to `setup-devnet`. Faucets for preview and preprod live at https://docs.cardano.org/cardano-testnets/tools/faucet (the selector on the page picks preview vs preprod).
-
-### Step 4: Include a frontend? (Recommended)
-
-Default is yes. Ask the developer if they want to opt out.
-
-When a frontend is included, scaffold a sibling Next.js App Router application that:
-
-- Uses Mesh or Evolution for wallet integration (CIP-30) and chain queries via Blockfrost
-- Reaches Blockfrost through a Next.js route handler that holds the project ID, independent of any Python or Java backend
-- For TS stacks (1 and 2), lives in the same monorepo as the off-chain code and shares types
-- For Python (stack 3) and Java (stack 4), is a separate Next.js app that uses the same on-chain blueprint (`plutus.json`) but does its own tx building client-side
-
-When a frontend is excluded, the scaffold is backend-only (Aiken + the chosen off-chain SDK).
-
-In all cases, hand off to `connect-wallet` for the actual CIP-30 wallet integration content. Do not duplicate it here.
-
-### Step 5: Choose the layout shape
-
-Two shapes are supported. Pick once; do not mix.
-
-**Single-repo (flat).** Use when: solo developer, prototyping, a library, or contract-only project. Everything sits at the repo root: `aiken.toml`, `validators/`, and the off-chain code in a language-appropriate location.
-
-**Monorepo (split).** Use when: full-stack product, more than one developer, on-chain and off-chain evolve at different speeds. Sibling top-level directories:
-
-```
-my-project/
-├── onchain/        # Aiken project, emits plutus.json
-├── offchain/       # SDK code, consumes plutus.json
-└── frontend/       # Optional Next.js app; only if Step 4 = yes
-```
-
-If the developer says "I prefer single-repo," respect that override even when the project looks like it wants a monorepo. Document the trade-off briefly: single-repo is simpler now but harder to split later.
-
-### Step 6: Print the canonical directory tree
-
-Pick the matching reference file for the chosen stack and the chosen shape, and print the tree as a code block for the developer to materialize:
-
-- Stack 1 (Aiken + Evolution SDK): `references/layout-aiken-evolution.md`
-- Stack 2 (Aiken + Mesh SDK): `references/layout-aiken-mesh.md`
-- Stack 3 (Aiken + PyCardano): `references/layout-aiken-pycardano.md`
-- Stack 4 (Aiken + cardano-client-lib): `references/layout-aiken-cclib.md`
-
-Each reference shows both single-repo and monorepo variants, plus the optional frontend layout. Use the variants matching Steps 4 and 5.
-
-Frame the output as "Generate the following structure" followed by the tree and then individual file contents. Do not invoke a writing tool from inside this skill.
-
-### Step 7: Print the canonical config files
-
-Read `references/config-templates.md` and emit the templates relevant to the chosen stack and network:
-
-- `aiken.toml` — on-chain manifest (all stacks)
-- `.gitignore` — shared patterns plus stack-specific entries
-- `.env.example` — network-specific placeholders, Blockfrost project ID, faucet pointer, devnet URL
-- Stack 1, 2: `package.json` + `tsconfig.json`
-- Stack 3: `pyproject.toml`
-- Stack 4: `pom.xml`
-
-Each emitted file preserves inline annotations (`#` or `//` comments) explaining each field. The annotations are part of the deliverable; they tell the developer what each line does so they can adapt it.
-
-Versions follow the two-tier pinning policy (Key principle 10):
-
-- **Aiken-side (`aiken.toml`):** paste the pinned values from the layout file directly. They are current and update with each skill revision. `aiken new` writes most of these for you.
-- **Off-chain (`package.json`, `pyproject.toml`, `pom.xml`):** before writing the manifest, run `npm view <pkg> version` (or `pip index versions <pkg>`, or look up Maven Central for cclib) for each direct dep, and write it exactly for SDKs, pre-1.0 packages and Next.js, or as a `^` range for the rest (Key principle 9). The layout file shows defaults that are current-at-time-of-writing; refresh them. Do not write version placeholders.
-
-### Step 8: Wire up the local devnet
-
-Yaci DevKit is the default local network. Do not duplicate setup details here; point the developer at the `setup-devnet` skill for installation, configuration, and pre-funded wallet handling.
-
-What this skill provides in the scaffold:
-
-- `.env.example` includes a `CARDANO_NETWORK` toggle (defaults to a testnet) and a `YACI_STORE_URL=http://localhost:8080` entry
-- The off-chain SDK initialisation snippet reads these env vars and selects the provider accordingly
-- A `scripts/dev-up.sh` (or equivalent) that launches Yaci DevKit; the script body is one line and points to the `setup-devnet` skill for the full command
-- The off-chain code defaults to a testnet on startup; never to mainnet
-
-Then hand off to `setup-devnet` for the actual launch.
-
-### Step 9: Print starter validator + first-transaction skeletons, then hand off
-
-End the scaffold with the starter on-chain and off-chain code for the use case picked in Step 1.
-
-1. **Starter validator.** For a curated use case (simple-transfer, vesting, escrow, token-transfer, htlc), use the upstream Aiken validator from `../../docs/sources/cardano-use-case-templates/<name>/onchain/aiken/validators/` as the starting point. For an agent-generated use case, use the closest upstream validator as a model. For a fully custom case, fall back to the trivial "always succeeds when signed by the datum's owner" validator under each layout reference. After printing, hand off to `write-validator` for real business logic.
-
-2. **First transaction.** A minimal off-chain script in the chosen SDK that: loads the `plutus.json` blueprint, builds a transaction that exercises the validator (lock for vesting/escrow/HTLC; transfer for simple-transfer; etc.), signs it with the dev key, submits it, and prints the resulting tx hash. The exact code lives in the stack's layout reference and (for vesting) in `references/vesting-walkthrough.md`. After printing, hand off to `build-transaction` for richer transaction logic.
-
-If the developer enabled a frontend in Step 4, also note: "For the wallet-connect path see `connect-wallet`."
-
-### Step 10: Verify the scaffold builds
-
-Do not call the scaffold done until the project actually builds. This step exists because broken scaffolds eat hours downstream.
-
-Run, in order:
-
-```bash
-cd onchain
-aiken check                   # compiles AND runs unit tests; both must pass
-aiken build                   # produces plutus.json
-
-cd ../offchain
-npm install                   # or pip install -e .  / mvn install — stack-dependent
-npm run typecheck             # or mypy / mvn compile
-npm run build                 # or python -m build / mvn package
-```
-
-A working scaffold reaches the end with zero errors. If anything fails:
-
-1. **Aiken side fails (`aiken check`):** verify `aiken.toml` lists the right dependency pins (compare against the stack's layout reference). Check that `validators/*.ak` imports resolve — most common cause is missing the `sidan-lab/vodka` dep when copying a CF use-case validator.
-2. **`npm install` fails on `EEXISTS`/peer-deps:** the version pinned in the layout reference is stale. Re-run `npm view <pkg> version` and update.
-3. **`npm run typecheck` fails on unknown identifiers:** the off-chain SDK had a breaking change. Search `../../docs/sources/<sdk>/` for the current API signatures and adjust the starter snippet.
-4. **Anything else:** read the error, identify the affected file, edit, re-run. Don't ship a scaffold that didn't build.
-
-Report the final state to the developer plainly: "Scaffold built successfully. Run `npm run <use-case>` to exercise it end-to-end against Yaci DevKit (see `setup-devnet`)." Or, if something is still failing, explain what and why before handing off.
-
-## On-chain / off-chain bridge
-
-Aiken emits CIP-57 `plutus.json` as part of `aiken build`. This is the single source of truth that bridges on-chain and off-chain code. Every off-chain SDK in the v1 stack matrix can load this file directly:
-
-- Evolution SDK: `new PlutusV3.PlutusV3({ bytes: Bytes.fromHex(compiledCode) })`, with the address from `ScriptHash.fromScript`
-- Mesh SDK: `applyParamsToScript` and `serializePlutusScript` consume the compiled CBOR
-- PyCardano: reads `plutus.json` and constructs `PlutusV3Script` from the CBOR
-- cardano-client-lib: parses `plutus.json` via `PlutusBlueprintLoader` + `PlutusBlueprintUtil`
-
-In every stack layout reference, the off-chain starter snippet shows the exact load pattern. The pattern is the same shape across all four: open the file, pick the named validator, hand the CBOR to the SDK. The developer never copies a script hash by hand.
-
-## Security defaults baked into the scaffold
-
-These defaults are non-negotiable. The scaffold prints them; do not let a developer talk you into removing them.
-
-- `.env` is in `.gitignore` from the first commit
-- `.env.example` ships placeholder values only; no real keys
-- Provider API keys read from env vars at runtime; never embedded in code
-- A testnet (devnet, preview, or preprod) is the default network; mainnet requires an explicit env var change and an acknowledged warning
-- Test keys generated by Yaci DevKit are clearly marked as dev-only and live in a `.keys/` directory that is also gitignored
-- Lockfiles are committed: `package-lock.json` / `pnpm-lock.yaml`, `poetry.lock`, Maven dependency tree pinned via `<dependencyManagement>`
+### 1. Resolve the intended result
+
+Establish, from the request or one concise question:
+
+- application behavior and important accept/reject invariants;
+- on-chain and off-chain choices, infrastructure/devnet roles, and network;
+- whether a UI is wanted and which supported role provides it;
+- destination and flat or split project shape; and
+- team-language, version, network, or other execution constraints.
+
+Use `suggest-tooling` for a comparative recommendation, then return here. A
+default is a proposal, never a silent replacement for an explicit stack. Start
+on a devnet or public testnet; warn and obtain acknowledgement before mainnet-
+oriented configuration, and never deploy during scaffolding.
+
+The use-case and layout references remain useful for requirements and manual
+fallbacks. They do not override a generator's emitted layout, paths, or versions.
+
+### 2. Discover the installed Cardano Init interface
+
+Determine whether `cardano-init` is already executable. If it is, inspect:
+
+1. its exact release identity;
+2. top-level and relevant command help; and
+3. its machine-readable catalog and human matrix when supported.
+
+Use only flags shown by that installed release. Prefer unattended or JSON
+discovery with its update check disabled where supported; an update notice is
+information, never authority to upgrade. The compatibility reference records
+one observed Linux x86_64 v0.4.1 profile and older source-derived surfaces, but
+the installed interface controls the invocation.
+
+If the CLI is absent, unavailable, or denied, identify the exact limitation.
+Offer a user-run setup route or Step 9's manual path. Do not download it, invoke
+a bootstrap package command, widen permissions, or claim generation occurred.
+
+### 3. Validate the selection against the actual catalog
+
+Map requested roles to actual catalog identifiers without changing technology.
+Distinguish an integration from the underlying tool.
+
+- A supported but runtime-unverified release or selection gets a warning and a
+  choice: proceed after explicit confirmation or use the manual path.
+- For an entry this release marks experimental, explain what is experimental,
+  suggest a suitable stable alternative when one exists, and ask explicitly.
+  Combine this with preview confirmation when practical; do not ask again for
+  the same unchanged approved selection.
+- A placeholder, role mismatch, actual incompatibility, or unsupported command
+  stops the generated path. Consent does not make it working support.
+- For an unsupported stack, offer manual setup preserving it or a clearly named
+  supported alternative. Never switch silently.
+
+### 4. Preflight the target and context, then preview
+
+Treat names and paths as data, never shell fragments. Resolve and inspect the
+destination. Initial generation requires an empty/nonexistent target; refuse a
+nonempty one rather than forcing it. For later operations, report dirty state and
+keep the clean-tree prerequisite; never make a hidden commit or alter unrelated
+files to satisfy it.
+
+Before any generator write, invoke the explicit generator caller entrypoint in
+`cardano-context` and follow
+[`generator-context.md`](../cardano-context/references/generator-context.md).
+It owns origin-baseline discovery, predicted writes, symlinks, private outside-
+project recovery, three-way instruction merges, uncertainty questions, and
+partial-write recovery. Do not duplicate it. Exclude secrets, keys, environment
+files, dependencies, build output, Git metadata, and outside-project symlink
+targets from recovery material.
+
+Show one supported nonwriting preview. Summarize exact release, selection,
+destination, affected roles/files, experimental or unverified boundaries,
+dependency/network effects, and normal initial Git behavior. The requested
+scaffold authorizes the ordinary plan; ask here only for the confirmations or
+ambiguities identified above.
+
+### 5. Generate once and inspect the result
+
+Run the previewed generator command once under ordinary permissions. Do not add
+update, force, dirty-bypass, or implicit-acquisition options. Keep Cardano Init's
+`.env`/ignore conventions and normal initial Git attempt; do not independently
+stage or commit environment edits.
+
+Record actual output, errors, selection, and Git outcome. On failure, retain
+partial output and bounded diagnostics. Retry only a straightforward in-scope
+repair. Never blindly restart, force, restore a stale tree/file, or discard
+ambiguous work. Follow the canonical recovery rules and ask when ownership or
+safe reconciliation is unclear.
+
+Inspect manifests, lockfiles, scripts, instructions, component and blueprint
+paths, and dependency constraints before adapting. Do not paste manual layout or
+configuration templates over generated files.
+
+### 6. Install or update canonical project context
+
+After a safe post-generator baseline exists, run Steps 1–6 of `cardano-context`
+exactly once. Reuse a bare generated import when the canonical algorithm says it
+already loads `AGENTS.md`; do not add duplicate blocks, imports, adapters, or
+parallel host copies.
+
+Keep its asks for edited, ambiguous, malformed, newer, same-file, and symlink
+cases. Report context and recovery status without claiming file shape proves an
+installed agent loaded it.
+
+### 7. Adapt the generated application
+
+Implement requested behavior across every affected boundary:
+
+- validator parameters, datum/redeemer types, authorization, and value/time rules;
+- positive paths and relevant rejection cases;
+- CIP-57 names, purpose suffixes, parameter application, loaders, and paths;
+- off-chain transactions and any selected UI/backend boundary;
+- meaningful unit/property tests and project documentation; and
+- required non-secret endpoints or network configuration.
+
+Replace gift-card-specific logic and tests when the application is not a gift
+card. Use `write-validator`, `build-transaction`, and `connect-wallet` as needed
+inside this workflow; they refine implementation rather than ending it early.
+
+Resolve APIs within generated constraints and retain lockfiles. Do not refresh
+versions, replace SDK/compiler, force peer dependencies, or hide/require a
+lockfile commit. Ask when an application requirement conflicts with a generated
+constraint. Keep secrets in the generated ignored/local boundary and do not
+independently stage later environment edits.
+
+### 8. Build and run meaningful non-E2E tests
+
+Inspect generated scripts and each role's targets first. Do not trust an
+aggregate `test` or `dev` target until it cannot launch containers, persistent
+processes, a devnet, deployment, or live-chain integration. Selecting Yaci is
+fine; starting it is not required.
+
+Build every applicable component and run focused non-E2E tests for the adapted
+result. Map expected behavior and rejection cases to assertions. Require present
+reports, positive relevant counts, no failures, and no skipped required cases.
+Test files and counts come from the adapted project, not stock gift-card numbers.
+
+For Aiken, distinguish `aiken build` from `aiken check`: build produces the
+blueprint but does not prove tests ran. Inspect the noninteractive check report,
+require a positive count and zero failures, and diagnose an empty report as a
+compile failure. A filter matching zero tests fails. For the witnessed Aiken /
+Evolution profile, use the focused sequence and false-green guards in
+[`cardano-init-compatibility.md`](references/cardano-init-compatibility.md),
+adjusted to the actual adapted test file and ABI; never blindly use its aggregate
+off-chain target.
+
+Compile-only, address derivation alone, `assert true`, deleted tests, unchanged
+gift-card-only tests, or a placeholder blueprint is not application evidence.
+App launch, debugging, deployment, and chain E2E are follow-on work.
+
+### 9. Manual best-effort path
+
+When generation is unavailable or declined, preserve the requested stack or use
+an alternative the developer explicitly chooses. Use the closest use-case,
+layout, configuration, and walkthrough references below as guidance, but verify
+version-sensitive APIs against bundled sources and actual tools. Do not present
+reference defaults as current installed versions.
+
+The manual result follows the same context, dependency, secret, build, and
+meaningful non-E2E standards. If tools or dependency access prevent completion,
+report the exact evidence gap instead of calling the scaffold successful.
+
+### 10. Report observed completion
+
+Report:
+
+- generator release/selection or manual path, destination, and actual outcome;
+- requested logic and stock example material retained or replaced;
+- constraints and lockfiles retained, plus any deliberate conflict;
+- context statuses, preserved material, recovery location, and Git state;
+- exact build/test commands, component results, test files and positive counts;
+- unrun E2E, runtime, deployment, network, or host-loading scope; and
+- remaining failures or evidence gaps.
+
+Do not say "built successfully" unless all applicable builds and meaningful
+adapted non-E2E tests passed.
 
 ## References
 
-- `references/use-cases.md` — the reference use cases, curated vs agent-generated, with source-code pointers
-- `references/vesting-walkthrough.md` — flagship end-to-end walkthrough across all four off-chain stacks, plus the frontend story; includes a full PyCardano implementation
-- `references/stack-decision.md` — decision aid for picking one of the four stacks; brief notes on deferred stacks and why they are not v1 defaults
-- `references/config-templates.md` — annotated `aiken.toml`, `package.json`, `pyproject.toml`, `pom.xml`, `.gitignore`, `.env.example` (with per-network Blockfrost / faucet guidance)
-- `references/layout-aiken-evolution.md` — stack 1: Aiken + Evolution SDK directory tree, skeletons, optional Next.js frontend
-- `references/layout-aiken-mesh.md` — stack 2: Aiken + Mesh SDK directory tree, skeletons, optional Next.js frontend
-- `references/layout-aiken-pycardano.md` — stack 3: Aiken + PyCardano directory tree, skeletons, optional sibling Next.js frontend
-- `references/layout-aiken-cclib.md` — stack 4: Aiken + cardano-client-lib directory tree, skeletons, optional sibling Next.js frontend
-- Hand off to `setup-devnet` for Yaci DevKit launch and configuration
-- Hand off to `suggest-tooling` for deeper SDK and language trade-off discussion
-- Hand off to `write-validator` for real on-chain logic
-- Hand off to `build-transaction` for real transaction-building logic
-- Hand off to `connect-wallet` for a Next.js / React frontend with wallet integration
+- [`references/cardano-init-compatibility.md`](references/cardano-init-compatibility.md) — observed CLI profile, source boundaries, generated effects, and false-green traps
+- [`references/use-cases.md`](references/use-cases.md) — application ideas and source pointers
+- [`references/stack-decision.md`](references/stack-decision.md) — manual stack decision aid
+- [`references/config-templates.md`](references/config-templates.md) — manual configuration examples
+- `references/layout-aiken-evolution.md`, `references/layout-aiken-mesh.md`, `references/layout-aiken-pycardano.md`, `references/layout-aiken-cclib.md` — manual layout examples only
+- [`references/vesting-walkthrough.md`](references/vesting-walkthrough.md) — manual application example
+- [`../cardano-context/references/generator-context.md`](../cardano-context/references/generator-context.md) — canonical generator preservation and recovery entrypoint

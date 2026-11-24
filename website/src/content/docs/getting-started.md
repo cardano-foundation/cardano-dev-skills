@@ -108,6 +108,11 @@ What it does:
   the current version. Edits you made inside the block, a newer block, or
   broken markers are shown to you and asked about first; nothing outside the
   marked regions changes.
+- An explicitly requested scaffold or generator operation can call this
+  context protocol without a second setup question. It preserves proven
+  custom instructions around fresh generated facts and then uses the same
+  canonical setup flow. `scaffold-project` uses it for initial generation and
+  later requested Cardano Init operations.
 
 A project-local Claude skill may also appear as `/cardano-context`; the
 plugin-qualified form above avoids collisions with skills from other plugins.
@@ -137,7 +142,14 @@ Once installed, ask the agent something concrete that should match a skill:
 
 > *"Scaffold a new Cardano project with Aiken on-chain and Mesh SDK off-chain."*
 
-You should see the agent invoke the `scaffold-project` skill. If it doesn't,
+You should see the agent invoke `scaffold-project`, inspect an already installed
+Cardano Init release and catalog, and show a nonwriting preview before supported
+generation. It will not install or upgrade the CLI. After generation it adapts
+the requested application, applies canonical project context, and requires
+actual builds plus meaningful non-E2E tests. If Cardano Init is unavailable or
+does not support the stack, it offers user-run setup or a manual fallback.
+
+If the skill doesn't match automatically,
 nudge explicitly:
 
 > *"Use the scaffold-project skill from cardano-dev-skills."*

@@ -31,6 +31,8 @@ the two agents can never drift apart.
   and Codex.
 - A teammate cloned a project and wants to opt it into the shared directive.
 - The plugin was updated and the project still carries an older block.
+- A caller is carrying out a scaffold or generator operation the user
+  explicitly requested and invokes this skill's generator entrypoint.
 
 ## When NOT to use
 
@@ -67,6 +69,9 @@ the two agents can never drift apart.
    `<!-- BEGIN cardano-dev-skills ... -->` marker through its matching `END`
    marker, nothing else. Every byte outside those regions stays as it is.
    What the user edits after this skill writes is the user's responsibility.
+   In the generator entrypoint, apply this promise to the reconciled,
+   freshly generated baseline: generator-owned facts may deliberately replace
+   their obsolete predecessors before the canonical setup runs.
 3. **Automatic only when the result is certain.** Writing the block where none
    exists, replacing our own unedited older block, and leaving a current block
    alone happen without a question, and the report says what happened.
@@ -134,6 +139,20 @@ whitespace from each line. Any other difference, even one added line, makes it
 **edited**: treat the difference as the user's own instructions.
 
 ## Workflow
+
+### Explicit generator caller entrypoint
+
+When a user explicitly requests a scaffold or an agent-driven generator
+operation, its caller may invoke `cardano-context` as part of that operation.
+That invocation includes setup or update; report it, but do not ask the user a
+redundant question about enabling context. Ordinary Cardano development is not
+such an invocation and never triggers a context scan or maintenance pass.
+
+Before the generator can write, read and follow
+[references/generator-context.md](references/generator-context.md). After its
+preservation and merge procedure reaches a safe post-generator baseline, run
+Steps 1 through 6 below exactly once. Those steps remain the sole setup and
+upgrade algorithm; the generator procedure does not copy or replace them.
 
 Steps 1 to 4 only read. Do not change any file until Step 5, and change
 nothing at all if Step 4 asks the user a question; act on their answer in a
@@ -356,6 +375,9 @@ example `CLAUDE.md: moved to AGENTS.md, import added`. Then:
 
 - [references/previous-blocks.md](references/previous-blocks.md): every older
   block this skill has shipped, for telling unedited from edited.
+- [references/generator-context.md](references/generator-context.md): the
+  preservation, recovery, and merge protocol for an explicitly requested
+  scaffold or generator operation.
 - The repository's cross-agent contract is
   [docs/AGENT_COMPATIBILITY.md](../../docs/AGENT_COMPATIBILITY.md).
 - This skill reports the block's status when it runs; re-run it to check

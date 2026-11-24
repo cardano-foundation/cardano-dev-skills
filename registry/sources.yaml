@@ -577,6 +577,34 @@
     - "*/fullstack/scalus/*.scala"
   description: Generic blockchain use-case templates with Aiken validators, Mesh/Evolution/PyCardano/cardano-client-lib off-chain code, and Scalus full-stack versions. Foundation reference set.
 
+- name: Cardano Init
+  repo: https://github.com/input-output-hk/cardano-init.git
+  docs_path: docs
+  format: markdown
+  category: smart-contracts
+  priority: medium
+  glob_patterns:
+    - README.md
+    - SUMMARY.md
+    - contributing/adding-a-tool.md
+    - contributing/architecture.md
+    - contributing/release-testing.md
+    - design/prd.md
+    - design/roadmap.md
+    - design/tech-spec.md
+    - user-guide/agents.md
+    - user-guide/commands.md
+    - user-guide/ecosystem.md
+    - user-guide/generated-project.md
+    - user-guide/help.md
+    - user-guide/how-it-works.md
+    - user-guide/infrastructure.md
+    - user-guide/installation.md
+    - user-guide/quick-start.md
+    - user-guide/tools.md
+  description: Scaffolding for Cardano projects with connected on-chain, off-chain, local devnet, and infrastructure components
+  website: https://github.com/input-output-hk/cardano-init
+
 - name: CIP-113 Programmable Tokens
   repo: https://github.com/cardano-foundation/cip113-programmable-tokens.git
   docs_path: "."

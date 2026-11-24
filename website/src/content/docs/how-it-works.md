@@ -34,6 +34,11 @@ What it does:
   the current version. Edits you made inside the block, a newer block, or
   broken markers are shown to you and asked about first; nothing outside the
   marked regions changes.
+- An explicitly requested scaffold or generator operation can call this
+  context protocol without a second setup question. It preserves proven
+  custom instructions around fresh generated facts and then uses the same
+  canonical setup flow. `scaffold-project` uses this entrypoint for requested
+  initial generation and later Cardano Init operations.
 
 A project-local Claude skill may also appear as `/cardano-context`; the
 plugin-qualified form above avoids collisions with skills from other plugins.
@@ -54,6 +59,14 @@ question that matches, the agent auto-invokes that skill:
 The full skill catalogue lives at [/skills](/cardano-dev-skills/skills/).
 
 **Good at:** workflow-shaped prompts where the user names the task.
+
+For scaffolding, matching `scaffold-project` starts one shared workflow: inspect
+an already installed Cardano Init release and catalog, preview supported effects,
+generate once, reconcile canonical project context, adapt the requested logic,
+then build and run meaningful non-E2E tests. It does not acquire or update the
+CLI, bypass a dirty/nonempty target, silently change a stack/version, or require
+a devnet launch. Unsupported or denied generation has a manual best-effort path
+with the same honest verification standard.
 
 ## Public evidence under host permissions
 
